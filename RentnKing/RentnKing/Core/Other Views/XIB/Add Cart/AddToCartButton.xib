@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="22505" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" colorMatched="YES">
+    <device id="retina6_1" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="22504"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="AddToCartButton" customModule="RentnKing" customModuleProvider="target">
+            <connections>
+                <outlet property="addButton" destination="xNG-sX-r7B" id="kv8-ua-6zd"/>
+                <outlet property="contentView" destination="iN0-l3-epB" id="Gq5-eJ-MrC"/>
+                <outlet property="removeButton" destination="jH0-of-zMr" id="fzM-ih-jYr"/>
+                <outlet property="titleButton" destination="Nfz-Vr-cm4" id="PIy-d6-P1e"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="iN0-l3-epB">
+            <rect key="frame" x="0.0" y="0.0" width="72" height="24"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <stackView opaque="NO" contentMode="scaleToFill" distribution="fillEqually" alignment="center" translatesAutoresizingMaskIntoConstraints="NO" id="8V6-hF-rmL">
+                    <rect key="frame" x="0.0" y="0.0" width="72" height="24"/>
+                    <subviews>
+                        <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="jH0-of-zMr">
+                            <rect key="frame" x="0.0" y="0.0" width="24" height="24"/>
+                            <state key="normal" title="-"/>
+                            <connections>
+                                <action selector="removeButtonAction" destination="-1" eventType="touchUpInside" id="h7E-ij-NWg"/>
+                            </connections>
+                        </button>
+                        <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="Nfz-Vr-cm4">
+                            <rect key="frame" x="24" y="0.0" width="24" height="24"/>
+                        </button>
+                        <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="xNG-sX-r7B">
+                            <rect key="frame" x="48" y="0.0" width="24" height="24"/>
+                            <state key="normal" title="+"/>
+                            <connections>
+                                <action selector="addButtonAction" destination="-1" eventType="touchUpInside" id="eeV-jM-gno"/>
+                            </connections>
+                        </button>
+                    </subviews>
+                    <constraints>
+                        <constraint firstAttribute="bottom" secondItem="jH0-of-zMr" secondAttribute="bottom" id="JxE-Qc-xrx"/>
+                        <constraint firstItem="jH0-of-zMr" firstAttribute="top" secondItem="8V6-hF-rmL" secondAttribute="top" id="ReT-cU-7eb"/>
+                        <constraint firstItem="xNG-sX-r7B" firstAttribute="top" secondItem="8V6-hF-rmL" secondAttribute="top" id="a3C-b5-C9K"/>
+                        <constraint firstAttribute="bottom" secondItem="xNG-sX-r7B" secondAttribute="bottom" id="rfQ-Kv-j7g"/>
+                    </constraints>
+                </stackView>
+            </subviews>
+            <color key="backgroundColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <constraints>
+                <constraint firstAttribute="bottom" secondItem="8V6-hF-rmL" secondAttribute="bottom" id="IyT-Js-qML"/>
+                <constraint firstAttribute="trailing" secondItem="8V6-hF-rmL" secondAttribute="trailing" id="fC2-HD-b96"/>
+                <constraint firstItem="8V6-hF-rmL" firstAttribute="top" secondItem="iN0-l3-epB" secondAttribute="top" id="rXH-hM-rZs"/>
+                <constraint firstItem="8V6-hF-rmL" firstAttribute="leading" secondItem="iN0-l3-epB" secondAttribute="leading" id="uHG-yq-zQF"/>
+            </constraints>
+            <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <point key="canvasLocation" x="-54.347826086956523" y="-160.04464285714286"/>
+        </view>
+    </objects>
+</document>
