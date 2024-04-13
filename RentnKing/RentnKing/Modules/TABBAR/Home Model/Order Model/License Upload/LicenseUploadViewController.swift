@@ -149,7 +149,37 @@ extension LicenseUploadViewController {
         }
         else{
             //CALL API
+            
+//            if self.saveImage(image: self.imgFront.image ?? UIImage(), orderID: self.strOrderID, imgName: "front"){
+//                print("save")
+//                
+//                if self.saveImage(image: self.imgBack.image ?? UIImage(), orderID: self.strOrderID, imgName: "back"){
+//                 
+////                    showAlertMessage(strMessage: "Upload license update successfully")
+////                    self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: dicData)
+////
+////                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+////                        self.navigationController?.popViewController(animated: true)
+////                    }
+//
+//                }
+//            }
             callLicenseUploadAPI(LicenseParameater: LicenseParameater(order_id: self.strOrderID))
+        }
+    }
+    
+    
+    func saveImage(image: UIImage, orderID : String, imgName : String) -> Bool {
+        guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
+            return false
+        }
+      
+        do {
+            try data.write(to: LicenseUploadDirectory.appendingPathComponent("\(orderID)_\(imgName).png"))
+            return true
+        } catch {
+            print(error.localizedDescription)
+            return false
         }
     }
 }

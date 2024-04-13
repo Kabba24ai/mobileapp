@@ -10,12 +10,22 @@ class UIBarButtonItemWithClouser: UIBarButtonItem {
 
     private var actionHandler: (() -> Void)?
     private var actionHandler2: ((_ SelectTag : Int) -> Void)?
-    private var actionHandler3: ((_ sender : UIButton) -> Void)?
+    private var actionHandler3: ((_ sender : UIBarButtonItem, _ SelectTag : Int) -> Void)?
 
     
     private let lblBadge = UILabel()
     public func setBadge(with value: Int) {
         self.badgeValue = value
+    }
+    
+    public func setFilter(isFilter : Bool) {
+        if isFilter {
+            lblBadge.isHidden = false
+            lblBadge.text = ""
+        }
+        else{
+            lblBadge.isHidden = true
+        }
     }
 
     private var badgeValue: Int? {
@@ -29,6 +39,7 @@ class UIBarButtonItemWithClouser: UIBarButtonItem {
             }
         }
     }
+
 
     
     convenience init(title: String?, style: UIBarButtonItem.Style, actionHandler: (() -> Void)?) {
@@ -88,7 +99,7 @@ class UIBarButtonItemWithClouser: UIBarButtonItem {
         self.actionHandler2 = actionHandler2
     }
     
-    convenience init(button: UIButton, actionHandler2: ((_ sender : UIButton) -> Void)?) {
+    convenience init(button: UIButton, actionHandler3: ((_ sender : UIBarButtonItem, _ SelectTag : Int) -> Void)?) {
         self.init(customView: button)
         self.tag = button.tag
         
@@ -106,7 +117,7 @@ class UIBarButtonItemWithClouser: UIBarButtonItem {
         
         
         button.addTarget(self, action: #selector(barButtonItemPressed(sender:)), for: .touchUpInside)
-        self.actionHandler3 = actionHandler2
+        self.actionHandler3 = actionHandler3
     }
     
     convenience init(view: UIView, actionHandler2: ((_ SelectTag : Int) -> Void)?) {
@@ -142,6 +153,9 @@ class UIBarButtonItemWithClouser: UIBarButtonItem {
         }
         else if let actionHandler = self.actionHandler2{
             actionHandler(self.tag)
+        }
+        else if let actionHandler = self.actionHandler3{
+            actionHandler(sender, self.tag)
         }
     }
 }

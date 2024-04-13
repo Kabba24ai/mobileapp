@@ -9,11 +9,26 @@ import Foundation
 import ObjectMapper
 import UIKit
 
+struct Product: Mappable{
+    internal var id: Int?
+    internal var use_global:Bool?
+    
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        id <- map["id"]
+        use_global <- map["use_global"]
+    }
+}
 
 
 struct ProductModel: Mappable{
     internal var id: Int?
     internal var product_id: Int?
+    internal var objProduct: Product?
+    internal var storeAdderss: StoreModel?
     internal var name: String?
     internal var product_name: String?
     internal var price: Float?
@@ -47,6 +62,8 @@ struct ProductModel: Mappable{
     mutating func mapping(map:Map){
         id <- map["id"]
         product_id <- map["product_id"]
+        objProduct <- map["product"]
+        storeAdderss <- map["store"]
         name <- map["name"]
         product_name <- map["product_name"]
         image <- map["image"]
@@ -170,6 +187,35 @@ extension ProductListViewController :WebServiceHelperDelegate{
         webHelper.callAPI()
     }
     
+    struct ProductSearchParameater: Codable {
+        var product_search : String
+    }
+    
+    func getProductSearchList(ProductSearchParameater : ProductSearchParameater){
+        
+        guard let parameater = try? ProductSearchParameater.asDictionary() else {
+            showAlertMessage(strMessage: str.invalidRequestParamater)
+            return
+        }
+        
+        //Declaration URL
+        let strURL = "\(Url.searchProducts.absoluteString!)"
+        
+       
+        //Create object for webservicehelper and start to call method
+        let webHelper = WebServiceHelper()
+        webHelper.strMethodName = "searchProducts"
+        webHelper.methodType = "post"
+        webHelper.strURL = strURL
+        webHelper.dictType = parameater
+        webHelper.dictHeader = NSDictionary()
+        webHelper.delegateWeb = self
+        webHelper.showLogForCallingAPI = true
+        webHelper.serviceWithAlert = true
+        webHelper.indicatorShowOrHide = false
+        webHelper.callAPI()
+    }
+    
    
     
     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
@@ -178,9 +224,10 @@ extension ProductListViewController :WebServiceHelperDelegate{
 
         let arrKey  = data.allKeys as [AnyObject]
         if (arrKey.firstIndex(where: { $0 as! String == "error" }) == nil){
-            print(data)
-            if strRequest == "categoryProducts"{
-                if data.getStringForID(key: "success") == "1"{
+//            print(data)
+            if data.getStringForID(key: "success") == "1"{
+
+                if strRequest == "categoryProducts"{
                     if let objData = data["data"] as? NSDictionary{
                         if let objProduct = objData["products"] as? NSDictionary{
                             if let arrData = objProduct["data"] as? NSArray{
@@ -208,15 +255,33 @@ extension ProductListViewController :WebServiceHelperDelegate{
 
                     }
                 }
-                else{
-                    //SET THE VIEW
-                    self.setTheView()
+                else if strRequest == "searchProducts"{
+                    if let arrData = data["data"] as? NSArray{
+                        self.arrProductList = []
+                        self.arrProductList = Mapper<ProductModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                        self.arrProductList = self.arrProductList.sorted(by: { $0.order ?? 0 < $1.order ?? 0})
 
-                    
-                    //NO DATA
-                    self.emptyDataView.isHidden = false
+                        //SET THE VIEW
+                        self.setTheView()
+
+                    }
+                    else{
+                        //SET THE VIEW
+                        self.setTheView()
+
+                    }
                 }
+
             }
+            else{
+                //SET THE VIEW
+                self.setTheView()
+
+                
+                //NO DATA
+                self.emptyDataView.isHidden = false
+            }
+
         }
         else{
             indicatorHide()

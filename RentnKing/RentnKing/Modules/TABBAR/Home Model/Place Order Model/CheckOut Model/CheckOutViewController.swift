@@ -8,6 +8,7 @@
 import UIKit
 
 class CheckOutViewController: UIViewController, UIGestureRecognizerDelegate, MenuProtocol, UIPopoverPresentationControllerDelegate, AleartDelegate {
+    
  
 
     //DECLARE VARIABLE
@@ -54,9 +55,11 @@ class CheckOutViewController: UIViewController, UIGestureRecognizerDelegate, Men
     //OTHER
     var isLoading : Bool = true
     var arrStates : [StatesModel] = []
-    
+    var customAmountTaxePrice : Double = 0.0
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        Checkout.shared.customeAmount = 0
 
         NotificationCenter.default.addObserver(self, selector: #selector(self.cartUpdated(notificatio:)), name: .cartUpdated, object: nil)
 
@@ -142,9 +145,27 @@ class CheckOutViewController: UIViewController, UIGestureRecognizerDelegate, Men
         }
     }
     
-    func SelectYes(section: Int, index: Int, amout: Double) {
+    func SelectYes(section: Int, index: Int, amout: Double, isTax: Bool) {
         Checkout.shared.customeAmount = amout
         
+        if isTax{
+        
+            if Checkout.shared.cart.count != 0{
+                let cartItem  = Checkout.shared.cart[0]
+                
+                //GET TAXE PRICE
+                var taxePercentage: Double = 0.0
+                for objTaxe in cartItem.product.arrTaxes{
+                    taxePercentage = taxePercentage + Double((objTaxe.percentage ?? 0.0))
+                }
+                
+                self.customAmountTaxePrice =  ((amout * taxePercentage)/100)
+
+            }
+            Checkout.shared.taxCharge = Checkout.shared.taxCharge + self.customAmountTaxePrice
+        }
+     
+
         //SET VIEW
         self.setFooter()
     }
@@ -225,12 +246,12 @@ extension CheckOutViewController {
 extension CheckOutViewController{
     @IBAction func btnRemoveCustomAmountClicked(_ sender: UIButton) {
         Checkout.shared.customeAmount = 0.0
-        
+        Checkout.shared.taxCharge = Checkout.shared.taxCharge - self.customAmountTaxePrice
+
         //SET FONT
         self.setFooter()
     }
 }
-
 
 //MARK: -- UITABEL CELL --
 class CartListCell : UITableViewCell{
@@ -258,6 +279,11 @@ class CartListCell : UITableViewCell{
     @IBOutlet weak var viewUpdate: UIView!
     @IBOutlet weak var btnUpdate: UIButton!
     
+    //STORE ADSRESS
+    @IBOutlet weak var imgStore: UIImageView!
+    @IBOutlet weak var lblStoreAddress: UILabel!
+    @IBOutlet weak var con_imgStore: NSLayoutConstraint!
+
 
     @IBOutlet weak var viewLine: UIView!
 
@@ -277,8 +303,8 @@ class CartListCell : UITableViewCell{
             lblOptions,
             lblOptionsPrice,
             lblOptionsValues,
-            objButtons
-            
+//            imgStore,
+//            lblStoreAddress
         ]
     }
 }

@@ -203,7 +203,7 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
     func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
         indicatorHide()
         self.setTheView()
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID), isLoading: true)
+        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: ""), isLoading: true)
 
         showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }

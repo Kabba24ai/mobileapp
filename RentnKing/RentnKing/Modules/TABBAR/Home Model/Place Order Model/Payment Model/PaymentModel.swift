@@ -113,12 +113,14 @@ extension PaymentViewController :WebServiceHelperDelegate{
             }
             else if strRequest == "placeORder"{
                 //MOVE TO  SCREEN
-                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
-                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderSuccessViewController") as? OrderSuccessViewController{
-                    newViewController.signUrl = data.getStringForID(key: "signUrl")
-                    self.navigationController?.pushViewController(newViewController, animated: true)
+                if let dicData = data["data"] as? NSDictionary{
+                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
+                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderSuccessViewController") as? OrderSuccessViewController{
+                        newViewController.signUrl = data.getStringForID(key: "signUrl")
+                        newViewController.orderID = dicData.getStringForID(key: "id")
+                        self.navigationController?.pushViewController(newViewController, animated: true)
+                    }
                 }
-                
             }
         }
         else{

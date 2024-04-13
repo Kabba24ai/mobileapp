@@ -12,6 +12,7 @@ import ObjectMapper
 
 struct OrdersDetailsParameater: Codable {
     var order_id : String
+    var product_id : String
 }
 
 extension MachineHoursViewController :WebServiceHelperDelegate{
@@ -90,6 +91,10 @@ extension MachineHoursViewController :WebServiceHelperDelegate{
                 }
             }
             else if strRequest == "machineHours"{
+                if self.selectIndex != -1{
+                    self.delegate?.UpdateMachinHours(selectIndex: self.selectIndex, arrUpdateMachinHours: self.objOrderData.arrMachineHours)
+                }
+                
                 showAlertMessage(strMessage: "Machine Hours update successfully")
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){

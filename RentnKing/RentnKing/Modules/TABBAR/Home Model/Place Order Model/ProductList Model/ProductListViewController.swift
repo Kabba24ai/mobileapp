@@ -11,6 +11,10 @@ class ProductListViewController: UIViewController, UIGestureRecognizerDelegate {
 
     //DECLARE VARIABLE
     @IBOutlet weak var tblView: UITableView!
+    @IBOutlet weak var viewSearch: UIView!
+    @IBOutlet weak var imgSearch: UIImageView!
+    @IBOutlet weak var txtSearch: UITextField!
+    @IBOutlet weak var con_Search: NSLayoutConstraint!
     @IBOutlet var emptyDataView : EmptyDataView!{
         didSet{
             emptyDataView.noDataFound()
@@ -26,6 +30,7 @@ class ProductListViewController: UIViewController, UIGestureRecognizerDelegate {
     var objCategory : CategoryModel!
     
     var arrProductList : [ProductModel] = []
+    var isSearch : Bool = false
     
     
     override func viewDidLoad() {
@@ -48,14 +53,8 @@ class ProductListViewController: UIViewController, UIGestureRecognizerDelegate {
         self.tabBarController?.tabBar.isHidden = true
         
         //SET NAVIGATION BAR
-//        setNavigationBarFor(controller: self, title: "", isTransperent: true, hideShadowImage: true, leftIcon: "", rightIcon: "", isDetailsScree: true) {
-//            <#code#>
-//        } rightActionHandler: {
-//            <#code#>
-//        }
-
         
-        setNavigationBarFor(controller: self, title: self.objCategory.name ?? "", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "icon_cart_shopping", isDetailsScree: true) {
+        setNavigationBarFor(controller: self, title: self.isSearch ? str.strSearchProduct : self.objCategory.name ?? "", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "icon_cart_shopping", isDetailsScree: true) {
             
             //BACK SCREE
             self.navigationController?.popViewController(animated: true)
@@ -72,12 +71,29 @@ class ProductListViewController: UIViewController, UIGestureRecognizerDelegate {
         
         
         //GET DATA
-        self.getProductList(ProductParameater: ProductParameater(category_id: "\(self.objCategory.id ?? 0)") )
+        self.viewSearch.isHidden = true
+        self.con_Search.constant = 0
+        if self.isSearch == false{
+            self.getProductList(ProductParameater: ProductParameater(category_id: "\(self.objCategory.id ?? 0)") )
+        }
+        else{
+            //SET THE VIEW
+            self.setSearchView()
+        }
         
     }
     
     
     func setTheView(){
+      
+        //CHECK SEARCH
+        self.viewSearch.isHidden = true
+        self.con_Search.constant = 0
+        if self.isSearch {
+            self.viewSearch.isHidden = false
+            self.con_Search.constant = 40
+        }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
             //STOP LOADING
             self.stopLoading()
@@ -99,6 +115,64 @@ class ProductListViewController: UIViewController, UIGestureRecognizerDelegate {
         indicatorHide()
     }
 
+    
+    func setSearchView(){
+        
+        //SET THE VIEW
+        self.viewSearch.backgroundColor = .clear
+        self.viewSearch.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewSearch.viewCorneRadius(radius: 10.0, isRound: false)
+        imgColor(imgColor: self.imgSearch, colorHex: .secondary)
+        
+        self.txtSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSearch)
+        self.txtSearch.clearButtonMode = .whileEditing
+        self.txtSearch.text = ""
+        if let clearButton = txtSearch.value(forKey: "_clearButton") as? UIButton{
+            let templateImage =  clearButton.imageView?.image?.withRenderingMode(.alwaysTemplate)
+            // Set the template image copy as the button image
+            clearButton.setImage(templateImage, for: .normal)
+            // Finally, set the image color
+            clearButton.tintColor = .gray
+        }
+        
+        //SET SEARCH TEXT
+        self.txtSearch.becomeFirstResponder()
+        self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingChanged)
+        
+        //CHECK SEARCH
+        self.viewSearch.isHidden = true
+        self.con_Search.constant = 0
+        if self.isSearch {
+            self.viewSearch.isHidden = false
+            self.con_Search.constant = 40
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
+            //STOP LOADING
+            self.stopLoading()
+            self.isLoading = false
+            self.emptyDataView.isHidden = true
+       
+            //RELOAD DATA
+            self.tblView.reloadData()
+        }
+        
+    }
+    
+    // MARK: - UITEXTFIELD
+    @objc func textFieldDidChangeSearch() {
+    
+        let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        
+        if strSearch.count >= 3{
+            //GET  DATA
+            self.isLoading = true
+            self.arrProductList = []
+            self.tblView.reloadData()
+            self.getProductSearchList(ProductSearchParameater: ProductSearchParameater(product_search: strSearch))
+
+        }
+    }
 }
 
 

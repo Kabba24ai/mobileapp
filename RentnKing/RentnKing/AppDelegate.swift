@@ -8,9 +8,13 @@
 import UIKit
 import EventKit
 
+var pendingDelivertCount : Int = 0
+var pendingPickupCount : Int = 0
+var pastDelivertCount : Int = 0
+var pastPickupCount : Int = 0
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var window: UIWindow?
 
     let store = EKEventStore()
@@ -21,9 +25,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Override point for customization after application launch.
         setupKeyboard(true)
         
-        //EVENT
-        //self.eventAccess()
+        //CREATE FOLDER
+        createLicenseUploadFolder()
         
+        //Push Notification Register
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
+            (granted, error) in
+            if let error = error {
+                debugPrint("[AppDelegate] requestAuthorization error: \(error.localizedDescription)")
+                return
+            }
+            UNUserNotificationCenter.current().getNotificationSettings(completionHandler: { settings in
+                if settings.authorizationStatus != .authorized {
+                    return
+                }
+                DispatchQueue.main.async(execute: {
+                    UIApplication.shared.registerForRemoteNotifications()
+                })
+            })
+            //Parse errors and track state
+        }
+        application.registerForRemoteNotifications()
+        
+        
+        
+
+        self.getScheduleCount()
+        
+        //EVENT
+        //self.eventAccess(
         return true
     }
 
@@ -33,298 +64,61 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return self.orientationLock
     }
-
-
-
 }
 
 
 
 
-//MARK: - ADD CALENDER EVENT
-extension AppDelegate {
-    
-    func eventAccess(){
-        // 1
-        let eventStore = EKEventStore()
-        
-        // 2
-        switch EKEventStore.authorizationStatus(for: .event) {
-        case .authorized: break
-        case .denied: break
-        case .notDetermined:
-            // 3
-            if #available(iOS 17.0, *) {
-                eventStore.requestFullAccessToEvents { Status, error in
-                }
-            } else {
-                // Fallback on earlier versions
-                eventStore.requestAccess(to: .event) { (granted, error) in
-                }
 
+
+
+extension AppDelegate :WebServiceHelperDelegate{
+    func getScheduleCount(){
+
+        //Declaration URL
+        let strURL = "\(Url.scheduleListCound.absoluteString!)"
+        
+       
+        //Create object for webservicehelper and start to call method
+        let webHelper = WebServiceHelper()
+        webHelper.strMethodName = "scheduleListCound"
+        webHelper.methodType = "get"
+        webHelper.strURL = strURL
+        webHelper.dictType = [:]
+        webHelper.dictHeader = NSDictionary()
+        webHelper.delegateWeb = self
+        webHelper.showLogForCallingAPI = true
+        webHelper.serviceWithAlert = true
+        webHelper.indicatorShowOrHide = false
+        webHelper.callAPI()
+    }
+    
+   
+    
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+        indicatorHide()
+
+        if data.getStringForID(key: "success") == "1"{
+            print(data)
+            if strRequest == "scheduleListCound"{
+                if let dicData = data["data"] as? NSDictionary{
+                    pendingDelivertCount = Int(dicData.getStringForID(key: "pendingDeliveryCount")) ?? 0
+                    pendingPickupCount = Int(dicData.getStringForID(key: "pendingPickupCount")) ?? 0
+                    pastDelivertCount = Int(dicData.getStringForID(key: "pastPendingDeliveryCount")) ?? 0
+                    pastPickupCount = Int(dicData.getStringForID(key: "pastPendingPickupCount")) ?? 0
+                    NotificationCenter.default.post(name: .scheduleCount, object: nil)
+
+                    
+                    UIApplication.shared.applicationIconBadgeNumber = pendingDelivertCount + pendingPickupCount + pastDelivertCount + pastPickupCount
+                }
             }
-        default:
-            print("Case default")
         }
     }
-
     
-    func checkEventAccess() -> Bool{
-        switch EKEventStore.authorizationStatus(for: .event) {
-        case .authorized:
-            return true
-        case .denied:
-            return false
-        
-        default:
-            print("Case default")
-        }
-        return false
+    func appDataArraySuccess(_ arr: NSArray, request strRequest: String, index: Int) {
     }
     
-    func Event_Permission(){
-        let alert = UIAlertController(title: "Access to add event in calender permission.", message: "Open Settings -> SocrPro -> Calendars -> turn ON the switch.", preferredStyle: UIAlertController.Style.alert)
-        alert.addAction(UIAlertAction(title: "Open Settings",style: UIAlertAction.Style.default, handler: {(_: UIAlertAction!) in
-            
-            //MOVE TO SETTING
-            UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!, options: [:], completionHandler: nil)
-            
-        }))
-        
-        alert.addAction(UIAlertAction(title: "Cancel", style: UIAlertAction.Style.default, handler: { _ in
-            //Cancel Action
-        }))
-        
-        GlobalMainConstants.appDelegate?.window?.rootViewController?.present(alert, animated: true, completion: nil)
+    func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
     }
-
-
-//    func DepartureEvent(_ objData : ScheduleModal, isNew : Bool, completion: @escaping (_ isDone: Bool?) -> Void) {
-//        let store = EKEventStore()
-//        let event:EKEvent = EKEvent(eventStore: store)
-//        let startTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.departure_time ?? "")")
-//        let endTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.arrival_time ?? "")")
-//
-//        if startTime == "" || endTime == ""{
-//            completion(true)
-//            return
-//        }
-//
-//        event.title = "\(objData.title ?? "") - Departure"
-//        event.startDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(startTime)")
-//        event.endDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(endTime)")
-//        if objData.notes ?? "" != ""{
-//            //NOTES
-//            let htmlData = NSString(string: "\(objData.notes ?? "")").data(using: String.Encoding.unicode.rawValue)
-//            let options = [NSAttributedString.DocumentReadingOptionKey.documentType:
-//                NSAttributedString.DocumentType.html]
-//            let attributedString = try? NSMutableAttributedString(data: htmlData ?? Data(),
-//                                                                  options: options,
-//                                                                  documentAttributes: nil)
-//            event.notes = attributedString?.string
-//        }
-//        event.calendar = store.defaultCalendarForNewEvents
-//
-//
-//        //ADD LOCATION
-//        if objData.lat ?? "" != "" && objData.lng ?? "" != "" {
-//            let lat = Double("\(objData.lat ?? "")") ?? 0.0
-//            let lon = Double("\(objData.lng ?? "")") ?? 0.0
-//            let location = CLLocation(latitude: lat, longitude: lon)
-//            let structuredLocation = EKStructuredLocation(title: "\(objData.complexname ?? "")")  // same title with ekEvent.location
-//            structuredLocation.geoLocation = location
-//            event.structuredLocation = structuredLocation
-//        }
-//
-//        // Set default alarm minutes before event
-//        let alarm1hour = EKAlarm(relativeOffset: (-3600 * 5)) //1 hour
-//        let alarm1day = EKAlarm(relativeOffset: -86400) //1 day
-//        event.addAlarm(alarm1day)
-//        event.addAlarm(alarm1hour)
-//
-//        do {
-//            try store.save(event, span: .thisEvent, commit: true)
-//            print("Saved event with ID: \(event.eventIdentifier ?? ""))")
-//
-//            //ADD EVENT IN TABLE
-//            if isNew{
-//                //UPDATE EVENT TABLE
-//                let objEvent = EventDepartureModel(id: "\(objData.Id ?? "")", type: "Departure", event_id: "\(event.eventIdentifier ?? "")")
-//                arrEventDepartureList.append(objEvent)
-//                UserDefaults.standard.encode(for:arrEventDepartureList, using: String(describing: EventDepartureModel.self))
-//
-//
-//                completion(true)
-//
-//            }
-//            else{
-//                completion(true)
-//            }
-//        } catch let error as NSError {
-//            print(objData.edate ?? "")
-//            print(startTime)
-//            print(endTime)
-//            print("failed to save event with error --> Departure : \(error)")
-//            completion(true)
-//        }
-//    }
-//    
-//    func ArrivalEvent(_ objData : ScheduleModal, isNew : Bool, completion: @escaping (_ isDone: Bool?) -> Void) {
-//
-//        let store = EKEventStore()
-//
-//        let event:EKEvent = EKEvent(eventStore: store)
-//        let startTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.arrival_time ?? "")")
-//        let endTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.start_time ?? "")")
-//        if startTime == "" || endTime == ""{
-//            completion(true)
-//            return
-//        }
-//
-//        event.title = "\(objData.title ?? "") - Arrival"
-//        event.startDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(startTime)")
-//        event.endDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(endTime)")
-//
-//        if objData.notes ?? "" != ""{
-//            //NOTES
-//            let htmlData = NSString(string: "\(objData.notes ?? "")").data(using: String.Encoding.unicode.rawValue)
-//            let options = [NSAttributedString.DocumentReadingOptionKey.documentType:
-//                NSAttributedString.DocumentType.html]
-//            let attributedString = try? NSMutableAttributedString(data: htmlData ?? Data(),
-//                                                                  options: options,
-//                                                                  documentAttributes: nil)
-//            event.notes = attributedString?.string
-//        }
-//
-//        event.calendar = store.defaultCalendarForNewEvents
-//
-//        //ADD LOCATION
-//        if objData.lat ?? "" != "" && objData.lng ?? "" != "" {
-//            let lat = Double("\(objData.lat ?? "")") ?? 0.0
-//            let lon = Double("\(objData.lng ?? "")") ?? 0.0
-//            let location = CLLocation(latitude: lat, longitude: lon)
-//            let structuredLocation = EKStructuredLocation(title: "\(objData.complexname ?? "")")  // same title with ekEvent.location
-//            structuredLocation.geoLocation = location
-//            event.structuredLocation = structuredLocation
-//        }
-//
-//        // Set default alarm minutes before event
-//        let alarm1hour = EKAlarm(relativeOffset: (-3600 * 5)) //1 hour
-//        let alarm1day = EKAlarm(relativeOffset: -86400) //1 day
-//        event.addAlarm(alarm1day)
-//        event.addAlarm(alarm1hour)
-//
-//
-//        do {
-//            try store.save(event, span: .thisEvent, commit: true)
-//            print("Saved event with ID: \(event.eventIdentifier ?? ""))")
-//
-//            if isNew{
-//                //UPDATE EVENT TABLE
-//                let objEvent = EventArrivalModel(id: "\(objData.Id ?? "")", type: "Arrival", event_id: "\(event.eventIdentifier ?? "")")
-//                arrEventArrivalList.append(objEvent)
-//                UserDefaults.standard.encode(for:arrEventArrivalList, using: String(describing: EventArrivalModel.self))
-//
-//            }
-//            else{
-//                completion(true)
-//            }
-//
-//        } catch let error as NSError {
-//            print(objData.edate ?? "")
-//            print(startTime)
-//            print(endTime)
-//            print("failed to save event with error --> Arrival: \(error)")
-//            completion(true)
-//        }
-//    }
-//    
-//    func StartGameEvent(_ objData : ScheduleModal, isNew : Bool, completion: @escaping (_ isDone: Bool?) -> Void) {
-//        print(objData.edate ?? "")
-//
-//        let store = EKEventStore()
-//
-//        let event:EKEvent = EKEvent(eventStore: store)
-//        let startTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.start_time ?? "")")
-//        let endTime = Util.changeDateFormate(fromFormat: timeFormatewithAmPm, toFormat: timeFormate, toDate: "\(objData.end_time ?? "")")
-//        if startTime == "" || endTime == ""{
-//            completion(true)
-//            return
-//        }
-//
-//        event.title = "\(objData.title ?? "") - Start"
-//        event.startDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(startTime)")
-//        event.endDate = convertDateFormEventData(selectDate: "\(objData.edate ?? "") \(endTime)")
-//        if objData.notes ?? "" != ""{
-//            //NOTES
-//            let htmlData = NSString(string: "\(objData.notes ?? "")").data(using: String.Encoding.unicode.rawValue)
-//            let options = [NSAttributedString.DocumentReadingOptionKey.documentType:
-//                NSAttributedString.DocumentType.html]
-//            let attributedString = try? NSMutableAttributedString(data: htmlData ?? Data(),
-//                                                                  options: options,
-//                                                                  documentAttributes: nil)
-//            event.notes = attributedString?.string
-//        }
-//        event.calendar = store.defaultCalendarForNewEvents
-//        event.calendar.title = "\(GlobalConstants.appName)"
-//        event.calendar.cgColor = hexStringToUIColor(hex: GlobalConstants.APPCOLOUR_BLUE).cgColor
-//
-//
-//        //ADD LOCATION
-//        if objData.lat ?? "" != "" && objData.lng ?? "" != "" {
-//            let lat = Double("\(objData.lat ?? "")") ?? 0.0
-//            let lon = Double("\(objData.lng ?? "")") ?? 0.0
-//            let location = CLLocation(latitude: lat, longitude: lon)
-//            let structuredLocation = EKStructuredLocation(title: "\(objData.complexname ?? "")")  // same title with ekEvent.location
-//            structuredLocation.geoLocation = location
-//            event.structuredLocation = structuredLocation
-//        }
-//
-//        // Set default alarm minutes before event
-//        let alarm1hour = EKAlarm(relativeOffset: (-3600 * 5)) //1 hour
-//        let alarm1day = EKAlarm(relativeOffset: -86400) //1 day
-//        event.addAlarm(alarm1day)
-//        event.addAlarm(alarm1hour)
-//
-//        do {
-//            try store.save(event, span: .thisEvent, commit: true)
-//            print("Saved event with ID: \(event.eventIdentifier ?? ""))")
-//
-//            //UPDATE EVENT TABLE
-//            if isNew{
-//                //UPDATE EVENT TABLE
-//                let objEvent = EventGameStartModel(id: "\(objData.Id ?? "")", type: "Start", event_id: "\(event.eventIdentifier ?? "")")
-//                arrEventStartList.append(objEvent)
-//                UserDefaults.standard.encode(for:arrEventStartList, using: String(describing: EventGameStartModel.self))
-//            }
-//            else{
-//                completion(true)
-//            }
-//
-//        } catch let error as NSError {
-//            print(objData.edate ?? "")
-//            print(startTime)
-//            print(endTime)
-//            print("failed to save event with error --> Start: \(error)")
-//            self.SetTheCalenderGameStartEvent()
-//    
-//        }
-//    }
-//    
-//    func removeCalender(_ eventId : String, completion: @escaping (_ isDone: Bool?) -> Void) {
-//        let store = EKEventStore()
-//        
-//        let eventToRemove = store.event(withIdentifier: eventId)
-//        if eventToRemove != nil {
-//            do {
-//                try store.remove(eventToRemove!, span: .thisEvent, commit: true)
-//                print("Remove Event")
-//                completion(true)
-//            } catch {
-//                // Display error to user
-//                completion(false)
-//            }
-//        }
-//        completion(false)
-//    }
 }
+

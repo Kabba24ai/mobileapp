@@ -430,6 +430,17 @@ class PaymentViewController: UIViewController, UIGestureRecognizerDelegate {
 
         //SET VIEW
         self.setHeader()
+        
+        
+#if DEBUG
+        self.txtFirstName.text = "jigar"
+        self.txtLastName.text = "khatri"
+        self.txtEmail.text = "khatri_\(randomNumber(length: 5))@gmail.com"
+        self.txtPhone.text = "(123) 123-1231"
+        self.txtAddress.text = "sdfsdfsdfsdf"
+        self.txtCity.text = "sdfsd"
+        self.txtZipCode.text = "1123d"
+#endif
     }
 }
 
@@ -603,7 +614,7 @@ extension PaymentViewController{
                             //CALL API
                             print("PAY ONLNE")
                             let carNumber : String = self.txtCardNumber.text?.replacingOccurrences(of: " ", with: "") ?? ""
-                            self.placeOrderAPI(placeOrderParameater: placeOrderParameater(first_name: strFirstName, last_name: strLastName, email: strEmil, phone: strPhone, address: strAddress, zipcode: strZip, city: strCity, state: strState, note: self.txtOrderNote.text ?? "", same_as_delivery: self.isDeliveySameBilling, payment_method: "authorizenet", delivery_first_name: strFirstName, delivery_last_name: strLastName, delivery_email: strEmil, delivery_mobile: strPhone, delivery_address: strAddress, delivery_zipcode: strZip, delivery_city: strCity, delivery_state: strState,tax_amount: "\(Checkout.shared.taxCharge.stringValue)", total_amount: Checkout.shared.total.stringValue, card_number: carNumber, mm_yy: "\(self.txtMonth.text ?? "")/\(self.txtYear.text ?? "")", cvc: self.txtCVC.text ?? ""), arrCart: self.createCartArray())
+                            self.placeOrderAPI(placeOrderParameater: placeOrderParameater(first_name: strFirstName, last_name: strLastName, email: strEmil, phone: strPhone, address: strAddress, zipcode: strZip, city: strCity, state: strState, note: self.txtOrderNote.text ?? "", same_as_delivery: self.isDeliveySameBilling, payment_method: "authorizenet", delivery_first_name: strDeliveryFirstName, delivery_last_name: strDeliveryLastName, delivery_email: strDeliveryEmil, delivery_mobile: strDeliveryPhone, delivery_address: strDeliveryAddress, delivery_zipcode: strDeliveryZip, delivery_city: strDeliveryCity, delivery_state: strDeliveryState,tax_amount: "\(Checkout.shared.taxCharge.stringValue)", total_amount: Checkout.shared.total.stringValue, card_number: carNumber, mm_yy: "\(self.txtMonth.text ?? "")/\(self.txtYear.text ?? "")", cvc: self.txtCVC.text ?? ""), arrCart: self.createCartArray())
 
                         }
                     }
@@ -611,7 +622,7 @@ extension PaymentViewController{
                         //CALL API
                         print("COD")
                         
-                        self.placeOrderAPI(placeOrderParameater: placeOrderParameater(first_name: strFirstName, last_name: strLastName, email: strEmil, phone: strPhone, address: strAddress, zipcode: strZip, city: strCity, state: strState, note: self.txtOrderNote.text ?? "", same_as_delivery: self.isDeliveySameBilling, payment_method: "cod", delivery_first_name: strFirstName, delivery_last_name: strLastName, delivery_email: strEmil, delivery_mobile: strPhone, delivery_address: strAddress, delivery_zipcode: strZip, delivery_city: strCity, delivery_state: strState,tax_amount: "\(Checkout.shared.taxCharge.stringValue)", total_amount: Checkout.shared.total.stringValue, card_number: "", mm_yy: "", cvc: ""), arrCart: self.createCartArray())
+                        self.placeOrderAPI(placeOrderParameater: placeOrderParameater(first_name: strFirstName, last_name: strLastName, email: strEmil, phone: strPhone, address: strAddress, zipcode: strZip, city: strCity, state: strState, note: self.txtOrderNote.text ?? "", same_as_delivery: self.isDeliveySameBilling, payment_method: "cod", delivery_first_name: strDeliveryFirstName, delivery_last_name: strDeliveryLastName, delivery_email: strDeliveryEmil, delivery_mobile: strDeliveryPhone, delivery_address: strDeliveryAddress, delivery_zipcode: strDeliveryZip, delivery_city: strDeliveryCity, delivery_state: strDeliveryState,tax_amount: "\(Checkout.shared.taxCharge.stringValue)", total_amount: Checkout.shared.total.stringValue, card_number: "", mm_yy: "", cvc: ""), arrCart: self.createCartArray())
 
                     }
                 }
@@ -677,8 +688,8 @@ extension PaymentViewController{
     
     
     func createCartArray() -> NSMutableDictionary{
-        var cart : NSMutableDictionary = [:]
-        
+//        let arrCart : NSMutableArray = []
+        let dicCart : NSMutableDictionary = [:]
         for objData in Checkout.shared.cart{
             
             let getProductTotal = self.getProductTextAndTotal(cartItem: objData.product)
@@ -697,11 +708,14 @@ extension PaymentViewController{
                                                  "store_id" : objData.product.storeID ,
                                                  "options" : getOptionsData(options: objData.product.options)]
 
-            cart = ["\(objData.product.id ?? 0)" : dicData]
+            dicCart.setValue(dicData, forKey: "\(objData.product.id ?? 0)")
+
+//            arrCart.add(["\(objData.product.id ?? 0)" : dicData])
+//            cart = ["\(objData.product.id ?? 0)" : dicData]
         }
         
         
-        return cart
+        return dicCart
     }
     
    
@@ -763,14 +777,14 @@ extension PaymentViewController{
 
 //MARK: -- UITEXTFIELD DELEGATE
 extension PaymentViewController : UITextFieldDelegate{
-    func textFieldDidBeginEditing(_ textField: UITextField) {
-//        if textField == self.txtFirstName || textField == self.txtLastName || textField == self.txtPhone{
-//            self.isNoteSelect = false
-//        }
-//        else{
-//            self.moveKeybordValude = 3
-//            self.isNoteSelect = true
-//        }
+    
+    func textFieldDidChangeSelection(_ textField: UITextField) {
+        if textField == self.txtFirstName{
+            self.txtPaymentFirstName.text = textField.text
+        }
+        else if textField == self.txtLastName{
+            self.txtPaymentLastName.text = textField.text
+        }
     }
     
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
@@ -795,6 +809,14 @@ extension PaymentViewController : UITextFieldDelegate{
                     previousSelection = textField.selectedTextRange;
                     return true
                 }
+                else if textField == self.txtZipCode || textField == self.txtDeliveyZipCode{
+                    if range.location <= 5 || string.count == 0 {
+                        return true
+                    }
+                    else{
+                        return false
+                    }
+                }
                 else if textField == self.txtCVC{
                     if range.location <= 3 || string.count == 0 {
                         return true
@@ -811,14 +833,7 @@ extension PaymentViewController : UITextFieldDelegate{
                 return false
             }
         }
-        else if textField == self.txtFirstName{
-            self.txtPaymentFirstName.text = textField.text
-            return true
-        }
-        else if textField == self.txtLastName{
-            self.txtPaymentLastName.text = textField.text
-            return true
-        }
+        
         else{
             return true
         }

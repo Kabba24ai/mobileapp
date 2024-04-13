@@ -171,7 +171,6 @@ class ActionViewController: UIViewController, UIGestureRecognizerDelegate {
         
         
         //SET KEYBORD
-        setupKeyboard(false)
         self.registerForKeyboardNotifications()
         self.hideKeyboard()
 

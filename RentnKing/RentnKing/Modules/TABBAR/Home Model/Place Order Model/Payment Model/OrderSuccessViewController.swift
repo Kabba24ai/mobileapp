@@ -18,11 +18,14 @@ class OrderSuccessViewController: UIViewController {
     @IBOutlet weak var viewTerms: UIView!
     @IBOutlet weak var lblTerms: UILabel!
 
+    var orderID : String = ""
     var signUrl : String = ""
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         Checkout.shared.products = []
         Checkout.shared.cart = []
+        Checkout.shared.customeAmount = 0
         // Do any additional setup after loading the view.
     }
     
@@ -67,7 +70,7 @@ class OrderSuccessViewController: UIViewController {
 //MARK: - BUTTON ACTION
 extension OrderSuccessViewController {
     @IBAction func btnTermsConditionlicked(_ sender: UIButton) {
-        if self.signUrl == ""{
+        if self.signUrl == "" || self.orderID == ""{
             return
         }
         
@@ -75,6 +78,7 @@ extension OrderSuccessViewController {
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TermsAndConditionViewController") as? TermsAndConditionViewController{
             newViewController.signUrl = self.signUrl
+            newViewController.orderID = self.orderID
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
         

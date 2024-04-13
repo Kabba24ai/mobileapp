@@ -752,7 +752,7 @@ extension ProductDetailsViewController : UITableViewDelegate, UITableViewDataSou
     }
     
     
-    func SelectYes(section: Int, index: Int, amout: Double) {
+    func SelectYes(section: Int, index: Int, amout: Double, isTax: Bool) {
         let  objDetails = self.objData.options[section].values[index]
         
         //SET EMPTY OBJECT

@@ -21,6 +21,7 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     var isOrderFrom : Bool = false
     var selectIndex : Int = -1
     weak var delegate: TermsDelegate?
+    var orderID : String = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -111,7 +112,13 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
                     self.navigationController?.popViewController(animated: true)
                 }
                 else{
-                    self.navigationController?.popToRootViewController(animated: true)
+                    //TERMS AND CONDITION
+                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
+                        newViewController.strOrderID = self.orderID
+                        newViewController.isOrderScreen = true
+                        self.navigationController?.pushViewController(newViewController, animated: true)
+                    }
                 }
             }
             

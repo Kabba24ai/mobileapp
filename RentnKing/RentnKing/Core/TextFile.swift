@@ -50,6 +50,8 @@ struct Text {
     var deliveryOptions = "Delivery Options".localized()
     var wantToDelivery = "I Want Delivery".localized()
     var willPickup = "I'll Picku it Up".localized()
+    var strChargeTax = "Charge Sales Tax".localized()
+    var strTaxFree = "Tax Free".localized()
 
     var errorSelectDate = "Please Select Date".localized()
     var errorSelectPickup = "Please Select Pickup".localized()
@@ -122,10 +124,14 @@ struct Text {
     var strOderTitle = "ORDERS".localized()
     var strLinces = "License".localized()
     var strTerms = "T&C".localized()
-    var strHours = "Hours".localized()
+    var strHoursStart = "Start".localized()
+    var strHoursEnd = "End".localized()
     var strCheckList = "CheckList".localized()
     var strPhotoAndVideo = "Photo/Video".localized()
-    var strDeliveyStatus = "Delivery Status".localized()
+    var strDeliveyStatus = "Deliv ".localized()
+    var strPickupStatus = "Ret ".localized()
+    var strSearch = "Search".localized()
+    var strSearchProduct = "Search Product".localized()
 
     
     

@@ -7,37 +7,18 @@
 
 import UIKit
 
-class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate {
-    
-    @IBOutlet weak var tblView: UITableView!
-//    @IBOutlet weak var con_View: NSLayoutConstraint!
-//    
-//    @IBOutlet weak var lblStartHours: UILabel!
-//    @IBOutlet weak var txtStartHours: UITextField!
-//    
-//    @IBOutlet weak var lblAllocatedHours: UILabel!
-//    @IBOutlet weak var txtAllocatedHours: UITextField!
-//
-//    @IBOutlet weak var lblEndHours: UILabel!
-//    @IBOutlet weak var txtEndHours: UITextField!
-//
-//    @IBOutlet weak var lblTotalHours: UILabel!
-//    @IBOutlet weak var txtTotalHours: UITextField!
-//
-//    @IBOutlet weak var lblAdditionalHours: UILabel!
-//    @IBOutlet weak var txtAdditionalHours: UITextField!
-//
-//    @IBOutlet weak var lblHoursFee: UILabel!
-//    @IBOutlet weak var txtHoursFee: UITextField!
-//
-//    @IBOutlet weak var lblTotalCharge: UILabel!
-//    @IBOutlet weak var txtTotalCharge: UITextField!
-//    @IBOutlet weak var viewTotalCharge: UIView!
-//    @IBOutlet weak var viewTotalChargeLine: UIView!
+protocol  MachineHoursDelegate : NSObject {
+    func UpdateMachinHours(selectIndex: Int, arrUpdateMachinHours : [MachineHoursModel])
+}
 
+class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate {
+    weak var delegate: MachineHoursDelegate?
+
+    @IBOutlet weak var tblView: UITableView!
     @IBOutlet weak var con_Submit: NSLayoutConstraint!
     @IBOutlet weak var viewSubmit: UIView!
     @IBOutlet weak var lblSubmit: UILabel!
+    @IBOutlet weak var con_SubmitBottom : NSLayoutConstraint!
 
     
     //LOADING
@@ -50,19 +31,27 @@ class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate 
     var objOrderData : OrdersModel!
     var arrProductList : [ProductModel] = []
     
+    var selectIndex : Int = -1
     var strOrderID : String = ""
     var strProductID : String = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
-//        setupKeyboard(false)
         setupCutomeKeyboard()
         // Do any additional setup after loading the view.
         
         
         //CALL API
         self.viewSubmit.isHidden = true
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID))
+        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
+        
+        
+        
+        //KEYBOARD METHOD
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(notification:)), name: UIResponder.keyboardWillShowNotification , object:nil)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(notification:)), name: UIResponder.keyboardWillHideNotification , object:nil)
+
     }
     
     
@@ -234,6 +223,7 @@ extension MachineHoursViewController : UITextFieldDelegate{
         //SET TOTLA HOURS
         let hours = Float(objdata.end ?? 0) - Float(objdata.start ?? 0)
         let totalHours = Int(hours.rounded(.up))
+        objdata.total = 0
         if totalHours > 0{
             //SET TOTAL HOURS
             objdata.total = Float(totalHours)
@@ -242,6 +232,7 @@ extension MachineHoursViewController : UITextFieldDelegate{
         
         //SET ADDITION HOURS
         var additionslHours = totalHours - (objdata.allocated ?? 0)
+        objdata.additinal = 0
         if additionslHours > 0{
             //SET TOTAL HOURS
             objdata.additinal = Int(Float(additionslHours))
@@ -456,4 +447,25 @@ extension MachineHoursViewController : UITableViewDelegate, UITableViewDataSourc
     }
 }
 
+
+
+
+
+//MARK: - KEYBORD DELEGATE
+extension MachineHoursViewController {
+    
+    @objc func keyboardWillShow(notification: NSNotification) {
+       let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+       print(keyboardHeight)
+        self.con_SubmitBottom.constant = (keyboardHeight - GetBottomSafeAreaHeight()) + 16
+
+    }
+
+    @objc func keyboardWillHide(notification: NSNotification) {
+       let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+       print(keyboardHeight)
+        self.con_SubmitBottom.constant = 16.0
+
+    }
+}
 

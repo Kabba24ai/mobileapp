@@ -20,6 +20,7 @@ enum NSUDKey {
 extension Notification.Name {
     static let languageUpdate = Notification.Name("languageUpdate")
     static let cartUpdated = Notification.Name("cartUpdated")
+    static let scheduleCount = Notification.Name("scheduleCount")
 
 }
 

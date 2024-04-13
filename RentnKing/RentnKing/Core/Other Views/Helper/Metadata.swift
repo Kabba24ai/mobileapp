@@ -28,6 +28,7 @@ enum Application {
     static let aapBundilID_Live = ""
 
     static let PageLimit = 20
+    static let PageOrderLimit = 10
     static let currency = "$"
 
     //freevison
@@ -123,6 +124,8 @@ enum Application {
     static let yearOf = 10
     static let HHMMSS = "HH:mm:ss"
     static let HHMM = "HH:mm"
+    static let HMMA = "h:mm a"
+    
     static let serverDateFormet = "yyyy-MM-dd'T'HH:mm:ss.ssssssZ"
     static let MMM_dd = "MMM dd"
     

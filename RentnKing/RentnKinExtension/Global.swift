@@ -157,13 +157,7 @@ func buttonImageColor (btnImage : UIButton, imageName : String , colorHex: UICol
 }
 
 
-//MARK: - SET KEYBOARD
-func setupKeyboard(_ enable: Bool) {
-//    IQKeyboardManager.shared.enable = enable
-//    IQKeyboardManager.shared.enableAutoToolbar = enable
-//    IQKeyboardManager.shared.shouldShowToolbarPlaceholder = !enable
-//    IQKeyboardManager.shared.previousNextDisplayMode = .alwaysShow
-}
+
 
 
 

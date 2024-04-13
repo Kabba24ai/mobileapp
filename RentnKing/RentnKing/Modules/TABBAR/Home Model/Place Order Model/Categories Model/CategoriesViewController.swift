@@ -60,22 +60,32 @@ class CategoriesViewController: UIViewController, UIGestureRecognizerDelegate {
         self.tabBarController?.tabBar.isHidden = true
         
         //SET NAVIGATION BAR
-        setNavigationBarFor(controller: self, title: str.strCategorie, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "icon_cart_shopping", isDetailsScree: true) {
+        setNavigationBarForButtons(controller: self, title: str.strScheduleTitle, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: ["icon_cart_shopping", "icon_Search"], isFilter: false) {
             
             //BACK SCREE
             self.navigationController?.popViewController(animated: true)
 
             
-        } rightActionHandler: {
+        } rightActionHandler: {sender, SelectTag  in
         
-            //MOVE TO CHECKOUT SCREEN
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckOutViewController") as? CheckOutViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
+            if SelectTag == 1{
+                //SEARCH
+                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
+                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ProductListViewController") as? ProductListViewController{
+                    newViewController.isSearch = true
+                    self.navigationController?.pushViewController(newViewController, animated: true)
+                }
 
+            }
+            else{
+                
+                //MOVE TO CHECKOUT SCREEN
+                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
+                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckOutViewController") as? CheckOutViewController{
+                    self.navigationController?.pushViewController(newViewController, animated: true)
+                }
+            }
         }
-        
         
         //GET DATA
         self.getCategorys()

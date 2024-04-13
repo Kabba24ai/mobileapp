@@ -7,7 +7,7 @@
 
 import UIKit
 @objc protocol AleartDelegate{
-    func SelectYes(section: Int, index : Int, amout: Double)
+    func SelectYes(section: Int, index : Int, amout: Double, isTax : Bool)
 }
 
 
@@ -32,11 +32,21 @@ class AlertPopUp: UIView {
     @IBOutlet weak var cont_Amount: NSLayoutConstraint!
     @IBOutlet weak var cont_Top: NSLayoutConstraint!
     @IBOutlet weak var cont_Bottom: NSLayoutConstraint!
+    
+    @IBOutlet weak var objSelectTax: UIStackView!
+    @IBOutlet weak var cont_SelectTax: NSLayoutConstraint!
+
+    @IBOutlet weak var imgTax: UIImageView!
+    @IBOutlet weak var lblTax: UILabel!
+
+    @IBOutlet weak var imgFreeTax: UIImageView!
+    @IBOutlet weak var lblFreeTax: UILabel!
+    
 
     var currentSection : Int = 0
     var currentIndex : Int = 0
     var isAmount : Bool = false
-
+    var isChargeTax : Bool = true
     
     // method to load reasons xib.
     func loadPopUpView(strMessage : String, strOptions: String, section: Int, index : Int, isAmount : Bool = false) {
@@ -62,6 +72,8 @@ class AlertPopUp: UIView {
         self.cont_Top.constant = 0
         self.cont_Amount.constant = 0
         self.cont_Bottom.constant = 16
+        self.objSelectTax.isHidden = true
+        self.cont_SelectTax.constant = 0
         self.viewAmount.backgroundColor = .clear
         self.viewAmount.viewCorneRadius(radius: 5, isRound: false)
         self.viewAmount.viewBorderCorneRadius(borderColour: .backgroundView?.withAlphaComponent(0.7))
@@ -70,6 +82,8 @@ class AlertPopUp: UIView {
         if isAmount == true{
             self.cont_Top.constant = 12
             self.cont_Bottom.constant = 30
+            self.objSelectTax.isHidden = false
+            self.cont_SelectTax.constant = 30
             self.cont_Amount.constant = manageWidth(size: 50)
             self.viewAmount.isHidden = false
             
@@ -97,7 +111,7 @@ class AlertPopUp: UIView {
                 }, completion: { (finished) in
                     if(finished) {
                         if isClose{
-                            self.delegate?.SelectYes(section: self.currentSection, index:self.currentIndex, amout: 0.0)
+                            self.delegate?.SelectYes(section: self.currentSection, index:self.currentIndex, amout: 0.0, isTax: self.isChargeTax)
                         }
                         self.removeFromSuperview()
                     }
@@ -119,7 +133,8 @@ class AlertPopUp: UIView {
         self.lblRemove.configureLable(textColor: UIColor.primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: isAmount ? str.no : str.strRemoveOptions)
         self.lblRemove.textAlignment = .center
 
-
+        //SET TAX
+        self.setTax()
         
         //SET VIEW
         self.viewKeep.backgroundColor = .greenText
@@ -129,10 +144,33 @@ class AlertPopUp: UIView {
         self.viewRemove.viewCorneRadius(radius: 5.0, isRound: false)
     }
     
+    func setTax(){
+        self.imgFreeTax.image = UIImage(named: self.isChargeTax ? "icon_RadioUnSelect" : "icon_RadioSelect")
+        self.imgTax.image = UIImage(named: self.isChargeTax ? "icon_RadioSelect" : "icon_RadioUnSelect")
+        imgColor(imgColor: self.imgTax, colorHex: .background)
+        imgColor(imgColor: self.imgFreeTax, colorHex: .background)
+
+        self.lblTax.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strChargeTax)
+        self.lblFreeTax.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strTaxFree)
+
+    }
+    
     //......................... OTHER FUNCION .........................//
     @IBAction func btnNoClicked(_ sender: Any) {
         self.endEditing(true)
         removeViewWithAnimation(isClose: isAmount ? false : true)
+    }
+    
+    @IBAction func btnTaxClicked(_ sender: Any) {
+        if self.isChargeTax{
+            self.isChargeTax = false
+        }
+        else{
+            self.isChargeTax = true
+        }
+        
+        //SET TAX
+        self.setTax()
     }
     
     @IBAction func btnYesClicked(_ sender: Any) {
@@ -146,7 +184,7 @@ class AlertPopUp: UIView {
             else{
                 self.removeViewWithAnimation(isClose: false)
                 DispatchQueue.main.async {
-                    self.delegate?.SelectYes(section: 0, index: 0, amout: Double(strAmount) ?? 0.0)
+                    self.delegate?.SelectYes(section: 0, index: 0, amout: Double(strAmount) ?? 0.0, isTax: self.isChargeTax)
                 }
             }
         }
@@ -172,9 +210,8 @@ extension AlertPopUp : UITextFieldDelegate{
             if filtered == string {
                 let candidate = (textField.text as NSString?)?.replacingCharacters(in: range, with: string) ?? string
         //        let candidate = oldString.stringByReplacingCharactersInRange(range, withString: string)
-                let regex = try? NSRegularExpression(pattern: "^\\d{0,5}(\\.\\d?)?$", options: [])
+                let regex = try? NSRegularExpression(pattern: "^\\d{0,5}(\\.\\d{0,2}?)?$", options: [])
                 return regex?.firstMatch(in: candidate, options: [], range: NSRange(location: 0, length: candidate.count)) != nil
-
 //                return true
             }
             else{

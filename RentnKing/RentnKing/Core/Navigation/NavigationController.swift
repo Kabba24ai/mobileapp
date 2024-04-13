@@ -125,126 +125,197 @@ func setNavigationBarFor(controller: UIViewController,
 }
 
 
+func setNavigationBarForButtons(controller: UIViewController,
+                                title:String = "",
+                                isTransperent:Bool = false,
+                                hideShadowImage: Bool = false,
+                                leftIcon : String,
+                                rightIcon : [String],
+                                isFilter : Bool,
+                                leftActionHandler: (() -> Void)? = nil,
+                                rightActionHandler: ((_ sender : UIBarButtonItem, _ SelectTag : Int) -> Void)? = nil) {
 
-func setNavigationBarForImg(controller: UIViewController,
-                            title:String = "",
-                            isTransperent:Bool = false,
-                            hideShadowImage: Bool = false,
-                            leftIcon : String,
-                            rightIcon : String,
-                            leftActionHandler: ((_ SelectTag : Int) -> Void)? = nil,
-                            rightActionHandler: ((_ SelectTag : Int) -> Void)? = nil) {
-    
     guard let navigationController = controller.navigationController else{
         return
     }
     
-
-    //SET PORTRAIT MODE
-    AppUtility.PortraitMode()
- 
-    //SET NAVIGATION TITLE IMAGE
-    if title != ""{
-        controller.navigationItem.titleView = addNavBarImage(strLogo: title, controller: controller.navigationController!)
-    }
- 
+    controller.navigationItem.title = title
+  
     //SET NAVIGATION
     setNavigation(controller: controller, isTransperent: isTransperent)
     
-
-    if let actionLeft = leftActionHandler  {
-        navigationController.navigationItem.setHidesBackButton(true, animated: false)
-        
-        
-        let bannerWidth = navigationController.navigationBar.frame.size.width
-        let bannerHeight = navigationController.navigationBar.frame.size.height
-     
-        //SUBSCRIPTION BUTTON
-        let viewSubscription = UIView(frame: CGRect.init(x: 0, y: 0, width: bannerWidth - 40 , height: bannerHeight))
-        viewSubscription.backgroundColor = .clear
-        viewSubscription.tag = 10
-        let spaceBetwen = 20.0
-        
-        
-        
-        //SET CENTER WIDHT
-        let currentWidht = viewSubscription.frame.size.width - (bannerHeight * 2) - (spaceBetwen * 2)
-        
-        //Image View
-        let imageView = UIImageView()
-        imageView.backgroundColor = UIColor.clear
-        imageView.heightAnchor.constraint(equalToConstant: bannerHeight).isActive = true
-        imageView.widthAnchor.constraint(equalToConstant: bannerHeight).isActive = true
-        imageView.image = UIImage(named: leftIcon)
-        imageView.contentMode = .scaleAspectFit
-
-        
-        //Stack View
-        let stackView = UIStackView(frame: CGRect.init(x: 0, y: 0, width: viewSubscription.frame.size.width , height: viewSubscription.frame.size.width))
-        stackView.backgroundColor = UIColor.clear
-        stackView.axis  = NSLayoutConstraint.Axis.horizontal
-        stackView.distribution  = UIStackView.Distribution.equalSpacing
-        stackView.alignment = UIStackView.Alignment.center
-        stackView.spacing   = spaceBetwen
-//        stackView.addArrangedSubview(searchView)
-        stackView.addArrangedSubview(imageView)
-//        stackView.addArrangedSubview(subcriptionView)
-//        stackView.addArrangedSubview(notificationView)
-
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        viewSubscription.addSubview(stackView)
-
-        let btnSubscriptionAction = UIBarButtonItem(customView: viewSubscription)
-        
-        controller.navigationItem.leftBarButtonItems = [btnSubscriptionAction]
-        
-        
-        
-//        //SUBSCRIPTION BUTTON
-//        let bannerHeight = navigationController.navigationBar.frame.size.height
-//        let viewSubscription = UIView(frame: CGRect.init(x: 0, y: 0, width: bannerHeight, height: bannerHeight ))
-//
-//        viewSubscription.backgroundColor = .clear
-//        viewSubscription.tag = 0
-//
-//        let imgUser = UIImageView(frame: CGRect(x: 0, y: 0, width: viewSubscription.frame.size.width , height: viewSubscription.frame.size.height ) )
-//        imgUser.layer.masksToBounds = true
-//        imgUser.backgroundColor = .clear
-//        imgUser.contentMode = .scaleAspectFit
-//        imgUser.image = UIImage(named: leftIcon)
-//
-//
-//        viewSubscription.addSubview(imgUser)
-//
-//        let btnSubscriptionAction = UIBarButtonItemWithClouser(view: viewSubscription, actionHandler2: actionLeft)
-//
-//        controller.navigationItem.leftBarButtonItem = btnSubscriptionAction
-    }
     
-    if let actionRight = rightActionHandler {
+    if let actionLeft = leftActionHandler {
         navigationController.navigationItem.setHidesBackButton(true, animated: false)
         let button: UIButton = UIButton(type:.custom)
-        button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 10)
         button.backgroundColor = UIColor.clear
-        
-        button.setImage(UIImage(named: rightIcon), for: .normal)
-        
+        button.setImage(UIImage(named: leftIcon), for: .normal)
+        buttonImageColor(btnImage: button, imageName: leftIcon, colorHex: .secondary)
+        button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
         
         if UserDefaults.standard.language == "ar" {
             button.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
         }
+        let btnAction = UIBarButtonItemWithClouser(button: button, actionHandler: actionLeft)
+        controller.navigationItem.leftBarButtonItem = btnAction
+    }
+    
+    
+    if let actionRight = rightActionHandler {
+        navigationController.navigationItem.setHidesBackButton(true, animated: false)
+       
+        var arrAction : [UIBarButtonItemWithClouser] = []
+        for i in 0..<rightIcon.count{
+            let iconRight = rightIcon[i]
+            let button: UIButton = UIButton(type:.custom)
+            button.tag = i
+            button.backgroundColor = UIColor.clear
+            button.setImage(UIImage(named: iconRight), for: .normal)
+            buttonImageColor(btnImage: button, imageName: iconRight, colorHex: .secondary)
+            button.contentEdgeInsets = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
+            if UserDefaults.standard.language == "ar" {
+                button.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
+            }
+
+            let btnAction = UIBarButtonItemWithClouser(button: button, actionHandler3: actionRight)
+            if iconRight == "icon_Filter"{
+                btnAction.setBadge(with: isFilter ? 1 : 0)
+                btnAction.setFilter(isFilter: isFilter)
+            }
+            
+            arrAction.append(btnAction)
+        }
         
-        let btnAction = UIBarButtonItemWithClouser(button: button, actionHandler2: actionRight)
-        controller.navigationItem.rightBarButtonItem = btnAction
+        
+        
+        if arrAction.count != 0{
+            controller.navigationItem.rightBarButtonItems = arrAction
+        }
+      
     }
-    
-    func didTapEditButton(sender: AnyObject){
-    }
-    
-    func didTapSearchButton(sender: AnyObject){
-    }
-    
 }
+
+//
+//func setNavigationBarForButtons(controller: UIViewController,
+//                            title:String = "",
+//                            isTransperent:Bool = false,
+//                            hideShadowImage: Bool = false,
+//                            leftIcon : String,
+//                            rightIcon : String,
+//                            leftActionHandler: ((_ SelectTag : Int) -> Void)? = nil,
+//                            rightActionHandler: ((_ SelectTag : Int) -> Void)? = nil) {
+//    
+//    guard let navigationController = controller.navigationController else{
+//        return
+//    }
+//    
+//
+//    //SET PORTRAIT MODE
+//    AppUtility.PortraitMode()
+// 
+//    //SET NAVIGATION TITLE IMAGE
+//    if title != ""{
+//        controller.navigationItem.titleView = addNavBarImage(strLogo: title, controller: controller.navigationController!)
+//    }
+// 
+//    //SET NAVIGATION
+//    setNavigation(controller: controller, isTransperent: isTransperent)
+//    
+//
+//    if let actionLeft = leftActionHandler  {
+//        navigationController.navigationItem.setHidesBackButton(true, animated: false)
+//        
+//        
+//        let bannerWidth = navigationController.navigationBar.frame.size.width
+//        let bannerHeight = navigationController.navigationBar.frame.size.height
+//     
+//        //SUBSCRIPTION BUTTON
+//        let viewSubscription = UIView(frame: CGRect.init(x: 0, y: 0, width: bannerWidth - 40 , height: bannerHeight))
+//        viewSubscription.backgroundColor = .clear
+//        viewSubscription.tag = 10
+//        let spaceBetwen = 20.0
+//        
+//        
+//        
+//        //SET CENTER WIDHT
+//        let currentWidht = viewSubscription.frame.size.width - (bannerHeight * 2) - (spaceBetwen * 2)
+//        
+//        //Image View
+//        let imageView = UIImageView()
+//        imageView.backgroundColor = UIColor.clear
+//        imageView.heightAnchor.constraint(equalToConstant: bannerHeight).isActive = true
+//        imageView.widthAnchor.constraint(equalToConstant: bannerHeight).isActive = true
+//        imageView.image = UIImage(named: leftIcon)
+//        imageView.contentMode = .scaleAspectFit
+//
+//        
+//        //Stack View
+//        let stackView = UIStackView(frame: CGRect.init(x: 0, y: 0, width: viewSubscription.frame.size.width , height: viewSubscription.frame.size.width))
+//        stackView.backgroundColor = UIColor.clear
+//        stackView.axis  = NSLayoutConstraint.Axis.horizontal
+//        stackView.distribution  = UIStackView.Distribution.equalSpacing
+//        stackView.alignment = UIStackView.Alignment.center
+//        stackView.spacing   = spaceBetwen
+////        stackView.addArrangedSubview(searchView)
+//        stackView.addArrangedSubview(imageView)
+////        stackView.addArrangedSubview(subcriptionView)
+////        stackView.addArrangedSubview(notificationView)
+//
+//        stackView.translatesAutoresizingMaskIntoConstraints = false
+//        viewSubscription.addSubview(stackView)
+//
+//        let btnSubscriptionAction = UIBarButtonItem(customView: viewSubscription)
+//        
+//        controller.navigationItem.leftBarButtonItems = [btnSubscriptionAction]
+//        
+//        
+//        
+////        //SUBSCRIPTION BUTTON
+////        let bannerHeight = navigationController.navigationBar.frame.size.height
+////        let viewSubscription = UIView(frame: CGRect.init(x: 0, y: 0, width: bannerHeight, height: bannerHeight ))
+////
+////        viewSubscription.backgroundColor = .clear
+////        viewSubscription.tag = 0
+////
+////        let imgUser = UIImageView(frame: CGRect(x: 0, y: 0, width: viewSubscription.frame.size.width , height: viewSubscription.frame.size.height ) )
+////        imgUser.layer.masksToBounds = true
+////        imgUser.backgroundColor = .clear
+////        imgUser.contentMode = .scaleAspectFit
+////        imgUser.image = UIImage(named: leftIcon)
+////
+////
+////        viewSubscription.addSubview(imgUser)
+////
+////        let btnSubscriptionAction = UIBarButtonItemWithClouser(view: viewSubscription, actionHandler2: actionLeft)
+////
+////        controller.navigationItem.leftBarButtonItem = btnSubscriptionAction
+//    }
+//    
+//    if let actionRight = rightActionHandler {
+//        navigationController.navigationItem.setHidesBackButton(true, animated: false)
+//        let button: UIButton = UIButton(type:.custom)
+//        button.contentEdgeInsets = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 10)
+//        button.backgroundColor = UIColor.clear
+//        
+//        button.setImage(UIImage(named: rightIcon), for: .normal)
+//        
+//        
+//        if UserDefaults.standard.language == "ar" {
+//            button.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
+//        }
+//        
+//        let btnAction = UIBarButtonItemWithClouser(button: button, actionHandler2: actionRight)
+//        controller.navigationItem.rightBarButtonItem = btnAction
+//    }
+//    
+//    func didTapEditButton(sender: AnyObject){
+//    }
+//    
+//    func didTapSearchButton(sender: AnyObject){
+//    }
+//    
+//}
 
 
 var safeAreaInset: UIEdgeInsets = {

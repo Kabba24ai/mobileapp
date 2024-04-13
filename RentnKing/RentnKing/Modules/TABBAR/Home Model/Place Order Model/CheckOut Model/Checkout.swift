@@ -21,6 +21,8 @@ class Checkout: NSObject {
         didSet{
             cart = []
             itemPrice = 0
+            var price: Double = 0.0
+            var taxePrice: Double = 0.0
 
             for product in products{
                 
@@ -36,8 +38,6 @@ class Checkout: NSObject {
             }
             
             //GET OPRION PRICE
-            var price: Double = 0.0
-            var taxePrice: Double = 0.0
             for cartItem in cart{
                 
                 //GET PRICE
@@ -54,7 +54,7 @@ class Checkout: NSObject {
                 }
                 
                 //ITEM PRICE
-                price = Double(itemPrice) + (optionsPrice * Double(cartItem.product.qty))
+                price = price + Double(itemPrice) + (optionsPrice * Double(cartItem.product.qty))
                 
                 //GET TAXE PRICE
                 var taxePercentage: Double = 0.0

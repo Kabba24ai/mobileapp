@@ -642,6 +642,7 @@ enum Url {
     //CATEGORY
     static let categorys = NSURL(string: "\(Application.BaseURL)getcategories")!
     static let categoryProducts = NSURL(string: "\(Application.BaseURL)getcategoryproducts")!
+    static let searchProducts = NSURL(string: "\(Application.BaseURL)search-products")!
     static let productsDetaisl = NSURL(string: "\(Application.BaseURL)getProductDetails")!
 
     static let getStores = NSURL(string: "\(Application.BaseURL)getStores")!
@@ -657,6 +658,7 @@ enum Url {
     static let uploadLicense = NSURL(string: "\(Application.BaseURL)order/upload/license")!
     static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
     static let orderPayment = NSURL(string: "\(Application.BaseURL)order/payment")!
+    static let updateAddress = NSURL(string: "\(Application.BaseURL)order/address/update")!
 
     
     
@@ -666,10 +668,10 @@ enum Url {
 
     //SCHEDULE
     static let scheduleList = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-list")!
+    static let scheduleListCound = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-count")!
+    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-update")!
 
 }
-
-
 
 
 
@@ -723,7 +725,7 @@ func removeZero(strNumber : String) -> String{
 }
 
 
-//MARK: -- Data Formate Convertion --
+//MARK: -- Data Form   ate Convertion --
 func convertStringToDate(dateString: String, withFormat format: String) -> Date? {
     if isValidDate(dateString: dateString, currentFormate: format) {
         let inputFormatter = DateFormatter()

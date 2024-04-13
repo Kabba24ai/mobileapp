@@ -18,7 +18,10 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var viewSchedule: UIView!
     @IBOutlet weak var imgSchedule: UIImageView!
     @IBOutlet weak var lblSchedule: UILabel!
-    
+
+    @IBOutlet weak var viewScheduleCount: UIView!
+    @IBOutlet weak var lblScheduleCount: UILabel!
+
     @IBOutlet weak var viewCRM: UIView!
     @IBOutlet weak var imgCRM: UIImageView!
     @IBOutlet weak var lblCRM: UILabel!
@@ -42,7 +45,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     override func viewDidLoad() {
         super.viewDidLoad()
 
-     
+        NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
+
         // Do any additional setup after loading the view.
     }
     
@@ -51,7 +55,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
       override func viewWillAppear(_ animated: Bool) {
           super.viewWillAppear(animated)
           AppUtility.PortraitMode()
-          
+          GlobalMainConstants.appDelegate?.getScheduleCount()
+
           //SET VIEW
           self.view.backgroundColor = .background
           setNeedsStatusBarAppearanceUpdate()
@@ -97,6 +102,25 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.viewCRM.backgroundColor = .clear
         self.viewCRM.viewBorderCorneRadius(borderColour: .secondary)
         self.viewCRM.viewCorneRadius(radius: 15, isRound: false)
+        
+        //SET COUNT
+        self.setcount()
+    }
+    
+    
+    @objc func setcount(){
+        //SET SCHEDUKE CIUNT
+        self.viewScheduleCount.backgroundColor = .redText
+        self.viewScheduleCount.viewCorneRadius(radius: 0.0, isRound: true)
+        self.lblScheduleCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
+
+        
+        let scheduleCount = pendingDelivertCount + pendingPickupCount + pastDelivertCount + pastPickupCount
+        self.viewScheduleCount.isHidden = true
+        if scheduleCount != 0{
+            self.viewScheduleCount.isHidden = false
+            self.lblScheduleCount.text = "\(scheduleCount)"
+        }
     }
 }
 
