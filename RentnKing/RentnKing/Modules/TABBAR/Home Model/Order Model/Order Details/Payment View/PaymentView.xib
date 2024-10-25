@@ -13,6 +13,7 @@
             <connections>
                 <outlet property="con_Btn" destination="gCs-WU-nyQ" id="Ql8-bR-6Qq"/>
                 <outlet property="con_Popup" destination="BR9-kS-yWK" id="5yN-32-DQG"/>
+                <outlet property="con_PopupMain" destination="89u-aS-zon" id="m48-TT-ZNT"/>
                 <outlet property="imgClose" destination="8X2-Zt-b5w" id="j84-fv-PvV"/>
                 <outlet property="inerView" destination="lQp-OF-SS1" id="vcf-r4-Mjf"/>
                 <outlet property="lblPay" destination="B9v-Ej-E6R" id="LfN-wP-13t"/>

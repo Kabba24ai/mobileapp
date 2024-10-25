@@ -26,7 +26,7 @@
                                 </constraints>
                             </view>
                             <stackView opaque="NO" contentMode="scaleToFill" distribution="fillEqually" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="fT5-Rm-kba">
-                                <rect key="frame" x="38.666666666666657" y="283" width="316" height="150"/>
+                                <rect key="frame" x="38.666666666666657" y="253" width="316" height="150"/>
                                 <subviews>
                                     <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="1Zb-Uv-E1e">
                                         <rect key="frame" x="0.0" y="0.0" width="150" height="150"/>
@@ -112,7 +112,7 @@
                                 </subviews>
                             </stackView>
                             <stackView opaque="NO" contentMode="scaleToFill" distribution="fillEqually" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="ihA-Mx-bF1">
-                                <rect key="frame" x="38.666666666666657" y="449" width="316" height="150"/>
+                                <rect key="frame" x="38.666666666666657" y="419" width="316" height="150"/>
                                 <subviews>
                                     <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="zOB-T3-BZZ">
                                         <rect key="frame" x="0.0" y="0.0" width="150" height="150"/>
@@ -173,8 +173,47 @@
                                     </view>
                                 </subviews>
                             </stackView>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="Kqb-sN-EnC">
+                                <rect key="frame" x="38.666666666666657" y="585" width="150" height="150"/>
+                                <subviews>
+                                    <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="8" translatesAutoresizingMaskIntoConstraints="NO" id="WUg-uE-t4E">
+                                        <rect key="frame" x="49.333333333333343" y="35.999999999999993" width="51" height="78.333333333333314"/>
+                                        <subviews>
+                                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="icon_TimeClock" translatesAutoresizingMaskIntoConstraints="NO" id="qkQ-gS-oHF">
+                                                <rect key="frame" x="0.0" y="0.0" width="51" height="50"/>
+                                                <constraints>
+                                                    <constraint firstAttribute="height" constant="50" id="6CC-JZ-qY5"/>
+                                                    <constraint firstAttribute="width" secondItem="qkQ-gS-oHF" secondAttribute="height" multiplier="41:40" id="mae-hK-hn2"/>
+                                                </constraints>
+                                            </imageView>
+                                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="tYh-Ha-pd7">
+                                                <rect key="frame" x="5" y="58.000000000000007" width="41.333333333333336" height="20.333333333333336"/>
+                                                <fontDescription key="fontDescription" type="system" pointSize="17"/>
+                                                <nil key="textColor"/>
+                                                <nil key="highlightedColor"/>
+                                            </label>
+                                        </subviews>
+                                    </stackView>
+                                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="1md-QM-Qzg">
+                                        <rect key="frame" x="0.0" y="0.0" width="150" height="150"/>
+                                        <inset key="imageEdgeInsets" minX="0.0" minY="0.0" maxX="2.2250738585072014e-308" maxY="0.0"/>
+                                        <connections>
+                                            <action selector="btnTimeClockClicked:" destination="Y6W-OH-hqX" eventType="touchUpInside" id="KzA-aZ-7gj"/>
+                                        </connections>
+                                    </button>
+                                </subviews>
+                                <color key="backgroundColor" systemColor="systemBrownColor"/>
+                                <constraints>
+                                    <constraint firstItem="WUg-uE-t4E" firstAttribute="centerY" secondItem="Kqb-sN-EnC" secondAttribute="centerY" id="6Pb-9J-4f9"/>
+                                    <constraint firstAttribute="bottom" secondItem="1md-QM-Qzg" secondAttribute="bottom" id="b1J-gs-RlQ"/>
+                                    <constraint firstItem="1md-QM-Qzg" firstAttribute="leading" secondItem="Kqb-sN-EnC" secondAttribute="leading" id="bqa-eI-Awq"/>
+                                    <constraint firstItem="WUg-uE-t4E" firstAttribute="centerX" secondItem="Kqb-sN-EnC" secondAttribute="centerX" id="d0t-ve-9jx"/>
+                                    <constraint firstAttribute="trailing" secondItem="1md-QM-Qzg" secondAttribute="trailing" id="jUz-XP-iwA"/>
+                                    <constraint firstItem="1md-QM-Qzg" firstAttribute="top" secondItem="Kqb-sN-EnC" secondAttribute="top" id="zcX-5V-0Ul"/>
+                                </constraints>
+                            </view>
                             <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="EM4-p6-4NQ">
-                                <rect key="frame" x="290" y="309" width="25" height="25"/>
+                                <rect key="frame" x="290" y="279" width="25" height="25"/>
                                 <subviews>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Label" textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="jZm-wI-wwa">
                                         <rect key="frame" x="-8" y="2.3333333333333144" width="41.333333333333336" height="20.333333333333332"/>
@@ -191,19 +230,33 @@
                                     <constraint firstAttribute="width" secondItem="EM4-p6-4NQ" secondAttribute="height" multiplier="1:1" id="k7B-cK-Nbj"/>
                                 </constraints>
                             </view>
+                            <view contentMode="scaleToFill" translatesAutoresizingMaskIntoConstraints="NO" id="rmG-Lf-Qmk" customClass="UploadView" customModule="RentnKing" customModuleProvider="target">
+                                <rect key="frame" x="0.0" y="768" width="393" height="50"/>
+                                <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                                <constraints>
+                                    <constraint firstAttribute="height" constant="50" id="puo-Q5-RjE"/>
+                                </constraints>
+                            </view>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="vDu-zF-Fre"/>
                         <color key="backgroundColor" name="background"/>
                         <constraints>
+                            <constraint firstItem="rmG-Lf-Qmk" firstAttribute="leading" secondItem="5EZ-qb-Rvc" secondAttribute="leading" id="4l3-03-fXN"/>
+                            <constraint firstItem="vDu-zF-Fre" firstAttribute="trailing" secondItem="rmG-Lf-Qmk" secondAttribute="trailing" id="4tZ-Ds-H0i"/>
                             <constraint firstItem="pZG-Tq-Oy9" firstAttribute="top" secondItem="vDu-zF-Fre" secondAttribute="top" id="804-J5-yuh"/>
                             <constraint firstItem="1Zb-Uv-E1e" firstAttribute="width" secondItem="vDu-zF-Fre" secondAttribute="width" multiplier="0.381679" id="BEr-E1-rAh"/>
+                            <constraint firstItem="Kqb-sN-EnC" firstAttribute="leading" secondItem="ihA-Mx-bF1" secondAttribute="leading" id="Hhe-4k-wdR"/>
                             <constraint firstItem="fT5-Rm-kba" firstAttribute="centerX" secondItem="pZG-Tq-Oy9" secondAttribute="centerX" id="ICi-0w-m3R"/>
                             <constraint firstItem="ihA-Mx-bF1" firstAttribute="centerX" secondItem="fT5-Rm-kba" secondAttribute="centerX" id="JKT-th-EMi"/>
                             <constraint firstItem="EM4-p6-4NQ" firstAttribute="trailing" secondItem="mDz-hK-WBa" secondAttribute="trailing" constant="10" id="JWY-Ga-BJe"/>
                             <constraint firstItem="zOB-T3-BZZ" firstAttribute="width" secondItem="vDu-zF-Fre" secondAttribute="width" multiplier="0.381679" id="Ngq-yl-xXE"/>
+                            <constraint firstItem="Kqb-sN-EnC" firstAttribute="top" secondItem="ihA-Mx-bF1" secondAttribute="bottom" constant="16" id="Pxp-zX-Ytb"/>
+                            <constraint firstItem="Kqb-sN-EnC" firstAttribute="width" secondItem="zOB-T3-BZZ" secondAttribute="width" id="Qfh-Of-w6z"/>
                             <constraint firstItem="EM4-p6-4NQ" firstAttribute="top" secondItem="mDz-hK-WBa" secondAttribute="top" constant="-10" id="RFM-3f-3kg"/>
+                            <constraint firstItem="Kqb-sN-EnC" firstAttribute="height" secondItem="zOB-T3-BZZ" secondAttribute="height" id="ZnG-gK-xl9"/>
                             <constraint firstItem="ihA-Mx-bF1" firstAttribute="top" secondItem="fT5-Rm-kba" secondAttribute="bottom" constant="16" id="aAa-cB-xll"/>
-                            <constraint firstItem="fT5-Rm-kba" firstAttribute="top" secondItem="pZG-Tq-Oy9" secondAttribute="bottom" constant="100" id="jZx-C7-bAq"/>
+                            <constraint firstItem="fT5-Rm-kba" firstAttribute="top" secondItem="pZG-Tq-Oy9" secondAttribute="bottom" constant="70" id="jZx-C7-bAq"/>
+                            <constraint firstItem="vDu-zF-Fre" firstAttribute="bottom" secondItem="rmG-Lf-Qmk" secondAttribute="bottom" id="nUV-rE-EIc"/>
                             <constraint firstItem="pZG-Tq-Oy9" firstAttribute="leading" secondItem="5EZ-qb-Rvc" secondAttribute="leading" id="rO9-Xd-bXz"/>
                             <constraint firstAttribute="trailing" secondItem="pZG-Tq-Oy9" secondAttribute="trailing" id="sgB-wJ-5pm"/>
                         </constraints>
@@ -211,16 +264,20 @@
                     <navigationItem key="navigationItem" id="4OH-20-taw"/>
                     <connections>
                         <outlet property="con_NavigationBar" destination="Lum-qJ-POb" id="KQD-Mc-UZI"/>
+                        <outlet property="con_Upload" destination="puo-Q5-RjE" id="308-Ii-Oi1"/>
                         <outlet property="imgCRM" destination="eyE-ay-y6j" id="HlE-ey-kyC"/>
+                        <outlet property="imgChecking" destination="qkQ-gS-oHF" id="RUB-N8-Vf2"/>
                         <outlet property="imgEcommerce" destination="QKP-BL-2nB" id="j39-qO-hbo"/>
                         <outlet property="imgProducts" destination="PFC-WJ-djh" id="KNX-xf-c8z"/>
                         <outlet property="imgSchedule" destination="mDz-hK-WBa" id="Kcl-it-bCQ"/>
                         <outlet property="lblCRM" destination="lzU-1R-JNE" id="9yd-dW-BED"/>
+                        <outlet property="lblChecking" destination="tYh-Ha-pd7" id="8iN-sj-LK0"/>
                         <outlet property="lblEcommerce" destination="F2r-R2-tzQ" id="iSw-1Z-k0b"/>
                         <outlet property="lblProducts" destination="glj-Ek-qbM" id="3bP-b0-2bn"/>
                         <outlet property="lblSchedule" destination="gLJ-sy-Cl3" id="O5Z-dX-z9p"/>
                         <outlet property="lblScheduleCount" destination="jZm-wI-wwa" id="rvx-SE-BHO"/>
                         <outlet property="viewCRM" destination="osm-6C-NCr" id="dCf-p9-Zco"/>
+                        <outlet property="viewChecking" destination="Kqb-sN-EnC" id="whU-Bq-TaG"/>
                         <outlet property="viewEcommerce" destination="1Zb-Uv-E1e" id="Akk-i9-2zy"/>
                         <outlet property="viewNavigation" destination="pZG-Tq-Oy9" id="XbC-kb-8WI"/>
                         <outlet property="viewProducts" destination="zOB-T3-BZZ" id="sQy-6V-NRX"/>
@@ -3148,8 +3205,9 @@
         <image name="icon_RadioUnSelect" width="20" height="20"/>
         <image name="icon_Schedule" width="30" height="29"/>
         <image name="icon_Search" width="19.666666030883789" height="19.666666030883789"/>
+        <image name="icon_TimeClock" width="81.333335876464844" height="81.333335876464844"/>
         <image name="icon_calendar" width="20.333333969116211" height="23.666666030883789"/>
-        <image name="icon_close" width="31.333333969116211" height="31.333333969116211"/>
+        <image name="icon_close" width="19" height="19"/>
         <image name="icon_orderSuccess" width="276" height="218"/>
         <image name="icon_unCheck" width="15" height="15"/>
         <namedColor name="background">
@@ -3162,10 +3220,10 @@
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
         <systemColor name="systemBrownColor">
-            <color red="0.63529411764705879" green="0.51764705882352946" blue="0.36862745098039218" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="0.63529411759999999" green="0.51764705879999995" blue="0.36862745099999999" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
         <systemColor name="systemRedColor">
-            <color red="1" green="0.23137254901960785" blue="0.18823529411764706" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+            <color red="1" green="0.23137254900000001" blue="0.18823529410000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </systemColor>
     </resources>
 </document>

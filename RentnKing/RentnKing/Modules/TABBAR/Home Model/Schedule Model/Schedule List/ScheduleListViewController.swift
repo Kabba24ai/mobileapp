@@ -92,6 +92,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     override func viewDidLoad() {
         super.viewDidLoad()
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
+        self.setSearchBar(isHide: true)
 
         
         // Do any additional setup after loading the view.
@@ -114,7 +115,6 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
-        self.setSearchBar(isHide: true)
         self.getCategorys()
 
         //GET DATA
@@ -546,6 +546,7 @@ class ScheduleListCell : UITableViewCell{
     @IBOutlet weak var viewLine: UIView!
     @IBOutlet weak var lblProductName: UILabel!
     @IBOutlet weak var imgCall: UIImageView!
+    @IBOutlet weak var btnUpdateOrder: UIButton!
     @IBOutlet weak var btnCall: UIButton!
     @IBOutlet weak var lblDateTime: UILabel!
     @IBOutlet weak var imgOrderType: UIImageView!
@@ -663,7 +664,8 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         if let cell = tableView.dequeueReusableCell(withIdentifier: "ScheduleListCell") as? ScheduleListCell{
             cell.backgroundColor = UIColor.clear
             cell.viewLine.isHidden = false
-            
+            cell.viewComplate.viewBorderCorneRadius(borderColour: .clear)
+
             if isLoading {
                 cell.viewLine.isHidden = true
                 cell.viewDelivery.viewBorderCorneRadius(borderColour: .clear)
@@ -677,9 +679,9 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             
             //SET FONT
             cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.name ?? "")")
-            #if DEBUG
-            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.id ?? 0) : \(objData.name ?? "")")
-            #endif
+//            #if DEBUG
+//            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.id ?? 0) : \(objData.name ?? "")")
+//            #endif
             cell.lblPhone.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.phone ?? "")")
             imgColor(imgColor: cell.imgCall, colorHex: .secondary)
             
@@ -762,39 +764,39 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             
             cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: strProduct)
             
-            cell.viewDelivery.backgroundColor = .clear
-            cell.con_Delivery.constant = manageWidth(size: checkDeviceiPad() ? 450 : 350)
-            DispatchQueue.main.asyncAfter(wallDeadline: .now()) {
-                cell.viewDelivery.tag = indexPath.row
-                cell.viewDelivery.sliderViewTopDistance = 0
-                cell.viewDelivery.thumbnailViewTopDistance = 4;
-                cell.viewDelivery.thumbnailViewStartingDistance = 4;
-                cell.viewDelivery.layer.cornerRadius =  cell.viewDelivery.frame.size.height / 2
-                cell.viewDelivery.thumnailImageView.backgroundColor = .secondaryView
-                cell.viewDelivery.draggedView.backgroundColor = .clear
-                cell.viewDelivery.delegate = self
-                cell.viewDelivery.thumnailImageView.image = #imageLiteral(resourceName: "icon_slideNext").imageFlippedForRightToLeftLayoutDirection()
-                imgColor(imgColor: cell.viewDelivery.thumnailImageView, colorHex: .background)
-                cell.viewDelivery.sliderBackgroundColor = .clear
-                cell.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
-                cell.viewDelivery.textFont = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
-                cell.viewDelivery.labelText = ""
-                
-                cell.viewDelivery.textColor = UIColor.white
-                DispatchQueue.main.asyncAfter(deadline: .now()){
-                    if self.selectType.lowercased() == "Delivery".lowercased(){
-                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: 0)
-                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: 0)
-                        cell.viewDelivery.labelText = "Delivery Completed - Swipe Right"
-                    }
-                    else{
-                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
-                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: -CGFloat.pi)
-
-                        cell.viewDelivery.labelText = "Pickup Completed - Swipe Left"
-                    }
-                }
-            }
+//            cell.viewDelivery.backgroundColor = .clear
+//            cell.con_Delivery.constant = manageWidth(size: checkDeviceiPad() ? 450 : 350)
+//            DispatchQueue.main.asyncAfter(wallDeadline: .now()) {
+//                cell.viewDelivery.tag = indexPath.row
+//                cell.viewDelivery.sliderViewTopDistance = 0
+//                cell.viewDelivery.thumbnailViewTopDistance = 4;
+//                cell.viewDelivery.thumbnailViewStartingDistance = 4;
+//                cell.viewDelivery.layer.cornerRadius =  cell.viewDelivery.frame.size.height / 2
+//                cell.viewDelivery.thumnailImageView.backgroundColor = .secondaryView
+//                cell.viewDelivery.draggedView.backgroundColor = .clear
+//                cell.viewDelivery.delegate = self
+//                cell.viewDelivery.thumnailImageView.image = #imageLiteral(resourceName: "icon_slideNext").imageFlippedForRightToLeftLayoutDirection()
+//                imgColor(imgColor: cell.viewDelivery.thumnailImageView, colorHex: .background)
+//                cell.viewDelivery.sliderBackgroundColor = .clear
+//                cell.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
+//                cell.viewDelivery.textFont = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
+//                cell.viewDelivery.labelText = ""
+//                
+//                cell.viewDelivery.textColor = UIColor.white
+//                DispatchQueue.main.asyncAfter(deadline: .now()){
+//                    if self.selectType.lowercased() == "Delivery".lowercased(){
+//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: 0)
+//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: 0)
+//                        cell.viewDelivery.labelText = "Delivery Completed - Swipe Right"
+//                    }
+//                    else{
+//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
+//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: -CGFloat.pi)
+//
+//                        cell.viewDelivery.labelText = "Pickup Completed - Swipe Left"
+//                    }
+//                }
+//            }
             
             //SET VIEW
             cell.viewComplate.backgroundColor = .secondary
@@ -802,13 +804,21 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             cell.lblComplate.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "")
 
             //CHECK AND SET VIEW
-            cell.viewDelivery.isHidden = false
-            cell.viewComplate.isHidden = true
+            cell.viewDelivery.isHidden = true
+            cell.viewComplate.isHidden = false
+            cell.btnUpdateOrder.isHidden = false
             if self.selectType.lowercased() == "Delivery".lowercased(){
                 if objData.delivery_status?.value == "2"{
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
                     cell.lblComplate.text = "Delivery Completed - See Order Details"
+                    cell.btnUpdateOrder.isHidden = true
+                }
+                else{
+                    cell.viewComplate.backgroundColor = .clear
+                    cell.viewComplate.viewBorderCorneRadius(borderColour: .secondary)
+                    cell.lblComplate.text = "Update - Delivery Completed"
+                    cell.lblComplate.textColor = .primary
                 }
             }
             else{
@@ -816,13 +826,24 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
                     cell.lblComplate.text = "Pickup Completed - See Order Details"
-
+                    cell.btnUpdateOrder.isHidden = true
+                }
+                else{
+                    cell.viewComplate.backgroundColor = .clear
+                    cell.viewComplate.viewBorderCorneRadius(borderColour: .secondary)
+                    cell.lblComplate.text = "Update - Pickup Completed"
+                    cell.lblComplate.textColor = .primary
                 }
             }
 
-            
+            cell.viewDelivery.isHidden = true
+            cell.viewComplate.isHidden = false
+
         
             // BUTTON ACTION
+            cell.btnUpdateOrder.tag = indexPath.row
+            cell.btnUpdateOrder.addTarget(self, action: #selector(self.btnUpdateOrderClicked(_:)), for: .touchUpInside)
+
             cell.btnCall.tag = indexPath.row
             cell.btnCall.addTarget(self, action: #selector(self.btnCallClicked(_:)), for: .touchUpInside)
 
@@ -884,6 +905,53 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         }
         
         return ""
+    }
+    
+    
+    @objc func btnUpdateOrderClicked(_ sender : UIButton){
+        if self.arrScheduleList.count == 0 || self.arrScheduleList.count < sender.tag{
+            return
+        }
+        
+        
+        let objData = self.arrScheduleList[sender.tag]
+        let getID = objData.id
+
+        //GET NAME
+        var productName : String = ""
+        for objProduct in objData.order?.products ?? []{
+            productName = "\(objProduct.product_name ?? "")"
+        }
+
+        
+
+        if self.selectType.lowercased() == "Delivery".lowercased(){
+            if objData.delivery_status?.value != "2"{
+                                
+                //CALL API
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
+                   
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
+                }))
+                alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
+                self.present(alert, animated: true)
+
+            }
+        }
+        else{
+            if objData.pickup_status?.value != "2"{
+                //CALL API
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
+                    
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
+                }))
+                alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
+                self.present(alert, animated: true)
+
+            }
+        }
     }
     
     @objc func btnCallClicked(_ sender : UIButton) {

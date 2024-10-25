@@ -35,6 +35,62 @@ struct StoreModel: Mappable{
     }
 }
 
+
+
+struct CheckListModel: Mappable{
+    internal var id: Int?
+    internal var arrQuestions: [QuestionsListModel]?
+
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        id <- map["id"]
+        arrQuestions <- map["questions"]
+    }
+}
+
+
+struct QuestionsListModel: Mappable{
+    internal var checklist_id: Int?
+    internal var objQuestion: QuestionsModel?
+
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        checklist_id <- map["checklist_id"]
+        objQuestion <- map["question"]
+    }
+}
+
+
+struct QuestionsModel: Mappable{
+    internal var id: Int?
+    internal var question: String?
+    internal var question_value: Float?
+    internal var delivered: Float?
+    internal var returned: Float?
+   
+    internal var balance: Float?
+    internal var customerOwes: Float?
+
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        id <- map["id"]
+        question <- map["question"]
+        question_value <- map["question_value"]
+        delivered <- map["in"]
+        returned <- map["out"]
+
+    }
+}
+
 extension ProductDetailsViewController :WebServiceHelperDelegate{
     struct ProductParameater: Codable {
         var product_id : String

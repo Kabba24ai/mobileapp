@@ -78,9 +78,46 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
         
         //SET BUTTON
         self.addDeleteButton()
+        if self.arrImageVideoLisr.count == 0{
+            self.getLocalData()
+        }
     }
     
+    
+    func loadImage(fileName: String) -> UIImage? {
+        let fileURL = ImageVideoUploadDirectory.appendingPathComponent(self.strOrderID).appendingPathComponent(fileName)
+        do {
+            let imageData = try Data(contentsOf: fileURL)
+            return UIImage(data: imageData)
+        } catch {
+            print("Error loading image : \(error)")
+        }
+        return nil
+    }
+    
+    func getLocalData(){
+        let arrDataVideo = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.video_image.rawValue)
+        self.arrImageVideoLisr = []
+        for obj in arrDataVideo{
+            
+            if obj.isImage == true{
+                let img = self.loadImage(fileName: obj.name ?? "") ?? UIImage()
+                let url: URL = URL(fileURLWithPath: "")
+                let objData = ImageVideoModel(type: "img", image: img, strVideo: url, strUrl: "")
+                self.arrImageVideoLisr.append(objData)
+            }
+            else{
+                let videoURL = ImageVideoUploadDirectory.appendingPathComponent(self.strOrderID).appendingPathComponent(obj.name ?? "")
+                let objData = ImageVideoModel(type: "video", image: self.getThumbnailImage(forUrl: videoURL)!, strVideo: videoURL, strUrl: "")
+                self.arrImageVideoLisr.append(objData)
+            }
+        }
+        
+        //RELOAD TABLE
+        self.objCollectionView.reloadData()
+        self.addDeleteButton()
 
+    }
     func setTheView(){
         self.isLoading = false
         self.viewSubmit.isHidden = false
@@ -155,6 +192,21 @@ extension ImageUploadViewController {
             showAlertMessage(strMessage: "Please select any new image or video")
         }
         else{
+            indicatorShow()
+//            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.video_image.rawValue)
+//            if arrData.count != 0{
+//                CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: self.strOrderID, strType: uploadType.video_image.rawValue) { isSave in
+//                    if isSave{
+//                        //SAVE IN TABLE
+//                        self.saveTheVideoandImageLocal()
+//                    }
+//                }
+//            }
+//            else{
+//                //SAVE IN TABLE
+//                self.saveTheVideoandImageLocal()
+//            }
+            
             //CALL API
             self.callImageVideoUploadAPI(ImageVideoUploadParameater: ImageVideoUploadParameater(order_id: self.strOrderID))
         }
@@ -175,6 +227,142 @@ extension ImageUploadViewController {
             }
         }
         return false
+    }
+    
+    func saveTheVideoandImageLocal(){
+        createOrderFolder(strOrderID: self.strOrderID)
+        
+        let dataPath = ImageVideoUploadDirectory.appendingPathComponent(strOrderID)
+        if FileManager.default.fileExists(atPath: dataPath.path) == true {
+            self.checkFileExists(orderID: self.strOrderID, dataPath: dataPath)
+
+            self.updateFileLocal(arr: self.arrImageVideoLisr, uploadPath: dataPath)
+        }
+        else{
+            createImageVideoUploadFolder()
+            self.saveTheVideoandImageLocal()
+        }
+
+    }
+    
+    
+    func updateFileLocal(arr : [ImageVideoModel], uploadPath : URL){
+        var arrData = arr
+        if arrData.count != 0{
+            let obj = arrData[0]
+            
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                //SAVE IMAGE
+                if obj.type == "img"{
+                    let imageName = "\(self.strOrderID)_\(Date().timeIntervalSince1970).png"
+                    if self.saveImage(dataPath: uploadPath, image: obj.image, orderID: self.strOrderID, imageName: imageName){
+                        
+                        CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: SaveImageVideoParameater(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: true, name: imageName)) { isSave in
+                         
+                            if isSave{
+                                //REMOVE
+                                arrData.remove(at: 0)
+
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+
+                            }
+                        }
+                    }
+                    else{
+                        self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                    }
+                }
+                else{
+                    //SAVE VIDEO
+                    let videoName = "\(self.strOrderID)_\(Date().timeIntervalSince1970).mov"
+                    if self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: videoName){
+                        
+                        CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: SaveImageVideoParameater(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: false, name: videoName)) { isSave in
+                         
+                            if isSave{
+                                //REMOVE
+                                arrData.remove(at: 0)
+
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+
+                            }
+                        }
+                    }
+                    else{
+                        self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                    }
+                }
+            }
+        }
+        else{
+            //SUCCESS
+            indicatorHide()
+            showAlertMessage(strMessage: "Upload successfully")
+//            self.delegate?.ImageVideoUploadSucess(selectIndex: self.selectIndex, arrImage: dicData)
+            
+            //UPLOAD LOCAL DATA
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
+                GlobalMainConstants.appDelegate?.uploadAllData()
+            }
+
+           
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                self.navigationController?.popViewController(animated: true)
+            }
+
+        }
+    }
+
+    
+    func saveImage(dataPath : URL, image: UIImage, orderID : String, imageName : String) -> Bool {
+        guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
+            return false
+        }
+      
+        do {
+            try data.write(to: dataPath.appendingPathComponent(imageName))
+            return true
+        } catch {
+            print(error.localizedDescription)
+            return false
+        }
+    }
+
+    func saveVideo(dataPath : URL, videoURL: URL, orderID : String, videoName : String) -> Bool {
+
+        do {
+            let videoData = try Data(contentsOf: videoURL)
+            print(videoData)
+            try videoData.write(to: dataPath.appendingPathComponent(videoName), options: .atomic)
+            return true
+        } catch {
+            print("Error")
+            return false
+        }
+       
+    }
+
+    
+    func checkFileExists(orderID : String, dataPath : URL){
+        if FileManager.default.fileExists(atPath: dataPath.path) == true {
+            self.clearAllFiles(dataPath: dataPath)
+        }
+    }
+    
+    func clearAllFiles(dataPath : URL) {
+        let fileManager = FileManager.default
+        do {
+            let fileName = try fileManager.contentsOfDirectory(atPath: dataPath.path)
+                
+            for file in fileName {
+                // For each file in the directory, create full path and delete the file
+                let filePath = URL(fileURLWithPath: dataPath.path).appendingPathComponent(file).absoluteURL
+                try fileManager.removeItem(at: filePath)
+            }
+        } catch let error {
+            print(error)
+        }
     }
 }
 

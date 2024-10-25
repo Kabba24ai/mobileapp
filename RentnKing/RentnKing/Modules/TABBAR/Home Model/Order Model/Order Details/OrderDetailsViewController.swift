@@ -18,6 +18,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
     //DECLARE VARIABLE
     @IBOutlet weak var tblView: UITableView!
+    @IBOutlet weak var con_Upload: NSLayoutConstraint!
 
     @IBOutlet weak var viewBilling: UIView!
     @IBOutlet weak var lblBillingInfo: UILabel!
@@ -103,7 +104,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var isOrderScreen : Bool = false
     var isLoading : Bool = true
     var strOrderID : String = ""
-
+    var isPresent : Bool = false
+    
+    
     var selectIndex : Int = -1
     var objOrderData : OrdersModel!
     var strProductID : String = ""
@@ -112,8 +115,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        // Do any additional setup after loading the view.
-        
+        NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
+
 
     }
 
@@ -121,7 +125,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
         
-        
+        //CHECK DATA
+        self.stopUploadData()
+
         //SET VIEW
         self.view.backgroundColor = .background
         setNeedsStatusBarAppearanceUpdate()
@@ -142,14 +148,17 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
             //BACK SCREE
-            if self.isOrderScreen == true{
-                self.navigationController?.popToRootViewController(animated: true)
+            if self.isPresent == true{
+                self.dismiss(animated: true)
             }
             else{
-                self.navigationController?.popViewController(animated: true)
+                if self.isOrderScreen == true{
+                    self.navigationController?.popToRootViewController(animated: true)
+                }
+                else{
+                    self.navigationController?.popViewController(animated: true)
+                }
             }
-            
-            
             
         } rightActionHandler: {
             
@@ -166,6 +175,13 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
     }
     
+    @objc func startUploadData(){
+        self.con_Upload.constant = manageFont(font: 0)
+    }
+    
+    @objc func stopUploadData(){
+        self.con_Upload.constant = 0
+    }
     
     func setTheView(){
         self.isLoading = false
@@ -201,8 +217,6 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
                     imgColor(imgColor: self.imgMapAddress, colorHex: .secondary)
                     imgColor(imgColor: self.imgEditAddress, colorHex: .secondary)
                     self.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objAddress.address ?? ""), \(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.country ?? ""), \(objAddress.zip_code ?? "")")
-
-                    
                 }
 
             }
@@ -210,7 +224,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             
             //SET DELIVERY ADDRESS
             self.viewDelivery.isHidden = true
-            if self.objOrderData.billing_address != nil{
+            if self.objOrderData.shipping_address != nil{
                 if let objAddress = self.objOrderData.shipping_address{
                     self.viewDelivery.isHidden = false
 
@@ -245,10 +259,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.lblProductTitle.frame.origin.y + self.lblProductTitle.frame.size.height)
 
             self.tblView.tableHeaderView = vw_Table
+            
+            //RELOAD TABLE
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
+                self.tblView.reloadData()
+            }
+
         }
         
-        //RELOAD TABLE
-        self.tblView.reloadData()
 
     }
     
@@ -294,7 +312,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgLicense, colorHex: .secondary)
             
-            if self.objOrderData.license_image_links.count != 0{
+            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
+            if self.objOrderData.license_image_links.count != 0 || arrData.count != 0 || self.objOrderData.addLicenseImageLocally == true{
                 self.lblLicense.textColor = .background
                 imgColor(imgColor: self.imgLicense, colorHex: .background)
                 self.viewLicense.backgroundColor = .secondary
@@ -349,7 +368,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewPhotVideo.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgPhotVideo, colorHex: .secondary)
 
-            if self.objOrderData.order_image_links.count != 0{
+            let arrDataVideo = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(self.objOrderData.id ?? 0)", strType: uploadType.video_image.rawValue)
+            if self.objOrderData.order_image_links.count != 0 || arrDataVideo.count != 0{
                 self.lblPhotVideo.textColor = .background
                 imgColor(imgColor: self.imgPhotVideo, colorHex: .background)
                 self.viewPhotVideo.backgroundColor = .secondary
@@ -724,6 +744,8 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
     }
     
     func linceUploadSucess(selectIndex: Int, arrImage: [String]) {
+   
+       
         self.isLoading = false
         self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
     }
@@ -752,12 +774,21 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
             return false
         }
 
-        for obj in objOrderData.arrMachineHours{
-            if obj.start == 0{
-                return false
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
+        if arrData.count != 0{
+            for obj in arrData{
+                if obj.start == "" || obj.start == "0" || obj.start == "0.0" || obj.start == nil{
+                    return false
+                }
             }
         }
-        
+        else{
+            for obj in objOrderData.arrMachineHours{
+                if obj.start == 0{
+                    return false
+                }
+            }
+        }
         return true
     }
     
@@ -766,9 +797,19 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
             return false
         }
 
-        for obj in objOrderData.arrMachineHours{
-            if obj.end == 0{
-                return false
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
+        if arrData.count != 0{
+            for obj in arrData{
+                if obj.end == "" || obj.end == "0" || obj.end == "0.0" || obj.end == nil{
+                    return false
+                }
+            }
+        }
+        else{
+            for obj in objOrderData.arrMachineHours{
+                if obj.end == 0{
+                    return false
+                }
             }
         }
         
@@ -818,6 +859,9 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
                     if obj.delivery_status?.value != "2"{
                         return (strImg, false, obj.product_id ?? 0)
                     }
+                    else{
+                        return (strImg, true, obj.product_id ?? 0)
+                    }
                 }
                 else{
                     //GET IMAGE
@@ -831,6 +875,9 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
                     //CHECK STATUS
                     if obj.pickup_status?.value != "2"{
                         return (strImg, false, obj.product_id ?? 0)
+                    }
+                    else{
+                        return (strImg, true, obj.product_id ?? 0)
                     }
                 }
             }
@@ -856,7 +903,7 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if isLoading{
-            return 5
+            return 1
         }
         else{
             return self.objOrderData.arrProduct.count

@@ -29,6 +29,7 @@ struct ProductModel: Mappable{
     internal var product_id: Int?
     internal var objProduct: Product?
     internal var storeAdderss: StoreModel?
+    internal var checkList: CheckListModel?
     internal var name: String?
     internal var product_name: String?
     internal var price: Float?
@@ -64,6 +65,7 @@ struct ProductModel: Mappable{
         product_id <- map["product_id"]
         objProduct <- map["product"]
         storeAdderss <- map["store"]
+        checkList <- map["checklist"]
         name <- map["name"]
         product_name <- map["product_name"]
         image <- map["image"]

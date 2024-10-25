@@ -60,11 +60,10 @@ struct GlobalMainConstants
     static let TABBAR = "TabBar"
     
     static let HOME_MODEL = "Home"
+    static let TIMECLOCK_MODEL = "TimeClock"
     static let ORDER_MODEL = "Order"
     static let SCHEDULE_MODEL = "Schedule"
 
-    
-    
     //FONT NAME
     static let APP_FONT_Roboto_Black = "Roboto-Black"
     static let APP_FONT_Roboto_Bold = "Roboto-Bold"
@@ -271,7 +270,7 @@ func convertSeccountToTime(remainingTime : Int) -> String{
 
 @MainActor func setupCutomeKeyboard() {
     IQKeyboardManager.shared.enable = true
-    IQKeyboardManager.shared.enableAutoToolbar = false
+    IQKeyboardManager.shared.enableAutoToolbar = true
     IQKeyboardManager.shared.toolbarConfiguration.placeholderConfiguration.showPlaceholder = true
     IQKeyboardManager.shared.toolbarConfiguration.previousNextDisplayMode = .alwaysHide
 }
@@ -638,7 +637,8 @@ extension UIDevice {
 
 //URL
 enum Url {
-    
+    static let updateToken = NSURL(string: "\(Application.BaseURL)device-token")!
+
     //CATEGORY
     static let categorys = NSURL(string: "\(Application.BaseURL)getcategories")!
     static let categoryProducts = NSURL(string: "\(Application.BaseURL)getcategoryproducts")!
@@ -659,8 +659,15 @@ enum Url {
     static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
     static let orderPayment = NSURL(string: "\(Application.BaseURL)order/payment")!
     static let updateAddress = NSURL(string: "\(Application.BaseURL)order/address/update")!
+    static let updateCheckList = NSURL(string: "\(Application.BaseURL)order/checklist-update")!
 
-    
+    //TIME CLOCK
+    static let timeClockSetting = NSURL(string: "\(Application.BaseURL)time-clock/settings")!
+    static let statusList = NSURL(string: "\(Application.BaseURL)attendance/statues")!
+    static let employeesList = NSURL(string: "\(Application.BaseURL)employees")!
+    static let employeeStatus = NSURL(string: "\(Application.BaseURL)employee/status")!
+    static let updateEmployeeStatus = NSURL(string: "\(Application.BaseURL)employee/attendance/track")!
+
     
     //IMAGE VIDEO UPLOAD
     static let uploadImageVideo = NSURL(string: "\(Application.BaseURL)order/upload/images")!

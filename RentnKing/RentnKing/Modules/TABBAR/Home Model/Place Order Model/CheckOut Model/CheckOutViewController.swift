@@ -60,6 +60,7 @@ class CheckOutViewController: UIViewController, UIGestureRecognizerDelegate, Men
     override func viewDidLoad() {
         super.viewDidLoad()
         Checkout.shared.customeAmount = 0
+        setupKeyboard(true)
 
         NotificationCenter.default.addObserver(self, selector: #selector(self.cartUpdated(notificatio:)), name: .cartUpdated, object: nil)
 
@@ -303,6 +304,7 @@ class CartListCell : UITableViewCell{
             lblOptions,
             lblOptionsPrice,
             lblOptionsValues,
+//            lblRemove
 //            imgStore,
 //            lblStoreAddress
         ]

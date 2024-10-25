@@ -14,7 +14,7 @@ protocol LicenseUploadDelegate : NSObject {
 
 class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     weak var delegate: LicenseUploadDelegate?
-
+    
     @IBOutlet weak var imgFront: UIImageView!
     @IBOutlet weak var viewEditFront: UIView!
     @IBOutlet weak var imgBack: UIImageView!
@@ -43,11 +43,13 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         super.viewDidLoad()
         
         self.imagePicker.delegate = self
-
+        
         // Do any additional setup after loading the view.
         
-        //SET  VIEW
         self.setTheView()
+        
+        //GET DATA
+        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: ""))
 
     }
     
@@ -76,6 +78,7 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
             
             
         }
+        
     }
     
     func setTheView(){
@@ -103,7 +106,27 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         self.lblSecond.configureLable(textColor: .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strUplodSecod)
         
         //SET IMAGE
-        if self.arrLicense.count != 0{
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
+        if arrData.count != 0{
+            //FRONT
+            if arrData.count > 0{
+                if let imgFront = loadImage(fileName: arrData[0].name ?? ""){
+                    self.viewEditFront.isHidden = false
+                    self.imgFront.image = imgFront
+                    self.imgFront.backgroundColor = .white
+                }
+            }
+    
+            //BACK
+            if arrData.count > 1{
+                if let imgFront = loadImage(fileName: arrData[1].name ?? ""){
+                    self.viewEditBack.isHidden = false
+                    self.imgBack.image = imgFront
+                    self.imgBack.backgroundColor = .white
+                }
+            }
+        }
+        else if self.arrLicense.count != 0{
             //FRONT
             if self.arrLicense.count > 0{
                 self.viewEditFront.isHidden = false
@@ -119,7 +142,13 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
             }
         }
     }
+
+    
+   
+
 }
+
+
 
 //MARK: - BUTTON ACTION
 extension LicenseUploadViewController {
@@ -149,22 +178,47 @@ extension LicenseUploadViewController {
         }
         else{
             //CALL API
-            
-//            if self.saveImage(image: self.imgFront.image ?? UIImage(), orderID: self.strOrderID, imgName: "front"){
-//                print("save")
-//                
-//                if self.saveImage(image: self.imgBack.image ?? UIImage(), orderID: self.strOrderID, imgName: "back"){
-//                 
-////                    showAlertMessage(strMessage: "Upload license update successfully")
-////                    self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: dicData)
-////
-////                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-////                        self.navigationController?.popViewController(animated: true)
-////                    }
-//
-//                }
-//            }
-            callLicenseUploadAPI(LicenseParameater: LicenseParameater(order_id: self.strOrderID))
+            if self.saveImage(image: self.imgFront.image ?? UIImage(), orderID: self.strOrderID, imgName: "front"){
+                print("save")
+                
+                if self.saveImage(image: self.imgBack.image ?? UIImage(), orderID: self.strOrderID, imgName: "back"){
+                    
+                    let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
+                    if arrData.count != 0{
+                        CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue) { isSave in
+                            self.setLicenseData()
+                        }
+                    }
+                    else{
+                        self.setLicenseData()
+                
+                    }
+                }
+            }
+        }
+    }
+    
+    func setLicenseData(){
+        //SAVE IN DATA BASE
+        CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: SaveImageVideoParameater(orderID: self.strOrderID, type: uploadType.image.rawValue, isImage: true, name: "\(self.strOrderID)_front.png")) { isSave in
+            if isSave{
+                CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: SaveImageVideoParameater(orderID: self.strOrderID, type: uploadType.image.rawValue, isImage: true, name: "\(self.strOrderID)_back.png")) { isSave in
+                    if isSave{
+                        showAlertMessage(strMessage: "Upload license update successfully")
+                        
+                        self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+                        
+                        //UPLOAD LOCAL DATA
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0){
+                            GlobalMainConstants.appDelegate?.uploadAllData()
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                            self.navigationController?.popViewController(animated: true)
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -262,5 +316,17 @@ extension LicenseUploadViewController: UIImagePickerControllerDelegate, UINaviga
         picker.dismiss(animated: true) {
         }
     }
+}
+
+
+func loadImage(fileName: String) -> UIImage? {
+    let fileURL = LicenseUploadDirectory.appendingPathComponent(fileName)
+    do {
+        let imageData = try Data(contentsOf: fileURL)
+        return UIImage(data: imageData)
+    } catch {
+        print("Error loading image : \(error)")
+    }
+    return nil
 }
 

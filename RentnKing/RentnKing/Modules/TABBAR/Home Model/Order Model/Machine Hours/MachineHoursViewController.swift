@@ -37,9 +37,10 @@ class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate 
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setupCutomeKeyboard()
+//        setupCutomeKeyboard()
         // Do any additional setup after loading the view.
-        
+        setupKeyboard(false)
+
         
         //CALL API
         self.viewSubmit.isHidden = true
@@ -119,8 +120,65 @@ extension MachineHoursViewController {
         }
        
         else{
+            //ADD ORDER LIST
+//            let arrOrder = CoreDBManager.sharedDatabase.getOrderListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
+//            if arrOrder.count == 0{
+//                CoreDBManager.sharedDatabase.saveOrderList(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue) { _ in
+//                }
+//            }
+            
+            //GET HORES DATA
+            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
+            if arrData.count != 0{
+                CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue) { isSave in
+                    if isSave{
+                        //SAVE IN TABLE
+                        self.saveHoursData(arr: self.objOrderData.arrMachineHours)
+                    }
+                }
+            }
+            else{
+                //SAVE IN TABLE
+                self.saveHoursData(arr: self.objOrderData.arrMachineHours)
+            }
+            
             //CALL API
-            self.updateHours(arrHours: getMachineHoursArray())
+//            self.updateHours(arrHours: getMachineHoursArray())
+        }
+    }
+    
+    func saveHoursData(arr : [MachineHoursModel]){
+        var arrData = arr
+        if arrData.count != 0{
+            let objData = arrData[0]
+            
+            //SAVE IN DATA BASE
+            CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: SaveImageVideoParameater(orderID: self.strOrderID, type: uploadType.hours.rawValue, isImage: false, name: "", allocated: "\(objData.allocated ?? 0)", end: "\(objData.end ?? 0)", over: "\(objData.additinal ?? 0)", over_rate: "\(objData.price ?? 0)", productID: "\(objData.product_id ?? 0)", start: "\(objData.start ?? 0)", total: "\(objData.total ?? 0)", total_cost: "\(objData.total_cost ?? 0)")) { isSave in
+                if isSave{
+                    arrData.remove(at: 0)
+                    self.saveHoursData(arr: arrData)
+                }
+                else{
+                    showAlertMessage(strMessage: "Machine Hours not update")
+                }
+            }
+        }
+        else{
+            //SUCCESS m,m
+            if self.selectIndex != -1{
+                self.delegate?.UpdateMachinHours(selectIndex: self.selectIndex, arrUpdateMachinHours: self.objOrderData.arrMachineHours)
+            }
+            
+            //UPLOAD LOCAL DATA
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
+                GlobalMainConstants.appDelegate?.uploadAllData()
+            }
+            
+            showAlertMessage(strMessage: "Machine Hours update successfully")
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                self.navigationController?.popViewController(animated: true)
+            }
         }
     }
     
@@ -133,24 +191,6 @@ extension MachineHoursViewController {
         return false
     }
     
-    func getMachineHoursArray() -> [[String : Any]]{
-        var arrHours : [[String : Any]] = []
-        
-        for objData in self.objOrderData.arrMachineHours{
-            let dicData : [String : Any] = ["order_id" : self.strOrderID ,
-                                            "product_id" : "\(objData.product_id ?? 0)",
-                                            "start" : "\(objData.start ?? 0)",
-                                            "allocated" : "\(objData.allocated ?? 0)",
-                                            "end" : "\(objData.end ?? 0)",
-                                            "total" : "\(objData.total ?? 0)",
-                                            "over" : "\(objData.additinal ?? 0)",
-                                            "over_rate" : "\(objData.price ?? 0)",
-                                            "total_cost" : "\(objData.total_cost ?? 0)"]
-            
-            arrHours.append(dicData)
-        }
-        return arrHours
-    }
 }
 
 
@@ -251,6 +291,9 @@ extension MachineHoursViewController : UITextFieldDelegate{
         self.objOrderData.arrMachineHours.remove(at: index)
         self.objOrderData.arrMachineHours.insert(objdata, at: index)
             
+        
+        //RELAOD ABLE
+//        self.tblView.reloadData()
     }
 }
 
@@ -374,12 +417,12 @@ extension MachineHoursViewController : UITableViewDelegate, UITableViewDataSourc
                 
                 //SET SCHEDULE DATE
                 cell.lblDate.text = ""
-                let strDate = setFontAttributes(str: str.sttScheduleDate, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0)
-                strDate.append(setFontAttributes(str: " \( objProductDetails.product_options.deldate ?? "")", fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0))
-                cell.lblDate.attributedText = strDate
-
+                if objProductDetails.product_options != nil{
+                    let strDate = setFontAttributes(str: str.sttScheduleDate, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0)
+                    strDate.append(setFontAttributes(str: " \( objProductDetails.product_options.deldate ?? "")", fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0))
+                    cell.lblDate.attributedText = strDate
+                }
             }
-            
 
          
             
@@ -465,6 +508,9 @@ extension MachineHoursViewController {
        let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
        print(keyboardHeight)
         self.con_SubmitBottom.constant = 16.0
+
+        //RELOAD TABLE
+        self.tblView.reloadData()
 
     }
 }

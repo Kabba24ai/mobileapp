@@ -11,6 +11,8 @@ import ObjectMapper
 //Never user NSUDKey enum directly, use UserDefaults's Extenion's property only
 enum NSUDKey {
     static let deviceToken = "deviceToken"
+    static let masterCode = "masterCode"
+    static let useMasterCode = "useMasterCode"
     static let language = "language"
     static let userData = "userData"
     static let profile = "profile"
@@ -21,6 +23,9 @@ extension Notification.Name {
     static let languageUpdate = Notification.Name("languageUpdate")
     static let cartUpdated = Notification.Name("cartUpdated")
     static let scheduleCount = Notification.Name("scheduleCount")
+
+    static let startUploadData = Notification.Name("startUploadData")
+    static let stopUploadData = Notification.Name("stopUploadData")
 
 }
 
@@ -124,5 +129,37 @@ extension UserDefaults{
         }
     }
     
+    
+    var masterCode: String?{
+        get {
+            return string(forKey: NSUDKey.masterCode)
+        }
+        set {
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.masterCode)
+            }
+            else{
+                set(newValue, forKey: NSUDKey.masterCode)
+            }
+            synchronize()
+        }
+    }
+  
+    
+    
+    var useMasterCode: String?{
+        get {
+            return string(forKey: NSUDKey.useMasterCode)
+        }
+        set {
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.useMasterCode)
+            }
+            else{
+                set(newValue, forKey: NSUDKey.useMasterCode)
+            }
+            synchronize()
+        }
+    }
   
 }

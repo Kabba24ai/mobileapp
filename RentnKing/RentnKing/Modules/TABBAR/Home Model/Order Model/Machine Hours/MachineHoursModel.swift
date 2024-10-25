@@ -42,28 +42,7 @@ extension MachineHoursViewController :WebServiceHelperDelegate{
         webHelper.callAPI()
     }
     
-    
-    func updateHours(arrHours : [[String : Any]]){
-    
-        //Declaration URL
-        let strURL = "\(Url.machineHours.absoluteString!)"
-        
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "machineHours"
-        webHelper.methodType = "post"
-        webHelper.strURL = strURL
-        webHelper.dictType = [:]
-        webHelper.arryType = arrHours
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = true
-        webHelper.callAPI2()
-    }
-    
+  
    
     
     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
@@ -90,18 +69,18 @@ extension MachineHoursViewController :WebServiceHelperDelegate{
                     self.setTheView()
                 }
             }
-            else if strRequest == "machineHours"{
-                if self.selectIndex != -1{
-                    self.delegate?.UpdateMachinHours(selectIndex: self.selectIndex, arrUpdateMachinHours: self.objOrderData.arrMachineHours)
-                }
-                
-                showAlertMessage(strMessage: "Machine Hours update successfully")
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                    self.navigationController?.popViewController(animated: true)
-                }
-
-            }
+//            else if strRequest == "machineHours"{
+//                if self.selectIndex != -1{
+//                    self.delegate?.UpdateMachinHours(selectIndex: self.selectIndex, arrUpdateMachinHours: self.objOrderData.arrMachineHours)
+//                }
+//                
+//                showAlertMessage(strMessage: "Machine Hours update successfully")
+//
+//                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+//                    self.navigationController?.popViewController(animated: true)
+//                }
+//
+//            }
         }
         else{
             indicatorHide()

@@ -18,8 +18,10 @@ struct OrdersModel: Mappable{
     internal var shipping_address: AddressModel?
     internal var billing_address: AddressModel?
     internal var arrMachineHours : [MachineHoursModel] = []
+    internal var addLicenseImageLocally: Bool = false
     internal var license_image_links: [String] = []
     internal var order_image_links: [String] = []
+    internal var has_checklist: Int?
     internal var code: String?
     internal var license_images: String?
     internal var order_type: String?
@@ -47,6 +49,7 @@ struct OrdersModel: Mappable{
         arrMachineHours <- map["order_machine_hours"]
         license_image_links <- map["license_image_links"]
         order_image_links <- map["order_image_links"]
+        has_checklist <- map["has_checklist"]
         code <- map["code"]
         license_images <- map["license_images"]
         order_type <- map["order_type"]
@@ -294,9 +297,9 @@ extension OrderListViewController :WebServiceHelperDelegate{
         self.objRefresh?.endRefreshing()
 
         if data.getStringForID(key: "success") == "1"{
-            print(data)
             if strRequest == "orderList"{
-                
+                print(data)
+
                 if let dicData = data["data"] as? NSDictionary{
                     if let arrData = dicData["data"] as? NSArray{
                         let arr = Mapper<OrdersModel>().mapArray(JSONArray: arrData as! [[String : Any]])

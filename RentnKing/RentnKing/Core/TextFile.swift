@@ -34,12 +34,27 @@ struct Text {
     var strSchedule = "Schedule".localized()
     var strEquipment = "Equipment".localized()
     var strCRM = "CRM".localized()
-    
+    var strTimeClock = "Time Clock".localized()
+
     //CATEGORY
     var strCategorie = "Categories".localized()
     var strOrders = "Orders".localized()
     var strProducts = "Products".localized()
     var strReserveNow = "Reserve Now / Learn More".localized()
+    
+    
+    //TIME CLOCK
+    var strMasterCode = "Admin / Access Code".localized()
+    var strMasterCodeText = "Please enter".localized()
+    var strTeamName = "Team Member Name".localized()
+    var strSelectTeamName = "Select name".localized()
+    
+    var strMemberID = "Member ID".localized()
+    var strSelectMemberID = "Enter id".localized()
+    
+    var strUpdateStatus = "Update Status".localized()
+    var strChangeStatus = "Change Status".localized()
+
     
     //PRODUCT
     var soldOut = "Sold Out".localized()
@@ -149,6 +164,15 @@ struct Text {
     var strHourseFee = "Prorated Hourly Fee".localized()
     var strTotalCharge = "Total Charge".localized()
 
+    //CHECK LIST
+    var strDelivered = "Delivered".localized()
+    var strReturned = "Returned".localized()
+    var strBalance = "Balance".localized()
+    var strValue = "Value".localized()
+    var strCustomerOwes = "Customer Owes".localized()
+    var strTotalCheckList = "Total Charge".localized()
+
+    
     
     //ORDER DETAILS
     var strProductList = "Product List".localized()

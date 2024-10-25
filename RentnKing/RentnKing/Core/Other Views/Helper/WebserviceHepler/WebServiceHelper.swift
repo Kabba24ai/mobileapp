@@ -64,7 +64,7 @@ class WebServiceHelper: NSObject,InternetAccessDelegate {
     }
     
     // MARK: - StartDowload Method -
-    func callAPI(){
+    func  callAPI(){
         if NetworkReachabilityManager()!.isReachable {
             do {
                 
@@ -76,7 +76,7 @@ class WebServiceHelper: NSObject,InternetAccessDelegate {
                 }
 
                 //Base user for calling service
-                var headers: HTTPHeaders = [:]               
+                let headers: HTTPHeaders = ["Accept": "application/json"]
                 
                 //Calling service
                 let manager = AF
@@ -341,7 +341,7 @@ class WebServiceHelper: NSObject,InternetAccessDelegate {
                             
                         }
                         else{
-                            let imgData : Data = ((obj["img"] as? UIImage)?.jpegData(compressionQuality: 0.25))!
+                            let imgData : Data = ((obj["img"] as? UIImage)?.jpegData(compressionQuality: 0.25)) ?? Data()
                             let imgName : String = obj["name"] as? String ?? ""
                             let imgUploadKey : String = obj["key"] as? String ?? ""
                             

@@ -17,6 +17,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     @IBOutlet weak var viewSearch: UIView!
     @IBOutlet weak var txtSearch: UITextField!
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
+    @IBOutlet weak var con_Upload: NSLayoutConstraint!  
     @IBOutlet var emptyDataView : EmptyDataView!{
         didSet{
             emptyDataView.noDataFound()
@@ -43,6 +44,8 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
 
 
         // Do any additional setup after loading the view.
@@ -79,7 +82,12 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
         setupKeyboard(false)
+        
         self.getCategorys()
+        
+        //CHECK DATA
+        self.stopUploadData()
+
         
         //SET VIEW
         self.view.backgroundColor = .background
@@ -95,6 +103,15 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         
 
     }
+    
+    @objc func startUploadData(){
+        self.con_Upload.constant = manageFont(font: 0)
+    }
+    
+    @objc func stopUploadData(){
+        self.con_Upload.constant = 0
+    }
+
     
     func setNavigation(){
         //SET NAVIGATION BAR
@@ -131,7 +148,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     }
     
     override func viewWillDisappear(_ animated: Bool) {
-        setupKeyboard(true)
+//        setupKeyboard(true)
     }
     
     @objc func refreshList(){
@@ -359,8 +376,8 @@ class OrderListCell : UITableViewCell{
 
 //MARK: -- UITABEL DELEGATE --
 
-extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, TermsDelegate, LicenseUploadDelegate, MFMessageComposeViewControllerDelegate, ImageVideoUploadDelegate, MachineHoursDelegate, OrderDetailsDelegate{
-   
+extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, TermsDelegate, LicenseUploadDelegate, MFMessageComposeViewControllerDelegate, ImageVideoUploadDelegate, MachineHoursDelegate, OrderDetailsDelegate, CheckListDelegate{
+  
     
 
     
@@ -445,6 +462,10 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
                 return cell
             }
             
+            if self.arrOrderList.count == 0{
+                return cell
+            }
+            
             //GET DATA
             var objData : OrdersModel!
             objData = self.arrOrderList[indexPath.row]
@@ -463,7 +484,8 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.lblTermsAndCondition.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strTerms)
             cell.lblHoursStart.configureLable(textColor: self.checkMachineHoursAllocate(selectIndex: indexPath.row) == true ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strHoursStart)
             cell.lblHoursEnd.configureLable(textColor: self.checkMachineHoursAllocate(selectIndex: indexPath.row) == true ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strHoursEnd)
-            cell.lblCheckList.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckList)
+            cell.lblCheckList.configureLable(textColor: self.checkCheckList(selectIndex: indexPath.row) == true ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckList)
+
             cell.lblPhotVideo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideo)
             cell.lblDeliveryStatus.configureLable(textColor: objData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDeliveyStatus)
             cell.lblPickupStatus.configureLable(textColor: objData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickupStatus)
@@ -482,19 +504,20 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 
             
             
-            //CHECK AND SET VIEW
+            //CHECK LICENSE
             cell.viewLicense.backgroundColor = .clear
             cell.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: cell.imgLicense, colorHex: .secondary)
             
-            if objData.license_image_links.count != 0{
+            //GET LOACA DATA
+            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.image.rawValue)
+            if objData.license_image_links.count != 0 || arrData.count != 0 || objData.addLicenseImageLocally == true{
                 cell.lblLicense.textColor = .background
                 imgColor(imgColor: cell.imgLicense, colorHex: .background)
                 cell.viewLicense.backgroundColor = .secondary
             }
             
             //T&C
-            
             let isTerms = self.checkTermsAndConditionStatus(selectIndex: indexPath.row)
             
             
@@ -535,20 +558,24 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             //CHECKLIST
             cell.viewCheckList.backgroundColor = .clear
             cell.viewCheckList.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            imgColor(imgColor: cell.imgCheckList, colorHex: .secondary)
+            cell.viewCheckList.viewBorderCorneRadius(borderColour: self.checkCheckList(selectIndex: indexPath.row) == true ? .secondary : .lightGray, size: 1)
 
-//            if objData.customer_signature != "" && objData.customer_signature != nil{
-//                cell.lblCheckList.textColor = .background
-//                imgColor(imgColor: cell.imgCheckList, colorHex: .background)
-//                cell.viewCheckList.backgroundColor = .secondary
-//            }
+            imgColor(imgColor: cell.imgCheckList, colorHex: self.checkCheckList(selectIndex: indexPath.row) == true ? .secondary : .lightGray)
+
+            if self.checkCheckList(selectIndex: indexPath.row) == true && self.checkCheckListComplate(selectIndex: indexPath.row) == true{
+                cell.lblCheckList.textColor = .background
+                imgColor(imgColor: cell.imgCheckList, colorHex: .background)
+                cell.viewCheckList.backgroundColor = .secondary
+            }
+            
             
             //PHOT/VIDEO
             cell.viewPhotVideo.backgroundColor = .clear
             cell.viewPhotVideo.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: cell.imgPhotVideo, colorHex: .secondary)
 
-            if objData.order_image_links.count != 0{
+            let arrDataVideo = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.video_image.rawValue)
+            if objData.order_image_links.count != 0 || arrDataVideo.count != 0{
                 cell.lblPhotVideo.textColor = .background
                 imgColor(imgColor: cell.imgPhotVideo, colorHex: .background)
                 cell.viewPhotVideo.backgroundColor = .secondary
@@ -618,7 +645,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 
             
             cell.btnCheckList.tag = indexPath.row
-//            cell.btnCheckList.addTarget(self, action: #selector(self.btnCheckListClicked(_:)), for: .touchUpInside)
+            cell.btnCheckList.addTarget(self, action: #selector(self.btnCheckListClicked(_:)), for: .touchUpInside)
 
             cell.btnPhotVideo.tag = indexPath.row
             cell.btnPhotVideo.addTarget(self, action: #selector(self.btnImageVideoUploadClicked(_:)), for: .touchUpInside)
@@ -754,6 +781,24 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         //TERMS AND CONDITION
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineHoursViewController") as? MachineHoursViewController{
+            newViewController.delegate = self
+            newViewController.selectIndex = sender.tag
+            newViewController.strOrderID = "\(objData.id ?? 0)"
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+  
+    @objc func btnCheckListClicked(_ sender : UIButton) {
+        if self.arrOrderList.count == 0 || self.checkCheckList(selectIndex: sender.tag) == false{
+            return
+        }
+        
+        let objData = self.arrOrderList[sender.tag]
+    
+        
+        //TERMS AND CONDITION
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
             newViewController.delegate = self
             newViewController.selectIndex = sender.tag
             newViewController.strOrderID = "\(objData.id ?? 0)"
@@ -943,11 +988,17 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         var objData = self.arrOrderList[selectIndex]
         objData.license_image_links = arrImage
         
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.image.rawValue)
+        if arrData.count != 0{
+            objData.addLicenseImageLocally = true
+        }
+        
+        
         //UODATE TERMS
         self.arrOrderList.remove(at: selectIndex)
         self.arrOrderList.insert(objData, at: selectIndex)
 
-        
+
         //RELOAD CELL
         self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
     }
@@ -963,6 +1014,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         self.arrOrderList.remove(at: selectIndex)
         self.arrOrderList.insert(objData, at: selectIndex)
 
+       
         
         //RELOAD CELL
         self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
@@ -971,6 +1023,8 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
     
     
     func UpdateMachinHours(selectIndex: Int, arrUpdateMachinHours: [MachineHoursModel]) {
+    
+        
         if self.arrOrderList.count == 0{
             return
         }
@@ -984,6 +1038,8 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         //RELOAD CELL
         self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
     }
+    
+    
     
     func checkMachineHoursAllocate(selectIndex: Int) -> Bool{
         //GET DATA
@@ -1009,12 +1065,22 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         }
         let objData = self.arrOrderList[selectIndex]
 
-        for obj in objData.arrMachineHours{
-            if obj.start == 0{
-                return false
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.hours.rawValue)
+        if arrData.count != 0{
+            for obj in arrData{
+                if obj.start == "" || obj.start == "0" || obj.start == "0.0" || obj.start == nil{
+                    return false
+                }
             }
         }
-        
+        else{
+            for obj in objData.arrMachineHours{
+                if obj.start == 0{
+                    return false
+                }
+            }
+        }
+      
         return true
     }
     
@@ -1025,9 +1091,19 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         }
         let objData = self.arrOrderList[selectIndex]
 
-        for obj in objData.arrMachineHours{
-            if obj.end == 0{
-                return false
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.hours.rawValue)
+        if arrData.count != 0{
+            for obj in arrData{
+                if obj.end == "" || obj.end == "0" || obj.end == "0.0" || obj.end == nil{
+                    return false
+                }
+            }
+        }
+        else{
+            for obj in objData.arrMachineHours{
+                if obj.end == 0{
+                    return false
+                }
             }
         }
         
@@ -1055,6 +1131,9 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         return false
     }
     
+
+
+ 
     func checkDeliveryPickupStatus(selectIndex: Int, isDeliveryType : Bool) -> (String, Bool, Int){
         //GET DATA
         if self.arrOrderList.count == 0{
@@ -1103,5 +1182,72 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         
         return (strImg, true, 0)
     }
+    
+    
+    //CHECKLIST
+    func UpdateCheckListProduct(selectIndex: Int, arrUpdateProduct: [ProductModel]) {
+        
+        if self.arrOrderList.count == 0{
+            return
+        }
+        
+        var objData = self.arrOrderList[selectIndex]
+        objData.products = arrUpdateProduct
+        
+        //UPDATE TERMS
+        self.arrOrderList.remove(at: selectIndex)
+        self.arrOrderList.insert(objData, at: selectIndex)
+
+        //RELOAD CELL
+        self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
+    }
+    
+   
+    func checkCheckListComplate(selectIndex: Int) -> Bool{
+        //GET DATA
+        if self.arrOrderList.count == 0{
+            return false
+        }
+        let objData = self.arrOrderList[selectIndex]
+
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(objData.id ?? 0)", strType: uploadType.checkList.rawValue)
+        if arrData.count != 0{
+            for obj in arrData{
+                if obj.checklist_delivered == "" || obj.checklist_delivered == "0" || obj.checklist_delivered == "0.0" || obj.checklist_delivered == nil || obj.checklist_returned == "" || obj.checklist_returned == "0" || obj.checklist_returned == "0.0" || obj.checklist_returned == nil{
+                    return false
+                }
+            }
+        }
+        else{
+            for obj in objData.arrProduct{
+                for objData in obj.checkList?.arrQuestions ?? []{
+                    if objData.objQuestion?.delivered == 0 ||  objData.objQuestion?.returned == 0{
+                        return false
+                    }
+                }
+            }
+        }
+      
+        return true
+    }
+    
+
+    func checkCheckList(selectIndex: Int) -> Bool{
+        //GET DATA
+        if self.arrOrderList.count == 0{
+            return false
+        }
+        let objData = self.arrOrderList[selectIndex]
+
+        
+        for obj in objData.arrProduct{
+            for _ in obj.checkList?.arrQuestions ?? []{
+                return true
+            }
+        }
+        
+        return false
+    }
+    
 }
 

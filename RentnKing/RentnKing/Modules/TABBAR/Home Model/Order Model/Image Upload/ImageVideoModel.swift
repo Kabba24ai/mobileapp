@@ -74,7 +74,6 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
         //Create object for webservicehelper and start to call method
         let webHelper = WebServiceHelper()
         
-      
         //SET IMAGE
         var arr_Mutlipleimages : [[String : Any]] = []
         for obj in self.arrImageVideoLisr{
@@ -205,7 +204,7 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
         self.setTheView()
         self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: ""), isLoading: true)
 
-        showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
+//        showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }
 }
 

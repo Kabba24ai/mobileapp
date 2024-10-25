@@ -136,6 +136,13 @@
 		C51AF6AD2AD17E160042589E /* Colour.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C51AF6AC2AD17E160042589E /* Colour.xcassets */; };
 		C521126C2BC7D51200B654F0 /* FilterViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521126B2BC7D51200B654F0 /* FilterViewController.swift */; };
 		C521126D2BC7DC2C00B654F0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C51AF65B2AD17BD50042589E /* Assets.xcassets */; };
+		C526B15B2BE3F65700EC3B45 /* NotificaiotnFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C526B15A2BE3F65700EC3B45 /* NotificaiotnFile.swift */; };
+		C526B16F2BE5477300EC3B45 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C526B16E2BE5477300EC3B45 /* ObjectMapper */; };
+		C526B1712BE5477F00EC3B45 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1702BE5477F00EC3B45 /* ObjectMapper */; };
+		C526B1742BE547CC00EC3B45 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1732BE547CC00EC3B45 /* FirebaseAnalytics */; };
+		C526B1762BE547CC00EC3B45 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1752BE547CC00EC3B45 /* FirebaseAuth */; };
+		C526B1782BE547CC00EC3B45 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1772BE547CC00EC3B45 /* FirebaseCrashlytics */; };
+		C526B17A2BE547CC00EC3B45 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1792BE547CC00EC3B45 /* FirebaseMessaging */; };
 		C5387D952B4FBD4C00BF78B4 /* CategoriesModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5387D942B4FBD4B00BF78B4 /* CategoriesModel.swift */; };
 		C5387D972B4FBD5500BF78B4 /* CategoriesViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5387D962B4FBD5500BF78B4 /* CategoriesViewController.swift */; };
 		C5387D9F2B5008C400BF78B4 /* CheckOutViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5387D9E2B5008C400BF78B4 /* CheckOutViewController.swift */; };
@@ -145,7 +152,6 @@
 		C5438B322B747917005A9A2E /* MachineHoursModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5438B312B747917005A9A2E /* MachineHoursModel.swift */; };
 		C5438B342B747923005A9A2E /* MachineHoursViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5438B332B747923005A9A2E /* MachineHoursViewController.swift */; };
 		C5498C3C2B60D8F000288573 /* ActionSheetPicker-3.0 in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C3B2B60D8F000288573 /* ActionSheetPicker-3.0 */; };
-		C5498C3F2B60D90900288573 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C3E2B60D90900288573 /* ObjectMapper */; };
 		C5498C422B60D91400288573 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C412B60D91400288573 /* Alamofire */; };
 		C5498C452B60D92800288573 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C442B60D92800288573 /* Nuke */; };
 		C5498C472B60D92800288573 /* NukeExtensions in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C462B60D92800288573 /* NukeExtensions */; };
@@ -160,9 +166,14 @@
 		C5498C5B2B60D9C100288573 /* IQKeyboardManagerSwift in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C5A2B60D9C100288573 /* IQKeyboardManagerSwift */; };
 		C5498C5D2B60D9CD00288573 /* KRProgressHUD in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C5C2B60D9CD00288573 /* KRProgressHUD */; };
 		C5498C5F2B60D9D800288573 /* Alamofire in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C5E2B60D9D800288573 /* Alamofire */; };
-		C5498C612B60D9E300288573 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C602B60D9E300288573 /* ObjectMapper */; };
 		C5498C642B60DA3200288573 /* FontAwesome in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C632B60DA3200288573 /* FontAwesome */; };
 		C5498C662B60DA3200288573 /* tools in Frameworks */ = {isa = PBXBuildFile; productRef = C5498C652B60DA3200288573 /* tools */; };
+		C56F9EB62CA437A9002BF8D9 /* TimeClock.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C56F9EB52CA437A9002BF8D9 /* TimeClock.storyboard */; };
+		C56F9EBB2CA437DE002BF8D9 /* TimeClockModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EB92CA437DE002BF8D9 /* TimeClockModel.swift */; };
+		C56F9EBC2CA437DE002BF8D9 /* TimeClockViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */; };
+		C56F9EBE2CA44594002BF8D9 /* ClockInViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */; };
+		C588F51F2BCE67D100678A13 /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C588F51E2BCE67D100678A13 /* UploadView.swift */; };
+		C588F5212BCE67DA00678A13 /* UploadView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C588F5202BCE67DA00678A13 /* UploadView.xib */; };
 		C589143C2B6E59D4007F9EB9 /* LicenseUploadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */; };
 		C589143E2B6E7D67007F9EB9 /* LicenseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C589143D2B6E7D67007F9EB9 /* LicenseModel.swift */; };
 		C594E5222B615F0900879730 /* MenuPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C594E5212B615F0900879730 /* MenuPopup.swift */; };
@@ -171,8 +182,13 @@
 		C59E7F222B46EB9900C4D58D /* DetailsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E7F212B46EB9900C4D58D /* DetailsViewController.swift */; };
 		C59E7F3C2B46F41500C4D58D /* NavigationControllerExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E7F3B2B46F41500C4D58D /* NavigationControllerExtension.swift */; };
 		C59E7F3E2B46F45D00C4D58D /* UIBarButtonItemWithClouserExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E7F3D2B46F45D00C4D58D /* UIBarButtonItemWithClouserExtension.swift */; };
+		C5A286482C904DB700A1CFE9 /* CheckListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A286472C904DB700A1CFE9 /* CheckListModel.swift */; };
+		C5A2864A2C904DC300A1CFE9 /* CheckListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A286492C904DC300A1CFE9 /* CheckListViewController.swift */; };
 		C5A5E0BE2B5251A100005B44 /* ProductList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A5E0BD2B5251A100005B44 /* ProductList.swift */; };
 		C5A5E0C02B5251A700005B44 /* ProductListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A5E0BF2B5251A700005B44 /* ProductListViewController.swift */; };
+		C5B1A6452BE00B9B0068222C /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = C5B1A6442BE00B9B0068222C /* GoogleService-Info.plist */; };
+		C5BE52DE2CB4101E0027A4C8 /* TimeClockLockViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BE52DD2CB4101E0027A4C8 /* TimeClockLockViewController.swift */; };
+		C5BE52E02CB413830027A4C8 /* HomeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BE52DF2CB413830027A4C8 /* HomeModel.swift */; };
 		C5BEC26A2B8E12F300532C54 /* AddressViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BEC2692B8E12F300532C54 /* AddressViewController.swift */; };
 		C5BEC26C2B8E14C600532C54 /* AddressModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BEC26B2B8E14C600532C54 /* AddressModel.swift */; };
 		C5BEC26E2B92C37300532C54 /* EventCalender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BEC26D2B92C37300532C54 /* EventCalender.swift */; };
@@ -349,6 +365,8 @@
 		C51AF6AA2AD17D8D0042589E /* TagsViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TagsViewController.swift; sourceTree = "<group>"; };
 		C51AF6AC2AD17E160042589E /* Colour.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Colour.xcassets; sourceTree = "<group>"; };
 		C521126B2BC7D51200B654F0 /* FilterViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterViewController.swift; sourceTree = "<group>"; };
+		C526B15A2BE3F65700EC3B45 /* NotificaiotnFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificaiotnFile.swift; sourceTree = "<group>"; };
+		C526B17B2BE553D500EC3B45 /* RentnKing.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RentnKing.entitlements; sourceTree = "<group>"; };
 		C5387D942B4FBD4B00BF78B4 /* CategoriesModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesModel.swift; sourceTree = "<group>"; };
 		C5387D962B4FBD5500BF78B4 /* CategoriesViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesViewController.swift; sourceTree = "<group>"; };
 		C5387D9E2B5008C400BF78B4 /* CheckOutViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckOutViewController.swift; sourceTree = "<group>"; };
@@ -357,6 +375,12 @@
 		C5387DA42B50098200BF78B4 /* WebServiceHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WebServiceHelper.swift; sourceTree = "<group>"; };
 		C5438B312B747917005A9A2E /* MachineHoursModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineHoursModel.swift; sourceTree = "<group>"; };
 		C5438B332B747923005A9A2E /* MachineHoursViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineHoursViewController.swift; sourceTree = "<group>"; };
+		C56F9EB52CA437A9002BF8D9 /* TimeClock.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = TimeClock.storyboard; sourceTree = "<group>"; };
+		C56F9EB92CA437DE002BF8D9 /* TimeClockModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeClockModel.swift; sourceTree = "<group>"; };
+		C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeClockViewController.swift; sourceTree = "<group>"; };
+		C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInViewController.swift; sourceTree = "<group>"; };
+		C588F51E2BCE67D100678A13 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
+		C588F5202BCE67DA00678A13 /* UploadView.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = UploadView.xib; sourceTree = "<group>"; };
 		C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseUploadViewController.swift; sourceTree = "<group>"; };
 		C589143D2B6E7D67007F9EB9 /* LicenseModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseModel.swift; sourceTree = "<group>"; };
 		C594E5212B615F0900879730 /* MenuPopup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MenuPopup.swift; sourceTree = "<group>"; };
@@ -365,8 +389,13 @@
 		C59E7F212B46EB9900C4D58D /* DetailsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsViewController.swift; sourceTree = "<group>"; };
 		C59E7F3B2B46F41500C4D58D /* NavigationControllerExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationControllerExtension.swift; sourceTree = "<group>"; };
 		C59E7F3D2B46F45D00C4D58D /* UIBarButtonItemWithClouserExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIBarButtonItemWithClouserExtension.swift; sourceTree = "<group>"; };
+		C5A286472C904DB700A1CFE9 /* CheckListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckListModel.swift; sourceTree = "<group>"; };
+		C5A286492C904DC300A1CFE9 /* CheckListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckListViewController.swift; sourceTree = "<group>"; };
 		C5A5E0BD2B5251A100005B44 /* ProductList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductList.swift; sourceTree = "<group>"; };
 		C5A5E0BF2B5251A700005B44 /* ProductListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductListViewController.swift; sourceTree = "<group>"; };
+		C5B1A6442BE00B9B0068222C /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		C5BE52DD2CB4101E0027A4C8 /* TimeClockLockViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeClockLockViewController.swift; sourceTree = "<group>"; };
+		C5BE52DF2CB413830027A4C8 /* HomeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeModel.swift; sourceTree = "<group>"; };
 		C5BEC2692B8E12F300532C54 /* AddressViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressViewController.swift; sourceTree = "<group>"; };
 		C5BEC26B2B8E14C600532C54 /* AddressModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressModel.swift; sourceTree = "<group>"; };
 		C5BEC26D2B92C37300532C54 /* EventCalender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCalender.swift; sourceTree = "<group>"; };
@@ -393,15 +422,19 @@
 			files = (
 				C5498C662B60DA3200288573 /* tools in Frameworks */,
 				C5498C4E2B60D93900288573 /* KRProgressHUD in Frameworks */,
+				C526B1742BE547CC00EC3B45 /* FirebaseAnalytics in Frameworks */,
+				C526B1782BE547CC00EC3B45 /* FirebaseCrashlytics in Frameworks */,
 				C5498C422B60D91400288573 /* Alamofire in Frameworks */,
-				C5498C3F2B60D90900288573 /* ObjectMapper in Frameworks */,
 				C5498C4B2B60D92800288573 /* NukeVideo in Frameworks */,
 				C5498C3C2B60D8F000288573 /* ActionSheetPicker-3.0 in Frameworks */,
 				C5498C512B60D97000288573 /* IQKeyboardManagerSwift in Frameworks */,
 				C5498C492B60D92800288573 /* NukeUI in Frameworks */,
 				C5498C452B60D92800288573 /* Nuke in Frameworks */,
 				C5498C472B60D92800288573 /* NukeExtensions in Frameworks */,
+				C526B1762BE547CC00EC3B45 /* FirebaseAuth in Frameworks */,
+				C526B17A2BE547CC00EC3B45 /* FirebaseMessaging in Frameworks */,
 				C5498C642B60DA3200288573 /* FontAwesome in Frameworks */,
+				C526B16F2BE5477300EC3B45 /* ObjectMapper in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -412,7 +445,7 @@
 				C5498C5D2B60D9CD00288573 /* KRProgressHUD in Frameworks */,
 				C5498C5F2B60D9D800288573 /* Alamofire in Frameworks */,
 				C51AF64A2AD17BB10042589E /* UniformTypeIdentifiers.framework in Frameworks */,
-				C5498C612B60D9E300288573 /* ObjectMapper in Frameworks */,
+				C526B1712BE5477F00EC3B45 /* ObjectMapper in Frameworks */,
 				C5498C532B60D99C00288573 /* Nuke in Frameworks */,
 				C5498C592B60D99C00288573 /* NukeVideo in Frameworks */,
 				C5498C552B60D99C00288573 /* NukeExtensions in Frameworks */,
@@ -455,6 +488,7 @@
 		C510D6CB2B5691A700D9871F /* XIB */ = {
 			isa = PBXGroup;
 			children = (
+				C588F5192BCE678600678A13 /* Upload */,
 				C510D6CC2B5691A700D9871F /* Add Cart */,
 			);
 			path = XIB;
@@ -501,8 +535,10 @@
 		C51AF5152AD177DE0042589E /* RentnKing */ = {
 			isa = PBXGroup;
 			children = (
+				C526B17B2BE553D500EC3B45 /* RentnKing.entitlements */,
 				C51AF53F2AD1781A0042589E /* GlobalMain.swift */,
 				C51AF5162AD177DE0042589E /* AppDelegate.swift */,
+				C526B15A2BE3F65700EC3B45 /* NotificaiotnFile.swift */,
 				C5BEC26D2B92C37300532C54 /* EventCalender.swift */,
 				C51AF5342AD178130042589E /* Storyboard */,
 				C51AF52A2AD178130042589E /* Modules */,
@@ -536,7 +572,9 @@
 		C51AF52C2AD178130042589E /* Home Model */ = {
 			isa = PBXGroup;
 			children = (
+				C5BE52DF2CB413830027A4C8 /* HomeModel.swift */,
 				C51AF52D2AD178130042589E /* HomeViewController.swift */,
+				C56F9EB72CA437DE002BF8D9 /* Time Clock Model */,
 				C5D55B722B6C0630006AEC63 /* Place Order Model */,
 				C5D55B6D2B6C04B3006AEC63 /* Order Model */,
 				C51AF52F2AD178130042589E /* Setting Model */,
@@ -575,6 +613,7 @@
 				C51AF5362AD178130042589E /* Login.storyboard */,
 				C51AF5372AD178130042589E /* TabBar.storyboard */,
 				C51AF5352AD178130042589E /* Home.storyboard */,
+				C56F9EB52CA437A9002BF8D9 /* TimeClock.storyboard */,
 				C5D55B702B6C04D0006AEC63 /* Order.storyboard */,
 				C5FCEAA22B7C6A98007D6141 /* Schedule.storyboard */,
 			);
@@ -726,6 +765,7 @@
 		C51AF5682AD178220042589E /* Google File */ = {
 			isa = PBXGroup;
 			children = (
+				C5B1A6442BE00B9B0068222C /* GoogleService-Info.plist */,
 				C51AF5692AD178220042589E /* Live Key  */,
 			);
 			path = "Google File";
@@ -1047,6 +1087,34 @@
 			path = "Machine Hours";
 			sourceTree = "<group>";
 		};
+		C56F9EB72CA437DE002BF8D9 /* Time Clock Model */ = {
+			isa = PBXGroup;
+			children = (
+				C56F9EB82CA437DE002BF8D9 /* Time Clock */,
+			);
+			path = "Time Clock Model";
+			sourceTree = "<group>";
+		};
+		C56F9EB82CA437DE002BF8D9 /* Time Clock */ = {
+			isa = PBXGroup;
+			children = (
+				C56F9EB92CA437DE002BF8D9 /* TimeClockModel.swift */,
+				C5BE52DD2CB4101E0027A4C8 /* TimeClockLockViewController.swift */,
+				C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */,
+				C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */,
+			);
+			path = "Time Clock";
+			sourceTree = "<group>";
+		};
+		C588F5192BCE678600678A13 /* Upload */ = {
+			isa = PBXGroup;
+			children = (
+				C588F51E2BCE67D100678A13 /* UploadView.swift */,
+				C588F5202BCE67DA00678A13 /* UploadView.xib */,
+			);
+			path = Upload;
+			sourceTree = "<group>";
+		};
 		C589143A2B6E59C4007F9EB9 /* License Upload */ = {
 			isa = PBXGroup;
 			children = (
@@ -1092,6 +1160,15 @@
 			path = "Navigation Exrension";
 			sourceTree = "<group>";
 		};
+		C5A286462C904DA400A1CFE9 /* Check List */ = {
+			isa = PBXGroup;
+			children = (
+				C5A286472C904DB700A1CFE9 /* CheckListModel.swift */,
+				C5A286492C904DC300A1CFE9 /* CheckListViewController.swift */,
+			);
+			path = "Check List";
+			sourceTree = "<group>";
+		};
 		C5A5E0BC2B52519600005B44 /* ProductList Model */ = {
 			isa = PBXGroup;
 			children = (
@@ -1119,6 +1196,7 @@
 				C5FCEAA92B7E50DE007D6141 /* Order Details */,
 				C512CA7A2B7A7C6D0080AF57 /* Image Upload */,
 				C5438B302B7478F2005A9A2E /* Machine Hours */,
+				C5A286462C904DA400A1CFE9 /* Check List */,
 				C589143A2B6E59C4007F9EB9 /* License Upload */,
 			);
 			path = "Order Model";
@@ -1193,7 +1271,6 @@
 			name = RentnKing;
 			packageProductDependencies = (
 				C5498C3B2B60D8F000288573 /* ActionSheetPicker-3.0 */,
-				C5498C3E2B60D90900288573 /* ObjectMapper */,
 				C5498C412B60D91400288573 /* Alamofire */,
 				C5498C442B60D92800288573 /* Nuke */,
 				C5498C462B60D92800288573 /* NukeExtensions */,
@@ -1203,6 +1280,11 @@
 				C5498C502B60D97000288573 /* IQKeyboardManagerSwift */,
 				C5498C632B60DA3200288573 /* FontAwesome */,
 				C5498C652B60DA3200288573 /* tools */,
+				C526B16E2BE5477300EC3B45 /* ObjectMapper */,
+				C526B1732BE547CC00EC3B45 /* FirebaseAnalytics */,
+				C526B1752BE547CC00EC3B45 /* FirebaseAuth */,
+				C526B1772BE547CC00EC3B45 /* FirebaseCrashlytics */,
+				C526B1792BE547CC00EC3B45 /* FirebaseMessaging */,
 			);
 			productName = RentnKing;
 			productReference = C51AF5132AD177DE0042589E /* RentnKing.app */;
@@ -1229,7 +1311,7 @@
 				C5498C5A2B60D9C100288573 /* IQKeyboardManagerSwift */,
 				C5498C5C2B60D9CD00288573 /* KRProgressHUD */,
 				C5498C5E2B60D9D800288573 /* Alamofire */,
-				C5498C602B60D9E300288573 /* ObjectMapper */,
+				C526B1702BE5477F00EC3B45 /* ObjectMapper */,
 			);
 			productName = RentnKinExtension;
 			productReference = C51AF6472AD17BB10042589E /* RentnKinExtension.appex */;
@@ -1264,12 +1346,13 @@
 			mainGroup = C51AF50A2AD177DE0042589E;
 			packageReferences = (
 				C5498C3A2B60D8F000288573 /* XCRemoteSwiftPackageReference "ActionSheetPicker-3.0" */,
-				C5498C3D2B60D90900288573 /* XCRemoteSwiftPackageReference "ObjectMapper" */,
 				C5498C402B60D91400288573 /* XCRemoteSwiftPackageReference "Alamofire" */,
 				C5498C432B60D92800288573 /* XCRemoteSwiftPackageReference "Nuke" */,
 				C5498C4C2B60D93900288573 /* XCRemoteSwiftPackageReference "KRProgressHUD" */,
 				C5498C4F2B60D97000288573 /* XCRemoteSwiftPackageReference "IQKeyboardManager" */,
 				C5498C622B60DA3200288573 /* XCRemoteSwiftPackageReference "FontAwesome" */,
+				C526B16D2BE5477300EC3B45 /* XCRemoteSwiftPackageReference "ObjectMapper" */,
+				C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			productRefGroup = C51AF5142AD177DE0042589E /* Products */;
 			projectDirPath = "";
@@ -1288,6 +1371,7 @@
 			files = (
 				C51AF5E42AD178220042589E /* NavigationBar.xib in Resources */,
 				C51AF6332AD178840042589E /* Colour.xcassets in Resources */,
+				C5B1A6452BE00B9B0068222C /* GoogleService-Info.plist in Resources */,
 				C51AF5DB2AD178220042589E /* CountryPickerView.bundle in Resources */,
 				C51AF5DC2AD178220042589E /* CountryPicker.storyboard in Resources */,
 				C521126D2BC7DC2C00B654F0 /* Assets.xcassets in Resources */,
@@ -1301,9 +1385,11 @@
 				C51AF5EB2AD178220042589E /* Roboto-Medium.ttf in Resources */,
 				C51AF5EC2AD178220042589E /* Roboto-Light.ttf in Resources */,
 				C51AF5232AD177DF0042589E /* LaunchScreen.storyboard in Resources */,
+				C588F5212BCE67DA00678A13 /* UploadView.xib in Resources */,
 				C5FCEAA32B7C6A98007D6141 /* Schedule.storyboard in Resources */,
 				C5FCEAB12B87B888007D6141 /* PaymentView.xib in Resources */,
 				C51AF5202AD177DF0042589E /* Assets.xcassets in Resources */,
+				C56F9EB62CA437A9002BF8D9 /* TimeClock.storyboard in Resources */,
 				C51AF5EE2AD178220042589E /* Roboto-Regular.ttf in Resources */,
 				C51AF5ED2AD178220042589E /* HelveticaNeue.ttc in Resources */,
 				C510D6CF2B5691A700D9871F /* AddToCartButton.xib in Resources */,
@@ -1367,16 +1453,20 @@
 				C51AF5FD2AD178220042589E /* LayerAnimatorGradientConfigurable.swift in Sources */,
 				C51AF60F2AD178220042589E /* CellRange.swift in Sources */,
 				C51AF6192AD178220042589E /* SpreadsheetView+Touches.swift in Sources */,
+				C5A2864A2C904DC300A1CFE9 /* CheckListViewController.swift in Sources */,
+				C56F9EBE2CA44594002BF8D9 /* ClockInViewController.swift in Sources */,
 				C51AF6022AD178220042589E /* BackAndForthLayerAnimatorGradientConfiguration.swift in Sources */,
 				C51AF6072AD178220042589E /* Address.swift in Sources */,
 				C51AF5D02AD178220042589E /* UserDefault+Extension.swift in Sources */,
 				C5387DA12B50093400BF78B4 /* CheckOutModel.swift in Sources */,
 				C510D6D22B56952B00D9871F /* Checkout.swift in Sources */,
+				C526B15B2BE3F65700EC3B45 /* NotificaiotnFile.swift in Sources */,
 				C51AF60C2AD178220042589E /* Array+BinarySearch.swift in Sources */,
 				C51AF5382AD178130042589E /* HomeViewController.swift in Sources */,
 				C5044C802BBD5CD300A81242 /* CoreaDataModel.swift in Sources */,
 				C589143E2B6E7D67007F9EB9 /* LicenseModel.swift in Sources */,
 				C5438B342B747923005A9A2E /* MachineHoursViewController.swift in Sources */,
+				C5A286482C904DB700A1CFE9 /* CheckListModel.swift in Sources */,
 				C5387DA52B50098200BF78B4 /* NoInternetViewController.swift in Sources */,
 				C51AF5392AD178130042589E /* TabbarViewController.swift in Sources */,
 				C51AF5E52AD178220042589E /* UIBarButtonItemWithClouser.swift in Sources */,
@@ -1395,21 +1485,25 @@
 				C51AF60E2AD178220042589E /* SpreadsheetView+UIViewHierarchy.swift in Sources */,
 				C51AF5E22AD178220042589E /* GetBandWidht.swift in Sources */,
 				C51AF5FC2AD178220042589E /* LayerAnimatorGradientConfiguration.swift in Sources */,
+				C56F9EBC2CA437DE002BF8D9 /* TimeClockViewController.swift in Sources */,
 				C589143C2B6E59D4007F9EB9 /* LicenseUploadViewController.swift in Sources */,
 				C5D55B6C2B69FB13006AEC63 /* TermsAndConditionViewController.swift in Sources */,
 				C51AF5F82AD178220042589E /* BlinkAnimatorConfiguration.swift in Sources */,
 				C51AF61A2AD178220042589E /* SpreadsheetView+CirclularScrolling.swift in Sources */,
 				C51AF6032AD178220042589E /* UIColor+HEX.swift in Sources */,
 				C51AF5E92AD178220042589E /* Keychain.swift in Sources */,
+				C5BE52E02CB413830027A4C8 /* HomeModel.swift in Sources */,
 				C51AF6172AD178220042589E /* SpreadsheetViewDelegate.swift in Sources */,
 				C51AF5E32AD178220042589E /* NavigationBar.swift in Sources */,
 				C51AF5D92AD178220042589E /* CountryCodeViewController.swift in Sources */,
 				C51AF5E12AD178220042589E /* UserNotification.swift in Sources */,
 				C51AF6122AD178220042589E /* SpreadsheetView+Layout.swift in Sources */,
+				C56F9EBB2CA437DE002BF8D9 /* TimeClockModel.swift in Sources */,
 				C51AF5D12AD178220042589E /* StringNOhter+Extension.swift in Sources */,
 				C5A5E0C02B5251A700005B44 /* ProductListViewController.swift in Sources */,
 				C51AF61C2AD178220042589E /* CLWaterWaveModel.swift in Sources */,
 				C5BEC26E2B92C37300532C54 /* EventCalender.swift in Sources */,
+				C5BE52DE2CB4101E0027A4C8 /* TimeClockLockViewController.swift in Sources */,
 				C5D55B6A2B696EB8006AEC63 /* OrderSuccessViewController.swift in Sources */,
 				C51AF5D42AD178220042589E /* UILabel+Extension.swift in Sources */,
 				C5387D952B4FBD4C00BF78B4 /* CategoriesModel.swift in Sources */,
@@ -1429,6 +1523,7 @@
 				C5387DA62B50098200BF78B4 /* WebServiceHelper.swift in Sources */,
 				C51AF53B2AD178130042589E /* SplashViewController.swift in Sources */,
 				C5BEC26A2B8E12F300532C54 /* AddressViewController.swift in Sources */,
+				C588F51F2BCE67D100678A13 /* UploadView.swift in Sources */,
 				C51AF60B2AD178220042589E /* Borders.swift in Sources */,
 				C5438B322B747917005A9A2E /* MachineHoursModel.swift in Sources */,
 				C594E5222B615F0900879730 /* MenuPopup.swift in Sources */,
@@ -1630,10 +1725,13 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1046;
+				CURRENT_PROJECT_VERSION = 1057;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKing/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KABBA.AI;
@@ -1662,10 +1760,13 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1046;
+				CURRENT_PROJECT_VERSION = 1057;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKing/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = KABBA.AI;
@@ -1777,20 +1878,28 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C526B16D2BE5477300EC3B45 /* XCRemoteSwiftPackageReference "ObjectMapper" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tristanhimmelman/ObjectMapper";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.4.3;
+			};
+		};
+		C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.25.0;
+			};
+		};
 		C5498C3A2B60D8F000288573 /* XCRemoteSwiftPackageReference "ActionSheetPicker-3.0" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/skywinder/ActionSheetPicker-3.0.git";
 			requirement = {
 				kind = revision;
 				revision = bb582cb568adfa85646e92cabf29b7df3365ef0a;
-			};
-		};
-		C5498C3D2B60D90900288573 /* XCRemoteSwiftPackageReference "ObjectMapper" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/tristanhimmelman/ObjectMapper.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.2.0;
 			};
 		};
 		C5498C402B60D91400288573 /* XCRemoteSwiftPackageReference "Alamofire" */ = {
@@ -1836,15 +1945,40 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C526B16E2BE5477300EC3B45 /* ObjectMapper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B16D2BE5477300EC3B45 /* XCRemoteSwiftPackageReference "ObjectMapper" */;
+			productName = ObjectMapper;
+		};
+		C526B1702BE5477F00EC3B45 /* ObjectMapper */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B16D2BE5477300EC3B45 /* XCRemoteSwiftPackageReference "ObjectMapper" */;
+			productName = ObjectMapper;
+		};
+		C526B1732BE547CC00EC3B45 /* FirebaseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAnalytics;
+		};
+		C526B1752BE547CC00EC3B45 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		C526B1772BE547CC00EC3B45 /* FirebaseCrashlytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCrashlytics;
+		};
+		C526B1792BE547CC00EC3B45 /* FirebaseMessaging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C526B1722BE547CC00EC3B45 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseMessaging;
+		};
 		C5498C3B2B60D8F000288573 /* ActionSheetPicker-3.0 */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C5498C3A2B60D8F000288573 /* XCRemoteSwiftPackageReference "ActionSheetPicker-3.0" */;
 			productName = "ActionSheetPicker-3.0";
-		};
-		C5498C3E2B60D90900288573 /* ObjectMapper */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C5498C3D2B60D90900288573 /* XCRemoteSwiftPackageReference "ObjectMapper" */;
-			productName = ObjectMapper;
 		};
 		C5498C412B60D91400288573 /* Alamofire */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1915,11 +2049,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C5498C402B60D91400288573 /* XCRemoteSwiftPackageReference "Alamofire" */;
 			productName = Alamofire;
-		};
-		C5498C602B60D9E300288573 /* ObjectMapper */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C5498C3D2B60D90900288573 /* XCRemoteSwiftPackageReference "ObjectMapper" */;
-			productName = ObjectMapper;
 		};
 		C5498C632B60DA3200288573 /* FontAwesome */ = {
 			isa = XCSwiftPackageProductDependency;

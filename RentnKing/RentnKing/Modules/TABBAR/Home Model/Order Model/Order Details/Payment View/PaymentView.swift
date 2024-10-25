@@ -24,7 +24,8 @@ class PaymentView: UIView {
 
     //CONSTANT
     @IBOutlet weak var con_Popup: NSLayoutConstraint!
-    
+    @IBOutlet weak var con_PopupMain: NSLayoutConstraint!
+
     
     @IBOutlet weak var lblTitle: UILabel!
     
@@ -67,7 +68,8 @@ class PaymentView: UIView {
         self.addSubview(self.mainView)
         self.mainView.layoutIfNeeded()
         
-        
+        setupKeyboard(false)
+
         //SET ANIMATION
         
         self.subView.transform = CGAffineTransform(scaleX: 0.2, y:0.2)
@@ -77,6 +79,13 @@ class PaymentView: UIView {
             self.subView.transform = CGAffineTransform(scaleX: 1.0, y:1.0)
         }, completion:nil)
         
+        
+        
+        //KEYBOARD METHOD
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(notification:)), name: UIResponder.keyboardWillShowNotification , object:nil)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(notification:)), name: UIResponder.keyboardWillHideNotification , object:nil)
+
         
         //SET FONT
         self.orderID = strOrderID
@@ -131,7 +140,7 @@ class PaymentView: UIView {
         self.txtPaymentLastName.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.enterLastName)
         self.txtPaymentLastName.delegate = self
 
-        self.txtCardNumber.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strCreditCard)
+        self.txtCardNumber.configureText(keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strCreditCard)
         self.txtCardNumber.delegate = self
         self.txtCardNumber.addTarget(self, action: #selector(reformatAsCardNumber), for: .editingChanged)
 
@@ -141,7 +150,7 @@ class PaymentView: UIView {
         self.txtYear.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strYear)
         self.txtYear.delegate = self
 
-        self.txtCVC.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strCVC)
+        self.txtCVC.configureText(keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strCVC)
         self.txtCVC.delegate = self
 
         
@@ -165,6 +174,8 @@ class PaymentView: UIView {
     
     //......................... OTHER FUNCION .........................//
     @IBAction func btnCloseClicked(_ sender: Any) {
+        self.endEditing(true)
+
         self.removeViewWithAnimation(isClose: false)
     }
 
@@ -450,3 +461,22 @@ extension PaymentView :WebServiceHelperDelegate{
         showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }
 }
+
+
+
+//MARK: - KEYBORD DELEGATE
+extension PaymentView {
+    
+    @objc func keyboardWillShow(notification: NSNotification) {
+        let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+        print(keyboardHeight)
+        self.con_PopupMain.constant = -100
+    }
+
+    @objc func keyboardWillHide(notification: NSNotification) {
+        let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+        print(keyboardHeight)
+        self.con_PopupMain.constant = 0
+    }
+}
+

@@ -18,11 +18,41 @@ func createLicenseUploadFolder() {
    }
 }
 
+func createImageVideoUploadFolder() {
+   do {
+      if FileManager.default.fileExists(atPath: ImageVideoUploadDirectory.path) == false {
+          try FileManager.default.createDirectory(at: ImageVideoUploadDirectory, withIntermediateDirectories: false, attributes: nil)
+      }
+      
+   } catch {
+      print(error);
+   }
+}
+
+func createOrderFolder(strOrderID : String) {
+   do {
+      if FileManager.default.fileExists(atPath: ImageVideoUploadDirectory.path) == true {
+          try FileManager.default.createDirectory(at: ImageVideoUploadDirectory.appendingPathComponent(strOrderID), withIntermediateDirectories: false, attributes: nil)
+      }
+      
+   } catch {
+      print(error);
+   }
+}
+
+
 var LicenseUploadDirectory: URL {
-   let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+    let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
    let documentsDirectory = paths[0]
    return documentsDirectory.appendingPathComponent("LicenseUpload")
 }
+
+var ImageVideoUploadDirectory: URL {
+    let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+   let documentsDirectory = paths[0]
+   return documentsDirectory.appendingPathComponent("ImageVideo")
+}
+
 
 
 //class FileDownloader {

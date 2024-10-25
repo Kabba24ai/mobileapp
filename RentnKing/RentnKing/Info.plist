@@ -29,9 +29,13 @@
 	<key>NSCalendarsUsageDescription</key>
 	<string>This Application need to access your calendar to add event on it</string>
     
+    <key>UIStatusBarStyle</key><string>UIStatusBarStyleLightContent</string>
+
     <key>LSApplicationQueriesSchemes</key>
         <array>
         <string>comgooglemaps</string>
         </array>
+        
+        
 </dict>
 </plist>
