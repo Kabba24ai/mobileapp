@@ -11,6 +11,7 @@ import ObjectMapper
 
 struct StoreModel: Mappable{
     internal var id: Int?
+    internal var unique_id: String?
     internal var name: String?
     internal var phone: String?
     internal var address: String?
@@ -26,9 +27,10 @@ struct StoreModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
-        name <- map["name"]
+        unique_id <- map["unique_id"]
+        name <- map["store_name"]
         phone <- map["phone"]
-        address <- map["address"]
+        address <- map["full_address"]
         city <- map["city"]
         state <- map["state"]
         zip_code <- map["zip_code"]
@@ -71,12 +73,28 @@ struct QuestionsModel: Mappable{
     internal var id: Int?
     internal var question: String?
     internal var question_value: Float?
-    internal var delivered: Float?
-    internal var returned: Float?
+    internal var delivered: Float = -1
+    internal var returned: Float = -1
    
     internal var balance: Float?
     internal var customerOwes: Float?
 
+    internal var checklist_type: String?
+    internal var arrAnswer: [AnswerCheckListModel] = []
+    internal var objSelectAnswer: SelectAnswerModel!
+    internal var fuel_type : Int = 0
+    
+    internal var sd_clean_price: String?
+    internal var ex_clean_price: String?
+
+    internal var tires_values: [String : String] = [:]
+    internal var fuel_values_with_guage: [String : String] = [:]
+    internal var fuel_values_with_no_guage: [String : String] = [:]
+    internal var clean_delivered_values: [String : String] = [:]
+    internal var clean_returned_values: [String : String] = [:]
+
+
+    
     init?(map:Map) {
         mapping(map: map)
     }
@@ -88,8 +106,38 @@ struct QuestionsModel: Mappable{
         delivered <- map["in"]
         returned <- map["out"]
 
+        checklist_type <- map["checklist_type"]
+        arrAnswer <- map["answers"]
+
+        sd_clean_price <- map["sd_clean_price"]
+        ex_clean_price <- map["ex_clean_price"]
+        
+        fuel_type <- map["fuel_type"]
+        tires_values <- map["tires_values"]
+        fuel_values_with_guage <- map["fuel_values_with_guage"]
+        fuel_values_with_no_guage <- map["fuel_values_with_no_guage"]
+        clean_delivered_values <- map["clean_delivered_values"]
+        clean_returned_values <- map["clean_returned_values"]
+        objSelectAnswer <- map["selected_status"]
     }
 }
+
+struct SelectAnswerModel: Mappable{
+    internal var answer: String?
+    internal var status: String?
+
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        answer <- map["answer"]
+        status <- map["status"]
+    }
+}
+
+
+
 
 extension ProductDetailsViewController :WebServiceHelperDelegate{
     struct ProductParameater: Codable {
@@ -146,7 +194,7 @@ extension ProductDetailsViewController :WebServiceHelperDelegate{
     }
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
         self.isLoading = false
 

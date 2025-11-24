@@ -37,7 +37,7 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
     var selectIndex : Int = -1
     var isSelctFrontImage : Bool = false
     var strOrderID : String = ""
-    var arrLicense : [String] = []
+    var arrLicense : [LicenseModel] = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -49,7 +49,7 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         self.setTheView()
         
         //GET DATA
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: ""))
+//        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderID, product_id: ""))
 
     }
     
@@ -130,22 +130,18 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
             //FRONT
             if self.arrLicense.count > 0{
                 self.viewEditFront.isHidden = false
-                self.imgFront.setImageURL(strImg: self.arrLicense[0] )
+                self.imgFront.setImageURL(strImg: self.arrLicense[0].media_url ?? "" )
                 self.imgFront.backgroundColor = .white
             }
             
             //BACK
             if self.arrLicense.count > 1{
                 self.viewEditBack.isHidden = false
-                self.imgBack.setImageURL(strImg: self.arrLicense[1] )
+                self.imgBack.setImageURL(strImg: self.arrLicense[1].media_url ?? "" )
                 self.imgBack.backgroundColor = .white
             }
         }
     }
-
-    
-   
-
 }
 
 
@@ -328,5 +324,23 @@ func loadImage(fileName: String) -> UIImage? {
         print("Error loading image : \(error)")
     }
     return nil
+}
+
+func loadImagefromImageVideoDirectory(fileName: String) -> UIImage? {
+    let fileURL = ImageVideoUploadDirectory.appendingPathComponent(fileName)
+    do {
+        let imageData = try Data(contentsOf: fileURL)
+        return UIImage(data: imageData)
+    } catch {
+        print("Error loading image : \(error)")
+    }
+    return nil
+}
+
+
+
+func getVideoUrl(fileName: String) -> URL? {
+    let fileURL = ImageVideoUploadDirectory.appendingPathComponent(fileName)
+    return fileURL
 }
 

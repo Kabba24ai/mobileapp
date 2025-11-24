@@ -13,7 +13,7 @@ import UIKit
 
 extension HomeViewController :WebServiceHelperDelegate{
 
-    func getTimeClockSettingAPI(){
+    @objc func getTimeClockSettingAPI(){
         
         //Declaration URL
         let strURL = "\(Url.timeClockSetting.absoluteString!)"
@@ -36,7 +36,7 @@ extension HomeViewController :WebServiceHelperDelegate{
    
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
       
         let arrKey  = data.allKeys as [AnyObject]
         if (arrKey.firstIndex(where: { $0 as! String == "error" }) == nil){

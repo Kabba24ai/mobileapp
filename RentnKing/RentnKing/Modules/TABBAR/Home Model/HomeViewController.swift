@@ -35,6 +35,10 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var imgChecking: UIImageView!
     @IBOutlet weak var lblChecking: UILabel!
 
+    @IBOutlet weak var viewInventory: UIView!
+    @IBOutlet weak var imgInventory: UIImageView!
+    @IBOutlet weak var lblInventory: UILabel!
+
     
     //SET NAVIGATION BAR
     @IBOutlet weak var con_NavigationBar : NSLayoutConstraint!
@@ -45,7 +49,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         }
     }
     
-    
+//    var timer : Timer!
+
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -57,10 +62,23 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         
         // Do any additional setup after loading the view.
         
-        //CEHCK NOTIFICAITON
+        BackgroundUploader.shared.restoreInFlightTasks { task in
+            print("Found task id=\(task), desc=\(task)")
+        }
+
+        // Observe progress & results (good for relaunch scenarios)
+        NotificationCenter.default.addObserver(self, selector: #selector(onProgress(_:)), name: .bgUploadProgress, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(onFinished(_:)), name: .bgUploadFinished, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(onFailed(_:)),   name: .bgUploadFailed,   object: nil)        //CEHCK NOTIFICAITON
         self.openDipLink()
         
+        //SET TIMER
+//        if timer == nil{
+//            timer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(self.getTimeClockSettingAPI), userInfo: nil, repeats: true)
+//        }
     }
+    
+
     
     
     func openDipLink() {
@@ -74,11 +92,59 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     }
     
     
+   
+    @IBAction func uploadSampleImage() {
+//        // Create a demo image file
+//        let image = UIGraphicsImageRenderer(size: CGSize(width: 600, height: 400)).image { ctx in
+//            UIColor.systemTeal.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 600, height: 400))
+//            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.boldSystemFont(ofSize: 32), .foregroundColor: UIColor.white]
+//            let str = NSAttributedString(string: "Hello Upload", attributes: attrs)
+//            str.draw(at: CGPoint(x: 20, y: 180))
+//        }
+//        guard let data = image.jpegData(compressionQuality: 0.9) else { return }
+//        let fileURL = try! FileStore.write(data: data, suggestedName: "photo_\(Int(Date().timeIntervalSince1970))", ext: "jpg")
+//
+//        let endpoint = URL(string: "https://api.yourserver.com/uploads")!
+//        let headers = ["Authorization": "Bearer <token>"]
+//
+//        try? BackgroundUploader.shared.uploadMultipart(
+//            fileURL: fileURL,
+//            fieldName: "file",
+//            fileName: fileURL.lastPathComponent,
+//            mimeType: FileStore.mimeType(for: fileURL.pathExtension),
+//            to: endpoint,
+//            params: ["type": "image"],
+//            headers: headers
+//        ) { result in
+//            switch result {
+//            case .success((let http, let data)):
+//                print("Success: status=\(http.statusCode) body=\(String(data: data, encoding: .utf8) ?? "<binary>")")
+//            case .failure(let error):
+//                print("Failed: \(error)")
+//            }
+//        }
+    }
+
+    @objc private func onProgress(_ n: Notification) {
+        let p = (n.userInfo?["progress"] as? Double) ?? 0
+        print("Progress: \(Int(p * 100))%")
+    }
+    @objc private func onFinished(_ n: Notification) {
+        let status = (n.userInfo?["status"] as? Int) ?? 0
+        print("Finished (notification): status=\(status)")
+    }
+    @objc private func onFailed(_ n: Notification) {
+        let err = (n.userInfo?["error"] as? Error)
+        print("Failed (notification): \(String(describing: err))")
+    }
+    
+    
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
         GlobalMainConstants.appDelegate?.getScheduleCount()
+        syncOrderNoteWithAPI()
         
         //UPLOAD LOCAL DATA
         self.stopUploadData()
@@ -115,13 +181,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         imgColor(imgColor: self.imgProducts, colorHex: .secondary)
         imgColor(imgColor: self.imgCRM, colorHex: .secondary)
         imgColor(imgColor: self.imgChecking, colorHex: .secondary)
+        imgColor(imgColor: self.imgInventory, colorHex: .secondary)
 
         //SET FONT
-        self.lblEcommerce.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strEcommerce)
+        self.lblEcommerce.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strOrders)
         self.lblSchedule.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strSchedule)
         self.lblProducts.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strEquipment)
         self.lblCRM.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strCRM)
         self.lblChecking.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strTimeClock)
+        self.lblInventory.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strInventory)
 
         //SET VIEW
         self.viewEcommerce.backgroundColor = .clear
@@ -143,6 +211,10 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.viewChecking.backgroundColor = .clear
         self.viewChecking.viewBorderCorneRadius(borderColour: .secondary)
         self.viewChecking.viewCorneRadius(radius: 15, isRound: false)
+
+        self.viewInventory.backgroundColor = .clear
+        self.viewInventory.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewInventory.viewCorneRadius(radius: 15, isRound: false)
 
         //SET COUNT
         self.setcount()
@@ -172,17 +244,17 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
 extension HomeViewController{
     
     @IBAction func btnEcommerceClicked(_ sender: UIButton) {
-        
+
         //MOVE FORGOT SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CategoriesViewController") as? CategoriesViewController{
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
     
     @IBAction func btnScheduleClicked(_ sender: UIButton) {
         
-        //MOVE FORGOT SCREEN
+        //MOVE SCHEDULE SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ScheduleListViewController") as? ScheduleListViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
@@ -191,20 +263,30 @@ extension HomeViewController{
     
     @IBAction func btnTimeClockClicked(_ sender: UIButton) {
         
-        if UserDefaults.standard.useMasterCode == UserDefaults.standard.masterCode{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockViewController") as? TimeClockViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
-        }
-        else{
-            //MOVE FORGOT SCREEN
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockLockViewController") as? TimeClockLockViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
-        }
+//        if UserDefaults.standard.useMasterCode == UserDefaults.standard.masterCode{
+//            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
+//            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockViewController") as? TimeClockViewController{
+//                self.navigationController?.pushViewController(newViewController, animated: true)
+//            }
+//        }
+//        else{
+//            //MOVE FORGOT SCREEN
+//            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
+//            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockLockViewController") as? TimeClockLockViewController{
+//                self.navigationController?.pushViewController(newViewController, animated: true)
+//            }
+//        }
 
+    }
+    
+    
+    @IBAction func btnEquipmentClicked(_ sender: UIButton) {
+        
+//        //MOVE FORGOT SCREEN
+//        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
+//        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineProfileViewController") as? MachineProfileViewController{
+//            self.navigationController?.pushViewController(newViewController, animated: true)
+//        }
     }
     
 }

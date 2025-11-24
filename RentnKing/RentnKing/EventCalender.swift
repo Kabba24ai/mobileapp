@@ -16,6 +16,8 @@ import UIKit
 extension AppDelegate {
     
     func eventAccess(){
+        
+        
         // 1
         let eventStore = EKEventStore()
         

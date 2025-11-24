@@ -1,4 +1,5 @@
 {
+  "originHash" : "dc99d34fc101d5129fbe87705e79f9bc7f350dfa5dda9117207eced684960534",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -144,6 +145,15 @@
       }
     },
     {
+      "identity" : "mmkv",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/parmar-mehul/MMKV",
+      "state" : {
+        "revision" : "1f6104970298e9bb92f812a6fd6abc2de89a1a6f",
+        "version" : "2.2.2"
+      }
+    },
+    {
       "identity" : "nanopb",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/firebase/nanopb.git",
@@ -189,5 +199,5 @@
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }

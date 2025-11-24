@@ -92,11 +92,11 @@ extension PaymentViewController :WebServiceHelperDelegate{
         webHelper.showLogForCallingAPI = true
         webHelper.serviceWithAlert = true
         webHelper.indicatorShowOrHide = true
-        webHelper.callAPI2()
+//        webHelper.callAPI2()
     }
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
         print(data)
         
@@ -117,7 +117,6 @@ extension PaymentViewController :WebServiceHelperDelegate{
                     let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
                     if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderSuccessViewController") as? OrderSuccessViewController{
                         newViewController.signUrl = data.getStringForID(key: "signUrl")
-                        newViewController.orderID = dicData.getStringForID(key: "id")
                         self.navigationController?.pushViewController(newViewController, animated: true)
                     }
                 }

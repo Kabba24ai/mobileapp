@@ -51,7 +51,7 @@ class PaymentView: UIView {
     @IBOutlet weak var imgClose: UIImageView!
 
 
-    var orderID : String = ""
+    var strOrderUniqueId : String = ""
     var arrMonth : [String] = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
     var arrYear : [String] = []
     private var previousTextFieldContent: String?
@@ -59,7 +59,7 @@ class PaymentView: UIView {
 
     
     // method to load reasons xib.
-    func loadPopUpView(strOrderID: String) {
+    func loadPopUpView(strOrderUniqueId: String) {
         // ContactUS name of the XIB.
         Bundle.main.loadNibNamed("PaymentView", owner:self, options:nil)
         self.backgroundColor = UIColor.black.withAlphaComponent(0.85)
@@ -88,7 +88,7 @@ class PaymentView: UIView {
 
         
         //SET FONT
-        self.orderID = strOrderID
+        self.strOrderUniqueId = strOrderUniqueId
         self.setTheView()
     }
     
@@ -214,7 +214,7 @@ class PaymentView: UIView {
             let carNumber : String = self.txtCardNumber.text?.replacingOccurrences(of: " ", with: "") ?? ""
 
             //CALL API
-            self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_id: self.orderID, card_number: carNumber, mm_yy: "\(self.txtMonth.text ?? "")/\(self.txtYear.text ?? "")", cvc: strCVC))
+            self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_unique_id: self.strOrderUniqueId, card_number: carNumber, mm_yy: "\(self.txtMonth.text ?? "")/\(self.txtYear.text ?? "")", cvc: strCVC))
         }
     }
     
@@ -387,7 +387,7 @@ extension PaymentView {
 
 
 struct OrdersPaymentParameater: Codable {
-    var order_id : String
+    var order_unique_id : String
     var card_number: String
     var mm_yy: String
     var cvc: String
@@ -424,7 +424,7 @@ extension PaymentView :WebServiceHelperDelegate{
     
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
 
         if data.getStringForID(key: "success") == "1"{

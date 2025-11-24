@@ -32,7 +32,7 @@ class TabbarViewController: UITabBarController, UITabBarControllerDelegate{
         
         self.tabBar.layer.masksToBounds = true
         self.tabBar.isTranslucent = true
-        self.tabBar.barStyle = .blackOpaque
+        self.tabBar.barStyle = .black
    
         let lineView = UIView(frame: CGRect(x: 0, y: 0, width:self.tabBar.frame.size.width, height: 1))
         lineView.backgroundColor = UIColor.secondary

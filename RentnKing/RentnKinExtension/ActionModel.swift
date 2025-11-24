@@ -11,6 +11,7 @@ import UIKit
 
 struct TagListModel: Mappable{
     internal var id: Int?
+    internal var unique_id: String?
     internal var name: String?
     
     init?(map:Map) {
@@ -19,6 +20,7 @@ struct TagListModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
+        unique_id <- map["unique_id"]
         name <- map["name"]
     }
 }
@@ -28,15 +30,14 @@ struct TagListModel: Mappable{
 extension ActionViewController :WebServiceHelperDelegate{
     
     struct contectParameater: Codable {
-        var name: String
+//        var name: String
         var first_name: String
         var last_name: String
         var email: String
         var phone: String
         var company: String
-        var contactTag: String
+        var tags: String
         var note: String
-        
     }
     
     
@@ -53,7 +54,7 @@ extension ActionViewController :WebServiceHelperDelegate{
          //Create object for webservicehelper and start to call method
          let webHelper = WebServiceHelper()
          webHelper.strMethodName = "contactTags"
-         webHelper.methodType = "get"
+         webHelper.methodType = "post"
          webHelper.strURL = strURL
          webHelper.dictType = [:]
          webHelper.dictHeader = NSDictionary()
@@ -104,7 +105,7 @@ extension ActionViewController :WebServiceHelperDelegate{
                 self.btnAdd.isHidden = false
                 self.objTagIndicator.stopAnimating()
                 
-                if let arrData = data["data"] as? NSArray{
+                if let arrData = data["customer_tags"] as? NSArray{
                     self.arrTags = []
                     self.arrTags = Mapper<TagListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
                 }
@@ -132,7 +133,6 @@ extension ActionViewController :WebServiceHelperDelegate{
         if strRequest == "contactTags"{
             print(arr)
             
-            
         }
     }
     
@@ -140,6 +140,12 @@ extension ActionViewController :WebServiceHelperDelegate{
         self.ViewSave.isHidden = false
         self.objIndicator.isHidden = true
         self.objIndicator.stopAnimating()
+  
+        //SET INDICATOR
+        self.objTagIndicator.isHidden = true
+        self.btnAdd.isHidden = false
+
+        
 
         DispatchQueue.main.asyncAfter(deadline: .now()){
             self.showAlertMessage(strMessage: "\(strRequest)-\(somethingWentWrong)")

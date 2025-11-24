@@ -16,6 +16,8 @@ enum NSUDKey {
     static let language = "language"
     static let userData = "userData"
     static let profile = "profile"
+    static let accessToken = "access_token"
+
 }
 
 
@@ -26,49 +28,65 @@ extension Notification.Name {
 
     static let startUploadData = Notification.Name("startUploadData")
     static let stopUploadData = Notification.Name("stopUploadData")
+    static let updateCheckList = Notification.Name("updateCheckList")
 
 }
 
 
 extension UserDefaults{
-//    var user: User? {
-//
-//        get {
-//            guard dictionaryRepresentation().keys.contains(NSUDKey.userData)
-//                else { return nil }
-//
-//            guard let data = data(forKey: NSUDKey.userData)
-//                else { return nil }
-//
-//        
-//            do {
-//                if let archivedCategoryNames = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) as? User {
-//                    return archivedCategoryNames
-//                }
-//            } catch {
-//                return nil
-//            }
-//            
-//            return nil
-//
-//        }
-//        set{
-//            if newValue == nil {
-//                removeObject(forKey: NSUDKey.userData)
-//            }
-//            else{
-//                
-//                do {
-//                    let data = try NSKeyedArchiver.archivedData(withRootObject: newValue!, requiringSecureCoding: false)
-//                    set(data, forKey: NSUDKey.userData)
-//                    
-//                } catch {
-//                }
-//            }
-//            synchronize()
-//        }
-//    }
-//    
+    var user: User? {
+
+        get {
+            guard dictionaryRepresentation().keys.contains(NSUDKey.userData)
+                else { return nil }
+
+            guard let data = data(forKey: NSUDKey.userData)
+                else { return nil }
+
+        
+            do {
+                if let archivedCategoryNames = try NSKeyedUnarchiver.unarchivedObject(ofClasses: [User.self, NSArray.self, NSString.self],from: data) as? User {
+                    return archivedCategoryNames
+                }
+            } catch {
+                return nil
+            }
+            
+            return nil
+
+        }
+        set{
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.userData)
+            }
+            else{
+                
+                do {
+                    let data = try NSKeyedArchiver.archivedData(withRootObject: newValue!, requiringSecureCoding: false)
+                    set(data, forKey: NSUDKey.userData)
+                    
+                } catch {
+                }
+            }
+            synchronize()
+        }
+    }
+    
+    
+    var accessToken: String?{
+        get {
+            return string(forKey: NSUDKey.accessToken)
+        }
+        set {
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.accessToken)
+            }
+            else{
+                set(newValue, forKey: NSUDKey.accessToken)
+            }
+            synchronize()
+        }
+    }
     
     
     var language: String{

@@ -76,11 +76,10 @@ extension AppDelegate : MessagingDelegate{
         ////        UIPasteboard.general.string = "device token \(deviceTokenString)"
         //        UserDefaults.standard.deviceToken = deviceTokenString
     }
-    
+
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable : Any]) {
         
     }
-    
     
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
         print("\(String(describing: fcmToken))")
@@ -164,7 +163,7 @@ extension AppDelegate : MessagingDelegate{
                 //SHOW DETAILS SCREEN
                 let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
                 if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                    newViewController.strOrderID = orderID
+                    newViewController.strOrderUniqueId = orderID
                     newViewController.isPresent = true
                     let vieweNavigationController = UINavigationController(rootViewController: newViewController)
                     vieweNavigationController.modalPresentationStyle = .fullScreen

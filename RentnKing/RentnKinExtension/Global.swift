@@ -206,11 +206,11 @@ extension NSDictionary {
 enum Url {
     
     //API
-    static let contactTags = NSURL(string: "\(Application.BaseURL)contact-tags")!
-    static let createTags = NSURL(string: "\(Application.BaseURL)create-contact-tag")!
+    static let contactTags = NSURL(string: "\(Application.BaseURL)customers/tags")!
+    static let createTags = NSURL(string: "\(Application.BaseURL)customers/tags/store")!
 
     //CREATE CONTECT
-    static let createContact = NSURL(string: "\(Application.BaseURL)create-contact")!
+    static let createContact = NSURL(string: "\(Application.BaseURL)customers/store")!
 }
 
 

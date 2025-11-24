@@ -96,7 +96,7 @@ extension UIButton{
     func btnUnderLineAttributes(str : String){
         
         let yourAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: UIColor.primary ?? UIColor.white,
+            .foregroundColor: UIColor.primary,
             .underlineStyle: NSUnderlineStyle.single.rawValue
         ]
         
@@ -142,6 +142,7 @@ extension UITextField{
         self.backgroundColor = bgColour
         self.textAlignment = textAlignment
         self.keyboardType = keyboardTye
+        self.keyboardAppearance = .dark // or .light
 
         self.textColor = textColor
         self.font = SetTheFont(fontName: fontName, size: fontSize)
@@ -154,6 +155,7 @@ extension UITextField{
     func configureTextWhite(bgColour : UIColor, textColor:UIColor?, fontName:String, fontSize : Double, text:String, placeholder : String) {
         self.backgroundColor = bgColour
         self.textAlignment = UserDefaults.standard.language == "ar" ? .right : .left
+        self.keyboardAppearance = .dark // or .light
 
         self.textColor = UIColor.primary
         self.font = SetTheFont(fontName: fontName, size: fontSize)

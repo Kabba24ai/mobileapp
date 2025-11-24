@@ -35,6 +35,22 @@ struct Text {
     var strEquipment = "Equipment".localized()
     var strCRM = "CRM".localized()
     var strTimeClock = "Time Clock".localized()
+    var strInventory = "Inventory".localized()
+    var strMachineProfile = "Machine Profile".localized()
+
+    //MACHINE PROFILE
+    var strNoteGeneral = "Note - General".localized()
+    var strRentalReady = "Rental Ready".localized()
+    var strCheckList = "Checklist".localized()
+    var strPartsList = "Parts List".localized()
+    var strService = "Service".localized()
+
+    var strNoRentalReadyData = "Please add a Rental Ready Checklist to this machine.".localized()
+    var strUpdated = "Last Updated".localized()
+    var strMachineHours = "Machine Hours".localized()
+    var strTechMgt = "Tech / Mgt".localized()
+    var strSelectTechMgt = "Select Tech / Mgt".localized()
+    var strChecklistItem = "Checklist Items".localized()
 
     //CATEGORY
     var strCategorie = "Categories".localized()
@@ -77,12 +93,13 @@ struct Text {
     //CHECK OUT
     var strCheckOut = "Check Out".localized()
     
-    var sttScheduleDate = "Schedule Date :".localized()
+    var sttScheduleDate = "Date :".localized()
     var strPrice = "Price :".localized()
-    var strOptionsTotal = "Options Total :".localized()
+    var strOptionsTotal = "Options:".localized()
     
     var strRemove = "Remove".localized()
     var strUpdate = "Update".localized()
+    var strNext = "Preview".localized()
 
     var strSubtotal = "Subtotal".localized()
     var strTax = "Tax".localized()
@@ -123,6 +140,7 @@ struct Text {
     var enterPhone = "Enter phone".localized()
     var enterAddress = "Enter address".localized()
     var selectState = "Select State".localized()
+    var selectUser = "Select User".localized()
     var enterCity = "Enter city".localized()
     var enterZipCode = "Enter zip code".localized()
     var enterOrderNote = "Notes about your order, e.g. special notes for delivery".localized()
@@ -141,16 +159,23 @@ struct Text {
     var strTerms = "T&C".localized()
     var strHoursStart = "Start".localized()
     var strHoursEnd = "End".localized()
-    var strCheckList = "CheckList".localized()
-    var strPhotoAndVideo = "Photo/Video".localized()
+    var strCheckListDeliv = "CheckList Deliv".localized()
+    var strCheckListRet = "CheckList Ret".localized()
+    var strPhotoAndVideoDeli = "Photo/Video Deliv".localized()
+    var strPhotoAndVideoRec = "Photo/Video Ret".localized()
     var strDeliveyStatus = "Deliv ".localized()
     var strPickupStatus = "Ret ".localized()
     var strSearch = "Search".localized()
     var strSearchProduct = "Search Product".localized()
+    var strDeliveryNote = "Order / Delivery Instructions".localized()
+    var strAddNote = "Add note..".localized()
+    var strAddNoteBtn = "Add Note".localized()
+    var strUser = "User".localized()
 
     
     
     var strSubmit = "Submit".localized()
+    var strRemoveChecklist = "Remove Checklist".localized()
     var strUplodFirst = "Click to upload license front".localized()
     var strUplodSecod = "Click to upload license back".localized()
     var notSupportCamera = "Your device don’t support camera.".localized()
@@ -171,6 +196,17 @@ struct Text {
     var strValue = "Value".localized()
     var strCustomerOwes = "Customer Owes".localized()
     var strTotalCheckList = "Total Charge".localized()
+
+    var strDelivredNote = "Delivery Note".localized()
+    var strReturnedNote = "Returned Note".localized()
+    var deliveryNote = "Enter delivery note".localized()
+    var returenNote = "Enter return note".localized()
+
+    var strDelivredEmployess = "Delivered By".localized()
+    var strReturnedEmployess = "Returned By".localized()
+    var strSelectEmployess = "Select employee".localized()
+    var strReturnedLocation = "Returnd Location".localized()
+    var strSelectLocation = "Select locaiton".localized()
 
     
     

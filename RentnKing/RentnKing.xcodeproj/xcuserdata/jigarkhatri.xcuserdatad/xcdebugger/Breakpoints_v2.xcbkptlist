@@ -7,256 +7,208 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "89E21802-851F-453A-B5A3-D24A181E553A"
+            uuid = "12CDD916-099B-423C-AAF9-7EE1A24FC33B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "80"
+            endingLineNumber = "80"
+            landmarkName = "updateCheckList(dicCheckList:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "2AC8173A-90C2-4922-A062-28A32D358180"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "81"
+            endingLineNumber = "81"
+            landmarkName = "updateCheckList(dicCheckList:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E107EBB0-B3D1-4F50-B6D6-F67B9EB6FA16"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Image Upload/ImageUploadViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "604"
+            endingLineNumber = "604"
+            landmarkName = "tableView(_:heightForRowAt:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "12799C1B-7AF1-4CEC-AD39-AF3C681455FE"
             shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "169"
-            endingLineNumber = "169"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "521"
+            endingLineNumber = "521"
+            landmarkName = "CalculatTotalCharge()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "543909F5-29B4-4EE5-A1C5-615E51A6FB64"
+            uuid = "13E8118C-167A-4B6D-AEE8-A544B863CB6F"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/ClockInViewController.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "108"
-            endingLineNumber = "108"
-            landmarkName = "btnSelectStatusClicked(_:)"
+            startingLineNumber = "139"
+            endingLineNumber = "139"
+            landmarkName = "setTheView()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "1D3D5515-A1B0-46DF-A72D-FE85D2EDBD06"
+            uuid = "436196B3-8641-4323-98E1-9AC25362E993"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/ClockInViewController.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "170"
-            endingLineNumber = "170"
-            landmarkName = "tableView(_:cellForRowAt:)"
+            startingLineNumber = "520"
+            endingLineNumber = "520"
+            landmarkName = "CalculatTotalCharge()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "F15F4F76-06CF-471E-B723-F8CE4650DC90"
+            uuid = "63DAA46B-D9B7-4A03-8C03-72DB21DD1483"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "398"
-            endingLineNumber = "398"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "432"
+            endingLineNumber = "432"
+            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "038B5F7B-9B1B-4C37-A0B4-1DEF014893EB"
+            uuid = "1980F982-2129-4CD5-9C76-4C2194F1153D"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "415"
-            endingLineNumber = "415"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "435"
+            endingLineNumber = "435"
+            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "6FA2A0FD-8AF6-40AF-98F2-6E55AF0F3FFB"
+            uuid = "CEEF7C6E-6BB0-4C78-86DC-EE70E696DF75"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "413"
-            endingLineNumber = "413"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "408"
+            endingLineNumber = "408"
+            landmarkName = "apiPayment(OrdersPaymentParameater:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "EDBFE85B-D2B6-4800-A893-522E4696A4C2"
+            uuid = "FB952D03-8D6D-4F02-9824-70BCA328905C"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "475"
-            endingLineNumber = "475"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "414"
+            endingLineNumber = "414"
+            landmarkName = "apiPayment(OrdersPaymentParameater:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "7F900927-928E-44DF-BBA5-67F79C317C09"
+            uuid = "D78D0ED5-DB4E-4DFD-846A-66FD22205F1B"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "476"
-            endingLineNumber = "476"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "429"
+            endingLineNumber = "429"
+            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "7E1912C8-015C-48DF-B0F6-985B39D2BDED"
+            uuid = "64349B27-AF84-4D10-8C1F-E70C2D9D1CB5"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "451"
-            endingLineNumber = "451"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "430"
+            endingLineNumber = "430"
+            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "E7D64CAE-441D-4026-B466-1E277D0A08FA"
+            uuid = "E9673D24-9072-40F9-86E8-723F1786D004"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
+            filePath = "RentnKing/AppDelegate.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "452"
-            endingLineNumber = "452"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "7ACCCDD7-3459-48D5-B78C-90C15E059D2B"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "455"
-            endingLineNumber = "455"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "6AE006F7-2A7D-4A37-BA94-9F9F02E14F56"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "461"
-            endingLineNumber = "461"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "065B2F22-271F-4C5A-B7D1-5810004FF285"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "412"
-            endingLineNumber = "412"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "53984465-20F9-4D5B-A0D0-CF69A7571371"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "395"
-            endingLineNumber = "395"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "14DBE1D7-D7CA-47A3-8F34-6750EF84EFAE"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "396"
-            endingLineNumber = "396"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "CACD707B-ED08-45C4-8A12-158CD6A86747"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Time Clock Model/Time Clock/TimeClockModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "400"
-            endingLineNumber = "400"
-            landmarkName = "appDataDidSuccess(_:request:index:)"
+            startingLineNumber = "243"
+            endingLineNumber = "243"
+            landmarkName = "updateToken(DeviceTokenParameater:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

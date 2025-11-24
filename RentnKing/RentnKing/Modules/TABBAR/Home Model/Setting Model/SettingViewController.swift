@@ -22,8 +22,6 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         }
     }
     
-    
-    
     override func viewDidLoad() {
         super.viewDidLoad()
 

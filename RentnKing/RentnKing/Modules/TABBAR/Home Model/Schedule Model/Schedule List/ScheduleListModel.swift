@@ -12,20 +12,29 @@ import UIKit
 
 struct SchedulesModel: Mappable{
     internal var id: Int?
-    internal var name: String?
-    internal var location: String?
-    internal var order_id: Int?
-    internal var product_id: Int?
-    internal var phone: String?
+    internal var unique_id: String?
+    internal var product_name: String?
+
     internal var delivery_date: String?
-    internal var delivery_status: Type_Status?
+    internal var delivery_transport_mode: String?
     internal var delivery_time: String?
-    internal var customer_delivery: Int?
+    internal var delivery_status: String?
+
     internal var pickup_date: String?
-    internal var pickup_status: Type_Status?
+    internal var pickup_transport_mode: String?
     internal var pickup_time: String?
-    internal var customer_pickup: Int?
-    internal var order: OrdersModel?
+    internal var pickup_status: String?
+
+    internal var objProduct: ProductDataModel?
+//
+//    
+//    internal var location: String?
+//    internal var order_id: Int?
+//    internal var product_id: Int?
+//    internal var phone: String?
+////    internal var customer_delivery: Int?
+//    internal var customer_pickup: Int?
+    internal var order: OrdersListModel?
 
     init?(map:Map) {
         mapping(map: map)
@@ -33,22 +42,32 @@ struct SchedulesModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
-        name <- map["name"]
-        location <- map["location"]
-        order_id <- map["order_id"]
-        product_id <- map["product_id"]
-        phone <- map["phone"]
+        unique_id <- map["unique_id"]
+        product_name <- map["product_name"]
+
         delivery_date <- map["delivery_date"]
-        delivery_status <- map["delivery_status"]
+        delivery_transport_mode <- map["delivery_transport_mode"]
         delivery_time <- map["delivery_time"]
-        customer_delivery <- map["customer_delivery"]
+        delivery_status <- map["delivery_status"]
+
         pickup_date <- map["pickup_date"]
-        pickup_status <- map["pickup_status"]
+        pickup_transport_mode <- map["pickup_transport_mode"]
         pickup_time <- map["pickup_time"]
-        customer_pickup <- map["customer_pickup"]
+        pickup_status <- map["pickup_status"]
+
+        objProduct <- map["product_data"]
+//
+//        name <- map["product_name"]
+//        location <- map["location"]
+//        order_id <- map["order_id"]
+//        product_id <- map["product_id"]
+//        phone <- map["phone"]
+//        customer_delivery <- map["customer_delivery"]
+//        customer_pickup <- map["customer_pickup"]
         order <- map["order"]
     }
 }
+
 
 struct Type_Status: Mappable{
     internal var value: String?
@@ -66,9 +85,9 @@ struct Type_Status: Mappable{
 
 
 struct UpdateStatusParameater: Codable {
-    var id : String
-    var delivery_status : String
-    var pickup_status : String
+    var order_product_unique_id : String
+    var schedule_type : String //Delivery, Return
+    var schedule_status : String //Pending, Completed
 }
 
 extension ScheduleListViewController :WebServiceHelperDelegate{
@@ -96,49 +115,73 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
     
     struct OrdersParameater: Codable {
         var page : String
-        var limit : String = "\(Application.PageLimit)"
-        var type : String //Delivery,Pickup
-        var status : String  // 1 = pending , 2 = completed
+        var per_page : String = "\(Application.PageLimit)"
+        var schedule_type : String //Delivery,Return
+        var schedule_status : String  // 1 = pending , 2 = completed
         
         var search : String = ""
         var category_id : String = ""
-        var deliveryType : String = ""
+        var transport_mode : String = "All" //Truck, Store
     }
 
-    
-    func getScheduleList(OrdersParameater : OrdersParameater){
-        DispatchQueue.main.async {
-            if self.isHeaderLoading{
-                self.schedulePlaceholderMarker.register(self.getAnimableSubviews())
-                self.schedulePlaceholderMarker.startAnimation()
-            }
-        }
+    func callAPIforGetScheduleList(OrdersParameater: OrdersParameater, completion: @escaping (Bool) -> Void) {
         
-        guard let parameater = try? OrdersParameater.asDictionary() else {
+        guard let parameters = try? OrdersParameater.asDictionary() else {
             showAlertMessage(strMessage: str.invalidRequestParamater)
+            completion(false)
             return
         }
-
-        //Declaration URL
+        
         let strURL = "\(Url.scheduleList.absoluteString!)"
         
-        print("============")
-        print(strURL)
-        print(parameater)
-
-       
-        //Create object for webservicehelper and start to call method
         let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "scheduleList"
         webHelper.methodType = "post"
         webHelper.strURL = strURL
-        webHelper.dictType = parameater
+        webHelper.dictType = parameters
         webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
         webHelper.showLogForCallingAPI = true
         webHelper.serviceWithAlert = true
         webHelper.indicatorShowOrHide = false
-        webHelper.callAPI()
+        
+        webHelper.callAPIwithCompletation { [weak self] data, arr, isDic, error in
+            guard let self = self else { return }
+            
+            indicatorHide()
+            self.isLoading = false
+            
+            guard error == nil else {
+                completion(false)
+                return
+            }
+            debugPrint(data ?? NSNull())
+            
+            if data?.getStringForID(key: "success") == "1",
+               let arrData = data?["orders"] as? [[String: Any]] {
+                
+                let newOrders = Mapper<SchedulesModel>().mapArray(JSONArray: arrData)
+                
+                // Manage local storage
+                if self.pageCount == 1 {
+                    // Overwrite old data
+                    SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)")
+                } else {
+                    // Append to local
+                    var existing = self.getScheduleOrderData(schedule_type: OrdersParameater.schedule_type, schedule_status: OrdersParameater.schedule_status)
+                    
+                    // Avoid duplicates
+                    let filteredNew = newOrders.filter { newItem in
+                        !existing.contains(where: { $0.id == newItem.id })
+                    }
+                    
+                    existing.append(contentsOf: filteredNew)
+                    SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)")
+                }
+                
+                completion(true)
+            } else {
+                completion(false)
+            }
+        }
     }
     
  
@@ -168,32 +211,8 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
         webHelper.indicatorShowOrHide = true
         webHelper.callAPI()
     }
-    
-    
-    func getCategorys(){
 
-        //Declaration URL
-        let strURL = "\(Url.categorys.absoluteString!)"
-        
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "categorys"
-        webHelper.methodType = "get"
-        webHelper.strURL = strURL
-        webHelper.dictType = [:]
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = false
-        webHelper.callAPI()
-    }
-   
-   
- 
-    
-     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
         self.isLoading = false
         self.isHeaderLoading = false
@@ -201,62 +220,7 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
         self.objRefresh?.endRefreshing()
 
         if data.getStringForID(key: "success") == "1"{
-            if strRequest == "scheduleList"{
-                if let dicData = data["data"] as? NSDictionary{
-                    if let arrData = dicData["data"] as? NSArray{
-                        if arrData.count != 0{
-                            let arr = Mapper<SchedulesModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                            
-                            if self.pageCount == 1{
-                                self.arrScheduleList = []
-                            }
-                            
-                            for obj in arr{
-                                self.arrScheduleList.append(obj)
-                            }
-                            
-                        
-                            //SET FILTER
-//                            self.filter()
-                            
-                            //CHECK LOADING
-                            self.bool_Load = true
-                            if arr.count >= Int(Application.PageLimit){
-                                self.bool_Load = false
-                                self.pageCount += 1
-                            }
-                            
-                            //SET THE VIEW
-                            self.setTheView()
-                        }
-                        else{
-                            //SET THE VIEW
-                            self.setTheView()
-                        }
-                    }
-                }
-            }
-            else if strRequest == "categorys"{
-                if data.getStringForID(key: "success") == "1"{
-                    if let arrData = data["data"] as? NSArray{
-                       
-                        self.arrCategorys = []
-                        self.arrCategorys = Mapper<CategoryModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                        self.arrCategorys = self.arrCategorys.sorted(by: { $0.name ?? "" < $1.name ?? "" })
-                        
-                        //SET EMPTY OBJECT
-                        var objData : CategoryModel!
-                        let map = Map(mappingType: .fromJSON, JSON: [:])
-                        objData = CategoryModel(map: map)
-                        objData.id = 0
-                        objData.name = "All"
-                        
-                        //ADD
-                        self.arrCategorys.insert(objData, at: 0)
-                    }
-                }
-            }
-            else if strRequest == "scheduleUpdate"{
+            if strRequest == "scheduleUpdate"{
                 //UPDATE COUNT
                 GlobalMainConstants.appDelegate?.getScheduleCount()
                 
@@ -267,51 +231,46 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
                     if self.arrScheduleList.count == 0{
                         return
                     }
-                    let objData = self.arrScheduleList[index]
-
-                    
-                 
-                    //TERMS AND CONDITION
-                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                        newViewController.delegate = self
-                        newViewController.selectIndex = index
-                        newViewController.strOrderID = "\(objData.order_id ?? 0)"
-                        newViewController.strProductID = "\(objData.product_id ?? 0)"
-                        self.navigationController?.pushViewController(newViewController, animated: true)
+                   
+        
+                    //UPDATE ARRAY
+                    self.arrScheduleList.remove(at: index)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                        //RELOAD TABLE
+                        self.tblView.reloadData()
                     }
-                    
-                    
-                    //UPDATE OBJECT
-                    if self.selectStatus == "2"{
-                        
-                        //UPDATE ARRAY
-                        var objData = self.arrScheduleList[index]
-                        if self.selectType.lowercased() == "Delivery".lowercased(){
-                            objData.delivery_status?.value = "2"
-                        }
-                        else{
-                            objData.pickup_status?.value = "2"
-                        }
-                        
-                        self.arrScheduleList.remove(at: index)
-                        self.arrScheduleList.insert(objData, at: index)
-                        
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                            //RELOAD TABLE
-                            self.tblView.reloadData()
-                        }
-                    }
-                    else{
-                        self.arrScheduleList.remove(at: index)
-
-                        
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                            //RELOAD TABLE
-                            self.tblView.reloadData()
-                        }
-                    }
+//                    var objData = self.arrScheduleList[index]
+//
+//                    //UPDATE OBJECT
+//                    if self.selectStatus == "2"{
+//                        
+//                        //UPDATE ARRAY
+//                        var objData = self.arrScheduleList[index]
+//                        if self.selectType.lowercased() == "Delivery".lowercased(){
+//                            objData.delivery_status?.value = "2"
+//                        }
+//                        else{
+//                            objData.pickup_status?.value = "2"
+//                        }
+//                        
+//                        self.arrScheduleList.remove(at: index)
+//                        self.arrScheduleList.insert(objData, at: index)
+//                        
+//                        
+//                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+//                            //RELOAD TABLE
+//                            self.tblView.reloadData()
+//                        }
+//                    }
+//                    else{
+//                        self.arrScheduleList.remove(at: index)
+//
+//                        
+//                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+//                            //RELOAD TABLE
+//                            self.tblView.reloadData()
+//                        }
+//                    }
                 }
             }
         }

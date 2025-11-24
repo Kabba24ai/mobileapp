@@ -8,7 +8,7 @@
 import UIKit
 
 protocol TagsProtocol : AnyObject {
-    func SelectTag(arrTag : [String])
+    func SelectTag(arrTag : [Int])
 }
 
 
@@ -51,7 +51,7 @@ class TagsViewController: UIViewController, UIGestureRecognizerDelegate {
     var bgAlpha: CGFloat = 0.5
     
     var arrTags : [TagListModel] = []
-    var arrSelectedTags : [String] = []
+    var arrSelectedTags : [Int] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -126,14 +126,15 @@ class TagsViewController: UIViewController, UIGestureRecognizerDelegate {
         self.lblHeader.textAlignment = .center
 
         self.btnCancel.configureLable(bgColour: .clear, textColor: .background, fontName: GlobalConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "Cancel")
-        self.btnDone.configureLable(bgColour: .clear, textColor: .background, fontName: GlobalConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "Done")
+        self.btnDone.configureLable(bgColour: UIColor(named: "secondaryEXCopy"), textColor: .background, fontName: GlobalConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "Submit")
+        self.btnDone.viewCorneRadius(radius: 5, isRound: false)
 
         self.lblCreatTag.configureLable(textColor: UIColor.background, fontName: GlobalConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "+ Create")
         self.lblClose.configureLable(textColor: UIColor.background, fontName: GlobalConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "X")
         self.btnTagSubmit.configureLable(bgColour: .clear, textColor: .background, fontName: GlobalConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Submit")
 
         //SET VIEW
-        self.viewCreatTag.backgroundColor = UIColor(named: "secondaryEXCopy")
+        self.viewCreatTag.backgroundColor = .clear// UIColor(named: "secondaryEXCopy")
         self.viewCreatTag.viewCorneRadius(radius: 5, isRound: false)
 
         
@@ -326,7 +327,7 @@ extension TagsViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrTags[indexPath.row].name ?? "")
             cell.imgTag.image = UIImage(named: "icon_Uncheck ")
             if self.arrSelectedTags.count != 0{
-                if self.arrSelectedTags.contains(self.arrTags[indexPath.row].name ?? ""){
+                if self.arrSelectedTags.contains(self.arrTags[indexPath.row].id ?? 0){
                     cell.imgTag.image = UIImage(named: "icon_Check")
                 }
             }
@@ -342,12 +343,12 @@ extension TagsViewController : UITableViewDelegate, UITableViewDataSource{
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
         //CECHK TAGS
-        let TagID = self.arrSelectedTags.map{$0.lowercased()}
-        if let index = TagID.firstIndex(of: "\(self.arrTags[indexPath.row].name ?? "")".lowercased() ) {
+        let TagID = self.arrSelectedTags.map{$0}
+        if let index = TagID.firstIndex(of: self.arrTags[indexPath.row].id ?? 0 ) {
             self.arrSelectedTags.remove(at: index)
         }
         else{
-            self.arrSelectedTags.append(self.arrTags[indexPath.row].name ?? "")
+            self.arrSelectedTags.append(self.arrTags[indexPath.row].id ?? 0)
         }
             
 

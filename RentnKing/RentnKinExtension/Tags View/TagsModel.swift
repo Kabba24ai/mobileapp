@@ -34,7 +34,7 @@ extension TagsViewController :WebServiceHelperDelegate{
          //Create object for webservicehelper and start to call method
          let webHelper = WebServiceHelper()
          webHelper.strMethodName = "contactTags"
-         webHelper.methodType = "get"
+         webHelper.methodType = "post"
          webHelper.strURL = strURL
          webHelper.dictType = [:]
          webHelper.dictHeader = NSDictionary()
@@ -84,7 +84,7 @@ extension TagsViewController :WebServiceHelperDelegate{
         if data.getStringForID(key: "success") == "1"{
             if strRequest == "contactTags"{
                 
-                if let arrData = data["data"] as? NSArray{
+                if let arrData = data["customer_tags"] as? NSArray{
                     self.arrTags = []
                     self.arrTags = Mapper<TagListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
                     if self.arrTags.count != 0{
@@ -99,7 +99,7 @@ extension TagsViewController :WebServiceHelperDelegate{
             }
             else if strRequest == "createTags"{
                 self.showAlertMessage(strMessage: data.getStringForID(key: "message"))
-                
+              
                 DispatchQueue.main.async {
                     self.getTagsAPI()
                 }

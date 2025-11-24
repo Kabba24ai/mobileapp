@@ -270,11 +270,12 @@ extension ProductListViewController: UITableViewDelegate, UITableViewDataSource 
     }
     
     @objc func btnReadMoreClicked(_ sender : UIButton) {
-        if self.arrProductList.count == 0{
+        if self.arrProductList.count == 0 {
             return
         }
         
         //MOVE TO CHECKOUT SCREEN
+        
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ProductDetailsViewController") as? ProductDetailsViewController{
             newViewController.objData = self.arrProductList[sender.tag]

@@ -12,7 +12,8 @@ import UIKit
 struct Product: Mappable{
     internal var id: Int?
     internal var use_global:Bool?
-    
+    internal var checklist_id: Int?
+
     init?(map:Map) {
         mapping(map: map)
     }
@@ -20,6 +21,8 @@ struct Product: Mappable{
     mutating func mapping(map:Map){
         id <- map["id"]
         use_global <- map["use_global"]
+        checklist_id <- map["checklist_id"]
+
     }
 }
 
@@ -27,9 +30,19 @@ struct Product: Mappable{
 struct ProductModel: Mappable{
     internal var id: Int?
     internal var product_id: Int?
+    internal var unique_id: String?
+    internal var machine_id: Int?
+    internal var objProductData : ProductDataModel?
+//    internal var hour_tracking : Bool?
+//    internal var hour_rate : Float?
+    internal var allocated_hours : Float?
+
+    internal var objCategory: CategoryModel?
+    internal var objMachine: MachineModel?
     internal var objProduct: Product?
     internal var storeAdderss: StoreModel?
-    internal var checkList: CheckListModel?
+    internal var arrQuestions: [CustomerCheckListModel] = []
+//    internal var checkList: CheckListModel?
     internal var name: String?
     internal var product_name: String?
     internal var price: Float?
@@ -55,6 +68,30 @@ struct ProductModel: Mappable{
     internal var pickup: Bool?
     internal var storeID: String = ""
 
+    internal var delivery_note: String = ""
+    internal var delivery_emp: Int = 0
+    internal var delivery_sign: String = ""
+    internal var returned_note: String = ""
+    internal var returned_emp: Int = 0
+    internal var return_sign: String = ""
+
+    internal var inTime: String = ""
+    internal var outTime: String = ""
+
+    internal var start_hours: Float = 0.0
+    internal var end_hours: Float = 0.0
+    internal var total_charge: Float = 0.0
+
+    internal var is_delivered: Bool?
+    internal var is_returned: Bool?
+
+    internal var power_source_type: String?
+    internal var has_def: String?
+
+    
+    internal var fuel_final_reading: String = ""
+    internal var fuel_initial_reading: String = ""
+
     
     init?(map:Map) {
         mapping(map: map)
@@ -62,10 +99,18 @@ struct ProductModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
+        objProductData <- map["product_data"]
+//        hour_tracking <- map["hour_tracking"]
+//        hour_rate <- map["hour_rate"]
+        allocated_hours <- map["allocated_hours"]
+
+        unique_id <- map["unique_id"]
         product_id <- map["product_id"]
+        machine_id <- map["machine_id"]
+        objMachine <- map["equipment_details"]
         objProduct <- map["product"]
         storeAdderss <- map["store"]
-        checkList <- map["checklist"]
+//        checkList <- map["checklist"]
         name <- map["name"]
         product_name <- map["product_name"]
         image <- map["image"]
@@ -88,6 +133,29 @@ struct ProductModel: Mappable{
         delivery_range <- map["delivery_range"]
         storeID <- map["storeID"]
 
+        delivery_note <- map["delivery_note"]
+        delivery_emp <- map["delivery_by"]
+        delivery_sign <- map["delivery_signature_media_url"]
+        returned_note <- map["returned_note"]
+        returned_emp <- map["pickup_by"]
+        return_sign <- map["return_signature_media_url"]
+
+//        inTime <- map["in_time"]
+//        outTime <- map["out_time"]
+        
+        start_hours <- map["start_hours"]
+        end_hours <- map["end_hours"]
+
+        is_delivered <- map["is_delivered"]
+        is_returned <- map["is_returned"]
+
+        total_charge <- map["total_charge"]
+        
+        power_source_type <- map["power_source_type"]
+        has_def <- map["has_def"]
+
+        fuel_final_reading <- map["fuel_final_reading"]
+        fuel_initial_reading <- map["fuel_initial_reading"]
     }
 }
 
@@ -112,6 +180,8 @@ struct ProductOptionsModel: Mappable{
 
     }
 }
+
+
 
 struct OptionsValueModel: Mappable{
     internal var id: Int?
@@ -220,7 +290,7 @@ extension ProductListViewController :WebServiceHelperDelegate{
     
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
         self.isLoading = false
 

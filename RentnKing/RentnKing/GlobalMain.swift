@@ -63,6 +63,7 @@ struct GlobalMainConstants
     static let TIMECLOCK_MODEL = "TimeClock"
     static let ORDER_MODEL = "Order"
     static let SCHEDULE_MODEL = "Schedule"
+    static let EQUIPMENT_MODEL = "Equipment"
 
     //FONT NAME
     static let APP_FONT_Roboto_Black = "Roboto-Black"
@@ -217,12 +218,17 @@ func SetTheFont(fontName :String, size :Double) -> UIFont {
 }
 
 //............................... ALERT MESSAGE ...............................................//
-func showAlertMessage(strMessage: String) {
+func showAlertMessage(strMessage: String, isDismiss : Bool = false) {
     let alert = UIAlertController(title: Application.appName, message: strMessage, preferredStyle: UIAlertController.Style.alert)
     
     alert.addAction(UIAlertAction(title: str.ok, style: UIAlertAction.Style.default, handler: nil))
-    getTopViewController?.present(alert, animated: true, completion: nil)
-    
+    getTopViewController?.present(alert, animated: true) {
+        if isDismiss {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                alert.dismiss(animated: true)
+            }
+        }
+    }
 }
 
 
@@ -253,7 +259,7 @@ func convertSeccountToTime(remainingTime : Int) -> String{
 //        }
 //        else{
 //            timing = "\(seconds)s"
-//        }
+//        } 
 //    }
     
     return timing
@@ -637,46 +643,101 @@ extension UIDevice {
 
 //URL
 enum Url {
-    static let updateToken = NSURL(string: "\(Application.BaseURL)device-token")!
+    //NEW API
+    static let login = NSURL(string: "\(Application.BaseURL_NEW)login")!
+    static let getStores = NSURL(string: "\(Application.BaseURL_NEW)stores")!
+
+    //ORDER
+    static let orderList = NSURL(string: "\(Application.BaseURL_NEW)orders")!
+    static let orderDetails = NSURL(string: "\(Application.BaseURL_NEW)orders/details")!
+
+    static let categoryList = NSURL(string: "\(Application.BaseURL_NEW)product-categories")!
+
+    static let updateAddress = NSURL(string: "\(Application.BaseURL_NEW )orders/update-address")!
+    static let usersList = NSURL(string: "\(Application.BaseURL_NEW)users")!
+    static let orderPayment = NSURL(string: "\(Application.BaseURL_NEW)orders/payment")!
+
+    //IMAGE UPLOAD
+    static let uploadLicenseMedia = NSURL(string: "\(Application.BaseURL_NEW)orders/upload-media")!
+
+    //NOTE
+    static let addOrderNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/create")!
+    static let updateOrderNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/update")!
+    static let deleteNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/remove")!
+    
+    //SCHEDULE
+    static let scheduleList = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules")!
+    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules/update")!
+
+    //STATES
+    static let getStates = NSURL(string: "\(Application.BaseURL_NEW)locations/states")!
+    
+    //CHECKLIST
+    static let equipmentList = NSURL(string: "\(Application.BaseURL_NEW)equipment")!
+    static let customerCheckList = NSURL(string: "\(Application.BaseURL_NEW)customer-checklists/question-answers")!
+    static let updateDeliveryCheckList = NSURL(string: "\(Application.BaseURL_NEW)orders/customer-checklists/save-delivery")!
+    static let updateReturnCheckList = NSURL(string: "\(Application.BaseURL_NEW)orders/customer-checklists/save-return")!
+    static let priceList = NSURL(string: "\(Application.BaseURL_NEW)configurations")!
+
+    
+    //TIME CLOCK
+    static let employeesList = NSURL(string: "\(Application.BaseURL_NEW)users")!
+    
+    static let updateToken = NSURL(string: "\(Application.BaseURL_NEW)users/device-token")!
+
+    
+
+    
+    
+    
+    
+    
+    
+    
+    
+    //OLAD API
 
     //CATEGORY
-    static let categorys = NSURL(string: "\(Application.BaseURL)getcategories")!
     static let categoryProducts = NSURL(string: "\(Application.BaseURL)getcategoryproducts")!
     static let searchProducts = NSURL(string: "\(Application.BaseURL)search-products")!
     static let productsDetaisl = NSURL(string: "\(Application.BaseURL)getProductDetails")!
 
-    static let getStores = NSURL(string: "\(Application.BaseURL)getStores")!
     static let placeORder = NSURL(string: "\(Application.BaseURL)place-order")!
 
-    //STATES
-    static let getStates = NSURL(string: "\(Application.BaseURL)getstates")!
-
+ 
 
     //ORDER
-    static let orderList = NSURL(string: "\(Application.BaseURL)getorders")!
-    static let orderDetails = NSURL(string: "\(Application.BaseURL)getorderdetail")!
-    static let uploadLicense = NSURL(string: "\(Application.BaseURL)order/upload/license")!
-    static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
-    static let orderPayment = NSURL(string: "\(Application.BaseURL)order/payment")!
-    static let updateAddress = NSURL(string: "\(Application.BaseURL)order/address/update")!
-    static let updateCheckList = NSURL(string: "\(Application.BaseURL)order/checklist-update")!
-
+//    static let orderList = NSURL(string: "\(Application.BaseURL)getorders")!
+//    static let orderDetails = NSURL(string: "\(Application.BaseURL)getorderdetail")!
+    //static let uploadLicense = NSURL(string: "\(Application.BaseURL)order/upload/license")!
+//
+//    static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
+//    static let updateCheckListImages = NSURL(string: "\(Application.BaseURL)order/checklist-media-update")!
+//
     //TIME CLOCK
     static let timeClockSetting = NSURL(string: "\(Application.BaseURL)time-clock/settings")!
     static let statusList = NSURL(string: "\(Application.BaseURL)attendance/statues")!
-    static let employeesList = NSURL(string: "\(Application.BaseURL)employees")!
+//    static let employeesList = NSURL(string: "\(Application.BaseURL)employees")!
     static let employeeStatus = NSURL(string: "\(Application.BaseURL)employee/status")!
     static let updateEmployeeStatus = NSURL(string: "\(Application.BaseURL)employee/attendance/track")!
 
-    
-    //IMAGE VIDEO UPLOAD
-    static let uploadImageVideo = NSURL(string: "\(Application.BaseURL)order/upload/images")!
-    static let removeImageVideo = NSURL(string: "\(Application.BaseURL)order/remove/images")!
+//    //IMAGE VIDEO UPLOAD
+//    static let uploadImageVideo = NSURL(string: "\(Application.BaseURL)order/upload/images")!
+//    static let removeImageVideo = NSURL(string: "\(Application.BaseURL)order/remove/images")!
+//
+//    //SCHEDULE
+////    static let scheduleList = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-list")!
+////    static let scheduleListCound = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-count")!
+////    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-update")!
+//
+    //MACHINE PROFILE
+    static let maintenanceProfile = NSURL(string: "\(Application.BaseURL)maintenance/inventory/report")!
+    static let inventoryClass = NSURL(string: "\(Application.BaseURL)maintenance/inventory/class")!
+    static let inventoryStatus = NSURL(string: "\(Application.BaseURL)maintenance/statues")!
+    static let inventoryService = NSURL(string: "\(Application.BaseURL)maintenance/inventory/services")!
 
-    //SCHEDULE
-    static let scheduleList = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-list")!
-    static let scheduleListCound = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-count")!
-    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-update")!
+    static let rantalReady = NSURL(string: "\(Application.BaseURL)maintenance/profile/view")!
+    static let updateRantalReady = NSURL(string: "\(Application.BaseURL)maintenance/inventory/update")!
 
 }
 
@@ -930,7 +991,12 @@ extension String {
     }
 }
 
-
+func getCurrentDate() -> String {
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "MM/dd/yyyy - hh:mm a"
+    let str_date = dateFormatter.string(from: Date())
+    return str_date
+}
 
 
 
@@ -1270,3 +1336,35 @@ func actionDatePicker(_ sender: UIButton, strTitle :String, selectDate :Date = D
     datePicker?.show()
 
 }
+
+
+func getThumbnailImage(forUrl url: URL) -> UIImage? {
+    let asset: AVAsset = AVAsset(url: url)
+    let imageGenerator = AVAssetImageGenerator(asset: asset)
+
+    do {
+        let thumbnailImage = try imageGenerator.copyCGImage(at: CMTimeMake(value: 1, timescale: 30), actualTime: nil)
+        return UIImage(cgImage: thumbnailImage)
+    } catch let error {
+        print(error)
+    }
+
+    return nil
+}
+
+
+func normalizeFileName(from urlString: String) -> String? {
+    guard let url = URL(string: urlString) else { return nil }
+    let fileName = url.lastPathComponent  // e.g. "Cc3JRn-media-ord-oebz-p2st_1757921034.046299.jpg"
+    
+    // Split on "-media-" because prefix is dynamic
+    if let range = fileName.range(of: "-media-") {
+        // Take everything AFTER "-media-"
+        return String(fileName[range.upperBound...])
+    }
+    return fileName
+}
+
+
+
+

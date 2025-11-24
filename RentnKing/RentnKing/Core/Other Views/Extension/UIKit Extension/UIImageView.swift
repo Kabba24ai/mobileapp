@@ -20,12 +20,21 @@ extension UIImageView{
         ImageLoadingOptions(placeholder: UIImage(named: "icon_PlaceHoder"), transition: .fadeIn(duration: 0.25))
     }
     
+    
+
+    
     func setImage(strImg : String){
-        let imgURL =  ("\(Application.imgURL)\(strImg)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)) ?? ""
-        if let url = URL(string: imgURL.replacingOccurrences(of: " ", with: "%20")){
-            NukeExtensions.loadImage(with: makeRequest(with: url), options: makeImageLoadingOptions(), into: self)
+        if strImg.contains("http"){
+            self.setImageURL(strImg: strImg)
+        }
+        else{
+            let imgURL =  ("\(Application.imgURL)\(strImg)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)) ?? ""
+            if let url = URL(string: imgURL.replacingOccurrences(of: " ", with: "%20")){
+                NukeExtensions.loadImage(with: makeRequest(with: url), options: makeImageLoadingOptions(), into: self)
+            }
         }
     }
+    
     
     func setImageURL(strImg : String){
         let imgURL =  ("\(strImg)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)) ?? ""

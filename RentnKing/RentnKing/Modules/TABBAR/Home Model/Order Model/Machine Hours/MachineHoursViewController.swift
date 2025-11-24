@@ -44,7 +44,7 @@ class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate 
         
         //CALL API
         self.viewSubmit.isHidden = true
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
+        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderID, product_id: self.strProductID))
         
         
         
@@ -384,8 +384,19 @@ extension MachineHoursViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-      
-        return UITableView.automaticDimension
+        if isLoading{
+            return UITableView.automaticDimension
+        }
+        else{
+            let  objDetails = self.objOrderData.arrMachineHours[indexPath.row]
+            if self.objOrderData.arrProduct.firstIndex(where: { $0.product_id == objDetails.product_id }) != nil{
+                return UITableView.automaticDimension
+            }
+            else{
+                return 0
+            }
+        }
+        
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {

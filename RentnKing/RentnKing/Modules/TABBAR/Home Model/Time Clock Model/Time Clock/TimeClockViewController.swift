@@ -128,7 +128,7 @@ class TimeClockViewController: UIViewController, UIGestureRecognizerDelegate {
         self.setEmpView()
         
         #if DEBUG
-        self.txtEmpID.text = "43798"
+//        self.txtEmpID.text = "841164"
         #endif
     }
     
@@ -175,13 +175,18 @@ extension TimeClockViewController{
     
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
+        //CHECK VALIDATION
+        let strEmID = self.txtEmpID.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+
         
         if self.selectTeamID != 0 {
-            if self.txtEmpID.text == self.selectEmpCode{
-                self.getEmployeesStatusAPI(EmployeParameater: EmployeParameater(employee_id: "\(self.selectTeamID)", temporary_code: ""))
+            
+
+            if strEmID != ""{
+                self.getEmployeesStatusAPI(EmployeParameater: EmployeParameater(employee_id: "\(self.selectTeamID)", temporary_code: self.txtEmpID.text ?? ""))
             }
             else{
-                showAlertMessage(strMessage: "Please enter valide code")
+                showAlertMessage(strMessage: "Please enter member id")
             }
         }
 

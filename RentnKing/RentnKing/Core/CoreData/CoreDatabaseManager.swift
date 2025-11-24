@@ -7,12 +7,14 @@
 
 import Foundation
 import CoreData
+import ObjectMapper
 
 enum uploadType: String {
-    case image
-    case video_image
+    case image //license
+    case video_image //delivery , pickup
     case hours
     case checkList
+    case license
 }
 
 extension uploadType {
@@ -29,6 +31,8 @@ extension uploadType {
 
         case .checkList:
             return "checkList"
+        case .license:
+            return "license"
         }
     }
 }
@@ -120,10 +124,15 @@ class CoreDBManager: NSObject {
     
     
     //==== GET DATA ==== //
-    func getAllUploadDATA() -> [UploadData]{
+    func getAllUploadDATA(status : String = "Pending") -> [UploadData]{
         let objContext = self.managedObjectContext
         let fetchRequest = NSFetchRequest<UploadData>(entityName: "UploadData")
         let disentity: NSEntityDescription = NSEntityDescription.entity(forEntityName: "UploadData", in: objContext)!
+        
+        let predicate0_1 = NSPredicate(format:"status == %@",status)
+        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1])
+
+        fetchRequest.predicate = predicate1
         fetchRequest.entity = disentity
         
         do{
@@ -136,7 +145,7 @@ class CoreDBManager: NSObject {
     }
 
     
-    func getUploadListData(strOrderID : String, strType : String) -> [UploadData]{
+    func getUploadListData(strOrderID : String, productID: String = "", strType : String, strVideoType : String = "") -> [UploadData]{
         
         let objContext = self.managedObjectContext
         let fetchRequest = NSFetchRequest<UploadData>(entityName: "UploadData")
@@ -144,7 +153,8 @@ class CoreDBManager: NSObject {
         
         let predicate0_1 = NSPredicate(format:"orderID == %@",strOrderID)
         let predicate0_2 = NSPredicate(format:"type == %@",strType)
-        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1, predicate0_2])
+        let predicate0_3 = NSPredicate(format:"videoType == %@",strVideoType)
+        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1, predicate0_2, predicate0_3])
         
         fetchRequest.predicate = predicate1
         fetchRequest.entity = disentity
@@ -169,7 +179,8 @@ class CoreDBManager: NSObject {
         let disentity: NSEntityDescription = NSEntityDescription.entity(forEntityName: "UploadData", in: objContext)!
         let predicate0_1 = NSPredicate(format:"orderID == %@","\(objSaveData.orderID)")
         let predicate0_2 = NSPredicate(format:"type == %@","\(objSaveData.type)")
-        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1, predicate0_2])
+        let predicate0_3 = NSPredicate(format:"productID == %@","\(objSaveData.productID)")
+        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1, predicate0_2, predicate0_3])
         
 
         fetchRequest.predicate = predicate1
@@ -183,7 +194,9 @@ class CoreDBManager: NSObject {
             objCDDownload.name = objSaveData.name
             objCDDownload.isImage = objSaveData.isImage
             objCDDownload.type = objSaveData.type
-            
+            objCDDownload.videoType = objSaveData.videoType
+            objCDDownload.status = objSaveData.status
+
             objCDDownload.allocated = objSaveData.allocated
             objCDDownload.end = objSaveData.end
             objCDDownload.over = objSaveData.over
@@ -201,11 +214,8 @@ class CoreDBManager: NSObject {
             self.saveContext()
             complete(true)
         }
-        
     }
 
-
-   
     
     //====DELETE DATABASE ===
     func deleteUploadData(strOrderID : String, strType : String, complete:@escaping (_ isSave:Bool) -> ()){
@@ -238,6 +248,181 @@ class CoreDBManager: NSObject {
             print("CHAT SYNCH FAILED")
         }
     }
+    
+    //====UPDATE DATABASE STATUS====
+    func updateLicenseUploadDataStatus(strOrderID: String, strType: String, newStatus: String, complete: @escaping (_ isUpdated: Bool) -> ()) {
+        let objContext = self.managedObjectContext
+        let fetchRequest: NSFetchRequest<UploadData> = UploadData.fetchRequest()
+        
+        let predicate0_1 = NSPredicate(format: "orderID == %@", strOrderID)
+        let predicate0_2 = NSPredicate(format: "type == %@", strType)
+        fetchRequest.predicate = NSCompoundPredicate(type: .and, subpredicates: [predicate0_1, predicate0_2])
+        
+        do {
+            let results = try objContext.fetch(fetchRequest)
+            
+            if results.isEmpty {
+                complete(false) // nothing found to update
+                return
+            }
+            
+            for obj in results {
+                obj.status = newStatus  // <-- update your status attribute here
+            }
+            
+            try objContext.save()
+            complete(true)
+            
+        } catch {
+            print("Update failed:", error.localizedDescription)
+            complete(false)
+        }
+    }
+    
+    func updateVideoImageUploadDataStatus(strOrderID: String, strType: String, strVideoType: String, newStatus: String, complete: @escaping (_ isUpdated: Bool) -> ()) {
+        
+        let objContext = self.managedObjectContext
+        let fetchRequest = NSFetchRequest<UploadData>(entityName: "UploadData")
+        let disentity: NSEntityDescription = NSEntityDescription.entity(forEntityName: "UploadData", in: objContext)!
+        
+        let predicate0_1 = NSPredicate(format:"orderID == %@",strOrderID)
+        let predicate0_2 = NSPredicate(format:"type == %@",strType)
+        let predicate0_3 = NSPredicate(format:"videoType == %@",strVideoType)
+        let predicate1 = NSCompoundPredicate.init(type: .and, subpredicates: [predicate0_1, predicate0_2, predicate0_3])
+        
+        fetchRequest.predicate = predicate1
+        fetchRequest.entity = disentity
+        
+        do{
+            let results = try managedObjectContext.fetch(fetchRequest)
+            if results.isEmpty {
+                complete(false) // nothing found to update
+                return
+            }
+            
+            if results.isEmpty {
+                complete(false) // nothing found to update
+                return
+            }
+            
+            for obj in results {
+                obj.status = newStatus  // <-- update your status attribute here
+            }
+            
+            try objContext.save()
+            complete(true)
+        }
+        catch {
+            print("Update failed:", error.localizedDescription)
+            complete(false)
+        }
+    }
+    
+    
+    
+    //MARK: - FOR CATEGORY
+    func saveCategoryListArray(arrCategories: [CategoryModel], context: NSManagedObjectContext, completion: @escaping (Bool) -> Void) {
+        for category in arrCategories {
+            _ = saveCategory(objCategory: category, context: context)
+        }
+        do {
+            try context.save()
+            print("✅ Categories saved successfully")
+            completion(true)
+        } catch {
+            print("❌ Failed to save categories: \(error)")
+            completion(true)
+        }
+    }
+    
+    func saveCategory(objCategory: CategoryModel, parent: CategoryList? = nil, context: NSManagedObjectContext) -> CategoryList {
+        
+        let fetchRequest: NSFetchRequest<CategoryList> = CategoryList.fetchRequest()
+        fetchRequest.predicate = NSPredicate(format: "uniqueId == %@", objCategory.unique_id ?? "")
+        
+        let entity: CategoryList
+        if let existing = try? context.fetch(fetchRequest).first {
+            entity = existing
+        } else {
+            entity = CategoryList(context: context)
+        }
+        
+        // Map values
+        entity.id = Int64(objCategory.id ?? 0)
+        entity.uniqueId = objCategory.unique_id ?? ""
+        entity.name = objCategory.name
+        entity.image = objCategory.image
+        entity.parent = parent
+        
+        // 🔹 Handle children recursively
+//            if !objCategory.arrChildCategories.isEmpty {
+//                for childModel in objCategory.arrChildCategories {
+//                    let childEntity = saveCategory(objCategory: childModel, parent: entity, context: context)
+//                    entity.addToChildren(childEntity) // <-- Core Data helper
+//                }
+//            }
+        
+        saveChildCategories(objCategory.arrChildCategories, parent: entity, context: context)
+
+            
+        
+        return entity
+    }
+    
+    func saveChildCategories(_ children: [CategoryModel],
+                             parent: CategoryList,
+                             context: NSManagedObjectContext) {
+        guard !children.isEmpty else { return }
+        
+        for childModel in children {
+            let childEntity = saveCategory(objCategory: childModel, parent: parent, context: context)
+            parent.addToChildren(childEntity) // Core Data auto-generated method
+        }
+    }
+    
+    func loadCategoriesFromCoreData(context: NSManagedObjectContext) -> [CategoryModel] {
+        let fetchRequest: NSFetchRequest<CategoryList> = CategoryList.fetchRequest()
+        
+        do {
+            var categories = try context.fetch(fetchRequest)
+            categories = categories.sorted(by: { $0.name ?? "" < $1.name ?? "" })
+
+            // Map to CategoryModel
+            let arrCategoryModels = categories.map { categoryEntity -> CategoryModel in
+                let map = Map(mappingType: .fromJSON, JSON: [:])
+                var model = CategoryModel(map: map)!
+                model.id = Int(categoryEntity.id)
+                model.name = categoryEntity.name
+                model.unique_id = categoryEntity.uniqueId ?? "0"
+                model.image = categoryEntity.image
+                
+                // Map child categories recursively if needed
+//                if let children = categoryEntity.children as? Set<CategoryList> {
+//                    let _ = children.map { childEntity -> CategoryModel in
+//                        let map = Map(mappingType: .fromJSON, JSON: [:])
+//                        var childModel = CategoryModel(map: map)!
+//                        childModel.id = Int(childEntity.id)
+//                        childModel.name = "--\(childEntity.name ?? "")"
+//                        childModel.unique_id = Int(childEntity.uniqueId ?? "0") ?? 0
+//                        childModel.image = childEntity.image
+//                        
+//                        model.arrChildCategories.append(childModel)
+//                        return childModel
+//                    }
+//                }
+                
+                return model
+            }
+            
+            return arrCategoryModels
+            
+        } catch {
+            print("Failed to fetch: \(error)")
+            return []
+        }
+    }
+    
+    
 }
 
 

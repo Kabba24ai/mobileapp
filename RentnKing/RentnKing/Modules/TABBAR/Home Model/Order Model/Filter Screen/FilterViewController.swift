@@ -8,7 +8,7 @@
 import UIKit
 
 protocol FilterProtocol : AnyObject {
-    func SelectFilter(categoryID : Int, strStatus : String, strDeliveryType : String)
+    func SelectFilter(categoryID : Int, strStatus : String, strPaymentType : String, strDeliveryType : String)
 }
 
 
@@ -30,13 +30,15 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     //SET OTHER VALUE   Multiple Pick up and for other stores
     @IBOutlet weak var viewItemMenu: UIView!
     
-    @IBOutlet weak var con_SelectView: NSLayoutConstraint!
     @IBOutlet weak var viewCaregory: UIView!
     @IBOutlet weak var lblCaregory: UILabel!
 
     @IBOutlet weak var viewStatus: UIView!
     @IBOutlet weak var lblStatus: UILabel!
     
+    @IBOutlet weak var viewPaymentType: UIView!
+    @IBOutlet weak var lblPaymentType: UILabel!
+
     @IBOutlet weak var viewType: UIView!
     @IBOutlet weak var lblType: UILabel!
 
@@ -47,13 +49,16 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     var bgAlpha: CGFloat = 0.5
     var selectFilterIndex : Int = 1
     var selectCategoryID : Int = 0
-    var selectStatus :  String = "all"
-    var selectType :  String = "all"
+    var selectStatus :  String = "All"
+    var selectPaymentType :  String = "All"
+    var selectType :  String = "All"
     var isScheduleScreen : Bool = false
     
     var arrCategorys : [CategoryModel] = []
-    var arrStatus : [String] = ["all","completed", "failed", "fraud" ,"refunded", "refunding", "pending"]
-    var arrDeliveryType : [String] = ["all","delivery", "in store"]
+    var arrStatus : [String] = ["All","Paid", "Pending", "Account" ,"Partial Refund", "Refunded", "Failed"]
+    var arrPaymentMethos: [String] = ["All","Card", "COD", "Account"]
+    var arrDeliveryType : [String] = ["All","Truck", "Store"]
+//    var arrDeliveryType : [String] = ["All","delivery", "in store"]
 
 
     override func viewDidLoad() {
@@ -131,6 +136,7 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     func setSelectFilterViews(select : Int){
         self.viewCaregory.backgroundColor = .clear
         self.viewStatus.backgroundColor = .clear
+        self.viewPaymentType.backgroundColor = .clear
         self.viewType.backgroundColor = .clear
 
         self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Category")
@@ -138,6 +144,9 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
 
         self.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
         self.lblStatus.textAlignment = .center
+
+        self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Payment Type")
+        self.lblPaymentType.textAlignment = .center
 
         self.lblType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Delivery Type")
         self.lblType.textAlignment = .center
@@ -152,6 +161,10 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
             self.lblStatus.textColor = .primary
         }
         else if select == 3{
+            self.viewPaymentType.backgroundColor = .background
+            self.lblPaymentType.textColor = .primary
+        }
+        else if select == 4{
             self.viewType.backgroundColor = .background
             self.lblType.textColor = .primary
         }
@@ -159,9 +172,11 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         //CHECK TYPE
         self.viewType.isHidden = true
         self.viewStatus.isHidden = false
+        self.viewPaymentType.isHidden = false
         if self.isScheduleScreen{
             self.viewType.isHidden = false
             self.viewStatus.isHidden = true
+            self.viewPaymentType.isHidden = true
         }
     }
    
@@ -200,7 +215,7 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         }) { finished in
             
             //GET DATA
-            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus != "all" ? self.selectStatus : "", strDeliveryType: self.selectType)
+            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus, strPaymentType: self.selectPaymentType, strDeliveryType: self.selectType)
             
             DispatchQueue.main.async {
                 self.dismiss(animated: false)
@@ -217,6 +232,9 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         else if sender.tag == 3{
             self.selectFilterIndex = 3
+        }
+        else if sender.tag == 4{
+            self.selectFilterIndex = 4
         }
         
         //SET VIEW AND REPLAOD
@@ -296,6 +314,9 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             return self.arrStatus.count
         }
         else if self.selectFilterIndex == 3{
+            return self.arrPaymentMethos.count
+        }
+        else if self.selectFilterIndex == 4{
             return self.arrDeliveryType.count
         }
         return 0
@@ -326,7 +347,14 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
             else if self.selectFilterIndex == 3{
-                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrDeliveryType[indexPath.row].capitalized)
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrPaymentMethos[indexPath.row].capitalized)
+                
+                if self.selectPaymentType.lowercased() == self.arrPaymentMethos[indexPath.row].lowercased(){
+                    cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                }
+            }
+            else if self.selectFilterIndex == 4{
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrDeliveryType[indexPath.row] == "Truck" ? "Delivery" : "In Store")
                 
                 if self.selectType.lowercased() == self.arrDeliveryType[indexPath.row].lowercased(){
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
@@ -347,10 +375,13 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             self.selectCategoryID = self.arrCategorys[indexPath.row].id ?? 0
         }
         else if self.selectFilterIndex == 2{
-            self.selectStatus = self.arrStatus[indexPath.row].lowercased()
+            self.selectStatus = self.arrStatus[indexPath.row]
         }
         else if self.selectFilterIndex == 3{
-            self.selectType = self.arrDeliveryType[indexPath.row].lowercased()
+            self.selectPaymentType = self.arrPaymentMethos[indexPath.row]
+        }
+        else if self.selectFilterIndex == 4{
+            self.selectType = self.arrDeliveryType[indexPath.row]
         }
         //RELOAD TABLE
         self.tblView.reloadData()

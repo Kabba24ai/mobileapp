@@ -18,7 +18,7 @@ class OrderSuccessViewController: UIViewController {
     @IBOutlet weak var viewTerms: UIView!
     @IBOutlet weak var lblTerms: UILabel!
 
-    var orderID : String = ""
+    var strOrderUniqueId : String = ""
     var signUrl : String = ""
     
     override func viewDidLoad() {
@@ -70,7 +70,7 @@ class OrderSuccessViewController: UIViewController {
 //MARK: - BUTTON ACTION
 extension OrderSuccessViewController {
     @IBAction func btnTermsConditionlicked(_ sender: UIButton) {
-        if self.signUrl == "" || self.orderID == ""{
+        if self.signUrl == "" || self.strOrderUniqueId == ""{
             return
         }
         
@@ -78,7 +78,7 @@ extension OrderSuccessViewController {
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TermsAndConditionViewController") as? TermsAndConditionViewController{
             newViewController.signUrl = self.signUrl
-            newViewController.orderID = self.orderID
+            newViewController.strOrderUniqueId = self.strOrderUniqueId
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
         

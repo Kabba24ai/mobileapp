@@ -52,7 +52,7 @@ extension CheckOutViewController :WebServiceHelperDelegate{
     
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String) {
         indicatorHide()
         self.isLoading = false
         
@@ -60,7 +60,7 @@ extension CheckOutViewController :WebServiceHelperDelegate{
         if (arrKey.firstIndex(where: { $0 as! String == "error" }) == nil){
             print(data)
             if strRequest == "getStates"{
-                if let arrData = data["data"] as? NSArray{
+                if let arrData = data["states"] as? NSArray{
                    
                     self.arrStates = []
                     self.arrStates = Mapper<StatesModel>().mapArray(JSONArray: arrData as! [[String : Any]])

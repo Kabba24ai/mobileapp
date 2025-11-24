@@ -9,6 +9,7 @@ import UIKit
 import MessageUI
 import EventKit
 import EventKitUI
+import Alamofire
 extension UIButton {
     func toBarButtonItem() -> UIBarButtonItem? {
         return UIBarButtonItem(customView: self)
@@ -70,7 +71,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 //    var arrAllData : [SchedulesModel] = []
     var arrScheduleList : [SchedulesModel] = []
 //    var arrSearchScheduleList : [SchedulesModel] = []
-    var arrCategorys : [CategoryModel] = []
+    var arrCategoryList : [CategoryModel] = []
 
     //OTHER
     var isLoading : Bool = true
@@ -86,7 +87,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 //    var strFilter : String = "All"
     
     var selectCategoryID : String = ""
-    var selectDeliveryType : String = ""
+    var selectDeliveryType : String = "All"
 
     
     override func viewDidLoad() {
@@ -109,13 +110,19 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         //SET LOADING
         self.viewLine.backgroundColor = .clear
         self.setupTableView()
+        
+        
+        //GET CATEGORY DATA
+        getCategoryList { arr_data in
+            self.arrCategoryList = arr_data
+        }
     }
     
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
-        self.getCategorys()
+//        self.getCategorys(CatrgoryParameater: CatrgoryParameater())
 
         //GET DATA
         self.refreshList()
@@ -162,9 +169,9 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
                 let view = storyboard.instantiateViewController(withIdentifier: "FilterViewController") as! FilterViewController
                 view.delegate = self
                 view.isScheduleScreen = true
-                view.arrCategorys = self.arrCategorys
+                view.arrCategorys = self.arrCategoryList
                 view.selectCategoryID = Int(self.selectCategoryID) ?? 0
-                view.selectType = self.selectDeliveryType == "" ? "all" : self.selectDeliveryType
+                view.selectType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
                 view.view.backgroundColor = UIColor.clear
                 view.modalPresentationStyle = .overCurrentContext
                 self.present(view, animated: false) {
@@ -176,7 +183,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     
     func checkFilter() -> Bool{
         //CEHCK FILTER
-        if self.selectCategoryID != "" || self.selectDeliveryType != ""{
+        if self.selectCategoryID != "" || self.selectDeliveryType != "All"{
             return true
         }
         else{
@@ -184,20 +191,53 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         }
     }
     
-    @objc func refreshList(){
-        //GET DATA
+    // MARK: - Refresh Action
+    @objc func refreshList() {
+        self.pageCount = 1
+        self.bool_Load = true
+        self.arrScheduleList = []
+        self.tblView.reloadData()
         self.viewPendingCount.isHidden = true
         self.viewPickupCount.isHidden = true
         self.viewDeliveryCount.isHidden = true
         self.viewCompletedCount.isHidden = true
 
-        self.isLoading = true
-        self.arrScheduleList = []
-        self.tblView.reloadData()
-        self.pageCount = 1
-        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType))
+        // Always show existing local data immediately
+        let localData = self.getScheduleOrderData(schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed")
+        if !localData.isEmpty {
+            self.arrScheduleList = localData
+            self.setTheView()
+        }
+        else {
+            self.arrScheduleList.removeAll()
+            self.setTheView()
+        }
 
+        if NetworkReachabilityManager()!.isReachable {
+            self.APICall()
+        }
     }
+    
+    func APICall() {
+        let params = OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType)
+        self.fetchOrders(OrdersParameater: params, overrideLocal: true)
+    }
+    
+//    @objc func refreshList(){
+//        //GET DATA
+//        self.viewPendingCount.isHidden = true
+//        self.viewPickupCount.isHidden = true
+//        self.viewDeliveryCount.isHidden = true
+//        self.viewCompletedCount.isHidden = true
+//
+//        self.isLoading = true
+//        self.arrScheduleList = []
+//        self.tblView.reloadData()
+//        self.pageCount = 1
+//        
+//        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType))
+//
+//    }
     
     func setTheView(){
         self.objSearchIndicator.isHidden = true
@@ -240,7 +280,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     func setTheType(isDelivery : Bool){
-        self.selectType = isDelivery == true ? "Delivery" : "Pickup"
+        self.selectType = isDelivery == true ? "Delivery" : "Return"
 
         self.viewLine.backgroundColor = .secondary
         self.lblDelivery.textColor = isDelivery == true ? .secondary : .primary.withAlphaComponent(0.6)
@@ -390,6 +430,8 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.view.layoutIfNeeded()
             }
         }
+        
+        
     }
     
     // MARK: - UITEXTFIELD
@@ -421,9 +463,11 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.arrScheduleList = []
         self.emptyDataView.isHidden = true
 
-        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: search, category_id: category_id, deliveryType: deliveryType))
-
+        self.selectDeliveryType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
         
+        let params =  OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType == "" ? "All" : self.selectDeliveryType)
+        fetchOrders(OrdersParameater: params, overrideLocal: false)
+                
         //RELOAD TABLE
         self.tblView.reloadData()
     }
@@ -458,13 +502,14 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 
 
 extension ScheduleListViewController : FilterProtocol{
-    func SelectFilter(categoryID: Int, strStatus: String, strDeliveryType: String) {
+    func SelectFilter(categoryID: Int, strStatus: String, strPaymentType: String, strDeliveryType: String) {
         self.selectCategoryID = ""
         self.selectDeliveryType = ""
 
         if categoryID != 0{
             self.selectCategoryID = "\(categoryID)"
         }
+        
         
         
         if strDeliveryType != "" && strDeliveryType.lowercased() != "all"{
@@ -538,6 +583,63 @@ extension ScheduleListViewController {
 }
 
 
+//MARK: - LOCAL DATABASE MANAGE
+extension ScheduleListViewController{
+    
+    // MARK: - Fetch Orders (Main Controller)
+    func fetchOrders(OrdersParameater : OrdersParameater, overrideLocal: Bool = false) {
+        
+        let params = OrdersParameater
+        
+        callAPIforGetScheduleList(OrdersParameater: params) { [weak self] isSaved in
+            guard let self = self else { return }
+            
+            self.isLoading = false
+            self.stopAnimatingView()
+            self.objRefresh?.endRefreshing()
+            
+            if isSaved {
+                let localData = self.getScheduleOrderData(schedule_type: OrdersParameater.schedule_type, schedule_status: OrdersParameater.schedule_status)
+                
+                if overrideLocal {
+                    // Replace all old data
+                    self.arrScheduleList = localData
+                } else {
+                    // Append only new unique orders
+                    let newItems = localData.filter { newItem in
+                        !self.arrScheduleList.contains(where: { $0.id == newItem.id })
+                    }
+                    self.arrScheduleList.append(contentsOf: newItems)
+                }
+                
+                // Pagination Control
+                if localData.count >= Int(Application.PageOrderLimit) {
+                    self.bool_Load = false
+                    self.pageCount += 1
+                } else {
+                    self.bool_Load = true
+                }
+            } else {
+                self.bool_Load = true
+                self.arrScheduleList.removeAll()
+            }
+            
+            DispatchQueue.main.async {
+                self.setTheView()
+            }
+        }
+    }
+        
+    // MARK: - Get Local Data
+    func getScheduleOrderData(schedule_type: String, schedule_status: String) -> [SchedulesModel] {
+        if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(schedule_type)_\(schedule_status)") {
+            return arr
+        }
+        return []
+    }
+}
+
+
 //MARK: -- TABLE CELL --
 class ScheduleListCell : UITableViewCell{
 //    @IBOutlet weak var lblOrderNumber: UILabel!
@@ -587,6 +689,8 @@ class ScheduleListCell : UITableViewCell{
 //MARK: -- UITABEL DELEGATE --
 
 extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSource, MFMessageComposeViewControllerDelegate , OrderDetailsDelegate{
+
+    
    
  
     
@@ -621,23 +725,23 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
     //MARK: - Scrollview Delegate -
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         self.view.endEditing(true)
-
-        if scrollView == tblView{
-            if tblView.contentSize.height <= tblView.contentOffset.y + tblView.frame.size.height && tblView.contentOffset.y >= 0 {
-                if self.arrScheduleList.count != 0 && self.txtSearch.text == ""{
-                    if bool_Load == false {
-
-                        //Refresh code
-                        self.bool_Load = true
-
-                        //START LOADING
-                        startAnimatingView()
-
-                        //CALL API
-                        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType))
-                    }
-                }
-            }
+        
+        guard scrollView == tblView else { return }
+        
+        let offsetY = scrollView.contentOffset.y
+        let contentHeight = scrollView.contentSize.height
+        let frameHeight = scrollView.frame.size.height
+        
+        if offsetY > contentHeight - frameHeight - 50, !bool_Load, !isLoading, txtSearch.text?.isEmpty == true {
+            bool_Load = true
+            isLoading = true
+            
+            //START LOADING
+            startAnimatingView()
+            
+            //CALL API
+            let params = OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType)
+            fetchOrders(OrdersParameater: params)
         }
     }
     
@@ -678,38 +782,37 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             let objData = self.arrScheduleList[indexPath.row]
             
             //SET FONT
-            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.name ?? "")")
+            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.customer_name ?? "")")
 //            #if DEBUG
 //            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.id ?? 0) : \(objData.name ?? "")")
 //            #endif
-            cell.lblPhone.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.phone ?? "")")
+            cell.lblPhone.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.customer_phone ?? "")")
             imgColor(imgColor: cell.imgCall, colorHex: .secondary)
             
 //            cell.lblDelivery.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strLinces)
             
             //SET ADDRESS
             imgColor(imgColor: cell.imgMapAddress, colorHex: .secondary)
-            cell.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objData.location ?? "")")
+            cell.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objData.order?.objDeliveryAddress?.full_address ?? "")")
 
             //SET DATE
             var strDate : String = ""
             var strTime : String = ""
             if self.selectType.lowercased() == "Delivery".lowercased(){
                 //GET DELIVERY DATA
-                strDate = convertStringToNewFormateString(date: "\(objData.delivery_date ?? "")", withFormat: Application.pickerDateFormet, newFormate: Application.strDateFormet) ?? ""
-                strTime = convertStringToNewFormateString(date: "\(objData.delivery_time ?? "")", withFormat: Application.HHMMSS, newFormate: Application.HMMA) ?? ""
+                strDate = "\(objData.delivery_date ?? "")"
+                strTime = "\(objData.delivery_time ?? "")"
                 
                 //SET IMAGE
-                if objData.customer_delivery == 2{
+                if objData.delivery_transport_mode == "Truck"{
                     cell.imgOrderType.image = UIImage(named: "icon_delivery_pending")
                 }
                 else{
                     cell.imgOrderType.image = UIImage(named: "icon_store")
                     
                     //SET STORE ADDRESS
-                    
-                    if self.getStoreAddress(arr: objData.order?.products ?? []) != ""{
-                        let text = "In Store : \(self.getStoreAddress(arr: objData.order?.products ?? []))"
+                    if objData.objProduct?.store_name != ""{
+                        let text = "In Store : \(objData.objProduct?.store_name ?? "")"
                         let linkTextWithColor = "In Store :"
 
                         let range = (text as NSString).range(of: linkTextWithColor)
@@ -723,20 +826,29 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
             else{
                 //GET PICKUP DATA
-                strDate = convertStringToNewFormateString(date: "\(objData.pickup_date ?? "")", withFormat: Application.pickerDateFormet, newFormate: Application.strDateFormet) ?? ""
-                strTime = convertStringToNewFormateString(date: "\(objData.pickup_time ?? "")", withFormat: Application.HHMMSS, newFormate: Application.HMMA) ?? ""
-                
+                strDate = "\(objData.pickup_date ?? "")"
+                strTime = "\(objData.pickup_time ?? "")"
+
                 //SET IMAGE
-                if objData.customer_pickup == 2{
+                if objData.pickup_transport_mode  == "Truck"{
                     cell.imgOrderType.image = UIImage(named: "icon_delivery_pending")
                 }
                 else{
                     cell.imgOrderType.image = UIImage(named: "icon_store")
                     
                     //SET STORE ADDRESS
-                    if self.getStoreAddress(arr: objData.order?.products ?? []) != ""{
-                        cell.lblAddress.text = "In Store : \(self.getStoreAddress(arr: objData.order?.products ?? []))"
+                    if objData.objProduct?.store_name != ""{
+                        let text = "In Store : \(objData.objProduct?.store_name ?? "")"
+                        let linkTextWithColor = "In Store :"
+
+                        let range = (text as NSString).range(of: linkTextWithColor)
+
+                        let attributedString = NSMutableAttributedString(string:text)
+                        attributedString.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.secondary , range: range)
+
+                        cell.lblAddress.attributedText = attributedString
                     }
+                    
                 }
             }
             cell.lblDateTime.configureLable(textColor: .primary.withAlphaComponent(0.6), fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(strDate) \(strTime)")
@@ -744,59 +856,9 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             
           
             
+            //SET STORE NAME
+            cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "\(objData.product_name ?? "")")
             
-//            if objDetails.storeAdderss != nil{
-//                cell.con_imgStore.constant = 30
-//                imgColor(imgColor: cell.imgStore, colorHex: .secondary)
-//                cell.lblStoreAddress.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "\(objDetails.storeAdderss?.address ?? ""), \(objDetails.storeAdderss?.city ?? ""), \(objDetails.storeAdderss?.state ?? ""), \(objDetails.storeAdderss?.zip_code ?? "")")
-//            }
-            
-            //SET NAME
-            var strProduct : String = ""
-            for objProduct in objData.order?.products ?? []{
-                if strProduct != "" {
-                    strProduct = "\(strProduct)\n• \(objProduct.product_name ?? "")"
-                }
-                else{
-                    strProduct = "• \(objProduct.product_name ?? "")"
-                }
-            }
-            
-            cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: strProduct)
-            
-//            cell.viewDelivery.backgroundColor = .clear
-//            cell.con_Delivery.constant = manageWidth(size: checkDeviceiPad() ? 450 : 350)
-//            DispatchQueue.main.asyncAfter(wallDeadline: .now()) {
-//                cell.viewDelivery.tag = indexPath.row
-//                cell.viewDelivery.sliderViewTopDistance = 0
-//                cell.viewDelivery.thumbnailViewTopDistance = 4;
-//                cell.viewDelivery.thumbnailViewStartingDistance = 4;
-//                cell.viewDelivery.layer.cornerRadius =  cell.viewDelivery.frame.size.height / 2
-//                cell.viewDelivery.thumnailImageView.backgroundColor = .secondaryView
-//                cell.viewDelivery.draggedView.backgroundColor = .clear
-//                cell.viewDelivery.delegate = self
-//                cell.viewDelivery.thumnailImageView.image = #imageLiteral(resourceName: "icon_slideNext").imageFlippedForRightToLeftLayoutDirection()
-//                imgColor(imgColor: cell.viewDelivery.thumnailImageView, colorHex: .background)
-//                cell.viewDelivery.sliderBackgroundColor = .clear
-//                cell.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
-//                cell.viewDelivery.textFont = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
-//                cell.viewDelivery.labelText = ""
-//                
-//                cell.viewDelivery.textColor = UIColor.white
-//                DispatchQueue.main.asyncAfter(deadline: .now()){
-//                    if self.selectType.lowercased() == "Delivery".lowercased(){
-//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: 0)
-//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: 0)
-//                        cell.viewDelivery.labelText = "Delivery Completed - Swipe Right"
-//                    }
-//                    else{
-//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
-//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: -CGFloat.pi)
-//
-//                        cell.viewDelivery.labelText = "Pickup Completed - Swipe Left"
-//                    }
-//                }
-//            }
             
             //SET VIEW
             cell.viewComplate.backgroundColor = .secondary
@@ -808,7 +870,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             cell.viewComplate.isHidden = false
             cell.btnUpdateOrder.isHidden = false
             if self.selectType.lowercased() == "Delivery".lowercased(){
-                if objData.delivery_status?.value == "2"{
+                if objData.delivery_status == "Completed"{
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
                     cell.lblComplate.text = "Delivery Completed - See Order Details"
@@ -822,7 +884,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
                 }
             }
             else{
-                if objData.pickup_status?.value == "2"{
+                if objData.pickup_status == "Completed"{
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
                     cell.lblComplate.text = "Pickup Completed - See Order Details"
@@ -837,7 +899,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
 
             cell.viewDelivery.isHidden = true
-            cell.viewComplate.isHidden = false
+            cell.viewComplate.isHidden = true
 
         
             // BUTTON ACTION
@@ -880,22 +942,21 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         }
         let objData = self.arrScheduleList[indexPath.row]
 
-     
-        //TERMS AND CONDITION
+        
+        //ORDER DETAILS SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
             newViewController.delegate = self
             newViewController.selectIndex = indexPath.row
-            newViewController.strOrderID = "\(objData.order_id ?? 0)"
-            newViewController.strProductID = "\(objData.product_id ?? 0)"
+            newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
+            newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
+
     }
     
     
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersModel) {
-        
-    }
+    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {}
     
     func getStoreAddress(arr : [ProductModel]) -> String{
         for objDetails in arr{
@@ -915,24 +976,20 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         
         
         let objData = self.arrScheduleList[sender.tag]
-        let getID = objData.id
 
         //GET NAME
-        var productName : String = ""
-        for objProduct in objData.order?.products ?? []{
-            productName = "\(objProduct.product_name ?? "")"
-        }
+        let productName : String = "\(objData.product_name ?? "")"
 
         
 
         if self.selectType.lowercased() == "Delivery".lowercased(){
-            if objData.delivery_status?.value != "2"{
+            if objData.delivery_status != "Completed"{
                                 
                 //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName)' to \(objData.order?.customer_name ?? "")", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                    
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(order_product_unique_id: objData.unique_id ?? "", schedule_type: "Delivery", schedule_status: "Completed"), index: sender.tag)
                 }))
                 alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
                 self.present(alert, animated: true)
@@ -940,12 +997,12 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
         }
         else{
-            if objData.pickup_status?.value != "2"{
+            if objData.pickup_status != "Completed"{
                 //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName)' to \(objData.order?.customer_name ?? "")", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                     
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(order_product_unique_id: objData.unique_id ?? "", schedule_type: "Return", schedule_status: "Completed"), index: sender.tag)
                 }))
                 alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
                 self.present(alert, animated: true)
@@ -961,7 +1018,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         let objData = self.arrScheduleList[sender.tag]
 
     
-        var getNumber = objData.phone ?? ""
+        var getNumber = objData.order?.customer_phone ?? ""
         getNumber = getNumber.replacingOccurrences(of: "+1", with: "")
         
         let pickerAlert = UIAlertController.init(title: nil, message: nil, preferredStyle: .actionSheet)
@@ -972,7 +1029,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             pickerAlert.dismiss(animated: true, completion: nil)
         })
         
-        let call = UIAlertAction.init(title: "Call \(objData.phone ?? "")", style: UIAlertAction.Style.default, handler: { (action) in
+        let call = UIAlertAction.init(title: "Call \(getNumber)", style: UIAlertAction.Style.default, handler: { (action) in
             
                guard let number = URL(string: "tel://+1\(getNumber)") else { return }
                UIApplication.shared.open(number)
@@ -1016,40 +1073,22 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         if self.arrScheduleList.count == 0{
             return
         }
+                      
         let objData = self.arrScheduleList[sender.tag]
         
-        let strAddress : String = objData.location ?? ""
-        if strAddress != ""{
-            openAddressInMap(address: strAddress)
-        }
-      
-    }
-}
-
-
-
-extension ScheduleListViewController : MTSlideToOpenDelegate{
-    
-    // MARK: MTSlideToOpenDelegate
-    func mtSlideToOpenDelegateDidFinish(_ sender: MTSlideToOpenView) {
-        if self.arrScheduleList.count == 0{
-            return
-        }
-        let objData = self.arrScheduleList[sender.tag]
-        
-        
-        let getID = objData.id
+        var strAddress : String = objData.order?.objDeliveryAddress?.full_address ?? ""
         if self.selectType.lowercased() == "Delivery".lowercased(){
-            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
+            if objData.delivery_transport_mode == "Store"{
+                strAddress = objData.objProduct?.store_address ?? ""
+            }
         }
         else{
-            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
+            if objData.pickup_transport_mode == "Store"{
+                strAddress = objData.objProduct?.store_address ?? ""
+            }
         }
-        
+        openAddressInMap(address: strAddress)
     }
 }
 
 
-extension ScheduleListViewController{
-    
-}

@@ -65,7 +65,7 @@ class ActionViewController: UIViewController, UIGestureRecognizerDelegate {
 
     var arrNumber : [String] = []
     var arrTags : [TagListModel] = []
-    var arrSelectedTags : [String] = []
+    var arrSelectedTags : [Int] = []
     var isNoteSelect : Bool = false
     var moveKeybordValude : CGFloat = 0
     
@@ -281,15 +281,21 @@ extension ActionViewController : TagListViewDelegate{
 
 //MARK: - BUTTON ACTION
 extension ActionViewController : TagsProtocol{
-    func SelectTag(arrTag: [String]) {
+    func SelectTag(arrTag: [Int]) {
         self.arrSelectedTags = arrTag
+
         for obj in arrTag{
-            self.tagListView.addTag(obj, tag: 1, isRemovButton: true)
-            self.setHeader()
+            
+            let TagID = self.arrTags.map{$0.id}
+            if let index = TagID.firstIndex(of: obj) {
+                self.tagListView.addTag(self.arrTags[index].name ?? "", tag: 1, isRemovButton: true)
+                self.setHeader()
+
+            }
         }
-        
-        
     }
+    
+  
     
     @IBAction func btnAddTagClicked(_ sender: UIButton) {
         
@@ -346,10 +352,7 @@ extension ActionViewController : TagsProtocol{
             strPhone = strPhone.replacingOccurrences(of: "-", with: "")
 
             //CALL API
-            self.submitContectsAPI(contectParameater: contectParameater(name: "\(strFirstName) \(strLastName)",first_name: strFirstName, last_name: strLastName, email: self.txtEmail.text ?? "", phone: strPhone, company: self.txtPhone2.text ?? "", contactTag:  self.arrSelectedTags.joined(separator:"|"), note: self.txtNote.text ?? ""))
-            
-            //        self.extensionContext!.completeRequest(returningItems: nil, completionHandler: nil)
-
+            self.submitContectsAPI(contectParameater: contectParameater(first_name: strFirstName, last_name: strLastName, email: self.txtEmail.text ?? "", phone: strPhone, company: self.txtPhone2.text ?? "", tags:  self.arrSelectedTags.map { String($0) }.joined(separator: ","), note: self.txtNote.text ?? ""))
         }
 
     }

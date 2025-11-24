@@ -16,16 +16,24 @@ class SplashViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+
         // Do any additional setup after loading the view.
         
         self.objIndicator.startAnimating()
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0){
             self.moveToHomeScreen()
         }
+        
+        //GET CATEGORY LIST DATA
+        callAPIforCategoryList(CatrgoryParameater: CatrgoryParameater()) { _ in
+        }
+    
+        getPriceListAPI(completion: {_ in})
     }
     
     
     override func viewWillAppear(_ animated: Bool) {
+
         //SET VIEW
         self.view.backgroundColor = .background
 

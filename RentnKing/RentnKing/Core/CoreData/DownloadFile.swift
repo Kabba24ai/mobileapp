@@ -19,26 +19,64 @@ func createLicenseUploadFolder() {
 }
 
 func createImageVideoUploadFolder() {
-   do {
-      if FileManager.default.fileExists(atPath: ImageVideoUploadDirectory.path) == false {
-          try FileManager.default.createDirectory(at: ImageVideoUploadDirectory, withIntermediateDirectories: false, attributes: nil)
-      }
-      
-   } catch {
-      print(error);
-   }
+    let folderPath = ImageVideoUploadDirectory.path
+    
+    if FileManager.default.fileExists(atPath: folderPath) {
+        print("📂 Folder already exists: \(folderPath)")
+    } else {
+        do {
+            try FileManager.default.createDirectory(
+                at: ImageVideoUploadDirectory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            print("✅ Folder created at: \(folderPath)")
+        } catch {
+            print("❌ Failed to create folder: \(error.localizedDescription)")
+        }
+    }
 }
 
-func createOrderFolder(strOrderID : String) {
-   do {
-      if FileManager.default.fileExists(atPath: ImageVideoUploadDirectory.path) == true {
-          try FileManager.default.createDirectory(at: ImageVideoUploadDirectory.appendingPathComponent(strOrderID), withIntermediateDirectories: false, attributes: nil)
-      }
-      
-   } catch {
-      print(error);
-   }
+
+func createOrderFolder(strOrderID: String) {
+    let orderFolderPath = ImageVideoUploadDirectory.appendingPathComponent(strOrderID)
+    
+    if !FileManager.default.fileExists(atPath: orderFolderPath.path) {
+        do {
+            try FileManager.default.createDirectory(
+                at: orderFolderPath,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            print("✅ Created folder: \(orderFolderPath.path)")
+        } catch {
+            print("❌ Failed to create folder: \(error.localizedDescription)")
+        }
+    } else {
+        print("📂 Folder already exists: \(orderFolderPath.path)")
+    }
 }
+
+
+func createFileStorageFolder() {
+    let folderPath = FileStorageDirectory.path
+    
+    if FileManager.default.fileExists(atPath: folderPath) {
+        print("📂 Folder already exists: \(folderPath)")
+    } else {
+        do {
+            try FileManager.default.createDirectory(
+                at: FileStorageDirectory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            print("✅ Folder created at: \(folderPath)")
+        } catch {
+            print("❌ Failed to create folder: \(error.localizedDescription)")
+        }
+    }
+}
+
 
 
 var LicenseUploadDirectory: URL {
@@ -53,6 +91,30 @@ var ImageVideoUploadDirectory: URL {
    return documentsDirectory.appendingPathComponent("ImageVideo")
 }
 
+var FileStorageDirectory: URL {
+    let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+   let documentsDirectory = paths[0]
+   return documentsDirectory.appendingPathComponent("FileStorage")
+}
+
+
+
+
+func saveToFile(data: Data, fileName: String) {
+    let dataPath = FileStorageDirectory.appendingPathComponent(fileName)
+    do {
+        try data.write(to: dataPath, options: .atomic)
+        print("Saved at: \(dataPath)")
+    } catch {
+        print("Error saving: \(error)")
+    }
+}
+
+func readFromFile(fileName: String) -> Data? {
+    let fileURL = FileStorageDirectory.appendingPathComponent(fileName)
+    return try? Data(contentsOf: fileURL)
+}
+ 
 
 
 //class FileDownloader {

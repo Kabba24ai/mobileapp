@@ -7,6 +7,7 @@
 
 import UIKit
 import WebKit
+import Alamofire
 
 protocol TermsDelegate : NSObject {
     func termsSucess(selectIndex : Int)
@@ -21,7 +22,7 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     var isOrderFrom : Bool = false
     var selectIndex : Int = -1
     weak var delegate: TermsDelegate?
-    var orderID : String = ""
+    var strOrderUniqueId : String = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -63,19 +64,19 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     func setTheView(){
         
         //SET WEBVIEW
-        indicatorShow()
-//        self.objWebKit.uiDelegate = self
-        self.objWebKit.navigationDelegate = self
-        let request  = URLRequest(url: URL(string:self.signUrl)!)
-        self.objWebKit.load(request)
-
+        if NetworkReachabilityManager()!.isReachable {
+            indicatorShow()
+            
+            self.objWebKit.navigationDelegate = self
+            let request  = URLRequest(url: URL(string:self.signUrl)!)
+            self.objWebKit.load(request)
+        }
+        else {
+            
+        }
+        
     }
 }
-
-
-//extension TermsAndConditionViewController:WKUIDelegate{
-//    
-//}
 
 extension TermsAndConditionViewController:WKNavigationDelegate{
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
@@ -86,8 +87,7 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
     
     
     
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!)
-    {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         indicatorHide()
         
     }
@@ -99,7 +99,7 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
     
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         print(navigationAction.request.url!)
-        if   (navigationAction.request.url?.absoluteString.contains("success"))!
+        if   (navigationAction.request.url?.absoluteString.contains("thank-you"))!
         {
             
             showAlertMessage(strMessage: "Terms and Conditions update successfully")
@@ -115,7 +115,7 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
                     //TERMS AND CONDITION
                     let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
                     if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                        newViewController.strOrderID = self.orderID
+                        newViewController.strOrderUniqueId = self.strOrderUniqueId
                         newViewController.isOrderScreen = true
                         self.navigationController?.pushViewController(newViewController, animated: true)
                     }
