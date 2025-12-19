@@ -51,15 +51,16 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     var selectCategoryID : Int = 0
     var selectStatus :  String = "All"
     var selectPaymentType :  String = "All"
-    var selectType :  String = "All"
+    var selectType :  String = "Pending"
     var isScheduleScreen : Bool = false
-    
+
     var arrCategorys : [CategoryModel] = []
     var arrStatus : [String] = ["All","Paid", "Pending", "Account" ,"Partial Refund", "Refunded", "Failed"]
     var arrPaymentMethos: [String] = ["All","Card", "COD", "Account"]
-    var arrDeliveryType : [String] = ["All","Truck", "Store"]
-//    var arrDeliveryType : [String] = ["All","delivery", "in store"]
+    var arrScheduleStatus : [String] = ["Pending","Completed"]
 
+
+    
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -148,7 +149,7 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Payment Type")
         self.lblPaymentType.textAlignment = .center
 
-        self.lblType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Delivery Type")
+        self.lblType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
         self.lblType.textAlignment = .center
 
 
@@ -317,7 +318,7 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             return self.arrPaymentMethos.count
         }
         else if self.selectFilterIndex == 4{
-            return self.arrDeliveryType.count
+            return self.arrScheduleStatus.count
         }
         return 0
     }
@@ -354,9 +355,9 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
             else if self.selectFilterIndex == 4{
-                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrDeliveryType[indexPath.row] == "Truck" ? "Delivery" : "In Store")
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrScheduleStatus[indexPath.row] .capitalized)
                 
-                if self.selectType.lowercased() == self.arrDeliveryType[indexPath.row].lowercased(){
+                if self.selectType.lowercased() == self.arrScheduleStatus[indexPath.row].lowercased(){
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                 }
             }
@@ -381,7 +382,7 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             self.selectPaymentType = self.arrPaymentMethos[indexPath.row]
         }
         else if self.selectFilterIndex == 4{
-            self.selectType = self.arrDeliveryType[indexPath.row]
+            self.selectType = self.arrScheduleStatus[indexPath.row]
         }
         //RELOAD TABLE
         self.tblView.reloadData()

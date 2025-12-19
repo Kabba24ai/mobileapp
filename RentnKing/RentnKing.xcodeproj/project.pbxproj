@@ -191,6 +191,7 @@
 		C56F9EBB2CA437DE002BF8D9 /* TimeClockModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EB92CA437DE002BF8D9 /* TimeClockModel.swift */; };
 		C56F9EBC2CA437DE002BF8D9 /* TimeClockViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */; };
 		C56F9EBE2CA44594002BF8D9 /* ClockInViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */; };
+		C578EEE62EE2E69100B92E3F /* CheckListFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C578EEE52EE2E68800B92E3F /* CheckListFile.swift */; };
 		C588F51F2BCE67D100678A13 /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C588F51E2BCE67D100678A13 /* UploadView.swift */; };
 		C588F5212BCE67DA00678A13 /* UploadView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C588F5202BCE67DA00678A13 /* UploadView.xib */; };
 		C589143C2B6E59D4007F9EB9 /* LicenseUploadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */; };
@@ -426,6 +427,7 @@
 		C56F9EB92CA437DE002BF8D9 /* TimeClockModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeClockModel.swift; sourceTree = "<group>"; };
 		C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeClockViewController.swift; sourceTree = "<group>"; };
 		C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInViewController.swift; sourceTree = "<group>"; };
+		C578EEE52EE2E68800B92E3F /* CheckListFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckListFile.swift; sourceTree = "<group>"; };
 		C588F51E2BCE67D100678A13 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
 		C588F5202BCE67DA00678A13 /* UploadView.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = UploadView.xib; sourceTree = "<group>"; };
 		C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseUploadViewController.swift; sourceTree = "<group>"; };
@@ -518,6 +520,7 @@
 			children = (
 				EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */,
 				001D08282E8FFE25004F4B13 /* CategoryListFile.swift */,
+				C578EEE52EE2E68800B92E3F /* CheckListFile.swift */,
 				00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */,
 			);
 			path = "FileData Helper";
@@ -1761,6 +1764,7 @@
 				001D082B2E900062004F4B13 /* kEnum.swift in Sources */,
 				C5A5E0BE2B5251A100005B44 /* ProductList.swift in Sources */,
 				C5387DA62B50098200BF78B4 /* WebServiceHelper.swift in Sources */,
+				C578EEE62EE2E69100B92E3F /* CheckListFile.swift in Sources */,
 				C51AF53B2AD178130042589E /* SplashViewController.swift in Sources */,
 				C5BEC26A2B8E12F300532C54 /* AddressViewController.swift in Sources */,
 				C588F51F2BCE67D100678A13 /* UploadView.swift in Sources */,
@@ -1970,7 +1974,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1008;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2012,7 +2016,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1008;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2050,7 +2054,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1008;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2078,7 +2082,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1008;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;

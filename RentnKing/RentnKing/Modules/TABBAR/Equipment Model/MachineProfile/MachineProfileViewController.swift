@@ -27,7 +27,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     var isLoading : Bool = true
     var objRefresh : UIRefreshControl?
 
-    var arrMachineProfileList : [MachineProfileModel] = []
+    var arrMachineProfileList : [MachineModel] = []
     var arrCategoryList : [CategoryModel] = []
     var arrClass : [CategoryModel] = []
     var arrStatues : [InventoryStatusModel] = []
@@ -226,7 +226,9 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         if service_status.lowercased( ) == "all"{
             strServiceStatus = ""
         }
-        self.getMachineProfileListAPI(MAchineProfileParameater: MAchineProfileParameater(category_id: category_id, class_id: class_id, machine_status: strStatus, service_status: strServiceStatus, search: search))
+//        self.getMachineProfileListAPI(MAchineProfileParameater: MAchineProfileParameater(category_id: category_id, class_id: class_id, machine_status: strStatus, service_status: strServiceStatus, search: search))
+        
+        self.getMachineProfileListAPI(EquipmentParameater: EquipmentParameater())
 
         //RELOAD TABLE
         self.tblView.reloadData()
@@ -358,68 +360,68 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             let objData = self.arrMachineProfileList[indexPath.row]
 
             //SET FONT
-            cell.lblCatrgoryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.category ?? "")")
-            cell.lblDate.configureLable(textAlignment: .right, textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.status_change ?? "")")
-            
-//            cell.lblCalass.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.class_name ?? "")")
-//            cell.lblCalass.alpha = 0.7
-            cell.lblMachineID.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.machine_id ?? "")")
-            
-            
-            cell.lblMachineName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "  • \(objData.product_name ?? "")")
-
-           
-//            cell.lblTechName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.first_name ?? "") \(objData.last_name ?? "")")
-            
-    
-            cell.lblLocation.configureLable(textAlignment: .right, textColor: .secondary, fontName: objData.order_id != nil ? GlobalMainConstants.APP_FONT_Roboto_Bold : GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: objData.order_id != nil ? 16 : 14, text: objData.order_id != nil ? "\(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
-            if objData.order_id != nil{
-                cell.lblLocation.attributedText = setFontAttributes(str: objData.order_id != nil ? "Order ID : \(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
-            }
-            
-            
-            //SET BUTTON STATUS
-            cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-            
-            //SET IMAGE
-            cell.imgStatus.image = UIImage(named: "icon_Available")
-            imgColor(imgColor: cell.imgStatus, colorHex: .secondary)
-
-            
-            
-            
-            if objData.machine_status == "Damaged" {
-                cell.lblStatus.configureLable(textAlignment: .center, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-                
-                //SET IMAGE
-                cell.imgStatus.image = UIImage(named: "icon_Damaged")
-                imgColor(imgColor: cell.imgStatus, colorHex: .redText)
-            }
-            else if objData.machine_status == "Maint. Hold" || objData.machine_status == "Maintenance Hold"{
-                cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondaryText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-                
-                //SET IMAGE
-                cell.imgStatus.image = UIImage(named: "icon_MaintHold")
-                imgColor(imgColor: cell.imgStatus, colorHex: .secondaryText)
-            }
-            else if objData.machine_status == "Rented"{
-                cell.lblStatus.configureLable(textAlignment: .center, textColor: .greenText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-                
-                //SET IMAGE
-                cell.imgStatus.image = UIImage(named: "icon_Rented")
-                imgColor(imgColor: cell.imgStatus, colorHex: .greenText)
-            }
-            
-            //SET SERVICE
-            cell.imgService.isHidden = true
-            imgColor(imgColor: cell.imgService, colorHex: .secondaryText)
-            if objData.has_machine_hour == 1 {
-                cell.imgService.isHidden = false
-            }
-
-            // BUTTON ACTION
-            cell.btnOrder.tag = indexPath.row
-            cell.btnOrder.addTarget(self, action: #selector(self.btnOrderClicked(_:)), for: .touchUpInside)
+//            cell.lblCatrgoryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.category ?? "")")
+//            cell.lblDate.configureLable(textAlignment: .right, textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.status_change ?? "")")
+//            
+////            cell.lblCalass.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.class_name ?? "")")
+////            cell.lblCalass.alpha = 0.7
+//            cell.lblMachineID.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.machine_id ?? "")")
+//            
+//            
+//            cell.lblMachineName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "  • \(objData.product_name ?? "")")
+//
+//           
+////            cell.lblTechName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.first_name ?? "") \(objData.last_name ?? "")")
+//            
+//    
+//            cell.lblLocation.configureLable(textAlignment: .right, textColor: .secondary, fontName: objData.order_id != nil ? GlobalMainConstants.APP_FONT_Roboto_Bold : GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: objData.order_id != nil ? 16 : 14, text: objData.order_id != nil ? "\(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
+//            if objData.order_id != nil{
+//                cell.lblLocation.attributedText = setFontAttributes(str: objData.order_id != nil ? "Order ID : \(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
+//            }
+//            
+//            
+//            //SET BUTTON STATUS
+//            cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
+//            
+//            //SET IMAGE
+//            cell.imgStatus.image = UIImage(named: "icon_Available")
+//            imgColor(imgColor: cell.imgStatus, colorHex: .secondary)
+//
+//            
+//            
+//            
+//            if objData.machine_status == "Damaged" {
+//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
+//                
+//                //SET IMAGE
+//                cell.imgStatus.image = UIImage(named: "icon_Damaged")
+//                imgColor(imgColor: cell.imgStatus, colorHex: .redText)
+//            }
+//            else if objData.machine_status == "Maint. Hold" || objData.machine_status == "Maintenance Hold"{
+//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondaryText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
+//                
+//                //SET IMAGE
+//                cell.imgStatus.image = UIImage(named: "icon_MaintHold")
+//                imgColor(imgColor: cell.imgStatus, colorHex: .secondaryText)
+//            }
+//            else if objData.machine_status == "Rented"{
+//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .greenText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
+//                
+//                //SET IMAGE
+//                cell.imgStatus.image = UIImage(named: "icon_Rented")
+//                imgColor(imgColor: cell.imgStatus, colorHex: .greenText)
+//            }
+//            
+//            //SET SERVICE
+//            cell.imgService.isHidden = true
+//            imgColor(imgColor: cell.imgService, colorHex: .secondaryText)
+//            if objData.has_machine_hour == 1 {
+//                cell.imgService.isHidden = false
+//            }
+//
+//            // BUTTON ACTION
+//            cell.btnOrder.tag = indexPath.row
+//            cell.btnOrder.addTarget(self, action: #selector(self.btnOrderClicked(_:)), for: .touchUpInside)
 
             cell.layoutIfNeeded()
             return cell
@@ -449,13 +451,13 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             return
         }
         
-        //MOVE FORGOT SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineDetailsViewController") as? MachineDetailsViewController{
-            newViewController.strID = "\(self.arrMachineProfileList[indexPath.row].id ?? 0)"
-            newViewController.strTitleName = "\(self.arrMachineProfileList[indexPath.row].product_name ?? "") (\(self.arrMachineProfileList[indexPath.row].machine_id ?? ""))"
-            self.navigationController?.pushViewController(newViewController, animated: true)
-        }
+//        //MOVE FORGOT SCREEN
+//        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
+//        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineDetailsViewController") as? MachineDetailsViewController{
+//            newViewController.strID = "\(self.arrMachineProfileList[indexPath.row].id ?? 0)"
+//            newViewController.strTitleName = "\(self.arrMachineProfileList[indexPath.row].product_name ?? "") (\(self.arrMachineProfileList[indexPath.row].machine_id ?? ""))"
+//            self.navigationController?.pushViewController(newViewController, animated: true)
+//        }
 
     }
     
@@ -466,14 +468,14 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             
         }
         
-        
-        if self.arrMachineProfileList[sender.tag].order_id != nil{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                newViewController.strOrderID = "\(self.arrMachineProfileList[sender.tag].order_id ?? 0)"
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
-        }
+//        
+//        if self.arrMachineProfileList[sender.tag].order_id != nil{
+//            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+//            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
+//                newViewController.strOrderID = "\(self.arrMachineProfileList[sender.tag].order_id ?? 0)"
+//                self.navigationController?.pushViewController(newViewController, animated: true)
+//            }
+//        }
     }
 }
 

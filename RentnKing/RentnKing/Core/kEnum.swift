@@ -18,7 +18,10 @@ enum kFileStorageName: String {
     case kOrderNoteData = "kOrderNoteData"
     case kOrderDetailsData = "kOrderDetailsData"
     case kStoreList = "kStoreList"
-    
+
+    //CHECK LIST
+    case kSaveCheckList = "CheckList"
+
     case kPriceList = "kPriceList"
 
 }

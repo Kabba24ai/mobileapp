@@ -55,14 +55,24 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
         pickerAlert.addAction(call)
         pickerAlert.addAction(sendMessage)
         pickerAlert.addAction(cancel)
-        
-        if let presenter = pickerAlert.popoverPresentationController {
-            presenter.sourceView = sender
-            presenter.sourceRect = sender.frame
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if let presenter = pickerAlert.popoverPresentationController {
+                presenter.sourceView = self.view
+                presenter.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                presenter.permittedArrowDirections = []
+
+            }
         }
+
+        
+        
         self.present(pickerAlert, animated: true, completion: nil)
         
 
+        
+        
+        
+        
     }
     
     func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {

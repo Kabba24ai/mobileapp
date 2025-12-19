@@ -262,6 +262,7 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             
             
             var dicData : [String : Any] = [:]
+//            var arrCheckListData: [[String: Any]] = []
             for obj in self.objOrderData.arrProduct{
                 var arrData : [[String : Any]] = []
                 for objChecklist in obj.arrQuestions{
@@ -291,24 +292,28 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 } catch {
                     print("Error serializing JSON:", error)
                 }
-                
                                 
                 //OTHER DATA
                 for objOther in self.arrOtherData{
                     
-                    dicData = ["order_product_unique_id" : self.objOrderData.arrProduct[0].unique_id ?? "",
-                               "equipment_unique_id" : obj.objMachine?.unique_id ?? "",
-                               "start_hours" : self.isDeliveryType ? "\(objOther.startHours)" : "",
-                               "end_hours" : self.isDeliveryType ? "" : "\(objOther.endHours)",
-                               "user_id" : self.isDeliveryType ? objOther.dEmplayessId : objOther.rEmplayessId,
-                               "checklist[]" : strCheckList,
-                               "note" : self.isDeliveryType ? objOther.dNote : objOther.rNote,
-                               "total_charge" : self.isDeliveryType ? "" : "\(self.strTotalCharge)",
-                               "store_id" : self.isDeliveryType ? "" : objOther.rStoreId,
-                               "fuel_initial_reading" : objOther.selectFuleDelivery,
-                               "fuel_final_reading" : objOther.selectFuleReturn,
+                    dicData = [
+                        "order_product_unique_id": obj.unique_id ?? "",
+                        "equipment_unique_id": obj.objMachine?.unique_id ?? "",
+                        "checklist[]": strCheckList,
 
-                               "type" :self.isDeliveryType ? "Delivery" : "Return"]
+                        "start_hours": self.isDeliveryType ? "\(objOther.startHours)" : "",
+                        "end_hours": self.isDeliveryType ? "" : "\(objOther.endHours)",
+                        "user_id": self.isDeliveryType ? objOther.dEmplayessId : objOther.rEmplayessId,
+                        "note": self.isDeliveryType ? objOther.dNote : objOther.rNote,
+                        "total_charge": self.isDeliveryType ? "" : "\(self.strTotalCharge)",
+                        "store_id": self.isDeliveryType ? "" : objOther.rStoreId,
+                        "fuel_initial_reading": objOther.selectFuleDelivery,
+                        "fuel_final_reading": objOther.selectFuleReturn,
+                        "dSignature": (objOther.dSignature ?? UIImage()),
+                        "rSignature": (objOther.rSignature ?? UIImage()),
+                        "type": self.isDeliveryType ? "Delivery" : "Return"
+                    ]
+//                    arrCheckListData.append(dicData)
                 }
             }
            
@@ -318,6 +323,7 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                 
                 //UPDATE CHECK LIST
+//                self.saveArrayWithImages(arrCheckListData, forKey: kFileStorageName.kSaveCheckList.rawValue)
                 self.updateCheckList(dicCheckList: dicData)
     //            self.updateStatus()
                 
@@ -332,6 +338,28 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
     }
     
 
+    func saveArrayWithImages(_ array: [[String: Any]], forKey key: String) {
+        var processedArray = [[String: Any]]()
+        
+        for var dict in array {
+            if let image = dict["image"] as? UIImage {
+                // Convert image to JPEG or PNG
+                if let imgData = image.jpegData(compressionQuality: 0.8) {
+                    dict["image"] = imgData  // replace UIImage with Data
+                }
+            }
+            processedArray.append(dict)
+        }
+        
+        do {
+            let data = try JSONSerialization.data(withJSONObject: processedArray, options: [])
+            SDKUserDefault.save(data, for: key)
+        } catch {
+            print("❌ Error saving:", error)
+        }
+    }
+
+    
     
     func checkMachineData() -> Bool{
         for objData in self.objOrderData.arrProduct{

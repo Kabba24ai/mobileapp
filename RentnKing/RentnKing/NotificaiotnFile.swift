@@ -154,8 +154,8 @@ extension AppDelegate : MessagingDelegate{
        
         //REDRIRECT TO SCREEN
         let ViewController = UIApplication.getTopViewController()
-        if dicData.getStringForID(key: "order_id") != ""{
-            if let orderID = dicData.getStringForID(key: "order_id"){
+        if dicData.getStringForID(key: "unique_id") != ""{
+            if let orderID = dicData.getStringForID(key: "unique_id"){
 
                 //MOVE TO SHOW SCREEN
                 dicNotificationData = [:]

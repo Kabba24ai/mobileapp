@@ -221,7 +221,7 @@ struct Text {
     //SCHEDULE
     var strScheduleTitle = "Schedule".localized()
     var strDelivery = "Delivery".localized()
-    var strPickup = "Pickup".localized()
+    var strPickup = "Return".localized()
 
     var strPending = "Pending".localized()
     var strCompleted = "Completed".localized()

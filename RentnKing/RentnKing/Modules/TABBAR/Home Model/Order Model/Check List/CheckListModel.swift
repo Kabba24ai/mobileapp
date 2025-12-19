@@ -10,6 +10,10 @@ import ObjectMapper
 import UIKit
 
 class NoteModel: NSObject{
+    var orderProductId: String = ""
+    var equipmentId: String = ""
+    var checklistData: String = ""
+    
     var startHours: Float = 0.0
     var endHours: Float = 0.0
 

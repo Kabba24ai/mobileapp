@@ -35,9 +35,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var viewAddNoteBtn: UIView!
     @IBOutlet weak var imgAddNoteBtn: UIImageView!
     @IBOutlet weak var lblAddNote: UILabel!
-    @IBOutlet weak var lblNote: UILabel!
     @IBOutlet weak var objNoteView: UIStackView!
-    @IBOutlet weak var viewAddNote: UIView!
 
     @IBOutlet weak var viewDelivery: UIView!
     @IBOutlet weak var lblDeliveryInfo: UILabel!
@@ -48,12 +46,6 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var lblDeliveryAddress: UILabel!
     @IBOutlet weak var imgDeliveryEditAddress: UIImageView!
     @IBOutlet weak var imgDeliveryMapAddress: UIImageView!
-
-    @IBOutlet weak var viewDeliverySame: UIView!
-    @IBOutlet weak var lblDeliverySameTitle: UILabel!
-    @IBOutlet weak var lblDeliverySameDetails: UILabel!
-
-    
     
 
     @IBOutlet weak var lblProductTitle: UILabel!
@@ -130,6 +122,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var objOrderData : OrdersListModel!
     var strProductID : String = ""
     var deliveryType : String = "Delivery"
+    var isBillingView : Bool = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -159,8 +152,17 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         self.navigationController?.interactivePopGestureRecognizer?.delegate = self
         self.tabBarController?.tabBar.isHidden = true
         
+        self.updateNavigationbar()
+        
+        //CALL API
+        self.getUserDataFromLocally()
+        self.getOrderDetailFromLocally()
+
+    }
+    
+    func updateNavigationbar(){
         //SET NAVIGATION BAR
-        setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "", isDetailsScree: true) {
+        setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: self.objOrderData != nil ? (self.objOrderData.is_same_as_billing == false ? "+View Billing Info" : "") : "", isDetailsScree: true) {
             
             if self.selectIndex != -1{
                 if self.objOrderData != nil{
@@ -182,28 +184,52 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
         } rightActionHandler: {
+            if self.objOrderData.is_same_as_billing == false{
+                if self.isBillingView{
+                    self.isBillingView = false
+                }
+                else{
+                    self.isBillingView = true
+                }
+                
+                self.updateBillingView()
+            }
+           
         }
-        
-        //CALL API
-        self.getUserDataFromLocally()
-        self.getOrderDetailFromLocally()
-
     }
-    
     
     @objc func startUploadData(){
         self.con_Upload.constant = manageFont(font: 0)
+        
     }
     
     @objc func stopUploadData(){
         self.con_Upload.constant = 0
     }
     
+    func updateBillingView(){
+        self.viewBilling.isHidden = !self.isBillingView
+        
+        //SET HEADER
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            //SET TABLE HEADER
+            let vw_Table = self.tblView.tableHeaderView
+            vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.lblProductTitle.frame.origin.y + self.lblProductTitle.frame.size.height)
+
+            self.tblView.tableHeaderView = vw_Table
+            
+            //RELOAD TABLE
+            DispatchQueue.main.asyncAfter(deadline: .now()) {
+                self.tblView.reloadData()
+            }
+        }
+    }
+    
     func setTheView(){
         self.isLoading = false
         self.stopLoading()
         self.setFooter()
-      
+        self.updateNavigationbar()
         
         //SET DETAILS
         if self.objOrderData != nil{
@@ -257,36 +283,29 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
             }
             
-            
-            self.lblDeliverySameTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.DeliveryInfo)
-            self.lblDeliverySameDetails.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "Same as Billing")
-
-            //CHECK ADDRESS SAME
-            self.viewDelivery.isHidden = false
-            self.viewDeliverySame.isHidden = true
-            if self.objOrderData.is_same_as_billing ?? false{
-                self.viewDelivery.isHidden = true
-                self.viewDeliverySame.isHidden = true
-            }
+    
+//            //CHECK ADDRESS SAME
+//            self.viewDelivery.isHidden = false
+//            self.viewDeliverySame.isHidden = true
+//            if self.objOrderData.is_same_as_billing ?? false{
+//                self.viewDelivery.isHidden = true
+//                self.viewDeliverySame.isHidden = true
+//            }
         }
         
         self.lblNoteTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strDeliveryNote)
         self.lblAddNote.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strAddNoteBtn)
-        self.lblNote.configureLable(textColor: .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strAddNote)
 
         imgColor(imgColor: self.imgAddNoteBtn, colorHex: .secondary)
         self.viewAddNoteBtn.backgroundColor = .clear
         self.viewAddNoteBtn.viewCorneRadius(radius: 5.0, isRound: false)
-
         
 //        let headerStack = UIStackView()
         self.objNoteView.axis = .vertical
         self.objNoteView.spacing = 0
         self.objNoteView.translatesAutoresizingMaskIntoConstraints = false
-        self.viewAddNote.isHidden = false
         self.objNoteView.removeAllArrangedSubviews()
         for (idx, note) in self.objOrderData.arrOrderNote.enumerated() {
-            self.viewAddNote.isHidden = true
             let row = NoteRowView()
             row.configure(with: note)
             row.onEdit = { [weak self] in self?.edit(at: idx) }
@@ -305,19 +324,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         }
 
         //SET HEADER
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            //SET TABLE HEADER
-            let vw_Table = self.tblView.tableHeaderView
-            vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.lblProductTitle.frame.origin.y + self.lblProductTitle.frame.size.height)
+        self.updateBillingView()
 
-            self.tblView.tableHeaderView = vw_Table
-            
-            //RELOAD TABLE
-            DispatchQueue.main.asyncAfter(deadline: .now()) {
-                self.tblView.reloadData()
-            }
-            
-        }
     }
     
     
@@ -345,7 +353,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         let aleartView = AddNoteView(frame: CGRect(x: 0, y: 0 ,width : window?.frame.width ?? 0.0, height: window?.frame.height ?? 0.0))
         aleartView.delegate = self
         aleartView.objNoteData = objDate
-        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: self.lblNote.text == str.strAddNote ? "" : self.lblNote.text ?? "", arr: self.arrUserList)
+        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: str.strAddNote , arr: self.arrUserList)
         window?.addSubview(aleartView)
         
     }
@@ -392,7 +400,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
             self.lblTotalAmount.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.TotalAmount)
             self.lblTotlaPrice.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.amount ?? "")
-
+            self.lblTotlaPrice.textAlignment = .right
+            
             self.lblPayment.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.paymentStatus)
             self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.payment_status ?? "")
             
@@ -583,10 +592,15 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         pickerAlert.addAction(sendMessage)
         pickerAlert.addAction(cancel)
         
-        if let presenter = pickerAlert.popoverPresentationController {
-            presenter.sourceView = sender
-            presenter.sourceRect = sender.frame
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if let presenter = pickerAlert.popoverPresentationController {
+                presenter.sourceView = self.view
+                presenter.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                presenter.permittedArrowDirections = []
+
+            }
         }
+        
         self.present(pickerAlert, animated: true, completion: nil)
     }
     
@@ -658,7 +672,8 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         window?.endEditing(true)
         let aleartView = AddNoteView(frame: CGRect(x: 0, y: 0 ,width : window?.frame.width ?? 0.0, height: window?.frame.height ?? 0.0))
         aleartView.delegate = self
-        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: self.lblNote.text == str.strAddNote ? "" : self.lblNote.text ?? "", arr: self.arrUserList)
+//        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: self.lblNote.text == str.strAddNote ? "" : self.lblNote.text ?? "", arr: self.arrUserList)
+        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: str.strAddNote  , arr: self.arrUserList)
         window?.addSubview(aleartView)
     }
     
@@ -924,16 +939,39 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
             cell.lblOptionsValues.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: strValues)
        
             //CHECK STORE ADDRESS
-            cell.imgStore.isHidden = true
-            cell.con_imgStore.constant = 0
-            cell.lblStoreAddress.text = ""
-            if objDetails.objProductData?.store_address != "" && objDetails.objProductData?.store_address != nil{
-                cell.imgStore.isHidden = false
-                cell.con_imgStore.constant = 30
+            var text : String = ""
+            var linkTextWithColor : String = ""
+            cell.imgStore.isHidden = false
+            cell.con_imgStore.constant = 30
+            cell.lblStoreAddress.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "")
+
+            if objDetails.objProductData?.delivery_transport_mode == "Truck"{
+                cell.imgStore.image = UIImage(named: "icon_delivery_pending")
                 imgColor(imgColor: cell.imgStore, colorHex: .secondary)
-                cell.lblStoreAddress.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "\(objDetails.objProductData?.store_address ?? "")")
+                
+                var location : String = "Pending"
+                if objDetails.equipment_location != "" && objDetails.equipment_location != nil{
+                    location = objDetails.equipment_location ?? ""
+                }
+                text = "Delivery From : \(location)"
+                linkTextWithColor = "Delivery From :"
+
             }
-            
+            else{
+                cell.imgStore.image = UIImage(named: "icon_store")
+                imgColor(imgColor: cell.imgStore, colorHex: .secondary)
+                
+                text = "In Store : \(objDetails.objProductData?.store_name ?? "")"
+                linkTextWithColor = "In Store :"
+            }
+           
+            let range = (text as NSString).range(of: linkTextWithColor)
+
+            let attributedString = NSMutableAttributedString(string:text)
+            attributedString.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.secondary , range: range)
+
+            cell.lblStoreAddress.attributedText = attributedString
+
             return cell
         }
 

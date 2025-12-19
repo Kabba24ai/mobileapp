@@ -25,27 +25,20 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     
     @IBOutlet weak var viewDelivery: UIView!
     @IBOutlet weak var lblDelivery: UILabel!
+    @IBOutlet weak var imgDelivery: UIImageView!
+    @IBOutlet weak var imgSelectDelivery: UIImageView!
+
     @IBOutlet weak var viewPickup: UIView!
     @IBOutlet weak var lblPickup: UILabel!
-    @IBOutlet weak var con_DeliveryPickupLine: NSLayoutConstraint!
-    @IBOutlet weak var viewLine: UIView!
+    @IBOutlet weak var imgPickup: UIImageView!
+    @IBOutlet weak var imgSelectPickup: UIImageView!
 
-    @IBOutlet weak var viewPending: UIView!
-    @IBOutlet weak var lblPending: UILabel!
-    @IBOutlet weak var viewCompleted: UIView!
-    @IBOutlet weak var lblCompleted: UILabel!
+//    @IBOutlet weak var viewPending: UIView!
+//    @IBOutlet weak var lblPending: UILabel!
+//    @IBOutlet weak var viewCompleted: UIView!
+//    @IBOutlet weak var lblCompleted: UILabel!
 
-    @IBOutlet weak var viewPendingCount: UIView!
-    @IBOutlet weak var lblPendingCount: UILabel!
 
-    @IBOutlet weak var viewCompletedCount: UIView!
-    @IBOutlet weak var lblCompletedCount: UILabel!
-
-    @IBOutlet weak var viewDeliveryCount: UIView!
-    @IBOutlet weak var lblDeliveryCount: UILabel!
-
-    @IBOutlet weak var viewPickupCount: UIView!
-    @IBOutlet weak var lblPickupCount: UILabel!
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
 
     
@@ -89,10 +82,11 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     var selectCategoryID : String = ""
     var selectDeliveryType : String = "All"
 
+    var isSelectPickup : Bool = true
+    var isSelectDelivery : Bool = true
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
         self.setSearchBar(isHide: true)
 
         
@@ -108,7 +102,6 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 
         
         //SET LOADING
-        self.viewLine.backgroundColor = .clear
         self.setupTableView()
         
         
@@ -127,10 +120,6 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         //GET DATA
         self.refreshList()
         
-        //SET COUNT
-        self.setcount()
-        GlobalMainConstants.appDelegate?.getScheduleCount()
-
         
         //SET VIEW
         self.view.backgroundColor = .background
@@ -171,7 +160,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
                 view.isScheduleScreen = true
                 view.arrCategorys = self.arrCategoryList
                 view.selectCategoryID = Int(self.selectCategoryID) ?? 0
-                view.selectType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
+                view.selectType = self.selectStatus == "1" ? "Pending" : "Completed"
                 view.view.backgroundColor = UIColor.clear
                 view.modalPresentationStyle = .overCurrentContext
                 self.present(view, animated: false) {
@@ -197,10 +186,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.bool_Load = true
         self.arrScheduleList = []
         self.tblView.reloadData()
-        self.viewPendingCount.isHidden = true
-        self.viewPickupCount.isHidden = true
-        self.viewDeliveryCount.isHidden = true
-        self.viewCompletedCount.isHidden = true
+
 
         // Always show existing local data immediately
         let localData = self.getScheduleOrderData(schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed")
@@ -243,21 +229,16 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.objSearchIndicator.isHidden = true
         self.objSearchIndicator.stopAnimating()
 
+        //SET IMAGE
+        imgColor(imgColor: self.imgDelivery, colorHex: .secondary)
+        imgColor(imgColor: self.imgPickup, colorHex: .secondary)
+        self.setDeliveryType()
         
         //SET FONT
-        self.lblDelivery.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDelivery)
-        self.lblPickup.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickup)
-
-        self.lblPending.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strPending)
-        self.lblCompleted.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strCompleted)
-        self.lblCompletedCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblPendingCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblDeliveryCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblPickupCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-
+        self.lblDelivery.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strDelivery)
+        self.lblPickup.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strPickup)
         
         self.setTheType(isDelivery: self.isDeliveryType)
-        self.setOrderType(isPending: self.isPending)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
             //STOP LOADING
@@ -273,58 +254,49 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
             //RELOAD DATA
             self.tblView.reloadData()
         }
-        
-        //SET COUNT
-        self.setcount()
 
     }
     
     func setTheType(isDelivery : Bool){
         self.selectType = isDelivery == true ? "Delivery" : "Return"
+       
+        
+        self.lblDelivery.textColor = isDelivery == true ? .background : .primary
+        self.lblPickup.textColor = isDelivery == false ? .background : .primary
 
-        self.viewLine.backgroundColor = .secondary
-        self.lblDelivery.textColor = isDelivery == true ? .secondary : .primary.withAlphaComponent(0.6)
-        self.lblPickup.textColor = isDelivery == false ? .secondary : .primary.withAlphaComponent(0.6)
-
-        //ANIMATION
-        UIView.animate(withDuration: 0.2,
-                   delay: 0.1,
-                       options: UIView.AnimationOptions.curveEaseIn,
-                   animations: { () -> Void in
-            if isDelivery{
-                self.con_DeliveryPickupLine.constant = 0
-                
-            }
-            else{
-                let strPickupSize = self.viewPickup.frame.origin.x + (self.viewPickup.frame.size.width / 2) - (self.viewLine.frame.size.width / 2)
-                let strDeliverySize = (self.viewDelivery.frame.origin.x + (self.viewDelivery.frame.size.width / 2) - (self.viewLine.frame.size.width / 2))
-                self.con_DeliveryPickupLine.constant = strPickupSize - strDeliverySize
-
-            }
-
-            self.view.layoutIfNeeded()
-
-        }, completion: { (finished) -> Void in
-        // ....
-        })
+        //SET VIEW
+        self.viewDelivery.viewCorneRadius(radius: 10.0, isRound: false)
+        self.viewPickup.viewCorneRadius(radius: 10.0, isRound: false)
+        self.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewPickup.viewBorderCorneRadius(borderColour: .secondary)
+        
+        self.viewDelivery.backgroundColor = isDelivery == true ? .secondary : .clear
+        self.viewPickup.backgroundColor = isDelivery == false ? .secondary : .clear
         
     }
     
-    func setOrderType(isPending : Bool){
-        self.selectStatus = isPending == true ? "1" : "2"
-
-        self.lblPending.textColor = isPending == true ? .background : .primary
-        self.lblCompleted.textColor = isPending == false ? .background : .primary
-
-        //SET VIEW
-        self.viewPending.viewCorneRadius(radius: 10.0, isRound: false)
-        self.viewCompleted.viewCorneRadius(radius: 10.0, isRound: false)
-        self.viewPending.viewBorderCorneRadius(borderColour: .secondary)
-        self.viewCompleted.viewBorderCorneRadius(borderColour: .secondary)
+    func setDeliveryType(){
         
-        self.viewPending.backgroundColor = isPending == true ? .secondary : .clear
-        self.viewCompleted.backgroundColor = isPending == false ? .secondary : .clear
+        
+        self.imgSelectDelivery.image = UIImage(named: "icon_unCheck")
+        self.imgSelectPickup.image = UIImage(named: "icon_unCheck")
+        if self.isSelectDelivery && self.isSelectPickup{
+            self.selectDeliveryType = "All"
+            
+            self.imgSelectDelivery.image = UIImage(named: "icon_Check")
+            self.imgSelectPickup.image = UIImage(named: "icon_Check")
+        }
+        else if self.isSelectDelivery && !self.isSelectPickup{
+            self.selectDeliveryType = "Truck"
+            self.imgSelectDelivery.image = UIImage(named: "icon_Check")
+
+        }
+        else if self.isSelectPickup && !self.isSelectDelivery{
+            self.selectDeliveryType = "Store"
+            self.imgSelectPickup.image = UIImage(named: "icon_Check")
+        }
     }
+ 
     
     func stopLoading(){
         indicatorHide()
@@ -334,63 +306,6 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     
-    @objc func setcount(){
-        //SET SCHEDUKE COUNT
-        self.viewPendingCount.backgroundColor = .redText
-        self.viewPendingCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewPendingCount.isHidden = true
-        
-        self.viewCompletedCount.backgroundColor = .redText
-        self.viewCompletedCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewCompletedCount.isHidden = true
-        
-        self.viewDeliveryCount.backgroundColor = .redText
-        self.viewDeliveryCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewDeliveryCount.isHidden = true
-
-        self.viewPickupCount.backgroundColor = .redText
-        self.viewPickupCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewPickupCount.isHidden = true
-
-//        let pendingCount = pendingDelivertCount + pendingPickupCount
-//        self.viewPendingCount.isHidden = true
-//        if pendingCount != 0{
-//            self.viewPendingCount.isHidden = false
-//            self.lblPendingCount.text = "\(pendingCount)"
-//        }
-// 
-//        let complteCount = complateDelivertCount + complatePickupCount
-//        self.viewCompletedCount.isHidden = true
-//        if complteCount != 0{
-//            self.viewCompletedCount.isHidden = false
-//            self.lblCompletedCount.text = "\(complteCount)"
-//        }
-        
-        if self.isPending{
-            self.setPickupDeliveryCount(strDelivery: pendingDelivertCount + pastDelivertCount, strPickup: pendingPickupCount + pastPickupCount)
-        }
-        else{
-            self.viewDeliveryCount.isHidden = true
-            self.viewPickupCount.isHidden = true
-
-//            self.setPickupDeliveryCount(strDelivery: complateDelivertCount, strPickup: complatePickupCount)
-        }
-
-    }
-    
-    func setPickupDeliveryCount(strDelivery : Int , strPickup : Int){
-        self.viewDeliveryCount.isHidden = true
-        if strDelivery != 0{
-            self.viewDeliveryCount.isHidden = false
-            self.lblDeliveryCount.text = "\(strDelivery)"
-        }
-        
-        self.viewPickupCount.isHidden = true
-        if strPickup != 0{
-            self.viewPickupCount.isHidden = false
-            self.lblPickupCount.text = "\(strPickup)"
-        }
-    }
     
     func setSearchBar(isHide : Bool){
         //SET VIEW
@@ -407,22 +322,16 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingDidEndOnExit)
         
         self.viewSearch.isHidden = true
-        self.viewPending.isHidden = false
-        self.viewCompleted.isHidden = false
         self.viewDelivery.isHidden = false
         self.viewPickup.isHidden = false
-        self.viewLine.isHidden = false
         
         //SEARCH VIEW
         self.con_statusHeight.constant = 50
         self.con_searchTop.constant = -(self.viewSearch.frame.size.height)
         if isHide == false{
             self.con_statusHeight.constant = 0
-            self.viewPending.isHidden = true
-            self.viewCompleted.isHidden = true
             self.viewDelivery.isHidden = true
             self.viewPickup.isHidden = true
-            self.viewLine.isHidden = true
             UIView.animate(withDuration: 0.2) {
                 self.viewSearch.isHidden = false
                 self.con_searchTop.constant = 0
@@ -471,56 +380,9 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         //RELOAD TABLE
         self.tblView.reloadData()
     }
-    
-//    func filter(){
-//        if self.strFilter == "All"{
-//            self.arrScheduleList = self.arrAllData
-//        }
-//        else if self.selectType.lowercased() == "Delivery".lowercased(){
-//            if self.strFilter == "Delivery"{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_delivery ?? 0)" as NSString?)?.range(of: "2").location ?? 0) != NSNotFound}
-//            }
-//            else{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_delivery ?? 0)" as NSString?)?.range(of: "1").location ?? 0) != NSNotFound}
-//            }
-//        }
-//        else{
-//            if self.strFilter == "Delivery"{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_pickup ?? 0)" as NSString?)?.range(of: "2").location ?? 0) != NSNotFound}
-//            }
-//            else{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_pickup ?? 0)" as NSString?)?.range(of: "1").location ?? 0) != NSNotFound}
-//            }
-//
-//        }
-//        
-//        //RELOAD
-//        self.tblView.reloadData()
-//    }
 }
 
 
-
-extension ScheduleListViewController : FilterProtocol{
-    func SelectFilter(categoryID: Int, strStatus: String, strPaymentType: String, strDeliveryType: String) {
-        self.selectCategoryID = ""
-        self.selectDeliveryType = ""
-
-        if categoryID != 0{
-            self.selectCategoryID = "\(categoryID)"
-        }
-        
-        
-        
-        if strDeliveryType != "" && strDeliveryType.lowercased() != "all"{
-            self.selectDeliveryType = strDeliveryType
-        }
-        
-        //CALL API
-        self.setNavigation()
-        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
-    }
-}
 
 //MARK: - BUTTON ACTION
 extension ScheduleListViewController {
@@ -557,30 +419,59 @@ extension ScheduleListViewController {
         }
     }
     
-    @IBAction func btnPendingClicked(_ sender: UIButton) {
-        if self.isPending == false{
-            self.isPending = true
-            
-            //SET VIEW
-            self.setOrderType(isPending: self.isPending)
-            
-            //CALL API
-            self.refreshList()
+    @IBAction func btnSelectTypeClicked(_ sender: UIButton) {
+        if sender.tag == 100{
+            if self.isSelectDelivery{
+                self.isSelectDelivery = false
+            }
+            else{
+                self.isSelectDelivery = true
+            }
         }
+        else if sender.tag == 101{
+            if self.isSelectPickup{
+                self.isSelectPickup = false
+            }
+            else{
+                self.isSelectPickup = true
+            }
+        }
+        
+        //SET DATA
+        self.setDeliveryType()
+        
+        //CALL API
+        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
+
     }
-    
-    @IBAction func btnCompletedClicked(_ sender: UIButton) {
-        if self.isPending == true{
-            self.isPending = false
-            
-            //SET VIEW
-            self.setOrderType(isPending: self.isPending)
-            
-            //CALL API
-            self.refreshList()
+
+}
+
+extension ScheduleListViewController : FilterProtocol{
+    func SelectFilter(categoryID: Int, strStatus: String, strPaymentType: String, strDeliveryType: String) {
+        self.selectCategoryID = ""
+        self.selectDeliveryType = ""
+
+        if categoryID != 0{
+            self.selectCategoryID = "\(categoryID)"
         }
+        
+        
+        if strDeliveryType == "Pending"{
+            self.selectStatus = "1"
+        }
+        else if strDeliveryType == "Completed"{
+            self.selectStatus = "2"
+        }
+        
+        
+        //CALL API
+        self.setDeliveryType()
+        self.setNavigation()
+        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
     }
 }
+
 
 
 //MARK: - LOCAL DATABASE MANAGE

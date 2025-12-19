@@ -99,16 +99,8 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
     
     private func getAllSubviews() -> [UIView] {
         return [
-            viewPending,
-            viewCompleted,
             lblDelivery,
-            lblPickup,
-            viewLine,
-            viewPendingCount,
-            viewDeliveryCount,
-            viewPickupCount,
-            viewCompletedCount
-            
+            lblPickup
         ]
     }
     

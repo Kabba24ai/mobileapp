@@ -7,54 +7,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "12CDD916-099B-423C-AAF9-7EE1A24FC33B"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "80"
-            endingLineNumber = "80"
-            landmarkName = "updateCheckList(dicCheckList:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "2AC8173A-90C2-4922-A062-28A32D358180"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "81"
-            endingLineNumber = "81"
-            landmarkName = "updateCheckList(dicCheckList:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "E107EBB0-B3D1-4F50-B6D6-F67B9EB6FA16"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Image Upload/ImageUploadViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "604"
-            endingLineNumber = "604"
-            landmarkName = "tableView(_:heightForRowAt:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "12799C1B-7AF1-4CEC-AD39-AF3C681455FE"
             shouldBeEnabled = "No"
             ignoreCount = "0"
@@ -62,8 +14,8 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "521"
-            endingLineNumber = "521"
+            startingLineNumber = "549"
+            endingLineNumber = "549"
             landmarkName = "CalculatTotalCharge()"
             landmarkType = "7">
          </BreakpointContent>
@@ -94,8 +46,8 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "520"
-            endingLineNumber = "520"
+            startingLineNumber = "548"
+            endingLineNumber = "548"
             landmarkName = "CalculatTotalCharge()"
             landmarkType = "7">
          </BreakpointContent>
@@ -103,112 +55,208 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "63DAA46B-D9B7-4A03-8C03-72DB21DD1483"
-            shouldBeEnabled = "Yes"
+            uuid = "7D774F63-7B1C-4495-BCA2-72188B0BB818"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/OrderListButtonAction.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "432"
-            endingLineNumber = "432"
-            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
+            startingLineNumber = "60"
+            endingLineNumber = "60"
+            landmarkName = "btnCallClicked(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "1980F982-2129-4CD5-9C76-4C2194F1153D"
+            uuid = "711BF07D-F677-498C-B715-2CAD583BE375"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "435"
-            endingLineNumber = "435"
-            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
+            startingLineNumber = "187"
+            endingLineNumber = "187"
+            landmarkName = "updateNavigationbar()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "CEEF7C6E-6BB0-4C78-86DC-EE70E696DF75"
+            uuid = "2BF26902-A55E-4387-AEDE-F38B914EF78E"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "408"
-            endingLineNumber = "408"
-            landmarkName = "apiPayment(OrdersPaymentParameater:)"
+            startingLineNumber = "188"
+            endingLineNumber = "188"
+            landmarkName = "updateNavigationbar()"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "FB952D03-8D6D-4F02-9824-70BCA328905C"
+            uuid = "211061B6-C14B-405D-8233-587E1995FA94"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Schedule Model/Schedule List/ScheduleListModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "414"
-            endingLineNumber = "414"
-            landmarkName = "apiPayment(OrdersPaymentParameater:)"
+            startingLineNumber = "148"
+            endingLineNumber = "148"
+            landmarkName = "callAPIforGetScheduleList(OrdersParameater:completion:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "D78D0ED5-DB4E-4DFD-846A-66FD22205F1B"
+            uuid = "C4469D7B-F042-407A-8B1F-5D3C40048968"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "429"
-            endingLineNumber = "429"
-            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
+            startingLineNumber = "152"
+            endingLineNumber = "152"
+            landmarkName = "CallAPIforGetOrderDetails(OrdersDetailsParameater:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "64349B27-AF84-4D10-8C1F-E70C2D9D1CB5"
+            uuid = "35D28299-C2E6-48B0-98F2-8081C0C3535E"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/Payment View/PaymentView.swift"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "430"
-            endingLineNumber = "430"
-            landmarkName = "appDataDidSuccess(_:request:index:orderid:)"
+            startingLineNumber = "149"
+            endingLineNumber = "149"
+            landmarkName = "CallAPIforGetOrderDetails(OrdersDetailsParameater:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "E9673D24-9072-40F9-86E8-723F1786D004"
+            uuid = "ED0DC32B-B64B-4D9C-8E1D-1F988E3A251F"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "RentnKing/AppDelegate.swift"
+            filePath = "RentnKing/Modules/TABBAR/Equipment Model/MachineProfile/MachineProfileModel.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "243"
-            endingLineNumber = "243"
-            landmarkName = "updateToken(DeviceTokenParameater:)"
+            startingLineNumber = "90"
+            endingLineNumber = "90"
+            landmarkName = "getMachineProfileListAPI(EquipmentParameater:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "174BF853-B515-4368-8564-723E843FCCB4"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "953"
+            endingLineNumber = "953"
+            landmarkName = "tableView(_:cellForRowAt:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "AAF14BF3-201D-4AF3-9F05-2DFEF4256A87"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Order Details/OrderDetailsViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "952"
+            endingLineNumber = "952"
+            landmarkName = "tableView(_:cellForRowAt:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "58683DE8-669E-488E-A9DD-9B41112D6A83"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Schedule Model/Schedule List/ScheduleListModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "156"
+            endingLineNumber = "156"
+            landmarkName = "callAPIforGetScheduleList(OrdersParameater:completion:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "80FA1CE0-6D83-4C64-A2EE-4F3D2A03448B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Schedule Model/Schedule List/ScheduleListModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "150"
+            endingLineNumber = "150"
+            landmarkName = "callAPIforGetScheduleList(OrdersParameater:completion:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "15BC9536-8211-4437-B082-2447663C1A0C"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Schedule Model/Schedule List/ScheduleListModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "153"
+            endingLineNumber = "153"
+            landmarkName = "callAPIforGetScheduleList(OrdersParameater:completion:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "CFCE04C1-3E68-4152-A308-93FFFA9B085B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Schedule Model/Schedule List/ScheduleListModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "174"
+            endingLineNumber = "174"
+            landmarkName = "callAPIforGetScheduleList(OrdersParameater:completion:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

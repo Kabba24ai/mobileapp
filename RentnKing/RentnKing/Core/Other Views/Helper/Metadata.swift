@@ -109,13 +109,13 @@ enum Application {
     static let BaseURLDEV = "https://rentalapp.rentnking.com/api/"
     static let BaseURL = "https://rentnking.com/api/v1/"
 
-//    //DEV API
-//    static let BaseURL_NEW = "https://api.kabba.ai/api/admin/v1/"
-//    static let token = "45|6ooR9OLqbXvvYEXAenVfPCl1XHXNT1XMeV51vBpH6417a822"
+    //DEV API
+    static let BaseURL_NEW = "https://api.kabba.ai/api/admin/v1/"
+    static let token = "45|6ooR9OLqbXvvYEXAenVfPCl1XHXNT1XMeV51vBpH6417a822"
 
     //LIVE API
-    static let BaseURL_NEW = "https://s-api.kabba.ai/api/admin/v1/"
-    static let token = "1|xXbruYVlB9McPu0LQNDMSnWYWEwoM0xy9X8f7wJIe257590b"
+//    static let BaseURL_NEW = "https://s-api.kabba.ai/api/admin/v1/"
+//    static let token = "1|xXbruYVlB9McPu0LQNDMSnWYWEwoM0xy9X8f7wJIe257590b"
 
     
     //IMAGE / VIDEO URL

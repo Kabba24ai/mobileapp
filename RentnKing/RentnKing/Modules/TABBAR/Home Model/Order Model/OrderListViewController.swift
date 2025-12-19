@@ -42,7 +42,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     var selectCategoryID : String = ""
     var selectStatus : String = "All"
     var selectPaymentType : String = "All"
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 //        NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
@@ -322,6 +322,8 @@ extension OrderListViewController{
                 if overrideLocal {
                     // Replace all old data
                     self.arrOrderList = localData
+                    self.setTheView()
+
                 } else {
                     // Append only new unique orders
                     let newItems = localData.filter { newItem in

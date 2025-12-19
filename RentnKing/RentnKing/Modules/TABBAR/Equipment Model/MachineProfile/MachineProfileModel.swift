@@ -10,46 +10,46 @@ import UIKit
 import ObjectMapper
 
 
-struct MachineProfileModel: Mappable{
-    internal var id: Int?
-    internal var checklist_id: Int?
-    internal var order_id: Int?
-    internal var tech_id: Int?
-    internal var category_id: Int?
-    internal var category: String?
-    internal var product_name: String?
-    internal var machine_id: String?
-    internal var machine_status: String?
-    internal var first_name: String?
-    internal var last_name: String?
-    internal var location_name: String?
-    internal var class_name: String?
-    internal var has_machine_hour: Int = 0
-    internal var status_change: String?
-    
-    
-    init?(map:Map) {
-        mapping(map: map)
-    }
-
-    mutating func mapping(map:Map){
-        id <- map["id"]
-        checklist_id <- map["checklist_id"]
-        order_id <- map["order_id"]
-        tech_id <- map["tech_id"]
-        category_id <- map["imcategory_idage"]
-        category <- map["category"]
-        product_name <- map["product_name"]
-        machine_id <- map["machine_id"]
-        machine_status <- map["machine_status"]
-        first_name <- map["first_name"]
-        last_name <- map["last_name"]
-        location_name <- map["location_name"]
-        class_name <- map["class_name"]
-        has_machine_hour <- map["has_machine_hour"]
-        status_change <- map["status_change"]
-    }
-}
+//struct MachineProfileModel: Mappable{
+//    internal var id: Int?
+//    internal var checklist_id: Int?
+//    internal var order_id: Int?
+//    internal var tech_id: Int?
+//    internal var category_id: Int?
+//    internal var category: String?
+//    internal var product_name: String?
+//    internal var machine_id: String?
+//    internal var machine_status: String?
+//    internal var first_name: String?
+//    internal var last_name: String?
+//    internal var location_name: String?
+//    internal var class_name: String?
+//    internal var has_machine_hour: Int = 0
+//    internal var status_change: String?
+//    
+//    
+//    init?(map:Map) {
+//        mapping(map: map)
+//    }
+//
+//    mutating func mapping(map:Map){
+//        id <- map["id"]
+//        checklist_id <- map["checklist_id"]
+//        order_id <- map["order_id"]
+//        tech_id <- map["tech_id"]
+//        category_id <- map["imcategory_idage"]
+//        category <- map["category"]
+//        product_name <- map["product_name"]
+//        machine_id <- map["machine_id"]
+//        machine_status <- map["machine_status"]
+//        first_name <- map["first_name"]
+//        last_name <- map["last_name"]
+//        location_name <- map["location_name"]
+//        class_name <- map["class_name"]
+//        has_machine_hour <- map["has_machine_hour"]
+//        status_change <- map["status_change"]
+//    }
+//}
 
 
 
@@ -65,18 +65,12 @@ extension MachineProfileViewController :WebServiceHelperDelegate{
     }
   
 
-    
-    
-    struct MAchineProfileParameater: Codable {
-        var category_id : String = ""
-        var class_id : String = ""
-        var machine_status : String = ""
-        var service_status : String = ""
-        var search : String = ""
-    }
 
+    struct EquipmentParameater: Codable {
+        var type : String = ""
+    }
     
-    func getMachineProfileListAPI(MAchineProfileParameater : MAchineProfileParameater){
+    func getMachineProfileListAPI(EquipmentParameater : EquipmentParameater){
         
         DispatchQueue.main.async {
             if self.isLoading{
@@ -85,18 +79,18 @@ extension MachineProfileViewController :WebServiceHelperDelegate{
             }
         }
         
-        guard let parameater = try? MAchineProfileParameater.asDictionary() else {
+        guard let parameater = try? EquipmentParameater.asDictionary() else {
             showAlertMessage(strMessage: str.invalidRequestParamater)
             return
         }
 
         //Declaration URL
-        let strURL = "\(Url.maintenanceProfile.absoluteString!)"
-        
+        let strURL = "\(Url.equipmentList.absoluteString!)"
+
         print(parameater)
         //Create object for webservicehelper and start to call method
         let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "maintenanceProfile"
+        webHelper.strMethodName = "equipmentList"
         webHelper.methodType = "post"
         webHelper.strURL = strURL
         webHelper.dictType = parameater
@@ -201,11 +195,11 @@ extension MachineProfileViewController :WebServiceHelperDelegate{
         self.objRefresh?.endRefreshing()
 
         if data.getStringForID(key: "success") == "1"{
-            if strRequest == "maintenanceProfile"{
+            if strRequest == "equipmentList"{
                 if let arrData = data["data"] as? NSArray{
                     
                     self.arrMachineProfileList = []
-                    self.arrMachineProfileList = Mapper<MachineProfileModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    self.arrMachineProfileList = Mapper<MachineModel>().mapArray(JSONArray: arrData as! [[String : Any]])
                    // self.arrMachineProfileList = self.arrMachineProfileList.sorted(by: { $0.category ?? "" < $1.category ?? "" })
 
                     

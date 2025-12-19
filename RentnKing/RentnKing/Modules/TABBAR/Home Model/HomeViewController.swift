@@ -11,7 +11,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     func selectSearch() {
     }
     
-    @IBOutlet weak var con_Upload: NSLayoutConstraint!  
+    @IBOutlet weak var con_Upload: NSLayoutConstraint!
+    @IBOutlet weak var con_viewSize: NSLayoutConstraint!
     @IBOutlet weak var viewEcommerce: UIView!
     @IBOutlet weak var imgEcommerce: UIImageView!
     @IBOutlet weak var lblEcommerce: UILabel!
@@ -20,8 +21,6 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var imgSchedule: UIImageView!
     @IBOutlet weak var lblSchedule: UILabel!
     
-    @IBOutlet weak var viewScheduleCount: UIView!
-    @IBOutlet weak var lblScheduleCount: UILabel!
     
     @IBOutlet weak var viewCRM: UIView!
     @IBOutlet weak var imgCRM: UIImageView!
@@ -55,7 +54,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     override func viewDidLoad() {
         super.viewDidLoad()
         isHomeScreen = true
-
+        self.con_viewSize.constant = manageWidth(size: 150)
+        
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
@@ -223,17 +223,17 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     
     @objc func setcount(){
         //SET SCHEDUKE CIUNT
-        self.viewScheduleCount.backgroundColor = .redText
-        self.viewScheduleCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.lblScheduleCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        
-        
-        let scheduleCount = pendingDelivertCount + pendingPickupCount + pastDelivertCount + pastPickupCount
-        self.viewScheduleCount.isHidden = true
-        if scheduleCount != 0{
-            self.viewScheduleCount.isHidden = false
-            self.lblScheduleCount.text = "\(scheduleCount)"
-        }
+//        self.viewScheduleCount.backgroundColor = .redText
+//        self.viewScheduleCount.viewCorneRadius(radius: 0.0, isRound: true)
+//        self.lblScheduleCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
+//        
+//        
+//        let scheduleCount = pendingDelivertCount + pendingPickupCount + pastDelivertCount + pastPickupCount
+//        self.viewScheduleCount.isHidden = true
+//        if scheduleCount != 0{
+//            self.viewScheduleCount.isHidden = false
+//            self.lblScheduleCount.text = "\(scheduleCount)"
+//        }
     }
 }
 
@@ -282,11 +282,11 @@ extension HomeViewController{
     
     @IBAction func btnEquipmentClicked(_ sender: UIButton) {
         
-//        //MOVE FORGOT SCREEN
-//        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
-//        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineProfileViewController") as? MachineProfileViewController{
-//            self.navigationController?.pushViewController(newViewController, animated: true)
-//        }
+        //MOVE FORGOT SCREEN
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineProfileViewController") as? MachineProfileViewController{
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
     }
     
 }

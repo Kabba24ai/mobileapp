@@ -45,7 +45,6 @@ extension OrderDetailsViewController {
             lblNumber,
             imgCall,
             lblNoteTitle,
-            lblNote,
             viewAddNoteBtn,
             lblEmail,
             lblAddress,

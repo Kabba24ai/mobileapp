@@ -143,8 +143,9 @@ struct OrderProductModel: Mappable{
     internal var is_returned: Bool?
     internal var arrDeliveryMedia: [LicenseModel] = []
     internal var arrPickupMedia: [LicenseModel] = []
+    internal var equipment_location: String?
 
-
+    
     init?(map:Map) {
         mapping(map: map)
     }
@@ -163,6 +164,7 @@ struct OrderProductModel: Mappable{
         is_returned <- map["is_returned"]
         arrDeliveryMedia <- map["delivery_media"]
         arrPickupMedia <- map["pickup_media"]
+        equipment_location <- map["equipment_location"]
     }
 }
 
