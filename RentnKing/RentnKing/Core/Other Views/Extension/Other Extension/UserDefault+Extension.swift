@@ -29,6 +29,7 @@ extension Notification.Name {
     static let startUploadData = Notification.Name("startUploadData")
     static let stopUploadData = Notification.Name("stopUploadData")
     static let updateCheckList = Notification.Name("updateCheckList")
+    static let refreshMachineProfileList = Notification.Name("refreshMachineProfileList")
 
 }
 

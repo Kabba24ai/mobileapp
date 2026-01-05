@@ -237,6 +237,8 @@ struct Text {
     //OTHERS
     var somethingWentWrong = "Something went wrong!".localized()
     var invalidRequestParamater = "Invalid request parameter".localized()
+    
+    var moveToOrder = "Move to order".localized()
 
     
 }

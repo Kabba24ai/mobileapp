@@ -7,6 +7,8 @@
 
 import UIKit
 
+
+
 class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegate {
     //DECLARE VARIABLE
     @IBOutlet weak var tblView: UITableView!
@@ -27,16 +29,15 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     var isLoading : Bool = true
     var objRefresh : UIRefreshControl?
 
+    var arrMainMachineProfileList : [MachineModel] = []
     var arrMachineProfileList : [MachineModel] = []
     var arrCategoryList : [CategoryModel] = []
-    var arrClass : [CategoryModel] = []
-    var arrStatues : [InventoryStatusModel] = []
-    var arrServices : [InventoryStatusModel] = []
+    var arrStatues : [FilterTypes] = []
+    var arrServices : [FilterTypes] = []
 
-    var selectCategoryID : String = ""
-    var selectClassID : String = ""
-    var selectStatus : String = "all"
-    var selectService : String = "all"
+    var selectCategoryID : Int = 0
+    var selectStatus : String = "All"
+    var selectService : String = "All"
 
     
     override func viewDidLoad() {
@@ -69,12 +70,62 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         getCategoryList { arr_data in
             self.arrCategoryList = arr_data
         }
+        
+        //GET DATA
+        self.refreshList()
+       
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshList), name: .refreshMachineProfileList, object: nil)
     }
     
 
+    @objc func refreshList(){
+        //GET Equipment LIST DATA
+        getEquipmentList { arr_data in
+            self.isLoading = false
+            self.objRefresh?.endRefreshing()
+            self.sortData(arr_machine: arr_data)
+        }
+    }
+    
+    func sortData(arr_machine: [MachineModel]) {
+        var arrData = arr_machine
+        
+        let statusPriority: [String: Int] = [
+            "Damaged": 0,
+            "Maint. Hold": 1,
+            "Maintenance Hold": 1,
+            "Rented": 2,
+            "Available": 3
+        ]
+        
+        arrData.sort { m1, m2 in
+            
+            let s1 = statusPriority[m1.current_status] ?? Int.max
+            let s2 = statusPriority[m2.current_status] ?? Int.max
+
+            // 1️⃣ Sort by status priority
+            if s1 != s2 {
+                return s1 < s2
+            }
+
+            // 2️⃣ If same status → sort alphabetically by equipment name
+            let name1 = m1.equipment_name ?? ""
+            let name2 = m2.equipment_name ?? ""
+            return name1.localizedCaseInsensitiveCompare(name2) == .orderedAscending
+        }
+                
+        self.arrMachineProfileList = arrData
+        self.arrMainMachineProfileList = self.arrMachineProfileList
+        
+        //SET THE VIEW
+        self.setTheView()
+    }
+    
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
+        syncEquipmentWithAPI()
         
         //SET VIEW
         self.view.backgroundColor = .background
@@ -89,22 +140,12 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         //SET NAVIGATION BAR
         self.setNavigation()
 
-        //GET DATA
-        self.refreshList()
 
+        //SET DATA
+        self.arrStatues = [FilterTypes(text: "All", value: "0"), FilterTypes(text: "Available", value: "1"), FilterTypes(text: "Damaged", value: "2"), FilterTypes(text: "Maint. Hold", value: "3"), FilterTypes(text: "Rented", value: "4")]
+        self.arrServices = [FilterTypes(text: "All", value: "0"), FilterTypes(text: "Serv. Due", value: "1")]
     }
 
-    @objc func refreshList(){
-        //GET DATA
-        self.callAPI(category_id: self.selectCategoryID, class_id: self.selectClassID, machine_status: self.selectStatus, service_status: self.selectService, search: self.txtSearch.text ?? "")
-       
-        //FILTER
-//        self.getInventoryCategorys()
-        self.getInventoryClass()
-        self.getInventorystatus()
-        self.getInventoryService()
-
-    }
     
     func setNavigation(){
         //SET NAVIGATION BAR
@@ -122,11 +163,9 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
             let view = storyboard.instantiateViewController(withIdentifier: "MachineFilterViewController") as! MachineFilterViewController
             view.delegate = self
             view.arrCategorys = self.arrCategoryList
-            view.arrClass = self.arrClass
             view.arrStatues = self.arrStatues
             view.arrServices = self.arrServices
-            view.selectCategoryID = Int(self.selectCategoryID) ?? 0
-            view.selectClassID = Int(self.selectClassID) ?? 0
+            view.selectCategoryID = self.selectCategoryID
             view.selectStatus = self.selectStatus
             view.selectService = self.selectService
             view.view.backgroundColor = UIColor.clear
@@ -180,7 +219,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     
     func checkFilter() -> Bool{
         //CEHCK FILTER
-        if self.selectCategoryID != "" || self.selectClassID != "" ||  (self.selectStatus != "" && self.selectStatus != "all") || (self.selectService != "" && self.selectService != "all"){
+        if self.selectCategoryID != 0 ||  (self.selectStatus != "" && self.selectStatus != "All") || (self.selectService != "" && self.selectService != "All"){
             return true
         }
         else{
@@ -198,58 +237,45 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         }
         
         
-        //GET STORE LIST
-        self.objSearchIndicator.isHidden = true
-        self.objSearchIndicator.stopAnimating()
-        if strSearch != "" && strSearch.count >= 3{
-     
-            self.callAPI(category_id: self.selectCategoryID, class_id: self.selectClassID, machine_status: self.selectStatus, service_status: self.selectService, search: strSearch)
-        }
-        else{
-            self.callAPI(category_id: self.selectCategoryID, class_id: self.selectClassID, machine_status: self.selectStatus, service_status: self.selectService, search: "")
-        }
     }
     
-    func callAPI(category_id: String, class_id: String, machine_status: String, service_status: String, search: String){
-        //CALL API
-        self.objSearchIndicator.isHidden = false
-        self.objSearchIndicator.startAnimating()
-        self.isLoading = true
+    func callAPI(category_id: Int, status: String, service_status: String, search: String){
         self.arrMachineProfileList = []
-        self.emptyDataView.isHidden = true
         
-        var strStatus = machine_status
-        var strServiceStatus = service_status
-        if machine_status.lowercased( ) == "all"{
-            strStatus = ""
+        //APPLY FILTER
+        self.arrMachineProfileList = self.arrMainMachineProfileList.filter {
+            ($0.current_status == status) ||
+            ($0.objProductCategory?.id == category_id)
         }
-        if service_status.lowercased( ) == "all"{
-            strServiceStatus = ""
-        }
-//        self.getMachineProfileListAPI(MAchineProfileParameater: MAchineProfileParameater(category_id: category_id, class_id: class_id, machine_status: strStatus, service_status: strServiceStatus, search: search))
         
-        self.getMachineProfileListAPI(EquipmentParameater: EquipmentParameater())
+        
+        let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        
+        //GET arrSearchPhoneContacts LIST
+        self.arrMachineProfileList = self.arrMachineProfileList.filter { (Int((($0.equipment_name?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound) || (Int((($0.equipment_id?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound)}
+        
+
+        self.emptyDataView.isHidden = self.arrMachineProfileList.count == 0 ? false : true
 
         //RELOAD TABLE
         self.tblView.reloadData()
+
     }
 }
 
 
-extension MachineProfileViewController : MachineFilterProtocol{
-    func SelectFilter(categoryID: Int, classID: Int, strStatus: String, strService: String) {
-        self.selectCategoryID = ""
-        self.selectClassID = ""
-        self.selectStatus = "all"
-        self.selectService = "all"
 
-        if categoryID != 0{
-            self.selectCategoryID = "\(categoryID)"
+extension MachineProfileViewController : MachineFilterProtocol{
+    
+    func SelectFilter(categoryID: Int, strStatus: String, strService: String) {
+        self.selectCategoryID = 0
+        self.selectStatus = "All"
+        self.selectService = "All"
+
+        if categoryID != 0 {
+            self.selectCategoryID = categoryID
         }
         
-        if classID != 0{
-            self.selectClassID = "\(classID)"
-        }
         
         if strStatus != "" && strStatus.lowercased() != "all"{
             self.selectStatus = strStatus
@@ -258,12 +284,57 @@ extension MachineProfileViewController : MachineFilterProtocol{
         if strService != "" && strService.lowercased() != "all"{
             self.selectService = strService
         }
+        
+//        //GET Equipment LIST DATA
+//        getEquipmentList { arr_data in
+//            self.isLoading = false
+//            self.objRefresh?.endRefreshing()
+//            
+//            let arrData = arr_data
+//            
+//            if self.selectCategoryID == 0 {
+//                self.sortData(arr_machine: arrData)
+//            }
+//            else {
+//                let filteredMachines = arrData.filter {
+//                    $0.category_id == self.selectCategoryID
+//                }
+//                self.sortData(arr_machine: filteredMachines)
+//            }
+//        }
+        
+        getEquipmentList { arr_data in
+            self.isLoading = false
+            self.objRefresh?.endRefreshing()
+            
+            let filteredData = arr_data.filter { machine in
+                
+                // ✅ Category filter
+                if self.selectCategoryID != 0,
+                   machine.category_id != self.selectCategoryID {
+                    return false
+                }
+                
+                // ✅ Status filter
+                if self.selectStatus.lowercased() != "all",
+                   machine.current_status.lowercased() != self.selectStatus.lowercased() {
+                    return false
+                }
+                
+                return true
+            }
+            
+            self.sortData(arr_machine: filteredData)
+        }
+
+        
+        self.setNavigation()
 
         
         
-        //CALL API
-        self.setNavigation()
-        self.callAPI(category_id: self.selectCategoryID, class_id: self.selectClassID, machine_status: self.selectStatus, service_status: self.selectService, search: self.txtSearch.text ?? "")
+//        //CALL API
+//        self.setNavigation()
+//        self.callAPI(category_id: self.selectCategoryID, status: self.selectStatus, service_status: self.selectService, search: self.txtSearch.text ?? "")
     }
 }
 
@@ -360,68 +431,80 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             let objData = self.arrMachineProfileList[indexPath.row]
 
             //SET FONT
-//            cell.lblCatrgoryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.category ?? "")")
-//            cell.lblDate.configureLable(textAlignment: .right, textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.status_change ?? "")")
-//            
-////            cell.lblCalass.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.class_name ?? "")")
-////            cell.lblCalass.alpha = 0.7
-//            cell.lblMachineID.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.machine_id ?? "")")
-//            
-//            
-//            cell.lblMachineName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "  • \(objData.product_name ?? "")")
-//
-//           
-////            cell.lblTechName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.first_name ?? "") \(objData.last_name ?? "")")
-//            
-//    
+            if objData.objProductCategory != nil{
+                cell.lblCatrgoryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: objData.objProductCategory?.title ?? "")
+            }
+            cell.lblDate.configureLable(textAlignment: .right, textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: objData.current_status_changed_at)
+
+            cell.lblMachineID.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.equipment_id ?? "")")
+
+            cell.lblMachineName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "  • \(objData.equipment_name  ?? "")")
+
+            
+           
+//            cell.lblTechName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.first_name ?? "") \(objData.last_name ?? "")")
+            
+    
 //            cell.lblLocation.configureLable(textAlignment: .right, textColor: .secondary, fontName: objData.order_id != nil ? GlobalMainConstants.APP_FONT_Roboto_Bold : GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: objData.order_id != nil ? 16 : 14, text: objData.order_id != nil ? "\(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
 //            if objData.order_id != nil{
 //                cell.lblLocation.attributedText = setFontAttributes(str: objData.order_id != nil ? "Order ID : \(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
 //            }
-//            
-//            
-//            //SET BUTTON STATUS
-//            cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-//            
-//            //SET IMAGE
-//            cell.imgStatus.image = UIImage(named: "icon_Available")
-//            imgColor(imgColor: cell.imgStatus, colorHex: .secondary)
-//
-//            
-//            
-//            
-//            if objData.machine_status == "Damaged" {
-//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-//                
-//                //SET IMAGE
-//                cell.imgStatus.image = UIImage(named: "icon_Damaged")
-//                imgColor(imgColor: cell.imgStatus, colorHex: .redText)
-//            }
-//            else if objData.machine_status == "Maint. Hold" || objData.machine_status == "Maintenance Hold"{
-//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondaryText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-//                
-//                //SET IMAGE
-//                cell.imgStatus.image = UIImage(named: "icon_MaintHold")
-//                imgColor(imgColor: cell.imgStatus, colorHex: .secondaryText)
-//            }
-//            else if objData.machine_status == "Rented"{
-//                cell.lblStatus.configureLable(textAlignment: .center, textColor: .greenText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.machine_status ?? "")")
-//                
-//                //SET IMAGE
-//                cell.imgStatus.image = UIImage(named: "icon_Rented")
-//                imgColor(imgColor: cell.imgStatus, colorHex: .greenText)
-//            }
-//            
-//            //SET SERVICE
-//            cell.imgService.isHidden = true
+            
+            
+            
+        
+            //SET BUTTON STATUS
+            cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.current_status)")
+
+            //SET IMAGE
+            cell.imgStatus.image = UIImage(named: "icon_Available")
+            imgColor(imgColor: cell.imgStatus, colorHex: .secondary)
+
+            
+            let strOrderID = formattedOrderID(objData.id ?? 0)
+            
+            if objData.current_status == "Damaged" {
+                cell.lblLocation.attributedText = setFontAttributes(str: "")
+                
+                cell.lblStatus.configureLable(textAlignment: .center, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.current_status)")
+                
+                //SET IMAGE
+                cell.imgStatus.image = UIImage(named: "icon_Damaged")
+                imgColor(imgColor: cell.imgStatus, colorHex: .redText)
+            }
+            else if objData.current_status == "Maint. Hold" || objData.current_status == "Maintenance Hold"{
+                cell.lblLocation.attributedText = setFontAttributes(str: "")
+                
+                cell.lblStatus.configureLable(textAlignment: .center, textColor: .secondaryText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.current_status)")
+                
+                //SET IMAGE
+                cell.imgStatus.image = UIImage(named: "icon_MaintHold")
+                imgColor(imgColor: cell.imgStatus, colorHex: .secondaryText)
+            }
+            else if objData.current_status == "Rented" {
+                cell.lblLocation.configureLable(textAlignment: .right, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(strOrderID)")
+                cell.lblLocation.attributedText = setFontAttributes(str: "Order ID: \(strOrderID)")
+                
+                cell.lblStatus.configureLable(textAlignment: .center, textColor: .greenText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "\(objData.current_status)")
+                
+                //SET IMAGE
+                cell.imgStatus.image = UIImage(named: "icon_Rented")
+                imgColor(imgColor: cell.imgStatus, colorHex: .greenText)
+            }
+            else {
+                cell.lblLocation.attributedText = setFontAttributes(str: "")
+            }
+            
+            //SET SERVICE
+            cell.imgService.isHidden = true
 //            imgColor(imgColor: cell.imgService, colorHex: .secondaryText)
 //            if objData.has_machine_hour == 1 {
 //                cell.imgService.isHidden = false
 //            }
-//
-//            // BUTTON ACTION
-//            cell.btnOrder.tag = indexPath.row
-//            cell.btnOrder.addTarget(self, action: #selector(self.btnOrderClicked(_:)), for: .touchUpInside)
+
+            // BUTTON ACTION
+            cell.btnOrder.tag = indexPath.row
+            cell.btnOrder.addTarget(self, action: #selector(self.btnOrderClicked(_:)), for: .touchUpInside)
 
             cell.layoutIfNeeded()
             return cell
@@ -451,13 +534,47 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             return
         }
         
-//        //MOVE FORGOT SCREEN
-//        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
-//        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineDetailsViewController") as? MachineDetailsViewController{
-//            newViewController.strID = "\(self.arrMachineProfileList[indexPath.row].id ?? 0)"
-//            newViewController.strTitleName = "\(self.arrMachineProfileList[indexPath.row].product_name ?? "") (\(self.arrMachineProfileList[indexPath.row].machine_id ?? ""))"
-//            self.navigationController?.pushViewController(newViewController, animated: true)
-//        }
+        let objData = self.arrMachineProfileList[indexPath.row]
+        let strOrderID = formattedOrderID(objData.id ?? 0)
+        let strEquipmentID = "\(objData.equipment_id ?? "")"
+        let strEquipmentName = objData.equipment_name  ?? ""
+        
+        if objData.current_status == "Rented" {
+
+            let strMsg = "This \(strEquipmentName) - ID: \(strEquipmentID) is currently Rented and cannot be updated in the Rental Ready system.\n\nIf the rental is completed, please update the order to close out the rental → \(strOrderID)"
+
+            let alert = UIAlertController(title: "", message: strMsg, preferredStyle: UIAlertController.Style.alert)
+            
+            alert.addAction(UIAlertAction(title: str.no, style: UIAlertAction.Style.default, handler: nil))
+            
+            alert.addAction(UIAlertAction(title: str.moveToOrder, style: .default, handler: { actionn in
+                
+                //MOVE TO ORDER DETAILS SCREEN
+                
+                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
+                    newViewController.strOrderUniqueId = objData.current_order_unique_id
+                    newViewController.strOrderID = strOrderID
+                    self.navigationController?.pushViewController(newViewController, animated: true)
+                }
+                
+            }))
+            
+            getTopViewController?.present(alert, animated: true)
+            
+            return
+        }
+        
+        //MOVE FORGOT SCREEN
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineDetailsViewController") as? MachineDetailsViewController{
+            newViewController.objRentalReadyData = self.arrMachineProfileList[indexPath.row]
+            newViewController.strID = self.arrMachineProfileList[indexPath.row].unique_id ?? ""
+            newViewController.strTitleName = "\(self.arrMachineProfileList[indexPath.row].equipment_name ?? "") (\(self.arrMachineProfileList[indexPath.row].equipment_id ?? ""))"
+            newViewController.arrRentalReady = self
+                .arrMachineProfileList[indexPath.row].arrAnswerRentalCheckList ?? []
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
 
     }
     

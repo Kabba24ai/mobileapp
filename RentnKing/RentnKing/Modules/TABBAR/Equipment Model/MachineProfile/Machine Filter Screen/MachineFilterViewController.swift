@@ -8,7 +8,7 @@
 import UIKit
 
 protocol MachineFilterProtocol : AnyObject {
-    func SelectFilter(categoryID : Int, classID : Int, strStatus : String, strService : String)
+    func SelectFilter(categoryID : Int, strStatus : String, strService : String)
 }
 
 
@@ -33,8 +33,6 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     @IBOutlet weak var viewCaregory: UIView!
     @IBOutlet weak var lblCaregory: UILabel!
 
-    @IBOutlet weak var viewClass: UIView!
-    @IBOutlet weak var lblClass: UILabel!
 
     @IBOutlet weak var viewStatus: UIView!
     @IBOutlet weak var lblStatus: UILabel!
@@ -51,15 +49,13 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     
     
     var selectCategoryID : Int = 0
-    var selectClassID : Int = 0
-    var selectStatus :  String = "all"
-    var selectService :  String = "all"
+    var selectStatus :  String = "All"
+    var selectService :  String = "All"
     var isScheduleScreen : Bool = false
     
     var arrCategorys : [CategoryModel] = []
-    var arrClass : [CategoryModel] = []
-    var arrStatues : [InventoryStatusModel] = []
-    var arrServices : [InventoryStatusModel] = []
+    var arrStatues : [FilterTypes] = []
+    var arrServices : [FilterTypes] = []
 
 
     override func viewDidLoad() {
@@ -136,16 +132,12 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     
     func setSelectFilterViews(select : Int){
         self.viewCaregory.backgroundColor = .clear
-        self.viewClass.backgroundColor = .clear
         self.viewStatus.backgroundColor = .clear
         self.viewService.backgroundColor = .clear
         
 
         self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Category")
         self.lblCaregory.textAlignment = .center
-
-        self.lblClass.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Class")
-        self.lblClass.textAlignment = .center
 
         
         self.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
@@ -160,14 +152,10 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
             self.lblCaregory.textColor = .primary
         }
         else if select == 2{
-            self.viewClass.backgroundColor = .background
-            self.lblClass.textColor = .primary
-        }
-        else if select == 3{
             self.viewStatus.backgroundColor = .background
             self.lblStatus.textColor = .primary
         }
-        else if select == 4{
+        else if select == 3{
             self.viewService.backgroundColor = .background
             self.lblService.textColor = .primary
         }
@@ -208,7 +196,7 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
         }) { finished in
             
             //GET DATA
-            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, classID: self.selectClassID, strStatus: self.selectStatus, strService: self.selectService)
+            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus, strService: self.selectService)
             
             DispatchQueue.main.async {
                 self.dismiss(animated: false)
@@ -293,12 +281,9 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
             return self.arrCategorys.count
         }
         else if self.selectFilterIndex == 2{
-            return self.arrClass.count
-        }
-        else if self.selectFilterIndex == 3{
             return self.arrStatues.count
         }
-        else if self.selectFilterIndex == 4{
+        else if self.selectFilterIndex == 3{
             return self.arrServices.count
         }
         return 0
@@ -322,20 +307,13 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
                 }
             }
             else if self.selectFilterIndex == 2{
-                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrClass[indexPath.row].name?.capitalized ?? "")
-
-                if self.selectClassID == self.arrClass[indexPath.row].id ?? 0{
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrStatues[indexPath.row].text?.capitalized ?? "")
+                
+                if self.selectStatus.lowercased() == self.arrStatues[indexPath.row].text?.lowercased(){
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                 }
             }
             else if self.selectFilterIndex == 3{
-                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrStatues[indexPath.row].text?.capitalized ?? "")
-                
-                if self.selectStatus.lowercased() == self.arrStatues[indexPath.row].value?.lowercased(){
-                    cell.imgTag.image = UIImage(named: "icon_RadioSelect")
-                }
-            }
-            else if self.selectFilterIndex == 4{
                 cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrServices[indexPath.row].text?.capitalized ?? "")
                 
                 if self.selectService.lowercased() == self.arrServices[indexPath.row].value?.lowercased(){
@@ -358,12 +336,9 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
             self.selectCategoryID = self.arrCategorys[indexPath.row].id ?? 0
         }
         else if self.selectFilterIndex == 2{
-            self.selectClassID = self.arrClass[indexPath.row].id ?? 0
+            self.selectStatus = self.arrStatues[indexPath.row].text?.lowercased() ?? ""
         }
         else if self.selectFilterIndex == 3{
-            self.selectStatus = self.arrStatues[indexPath.row].value?.lowercased() ?? ""
-        }
-        else if self.selectFilterIndex == 4{
             self.selectService = self.arrServices[indexPath.row].value?.lowercased() ?? ""
         }
         //RELOAD TABLE

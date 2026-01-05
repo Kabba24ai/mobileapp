@@ -10,7 +10,9 @@ import UIKit
 class MachinePageViewController: UIPageViewController {
     weak var tutorialDelegate: MachinePageViewControllerDelegate?
     var strID : String = ""
-    
+    var arrRentalReady : [RentalReadyModel] = []
+    var objRentalReadyData : MachineModel!
+
     fileprivate(set) lazy var orderedViewControllers: [UIViewController] = {
       // The view controllers will be shown in this order
         return [self.newColoredViewController("NotesVC"), self.newColoredViewController("RantalReadyVC"), self.newColoredViewController("ChecklistVC"), self.newColoredViewController("PartsListVC"), self.newColoredViewController("ServiceVC")]
@@ -31,7 +33,7 @@ class MachinePageViewController: UIPageViewController {
         delegate = self
         
 //        if let initialViewController = orderedViewControllers.first {
-//            
+//
 //        }
         scrollToViewController(orderedViewControllers[1])
         
@@ -93,19 +95,21 @@ class MachinePageViewController: UIPageViewController {
     fileprivate func scrollToViewController(_ viewController: UIViewController,
                                             direction: UIPageViewController.NavigationDirection = .forward) {
         
-//        if let vc = viewController as? RantalReadyVC{
-//            vc.strID = self.strID
-//        }
+        if let vc = viewController as? RantalReadyVC{
+            vc.strID = self.strID
+            vc.arrRentalReady = arrRentalReady
+            vc.objRentalReadyData = self.objRentalReadyData
+        }
         
-//      setViewControllers([viewController],
-//                         direction: direction,
-//                         animated: true,
-//                         completion: { (finished) -> Void in
-//                          // Setting the view controller programmatically does not fire
-//                          // any delegate methods, so we have to manually notify the
-//                          // 'tutorialDelegate' of the new index.
-//                          self.notifyTutorialDelegateOfNewIndex()
-//      })
+      setViewControllers([viewController],
+                         direction: direction,
+                         animated: true,
+                         completion: { (finished) -> Void in
+                          // Setting the view controller programmatically does not fire
+                          // any delegate methods, so we have to manually notify the
+                          // 'tutorialDelegate' of the new index.
+                          self.notifyTutorialDelegateOfNewIndex()
+      })
     }
     
     /**

@@ -50,43 +50,6 @@ struct EmployeesModel: Mappable{
 }
 
 
-struct MachineModel: Mappable{
-    internal var id: Int?
-    internal var unique_id: String?
-    internal var category_id: Int?
-    internal var equipment_id: String?
-    internal var equipment_name: String?
-    internal var status: String?
-    internal var powerSourceType: String = ""
-    internal var hasDEF: String = ""
-    internal var gas_tank_capacity: String = ""
-    internal var def_tank_capacity: String = ""
-    internal var diesel_tank_capacity: String = ""
-    
-    internal var overage_rate : String = ""
-    internal var hour_tracking : String = ""
-
-    init?(map:Map) {
-        mapping(map: map)
-    }
-
-    mutating func mapping(map:Map){
-        id <- map["id"]
-        unique_id <- map["unique_id"]
-        category_id <- map["product_category_id"]
-        equipment_id <- map["equipment_id"]
-        equipment_name <- map["equipment_name"]
-        equipment_name <- map["equipment_name"]
-        status <- map["current_status"]
-        powerSourceType <- map["power_source_type"]
-        hasDEF <- map["has_def"]
-        gas_tank_capacity <- map["gas_tank_capacity"]
-        def_tank_capacity <- map["def_tank_capacity"]
-        diesel_tank_capacity <- map["diesel_tank_capacity"]
-        overage_rate <- map["overage_rate"]
-        hour_tracking <- map["is_tracked"]
-    }
-}
 
 
 

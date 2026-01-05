@@ -102,7 +102,7 @@ func setNavigationBarFor(controller: UIViewController,
     }
     
     
-    if rightIcon == "+View Billing Info"{
+    if rightIcon == "+View Billing"{
         if let actionRight = rightActionHandler {
             navigationController.navigationItem.setHidesBackButton(true, animated: false)
             let button: UIButton = UIButton(type:.custom)

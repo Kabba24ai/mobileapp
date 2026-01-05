@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		001D08292E8FFE33004F4B13 /* CategoryListFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D08282E8FFE25004F4B13 /* CategoryListFile.swift */; };
 		001D082B2E900062004F4B13 /* kEnum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D082A2E90005E004F4B13 /* kEnum.swift */; };
+		004DC9262F06660D00E70DCF /* SyncEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004DC9252F0665F600E70DCF /* SyncEquipment.swift */; };
 		00BF1D162E9F772A00EDDEC7 /* UpdateOrderNoteData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */; };
 		C5044C7F2BBD5CD300A81242 /* CoreDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */; };
 		C5044C802BBD5CD300A81242 /* CoreaDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C772BBD5CD200A81242 /* CoreaDataModel.swift */; };
@@ -149,6 +150,7 @@
 		C521B1192D8990AC00D6B0D8 /* MachineFilterViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521B1172D8990AC00D6B0D8 /* MachineFilterViewController.swift */; };
 		C521B11B2D89925C00D6B0D8 /* MachineProfileModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521B11A2D89925C00D6B0D8 /* MachineProfileModel.swift */; };
 		C521CB4A2E52F04800EB19FD /* BackgroundUploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C521CB492E52F04700EB19FD /* BackgroundUploadManager.swift */; };
+		C52610622EFACCFE00501352 /* EqupmentFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C52610612EFACCF700501352 /* EqupmentFile.swift */; };
 		C526B15B2BE3F65700EC3B45 /* NotificaiotnFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C526B15A2BE3F65700EC3B45 /* NotificaiotnFile.swift */; };
 		C526B16F2BE5477300EC3B45 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C526B16E2BE5477300EC3B45 /* ObjectMapper */; };
 		C526B1712BE5477F00EC3B45 /* ObjectMapper in Frameworks */ = {isa = PBXBuildFile; productRef = C526B1702BE5477F00EC3B45 /* ObjectMapper */; };
@@ -215,7 +217,7 @@
 		C5BEC26E2B92C37300532C54 /* EventCalender.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BEC26D2B92C37300532C54 /* EventCalender.swift */; };
 		C5BEC2702B932EAE00532C54 /* MTSlideToOpenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BEC26F2B932EAE00532C54 /* MTSlideToOpenView.swift */; };
 		C5C364F22D8AA518009B326C /* ServiceVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C364F12D8AA518009B326C /* ServiceVC.swift */; };
-		C5C364FF2D8ABC52009B326C /* RentalReadyModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C364FE2D8ABC52009B326C /* RentalReadyModel.swift */; };
+		C5C364FF2D8ABC52009B326C /* RantalReadyModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5C364FE2D8ABC52009B326C /* RantalReadyModel.swift */; };
 		C5D55B6A2B696EB8006AEC63 /* OrderSuccessViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D55B692B696EB8006AEC63 /* OrderSuccessViewController.swift */; };
 		C5D55B6C2B69FB13006AEC63 /* TermsAndConditionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D55B6B2B69FB13006AEC63 /* TermsAndConditionViewController.swift */; };
 		C5D55B6F2B6C04C5006AEC63 /* OrderListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D55B6E2B6C04C5006AEC63 /* OrderListViewController.swift */; };
@@ -264,6 +266,7 @@
 /* Begin PBXFileReference section */
 		001D08282E8FFE25004F4B13 /* CategoryListFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryListFile.swift; sourceTree = "<group>"; };
 		001D082A2E90005E004F4B13 /* kEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kEnum.swift; sourceTree = "<group>"; };
+		004DC9252F0665F600E70DCF /* SyncEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEquipment.swift; sourceTree = "<group>"; };
 		00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateOrderNoteData.swift; sourceTree = "<group>"; };
 		C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreDatabaseManager.swift; sourceTree = "<group>"; };
 		C5044C772BBD5CD200A81242 /* CoreaDataModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreaDataModel.swift; sourceTree = "<group>"; };
@@ -407,6 +410,7 @@
 		C521B1172D8990AC00D6B0D8 /* MachineFilterViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineFilterViewController.swift; sourceTree = "<group>"; };
 		C521B11A2D89925C00D6B0D8 /* MachineProfileModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineProfileModel.swift; sourceTree = "<group>"; };
 		C521CB492E52F04700EB19FD /* BackgroundUploadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundUploadManager.swift; sourceTree = "<group>"; };
+		C52610612EFACCF700501352 /* EqupmentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EqupmentFile.swift; sourceTree = "<group>"; };
 		C526B15A2BE3F65700EC3B45 /* NotificaiotnFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificaiotnFile.swift; sourceTree = "<group>"; };
 		C526B17B2BE553D500EC3B45 /* RentnKing.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RentnKing.entitlements; sourceTree = "<group>"; };
 		C5387D942B4FBD4B00BF78B4 /* CategoriesModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoriesModel.swift; sourceTree = "<group>"; };
@@ -451,7 +455,7 @@
 		C5BEC26D2B92C37300532C54 /* EventCalender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventCalender.swift; sourceTree = "<group>"; };
 		C5BEC26F2B932EAE00532C54 /* MTSlideToOpenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MTSlideToOpenView.swift; sourceTree = "<group>"; };
 		C5C364F12D8AA518009B326C /* ServiceVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceVC.swift; sourceTree = "<group>"; };
-		C5C364FE2D8ABC52009B326C /* RentalReadyModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentalReadyModel.swift; sourceTree = "<group>"; };
+		C5C364FE2D8ABC52009B326C /* RantalReadyModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RantalReadyModel.swift; sourceTree = "<group>"; };
 		C5D55B692B696EB8006AEC63 /* OrderSuccessViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderSuccessViewController.swift; sourceTree = "<group>"; };
 		C5D55B6B2B69FB13006AEC63 /* TermsAndConditionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAndConditionViewController.swift; sourceTree = "<group>"; };
 		C5D55B6E2B6C04C5006AEC63 /* OrderListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderListViewController.swift; sourceTree = "<group>"; };
@@ -519,9 +523,12 @@
 			isa = PBXGroup;
 			children = (
 				EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */,
+				C52610612EFACCF700501352 /* EqupmentFile.swift */,
 				001D08282E8FFE25004F4B13 /* CategoryListFile.swift */,
 				C578EEE52EE2E68800B92E3F /* CheckListFile.swift */,
 				00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */,
+				004DC9252F0665F600E70DCF /* SyncEquipment.swift */,
+				001D082A2E90005E004F4B13 /* kEnum.swift */,
 			);
 			path = "FileData Helper";
 			sourceTree = "<group>";
@@ -709,7 +716,6 @@
 			children = (
 				001D08272E8FFE1B004F4B13 /* FileData Helper */,
 				C51AF5422AD178220042589E /* TextFile.swift */,
-				001D082A2E90005E004F4B13 /* kEnum.swift */,
 				C5BEC26F2B932EAE00532C54 /* MTSlideToOpenView.swift */,
 				C5044C722BBD5CD200A81242 /* CoreData */,
 				C51AF5432AD178220042589E /* Other Views */,
@@ -1217,7 +1223,7 @@
 		C5474A9F2D8A996E004277AC /* Rantal Ready */ = {
 			isa = PBXGroup;
 			children = (
-				C5C364FE2D8ABC52009B326C /* RentalReadyModel.swift */,
+				C5C364FE2D8ABC52009B326C /* RantalReadyModel.swift */,
 				C5474A9E2D8A996E004277AC /* RantalReadyVC.swift */,
 			);
 			path = "Rantal Ready";
@@ -1452,7 +1458,6 @@
 				C51AF5102AD177DE0042589E /* Frameworks */,
 				C51AF5112AD177DE0042589E /* Resources */,
 				C51AF65A2AD17BB10042589E /* Embed Foundation Extensions */,
-				C50AAB612EBEFC80007F4180 /* ShellScript */,
 			);
 			buildRules = (
 			);
@@ -1613,42 +1618,19 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
-/* Begin PBXShellScriptBuildPhase section */
-		C50AAB612EBEFC80007F4180 /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}",
-				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${PRODUCT_NAME}",
-				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/GoogleService-Info.plist",
-				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\"${BUILD_DIR%/Build/*}/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run\"\n";
-		};
-/* End PBXShellScriptBuildPhase section */
-
 /* Begin PBXSourcesBuildPhase section */
 		C51AF50F2AD177DE0042589E /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C52610622EFACCFE00501352 /* EqupmentFile.swift in Sources */,
 				C51AF5F92AD178220042589E /* BlinkAnimatorConfigurable.swift in Sources */,
 				C5474AA52D8A9993004277AC /* NotesVC.swift in Sources */,
 				C51AF6162AD178220042589E /* Gridlines.swift in Sources */,
 				C51AF6102AD178220042589E /* LayoutEngine.swift in Sources */,
 				C5044C882BBD5CF800A81242 /* RentnKingDataBase.xcdatamodeld in Sources */,
 				C510D6C82B567FE600D9871F /* ProductDetailsViewController.swift in Sources */,
+				004DC9262F06660D00E70DCF /* SyncEquipment.swift in Sources */,
 				C51AF5D22AD178220042589E /* UIView.swift in Sources */,
 				C5044C812BBD5CD300A81242 /* DownloadFile.swift in Sources */,
 				C51AF6142AD178220042589E /* SpreadsheetView.swift in Sources */,
@@ -1777,7 +1759,7 @@
 				C51AF5F32AD178220042589E /* Coverable+UIKit.swift in Sources */,
 				C5BEC2702B932EAE00532C54 /* MTSlideToOpenView.swift in Sources */,
 				C5FCEAB22B87B888007D6141 /* PaymentView.swift in Sources */,
-				C5C364FF2D8ABC52009B326C /* RentalReadyModel.swift in Sources */,
+				C5C364FF2D8ABC52009B326C /* RantalReadyModel.swift in Sources */,
 				C5E06B4E2CCBBFDB00FDF876 /* AddNoteView.swift in Sources */,
 				C51AF6012AD178220042589E /* BackAndForthLayerAnimatorGradient.swift in Sources */,
 				C51AF5FF2AD178220042589E /* InstaLayerAnimatorGradient.swift in Sources */,
@@ -1974,14 +1956,14 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1011;
+				CURRENT_PROJECT_VERSION = 1012;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKing/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = KABBA2.AI;
+				INFOPLIST_KEY_CFBundleDisplayName = KABBA.AI;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This Application need to access your calendar to add event on it";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need this permission to capture and update driver profile picture.";
@@ -2016,14 +1998,14 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1011;
+				CURRENT_PROJECT_VERSION = 1012;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKing/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = KABBA2.AI;
+				INFOPLIST_KEY_CFBundleDisplayName = KABBA.AI;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "This Application need to access your calendar to add event on it";
 				INFOPLIST_KEY_NSCameraUsageDescription = "We need this permission to capture and update driver profile picture.";
@@ -2054,7 +2036,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1011;
+				CURRENT_PROJECT_VERSION = 1012;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2082,7 +2064,7 @@
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1011;
+				CURRENT_PROJECT_VERSION = 1012;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;

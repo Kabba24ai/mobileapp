@@ -72,12 +72,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if monitor.isReachable() {
             print("✅ Internet available at launch → Sync now")
             syncOrderNoteWithAPI()
+            syncEquipmentWithAPI()
         }
         
         // 👂 Listen for future internet restoration
         monitor.onNetworkRestored = {
             print("🌐 Internet restored after launch → Sync now")
             syncOrderNoteWithAPI()
+            syncEquipmentWithAPI()
         }
     }
     
@@ -191,7 +193,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 
 struct LoginParameater: Codable {
-    var email : String = "gary.jezorski@kabba.com"
+    var email : String = "garyj@rentnking.com"
     var password : String = "Gary#1234"
 }
 

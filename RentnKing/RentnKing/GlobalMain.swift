@@ -679,7 +679,10 @@ enum Url {
     static let updateReturnCheckList = NSURL(string: "\(Application.BaseURL_NEW)orders/customer-checklists/save-return")!
     static let priceList = NSURL(string: "\(Application.BaseURL_NEW)configurations")!
 
-    
+    static let rantalReady = NSURL(string: "\(Application.BaseURL_NEW)rental-ready-checklists")!
+
+    static let updateRantalReady = NSURL(string: "\(Application.BaseURL_NEW)orders/rental-ready-checklists/save-rental-ready")!
+
     //TIME CLOCK
     static let employeesList = NSURL(string: "\(Application.BaseURL_NEW)users")!
     
@@ -736,8 +739,6 @@ enum Url {
     static let inventoryStatus = NSURL(string: "\(Application.BaseURL)maintenance/statues")!
     static let inventoryService = NSURL(string: "\(Application.BaseURL)maintenance/inventory/services")!
 
-    static let rantalReady = NSURL(string: "\(Application.BaseURL)maintenance/profile/view")!
-    static let updateRantalReady = NSURL(string: "\(Application.BaseURL)maintenance/inventory/update")!
 
 }
 
@@ -1365,6 +1366,6 @@ func normalizeFileName(from urlString: String) -> String? {
     return fileName
 }
 
-
-
-
+func formattedOrderID(_ id: Int) -> String {
+    return String(format: "#%04d", id)
+}

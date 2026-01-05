@@ -156,6 +156,8 @@ func getPriceList(completion: @escaping ([PriceListModel]) -> Void) {
 }
 
 
+
+
 func getPriceData() -> [PriceListModel] {
     var arrPriceList : [PriceListModel] = []
 
@@ -165,4 +167,65 @@ func getPriceData() -> [PriceListModel] {
     }
 
     return arrPriceList
+}
+
+
+
+
+// MARK: - Get Employee List
+func getEmployeeList(completion: @escaping ([EmployeesModel]) -> Void) {
+    if !getEmployeeData().isEmpty {
+        completion(getEmployeeData())
+    }
+    
+    CallAPIforGetEmployeesList(CatrgoryParameater: CatrgoryParameater()) { isSaved in
+        if isSaved {
+            completion(getEmployeeData())
+        } else {
+            completion([])
+        }
+    }
+}
+
+
+func getEmployeeData() -> [EmployeesModel] {
+    if let arr = SDKUserDefault.getMappableArray(EmployeesModel.self, for: kFileStorageName.kEmployesList.rawValue) {
+        return arr
+    }
+    return []
+}
+
+func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, completion: @escaping (Bool) -> Void) {
+    
+    guard let parameater = try? CatrgoryParameater.asDictionary() else {
+        showAlertMessage(strMessage: str.invalidRequestParamater)
+        return
+    }
+    
+    //Declaration URL
+    let strURL = "\(Url.employeesList.absoluteString!)"
+    
+    //Create object for webservicehelper and start to call method
+    let webHelper = WebServiceHelper()
+    webHelper.methodType = "post"
+    webHelper.strURL = strURL
+    webHelper.dictType = parameater
+    webHelper.dictHeader = NSDictionary()
+    webHelper.showLogForCallingAPI = true
+    webHelper.serviceWithAlert = true
+    webHelper.indicatorShowOrHide = false
+    webHelper.callAPIwithCompletation { data, arr, isDic, error in
+        
+        if data?.getStringForID(key: "success") == "1" {
+            if let arrData = data?["users"] as? NSArray {
+                
+                var arrData = Mapper<EmployeesModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                arrData = arrData.sorted(by: { $0.name ?? "" < $1.name ?? "" })
+                
+                //SAVE ARRAY
+                SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue)
+                completion(true)
+            }
+        }
+    }
 }

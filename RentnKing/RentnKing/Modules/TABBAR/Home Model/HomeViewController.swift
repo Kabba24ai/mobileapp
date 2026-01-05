@@ -145,6 +145,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         AppUtility.PortraitMode()
         GlobalMainConstants.appDelegate?.getScheduleCount()
         syncOrderNoteWithAPI()
+        syncEquipmentWithAPI()
         
         //UPLOAD LOCAL DATA
         self.stopUploadData()

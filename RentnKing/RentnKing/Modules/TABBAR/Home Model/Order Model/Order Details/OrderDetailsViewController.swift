@@ -162,7 +162,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     
     func updateNavigationbar(){
         //SET NAVIGATION BAR
-        setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: self.objOrderData != nil ? (self.objOrderData.is_same_as_billing == false ? "+View Billing Info" : "") : "", isDetailsScree: true) {
+        setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "+View Billing", isDetailsScree: true) {
             
             if self.selectIndex != -1{
                 if self.objOrderData != nil{
@@ -184,16 +184,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
         } rightActionHandler: {
-            if self.objOrderData.is_same_as_billing == false{
-                if self.isBillingView{
-                    self.isBillingView = false
-                }
-                else{
-                    self.isBillingView = true
-                }
-                
-                self.updateBillingView()
+            if self.isBillingView{
+                self.isBillingView = false
             }
+            else{
+                self.isBillingView = true
+            }
+            
+            self.updateBillingView()
            
         }
     }
