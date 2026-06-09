@@ -282,12 +282,19 @@ extension HomeViewController{
     
     
     @IBAction func btnEquipmentClicked(_ sender: UIButton) {
-        
+
         //MOVE FORGOT SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineProfileViewController") as? MachineProfileViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
-    
+
+    @IBAction func btnDispatchClicked(_ sender: UIButton) {
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.DISPATCH_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DispatchListViewController") as? DispatchListViewController {
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+
 }

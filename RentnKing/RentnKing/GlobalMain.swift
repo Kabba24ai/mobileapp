@@ -63,6 +63,7 @@ struct GlobalMainConstants
     static let TIMECLOCK_MODEL = "TimeClock"
     static let ORDER_MODEL = "Order"
     static let SCHEDULE_MODEL = "Schedule"
+    static let DISPATCH_MODEL = "Dispatch"
     static let EQUIPMENT_MODEL = "Equipment"
 
     //FONT NAME
@@ -668,6 +669,10 @@ enum Url {
     //SCHEDULE
     static let scheduleList = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules")!
     static let scheduleUpdate = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules/update")!
+
+    //DISPATCH
+    static let dispatchList = NSURL(string: "\(Application.BaseURL_NEW)dispatch")!
+    static let dispatchUpdateStatus = NSURL(string: "\(Application.BaseURL_NEW)dispatch/update-status")!
 
     //STATES
     static let getStates = NSURL(string: "\(Application.BaseURL_NEW)locations/states")!
