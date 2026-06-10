@@ -266,6 +266,12 @@ class CartListCell : UITableViewCell{
     @IBOutlet weak var lblPrice: UILabel!
     @IBOutlet weak var lblPriceTotal: UILabel!
     
+    @IBOutlet weak var objDistances: UIStackView!
+    @IBOutlet weak var lblDistances: UILabel!
+    @IBOutlet weak var lblDistancesPrice: UILabel!
+    @IBOutlet weak var lblDistancesValues: UILabel!
+
+    
     @IBOutlet weak var objOptions: UIStackView!
     @IBOutlet weak var lblOptions: UILabel!
     @IBOutlet weak var lblOptionsPrice: UILabel!
@@ -281,9 +287,11 @@ class CartListCell : UITableViewCell{
     @IBOutlet weak var btnUpdate: UIButton!
     
     //STORE ADSRESS
-    @IBOutlet weak var imgStore: UIImageView!
-    @IBOutlet weak var lblStoreAddress: UILabel!
-    @IBOutlet weak var con_imgStore: NSLayoutConstraint!
+    @IBOutlet weak var imgDelivery: UIImageView!
+    @IBOutlet weak var lblDelivery: UILabel!
+    
+    @IBOutlet weak var imgPickup: UIImageView!
+    @IBOutlet weak var lblPickup: UILabel!
 
 
     @IBOutlet weak var viewLine: UIView!
@@ -297,8 +305,8 @@ class CartListCell : UITableViewCell{
         return [
             imgProduct,
             lblProductName,
-            lblTotlaPrice,
-            lblScheduleDate,
+//            lblTotlaPrice,
+//            lblScheduleDate,
             lblPrice,
             lblPriceTotal,
             lblOptions,

@@ -85,6 +85,36 @@ struct GlobalMainConstants
     
     
     
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     //Device Token
     static let DeviceToken = UserDefaults.standard.object(forKey: "DeviceToken")
     
@@ -218,12 +248,17 @@ func SetTheFont(fontName :String, size :Double) -> UIFont {
 }
 
 //............................... ALERT MESSAGE ...............................................//
-func showAlertMessage(strMessage: String) {
+func showAlertMessage(strMessage: String, isDismiss : Bool = false) {
     let alert = UIAlertController(title: Application.appName, message: strMessage, preferredStyle: UIAlertController.Style.alert)
     
     alert.addAction(UIAlertAction(title: str.ok, style: UIAlertAction.Style.default, handler: nil))
-    getTopViewController?.present(alert, animated: true, completion: nil)
-    
+    getTopViewController?.present(alert, animated: true) {
+        if isDismiss {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                alert.dismiss(animated: true)
+            }
+        }
+    }
 }
 
 
@@ -634,64 +669,309 @@ extension UIDevice {
 }
 
 
+enum Url {
 
+    private static func makeURL(baseURL: String, path: String) -> NSURL {
+        let cleanBaseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        let cleanPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
+
+        let finalURL = "\(cleanBaseURL)/\(cleanPath)"
+        return NSURL(string: finalURL)!
+    }
+
+    private static func newAPI(_ path: String) -> NSURL {
+        return makeURL(baseURL: Application.BaseURL_NEW, path: path)
+    }
+
+    private static func oldAPI(_ path: String) -> NSURL {
+        return makeURL(baseURL: Application.BaseURL_NEW, path: path)
+    }
+
+    // MARK: - NEW API
+
+    static var login: NSURL {
+        return newAPI("login")
+    }
+
+    static var getStores: NSURL {
+        return newAPI("stores")
+    }
+
+    // MARK: - ORDER
+    static var orderList: NSURL {
+        return newAPI("orders")
+    }
+
+    static var orderDetails: NSURL {
+        return newAPI("orders/details")
+    }
+
+    static var categoryList: NSURL {
+        return newAPI("product-categories")
+    }
+
+    static var updateAddress: NSURL {
+        return newAPI("orders/update-address")
+    }
+
+    static var usersList: NSURL {
+        return newAPI("users")
+    }
+
+    static var orderPayment: NSURL {
+        return newAPI("orders/payment")
+    }
+
+    // MARK: - IMAGE UPLOAD
+
+    static var uploadLicenseMedia: NSURL {
+        return newAPI("orders/upload-media")
+    }
+
+    // MARK: - NOTE
+
+    static var addOrderNote: NSURL {
+        return newAPI("orders/notes/create")
+    }
+
+    static var updateOrderNote: NSURL {
+        return newAPI("orders/notes/update")
+    }
+
+    static var deleteNote: NSURL {
+        return newAPI("orders/notes/remove")
+    }
+
+    // MARK: - SCHEDULE
+
+    static var scheduleList: NSURL {
+        return newAPI("orders/schedules")
+    }
+
+    static var scheduleUpdate: NSURL {
+        return newAPI("orders/schedules/update")
+    }
+
+    // MARK: - STATES
+
+    static var getStates: NSURL {
+        return newAPI("locations/states")
+    }
+
+    // MARK: - CUSTOMER
+
+    static var customerList: NSURL {
+        return newAPI("customers")
+    }
+    
+    static var customerTagList: NSURL {
+        return newAPI("customers/tags")
+    }
+    
+    // MARK: - CHECKLIST
+
+    static var equipmentList: NSURL {
+        return newAPI("equipment")
+    }
+    
+    static var customerCheckList: NSURL {
+        return newAPI("customer-checklists/question-answers")
+    }
+
+    static var updateDeliveryCheckList: NSURL {
+        return newAPI("orders/customer-checklists/save-delivery")
+    }
+
+    static var updateReturnCheckList: NSURL {
+        return newAPI("orders/customer-checklists/save-return")
+    }
+
+    static var priceList: NSURL {
+        return newAPI("configurations")
+    }
+
+    static var rantalReady: NSURL {
+        return newAPI("rental-ready-checklists")
+    }
+
+    static var updateRantalReady: NSURL {
+        return newAPI("orders/rental-ready-checklists/save-rental-ready")
+    }
+
+    
+    
+    
+    // MARK: - TIME CLOCK
+
+    static var employeesList: NSURL {
+        return newAPI("users")
+    }
+
+    static var updateToken: NSURL {
+        return newAPI("users/device-token")
+    }
+
+    static var getNotification: NSURL {
+        return newAPI("user-notification/all?status=unread")
+    }
+
+    static var updateNotification: NSURL {
+        return newAPI("user-notification/update/status")
+    }
+
+    // MARK: - OLD API
+
+    // MARK: - CATEGORY
+
+    static var categoryProducts: NSURL {
+        return oldAPI("getcategoryproducts")
+    }
+
+    static var searchProducts: NSURL {
+        return oldAPI("search-products")
+    }
+
+    static var productsDetaisl: NSURL {
+        return oldAPI("getProductDetails")
+    }
+
+    static var placeORder: NSURL {
+        return oldAPI("place-order")
+    }
+
+    // MARK: - TIME CLOCK
+
+    static var timeClockSetting: NSURL {
+        return oldAPI("time-clock/settings")
+    }
+
+    static var statusList: NSURL {
+        return oldAPI("attendance/statues")
+    }
+
+    static var employeeStatus: NSURL {
+        return oldAPI("employee/status")
+    }
+
+    static var updateEmployeeStatus: NSURL {
+        return oldAPI("employee/attendance/track")
+    }
+
+    // MARK: - MACHINE PROFILE
+
+    static var maintenanceProfile: NSURL {
+        return oldAPI("maintenance/inventory/report")
+    }
+
+    static var inventoryClass: NSURL {
+        return oldAPI("maintenance/inventory/class")
+    }
+
+    static var inventoryStatus: NSURL {
+        return oldAPI("maintenance/statues")
+    }
+
+    static var inventoryService: NSURL {
+        return oldAPI("maintenance/inventory/services")
+    }
+}
 
 //URL
-enum Url {
-    static let updateToken = NSURL(string: "\(Application.BaseURL)device-token")!
-
-    //CATEGORY
-    static let categorys = NSURL(string: "\(Application.BaseURL)getcategories")!
-    static let categoryProducts = NSURL(string: "\(Application.BaseURL)getcategoryproducts")!
-    static let searchProducts = NSURL(string: "\(Application.BaseURL)search-products")!
-    static let productsDetaisl = NSURL(string: "\(Application.BaseURL)getProductDetails")!
-
-    static let getStores = NSURL(string: "\(Application.BaseURL)getStores")!
-    static let placeORder = NSURL(string: "\(Application.BaseURL)place-order")!
-
-    //STATES
-    static let getStates = NSURL(string: "\(Application.BaseURL)getstates")!
-
-
-    //ORDER
-    static let orderList = NSURL(string: "\(Application.BaseURL)getorders")!
-    static let orderDetails = NSURL(string: "\(Application.BaseURL)getorderdetail")!
-    static let uploadLicense = NSURL(string: "\(Application.BaseURL)order/upload/license")!
-    static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
-    static let orderPayment = NSURL(string: "\(Application.BaseURL)order/payment")!
-    static let updateAddress = NSURL(string: "\(Application.BaseURL)order/address/update")!
-    static let updateCheckList = NSURL(string: "\(Application.BaseURL)order/checklist-update")!
-    static let updateCheckListImages = NSURL(string: "\(Application.BaseURL)order/checklist-media-update")!
-    static let addOrderNote = NSURL(string: "\(Application.BaseURL)order/note/update")!
-
-    //TIME CLOCK
-    static let timeClockSetting = NSURL(string: "\(Application.BaseURL)time-clock/settings")!
-    static let statusList = NSURL(string: "\(Application.BaseURL)attendance/statues")!
-    static let employeesList = NSURL(string: "\(Application.BaseURL)employees")!
-    static let employeeStatus = NSURL(string: "\(Application.BaseURL)employee/status")!
-    static let updateEmployeeStatus = NSURL(string: "\(Application.BaseURL)employee/attendance/track")!
-    static let checkListPrice = NSURL(string: "\(Application.BaseURL)checklist/price")!
-    static let machineList = NSURL(string: "\(Application.BaseURL)maintenance/inventory")!
-
-    //IMAGE VIDEO UPLOAD
-    static let uploadImageVideo = NSURL(string: "\(Application.BaseURL)order/upload/images")!
-    static let removeImageVideo = NSURL(string: "\(Application.BaseURL)order/remove/images")!
-
-    //SCHEDULE
-    static let scheduleList = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-list")!
-    static let scheduleListCound = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-count")!
-    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-update")!
-
-    //MACHINE PROFILE
-    static let maintenanceProfile = NSURL(string: "\(Application.BaseURL)maintenance/inventory/report")!
-    static let inventoryClass = NSURL(string: "\(Application.BaseURL)maintenance/inventory/class")!
-    static let inventoryStatus = NSURL(string: "\(Application.BaseURL)maintenance/statues")!
-    static let inventoryService = NSURL(string: "\(Application.BaseURL)maintenance/inventory/services")!
-
-    static let rantalReady = NSURL(string: "\(Application.BaseURL)maintenance/profile/view")!
-    static let updateRantalReady = NSURL(string: "\(Application.BaseURL)maintenance/inventory/update")!
-
-}
+//enum Url {
+//    //NEW API
+//    static let login = NSURL(string: "\(Application.BaseURL_NEW)login")!
+//    static let getStores = NSURL(string: "\(Application.BaseURL_NEW)stores")!
+//
+//    //ORDER
+//    static let orderList = NSURL(string: "\(Application.BaseURL_NEW)orders")!
+//    static let orderDetails = NSURL(string: "\(Application.BaseURL_NEW)orders/details")!
+//
+//    static let categoryList = NSURL(string: "\(Application.BaseURL_NEW)product-categories")!
+//
+//    static let updateAddress = NSURL(string: "\(Application.BaseURL_NEW )orders/update-address")!
+//    static let usersList = NSURL(string: "\(Application.BaseURL_NEW)users")!
+//    static let orderPayment = NSURL(string: "\(Application.BaseURL_NEW)orders/payment")!
+//
+//    //IMAGE UPLOAD
+//    static let uploadLicenseMedia = NSURL(string: "\(Application.BaseURL_NEW)orders/upload-media")!
+//
+//    //NOTE
+//    static let addOrderNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/create")!
+//    static let updateOrderNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/update")!
+//    static let deleteNote = NSURL(string: "\(Application.BaseURL_NEW)orders/notes/remove")!
+//    
+//    //SCHEDULE
+//    static let scheduleList = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules")!
+//    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL_NEW)orders/schedules/update")!
+//
+//    //STATES
+//    static let getStates = NSURL(string: "\(Application.BaseURL_NEW)locations/states")!
+//    
+//    //CHECKLIST
+//    static let equipmentList = NSURL(string: "\(Application.BaseURL_NEW)equipment")!
+//    static let customerCheckList = NSURL(string: "\(Application.BaseURL_NEW)customer-checklists/question-answers")!
+//    static let updateDeliveryCheckList = NSURL(string: "\(Application.BaseURL_NEW)orders/customer-checklists/save-delivery")!
+//    static let updateReturnCheckList = NSURL(string: "\(Application.BaseURL_NEW)orders/customer-checklists/save-return")!
+//    static let priceList = NSURL(string: "\(Application.BaseURL_NEW)configurations")!
+//
+//    static let rantalReady = NSURL(string: "\(Application.BaseURL_NEW)rental-ready-checklists")!
+//
+//    static let updateRantalReady = NSURL(string: "\(Application.BaseURL_NEW)orders/rental-ready-checklists/save-rental-ready")!
+//
+//    //TIME CLOCK
+//    static let employeesList = NSURL(string: "\(Application.BaseURL_NEW)users")!
+//    
+//    static let updateToken = NSURL(string: "\(Application.BaseURL_NEW)users/device-token")!
+//    static let getNotification = NSURL(string: "\(Application.BaseURL_NEW)user-notification/all?status=unread")!
+//    static let updateNotification = NSURL(string: "\(Application.BaseURL_NEW)user-notification/update/status")!
+//
+//    
+//    
+//    
+//    
+//    //OLAD API
+//
+//    //CATEGORY
+//    static let categoryProducts = NSURL(string: "\(Application.BaseURL)getcategoryproducts")!
+//    static let searchProducts = NSURL(string: "\(Application.BaseURL)search-products")!
+//    static let productsDetaisl = NSURL(string: "\(Application.BaseURL)getProductDetails")!
+//
+//    static let placeORder = NSURL(string: "\(Application.BaseURL)place-order")!
+//
+// 
+//
+//    //ORDER
+////    static let orderList = NSURL(string: "\(Application.BaseURL)getorders")!
+////    static let orderDetails = NSURL(string: "\(Application.BaseURL)getorderdetail")!
+//    //static let uploadLicense = NSURL(string: "\(Application.BaseURL)order/upload/license")!
+////
+////    static let machineHours = NSURL(string: "\(Application.BaseURL)order/update/multiple/product-hours")!
+////    static let updateCheckListImages = NSURL(string: "\(Application.BaseURL)order/checklist-media-update")!
+////
+//    //TIME CLOCK
+//    static let timeClockSetting = NSURL(string: "\(Application.BaseURL)time-clock/settings")!
+//    static let statusList = NSURL(string: "\(Application.BaseURL)attendance/statues")!
+////    static let employeesList = NSURL(string: "\(Application.BaseURL)employees")!
+//    static let employeeStatus = NSURL(string: "\(Application.BaseURL)employee/status")!
+//    static let updateEmployeeStatus = NSURL(string: "\(Application.BaseURL)employee/attendance/track")!
+//
+////    //IMAGE VIDEO UPLOAD
+////    static let uploadImageVideo = NSURL(string: "\(Application.BaseURL)order/upload/images")!
+////    static let removeImageVideo = NSURL(string: "\(Application.BaseURL)order/remove/images")!
+////
+////    //SCHEDULE
+//////    static let scheduleList = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-list")!
+//////    static let scheduleListCound = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-count")!
+//////    static let scheduleUpdate = NSURL(string: "\(Application.BaseURL)order/delivery-pickup-update")!
+////
+//    //MACHINE PROFILE
+//    static let maintenanceProfile = NSURL(string: "\(Application.BaseURL)maintenance/inventory/report")!
+//    static let inventoryClass = NSURL(string: "\(Application.BaseURL)maintenance/inventory/class")!
+//    static let inventoryStatus = NSURL(string: "\(Application.BaseURL)maintenance/statues")!
+//    static let inventoryService = NSURL(string: "\(Application.BaseURL)maintenance/inventory/services")!
+//
+//
+//}
 
 
 
@@ -943,7 +1223,12 @@ extension String {
     }
 }
 
-
+func getCurrentDate() -> String {
+    let dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "MM/dd/yyyy - hh:mm a"
+    let str_date = dateFormatter.string(from: Date())
+    return str_date
+}
 
 
 
@@ -1236,20 +1521,28 @@ func selectedIndex(arr : NSArray, value : String) -> Int{
 func actionPicker(_ sender: UIButton, strTitle :String ,arrData :[String], selectValue :String, completion: @escaping (_ index: Int, _ values: String) -> Void) {
   
     
-    let picker = ActionSheetStringPicker(title: strTitle, rows: arrData, initialSelection:selectedIndex(arr: arrData as NSArray, value: selectValue), doneBlock: { (picker, indexes, values) in
+    let picker = ActionSheetStringPicker(title: strTitle == "" ? nil : strTitle, rows: arrData, initialSelection:selectedIndex(arr: arrData as NSArray, value: selectValue), doneBlock: { (picker, indexes, values) in
         
         completion(indexes , "\(values ?? "")")
         
     }, cancel: {ActionSheetStringPicker in return}, origin: sender)
     
-    //        picker?.hideCancel = true
+    picker?.pickerBackgroundColor = .white
+    picker?.toolbarBackgroundColor = .white
+    picker?.toolbarButtonsColor = .white
+
+    
     picker?.setDoneButton(UIBarButtonItem(title: str.streSelect, style: .plain, target: nil, action: nil))
     picker?.setCancelButton(UIBarButtonItem(title: str.cancel, style: .plain, target: nil, action: nil))
-//    picker?.toolbarButtonsColor = UIColor.black
- 
+//    picker?.toolbarButtonsColor = .black
+    // Picker wheel text color
+    picker?.setTextColor(.black)
     
     picker?.show()
+    
+    
 }
+
 
 
 func actionDatePicker(_ sender: UIButton, strTitle :String, selectDate :Date = Date(), completion: @escaping (_ index: Int, _ values: Date) -> Void) {
@@ -1282,4 +1575,51 @@ func actionDatePicker(_ sender: UIButton, strTitle :String, selectDate :Date = D
     
     datePicker?.show()
 
+}
+
+
+func getThumbnailImage(forUrl url: URL) -> UIImage? {
+    let asset: AVAsset = AVAsset(url: url)
+    let imageGenerator = AVAssetImageGenerator(asset: asset)
+
+    do {
+        let thumbnailImage = try imageGenerator.copyCGImage(at: CMTimeMake(value: 1, timescale: 30), actualTime: nil)
+        return UIImage(cgImage: thumbnailImage)
+    } catch let error {
+        print(error)
+    }
+
+    return nil
+}
+
+
+func normalizeFileName(from urlString: String) -> String? {
+    guard let url = URL(string: urlString) else { return nil }
+    let fileName = url.lastPathComponent  // e.g. "Cc3JRn-media-ord-oebz-p2st_1757921034.046299.jpg"
+    
+    // Split on "-media-" because prefix is dynamic
+    if let range = fileName.range(of: "-media-") {
+        // Take everything AFTER "-media-"
+        return String(fileName[range.upperBound...])
+    }
+    return fileName
+}
+
+func formattedOrderID(_ id: Int) -> String {
+    return String(format: "#%04d", id)
+}
+
+
+func formattedDate(month: String, year: String) -> String? {
+    let inputFormatter = DateFormatter()
+    inputFormatter.dateFormat = "MMM yyyy"
+    inputFormatter.locale = Locale(identifier: "en_US_POSIX")
+
+    let outputFormatter = DateFormatter()
+    outputFormatter.dateFormat = "yyyy-MM-dd"
+
+    if let date = inputFormatter.date(from: "\(month) \(year)") {
+        return outputFormatter.string(from: date)
+    }
+    return nil
 }

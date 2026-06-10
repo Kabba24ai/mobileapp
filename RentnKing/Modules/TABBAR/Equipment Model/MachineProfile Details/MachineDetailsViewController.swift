@@ -13,9 +13,11 @@ class MachineDetailsViewController: UIViewController , MachinePageViewController
 
     //Other declaationdeclaration
     var indexpath_Header : NSIndexPath = NSIndexPath(row: 0, section: 0)
-    var arr_Header = [str.strNoteGeneral, str.strRentalReady, str.strCheckList, str.strPartsList, str.strService]
+    var arr_Header = [ str.strRentalReady, str.strCheckList, str.strPartsList, str.strService]
     var strTitleName : String = ""
     var strID : String = ""
+    var arrRentalReady : [RentalReadyModel] = []
+    var objRentalReadyData : MachineModel!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -53,6 +55,8 @@ class MachineDetailsViewController: UIViewController , MachinePageViewController
         didSet {
             ProspectiveCustomersPageViewController?.tutorialDelegate = self
             ProspectiveCustomersPageViewController?.strID = self.strID
+            ProspectiveCustomersPageViewController?.arrRentalReady = self.arrRentalReady
+            ProspectiveCustomersPageViewController?.objRentalReadyData = self.objRentalReadyData
         }
     }
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {

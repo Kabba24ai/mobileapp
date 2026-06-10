@@ -179,7 +179,7 @@ class AlertPopUp: UIView {
             //CHECK VALIDATION
             let strAmount: String = self.txtAmount.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
             if strAmount == ""{
-                showAlertMessage(strMessage: "Please enter amount")
+                showAlertMessage(strMessage: "Please enter an amount.")
             }
             else{
                 self.removeViewWithAnimation(isClose: false)

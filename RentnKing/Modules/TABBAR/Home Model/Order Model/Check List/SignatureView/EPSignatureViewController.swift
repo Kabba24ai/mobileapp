@@ -123,7 +123,7 @@ open class EPSignatureViewController: UIViewController {
             signatureDelegate?.epSignature!(self, didSign: signature, boundingRect: signatureView.getSignatureBoundsInCanvas(), strIndex: self.strIndex)
             dismiss(animated: true, completion: nil)
         } else {
-            showAlert("You did not sign", andTitle: "Please draw your signature")
+            showAlert("You have not signed.", andTitle: "Please draw your signature")
         }
     }
     
@@ -139,7 +139,7 @@ open class EPSignatureViewController: UIViewController {
             signatureDelegate?.epSignature!(self, didSign: signature, boundingRect: signatureView.getSignatureBoundsInCanvas(), strIndex: self.strIndex)
             dismiss(animated: true, completion: nil)
         } else {
-            showAlert("You did not sign", andTitle: "Please draw your signature")
+            showAlert("You have not signed.", andTitle: "Please draw your signature")
         }
     }
     

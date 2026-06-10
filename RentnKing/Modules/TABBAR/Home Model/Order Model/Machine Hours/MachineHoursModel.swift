@@ -11,8 +11,7 @@ import ObjectMapper
 
 
 struct OrdersDetailsParameater: Codable {
-    var order_id : String
-    var product_id : String
+    var unique_id : String
 }
 
 extension MachineHoursViewController :WebServiceHelperDelegate{
@@ -45,7 +44,7 @@ extension MachineHoursViewController :WebServiceHelperDelegate{
   
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
 
         if data.getStringForID(key: "success") == "1"{

@@ -11,8 +11,28 @@ import UIKit
 
 
 
+struct UserListModel: Mappable{
+    internal var id: Int?
+    internal var unique_id: String?
+    internal var full_name: String?
+    internal var email: String?
+    internal var status: String?
+    
+    init?(map:Map) {
+        mapping(map: map)
+    }
+    
+    mutating func mapping(map:Map){
+        id <- map["id"]
+        unique_id <- map["unique_id"]
+        
+        full_name <- map["full_name"]
+        email <- map["email"]
+        status <- map["status"]
+    }
+}
 
-extension OrderDetailsViewController :WebServiceHelperDelegate{
+extension OrderDetailsViewController {
     //LOADER
     func getAnimableSubviews() -> [UIView] {
         return [UIView](getAllSubviews())
@@ -25,8 +45,7 @@ extension OrderDetailsViewController :WebServiceHelperDelegate{
             lblNumber,
             imgCall,
             lblNoteTitle,
-            lblNote,
-            imgNote,
+            viewAddNoteBtn,
             lblEmail,
             lblAddress,
             imgMapAddress,
@@ -42,11 +61,9 @@ extension OrderDetailsViewController :WebServiceHelperDelegate{
             lblPaymentType,
             viewLicense,
             viewTermsAndCondition,
-            viewHoursStart,
-            viewHoursEnd,
             viewCheckListDeliv,
             viewCheckListRet,
-            viewPhotVideo,
+            viewPhotVideoDeli,
             viewDeliveryStatus,
             viewPaymentType,
             lblDeliveryInfo,
@@ -59,78 +76,88 @@ extension OrderDetailsViewController :WebServiceHelperDelegate{
             imgDeliveryEditAddress
         ]
     }
-
     
-    func getOrderDetails(OrdersDetailsParameater : OrdersDetailsParameater){
+    func CallAPIforGetUsers(CatrgoryParameater : CatrgoryParameater){
+        
+        guard let parameater = try? CatrgoryParameater.asDictionary() else {
+            showAlertMessage(strMessage: str.invalidRequestParamater)
+            return
+        }
+        
+        //Declaration URL
+        let strURL = "\(Url.usersList.absoluteString!)"
+        
+        print("+++++++++++++++++++++++++++++++++==")
+        print(strURL)
+        print(parameater)
+        
+        //Create object for webservicehelper and start to call method
+        let webHelper = WebServiceHelper()
+        webHelper.methodType = "post"
+        webHelper.strURL = strURL
+        webHelper.dictType = parameater
+        webHelper.dictHeader = NSDictionary()
+        webHelper.showLogForCallingAPI = true
+        webHelper.serviceWithAlert = true
+        webHelper.indicatorShowOrHide = false
+        webHelper.callAPIwithCompletation { dic, arr, success, err in
+            indicatorHide()
+
+            if dic?.getStringForID(key: "success") == "1" {
+                if let arrData = dic?["users"] as? NSArray {
+                    
+                    let arrData = Mapper<UserListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    self.arrUserList = arrData.sorted(by: { $0.full_name ?? "" < $1.full_name ?? "" })
+                    
+                    // Overwrite old data
+                    SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kOrderDetailUserData.rawValue)
+                }
+            }
+            else {
+                indicatorHide()
+//                showAlertMessage(strMessage: "GetUsers \(str.somethingWentWrong)")
+            }
+        }
+    }
+    
+    func CallAPIforGetOrderDetails(OrdersDetailsParameater : OrdersDetailsParameater){
         if isLoading{
             DispatchQueue.main.async {
                 self.orderDetailsPlaceholderMarker.register(self.getAnimableSubviews())
                 self.orderDetailsPlaceholderMarker.startAnimation()
             }
         }
-      
+        
         
         guard let parameater = try? OrdersDetailsParameater.asDictionary() else {
             showAlertMessage(strMessage: str.invalidRequestParamater)
             return
         }
-
+        
         //Declaration URL
         let strURL = "\(Url.orderDetails.absoluteString!)"
         
-       
+        
         //Create object for webservicehelper and start to call method
         let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "orderDetails"
         webHelper.methodType = "post"
         webHelper.strURL = strURL
         webHelper.dictType = parameater
         webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
         webHelper.showLogForCallingAPI = true
         webHelper.serviceWithAlert = true
         webHelper.indicatorShowOrHide = false
-        webHelper.callAPI()
-    }
-    
-    
-    func updateStatus(UpdateStatusParameater : UpdateStatusParameater, index : Int){
-       
-        guard let parameater = try? UpdateStatusParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
-
-        //Declaration URL
-        let strURL = "\(Url.scheduleUpdate.absoluteString!)"
-
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "scheduleUpdate"
-        webHelper.methodType = "post"
-        webHelper.selectIndex = index
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = true
-        webHelper.callAPI()
-    }
-    
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
-        indicatorHide()
-
-        if data.getStringForID(key: "success") == "1"{
-            if strRequest == "orderDetails"{
-                if let dicData = data["data"] as? NSDictionary{
+        webHelper.callAPIwithCompletation { dic, arr, success, err in
+            indicatorHide()
+            if dic?.getStringForID(key: "success") == "1" {
+                if let dicData = dic?["order"] as? NSDictionary{
                     
                     //SET DATA
                     let map = Map(mappingType: .fromJSON, JSON: dicData as! [String : Any])
-                    self.objOrderData = OrdersModel(map: map)
+                    self.objOrderData = OrdersListModel(map: map)
                     
+                    // Overwrite old data
+                    SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
                     
                     //SET THE VIEW
                     self.setTheView()
@@ -140,42 +167,11 @@ extension OrderDetailsViewController :WebServiceHelperDelegate{
                     self.setTheView()
                 }
             }
-            else if strRequest == "scheduleUpdate"{
-                print(data)
-                
-                //UPDATE
-                if self.objOrderData.arrDeliveryStatus.count != 0{
-                    var objDelivery = self.objOrderData.arrDeliveryStatus[index]
-                    
-                    if self.deliveryType.lowercased() == "Delivery".lowercased(){
-                        objDelivery.delivery_status?.value = "2"
-                    }
-                    else{
-                        objDelivery.pickup_status?.value = "2"
-                    }
-                    
-                    //UPDATE DATA
-                    self.objOrderData.arrDeliveryStatus.remove(at: index)
-                    self.objOrderData.arrDeliveryStatus.insert(objDelivery, at: index)
-                }
-                
-                //RELOAD TABLE
-                self.setFooter()
+            else {
+                indicatorHide()
+//                showAlertMessage(strMessage: "OrderDetails \(str.somethingWentWrong)")
             }
         }
-        else{
-            indicatorHide()
-            //SET THE VIEW
-//            self.setTheView()
-            showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
-        }
     }
-    
-    func appDataArraySuccess(_ arr: NSArray, request strRequest: String, index: Int) {
-    }
-    
-    func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
-        indicatorHide()
-        showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
-    }
+
 }

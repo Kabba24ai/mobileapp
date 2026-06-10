@@ -9,8 +9,9 @@ import UIKit
 import MessageUI
 import CoreLocation
 import MapKit
+import Alamofire
 protocol OrderDetailsDelegate : NSObject {
-    func updateOrderDetails(selectIndex : Int, objOrderData : OrdersModel)
+    func updateOrderDetails(selectIndex : Int, objOrderData : OrdersListModel)
 }
 
 class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate {
@@ -31,8 +32,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var imgMapAddress: UIImageView!
 
     @IBOutlet weak var lblNoteTitle: UILabel!
-    @IBOutlet weak var lblNote: UILabel!
-    @IBOutlet weak var imgNote: UIImageView!
+    @IBOutlet weak var viewAddNoteBtn: UIView!
+    @IBOutlet weak var imgAddNoteBtn: UIImageView!
+    @IBOutlet weak var lblAddNote: UILabel!
+    @IBOutlet weak var objNoteView: UIStackView!
 
     @IBOutlet weak var viewDelivery: UIView!
     @IBOutlet weak var lblDeliveryInfo: UILabel!
@@ -43,8 +46,6 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var lblDeliveryAddress: UILabel!
     @IBOutlet weak var imgDeliveryEditAddress: UIImageView!
     @IBOutlet weak var imgDeliveryMapAddress: UIImageView!
-
-    
     
 
     @IBOutlet weak var lblProductTitle: UILabel!
@@ -64,6 +65,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
 
     @IBOutlet weak var objButtons: UIStackView!
+    @IBOutlet weak var objButtons1: UIStackView!
+    @IBOutlet weak var objButtons2: UIStackView!
+    @IBOutlet weak var objButtons3: UIStackView!
 
     @IBOutlet weak var viewLicense: UIView!
     @IBOutlet weak var imgLicense: UIImageView!
@@ -71,16 +75,6 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
     @IBOutlet weak var viewTermsAndCondition: UIView!
     @IBOutlet weak var lblTermsAndCondition: UILabel!
-
-    
-    @IBOutlet weak var viewHoursStart: UIView!
-    @IBOutlet weak var imgHoursStart: UIImageView!
-    @IBOutlet weak var lblHoursStart: UILabel!
-
-    @IBOutlet weak var viewHoursEnd: UIView!
-    @IBOutlet weak var imgHoursEnd: UIImageView!
-    @IBOutlet weak var lblHoursEnd: UILabel!
-
     
     @IBOutlet weak var viewCheckListDeliv: UIView!
     @IBOutlet weak var imgCheckListDeliv: UIImageView!
@@ -91,9 +85,15 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var lblCheckListRet: UILabel!
 
     
-    @IBOutlet weak var viewPhotVideo: UIView!
-    @IBOutlet weak var imgPhotVideo: UIImageView!
-    @IBOutlet weak var lblPhotVideo: UILabel!
+    @IBOutlet weak var viewPhotVideoDeli: UIView!
+    @IBOutlet weak var imgPhotVideoDeli: UIImageView!
+    @IBOutlet weak var lblPhotVideoDeli: UILabel!
+    @IBOutlet weak var btnPhotVideoDeli: UIButton!
+    
+    @IBOutlet weak var viewPhotVideoRet: UIView!
+    @IBOutlet weak var imgPhotVideoRet: UIImageView!
+    @IBOutlet weak var lblPhotVideoRet: UILabel!
+    @IBOutlet weak var btnPhotVideoRet: UIButton!
 
     @IBOutlet weak var viewDeliveryStatus: UIView!
     @IBOutlet weak var imgDeliveryStatus: UIImageView!
@@ -108,26 +108,33 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     
     //LOADING
     let orderDetailsPlaceholderMarker = Placeholder()
-
+    var arrUserList : [UserListModel] = []
+    
     //OTHER
     var isOrderScreen : Bool = false
     var isLoading : Bool = true
     var strOrderID : String = ""
+    var OrderID : String = ""
+    var strOrderUniqueId : String = ""
     var isPresent : Bool = false
     
     
     var selectIndex : Int = -1
-    var objOrderData : OrdersModel!
+    var objOrderData : OrdersListModel!
     var strProductID : String = ""
     var deliveryType : String = "Delivery"
+    var isBillingView : Bool = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        syncOrderNoteWithAPI()
 
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(UpdateCheckListsProduct), name: .updateCheckList, object: nil)
 
+        //UPDATE NOTIFICTION
+        GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: self.OrderID))
 
     }
 
@@ -148,8 +155,17 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         self.navigationController?.interactivePopGestureRecognizer?.delegate = self
         self.tabBarController?.tabBar.isHidden = true
         
+        self.updateNavigationbar()
+        
+        //CALL API
+        self.getUserDataFromLocally()
+        self.getOrderDetailFromLocally()
+
+    }
+    
+    func updateNavigationbar(){
         //SET NAVIGATION BAR
-        setNavigationBarFor(controller: self, title: "#\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "icon_cart_shopping", isDetailsScree: true) {
+        setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "+View Billing", isDetailsScree: true) {
             
             if self.selectIndex != -1{
                 if self.objOrderData != nil{
@@ -171,102 +187,41 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
         } rightActionHandler: {
-            
-            //MOVE TO CHECKOUT SCREEN
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckOutViewController") as? CheckOutViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
+            if self.isBillingView{
+                self.isBillingView = false
+            }
+            else{
+                self.isBillingView = true
             }
             
+            self.updateBillingView()
+           
         }
-        
-        //CALL API
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
-
     }
     
     @objc func startUploadData(){
         self.con_Upload.constant = manageFont(font: 0)
+        
     }
     
     @objc func stopUploadData(){
         self.con_Upload.constant = 0
     }
     
-    func setTheView(){
-        self.isLoading = false
-        self.stopLoading()
-        self.setFooter()
-      
+    func updateBillingView(){
+        self.viewBilling.isHidden = !self.isBillingView
+        self.lblDeliveryEmail.isHidden = !self.isBillingView
         
-        //SET DETAILS
-        if self.objOrderData != nil{
-            self.lblProductTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strProductList)
-
-            
-            //SET BILLING ADDRESS
-            self.viewBilling.isHidden = true
-            if self.objOrderData.billing_address != nil{
-                if let objAddress = self.objOrderData.billing_address{
-                    self.viewBilling.isHidden = false
-
-                    self.lblBillingInfo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.BillingInfo)
-
-                    self.lblName.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: objAddress.name ?? "")
-                    self.lblEmail.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: objAddress.name ?? "")
-
-                    
-                    self.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objAddress.name ?? "")")
-                    
-                    let strPhone: String = "\(objAddress.phone ?? "")".trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    self.lblNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strPhone)
-                    imgColor(imgColor: self.imgCall, colorHex: .secondary)
-                    self.lblEmail.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objAddress.email ?? "")")
-                    self.lblEmail.alpha = 0.7
-                    
-                    imgColor(imgColor: self.imgMapAddress, colorHex: .secondary)
-                    imgColor(imgColor: self.imgEditAddress, colorHex: .secondary)
-                    self.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objAddress.address ?? ""), \(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.country ?? ""), \(objAddress.zip_code ?? "")")
-                }
-
-            }
-            
-            
-            //SET DELIVERY ADDRESS
-            self.viewDelivery.isHidden = true
-            if self.objOrderData.shipping_address != nil{
-                if let objAddress = self.objOrderData.shipping_address{
-                    self.viewDelivery.isHidden = false
-
-                    self.lblDeliveryInfo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.DeliveryInfo)
-
-                    self.lblDeliveryName.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: objAddress.name ?? "")
-                    self.lblDeliveryEmail.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: objAddress.name ?? "")
-
-                    
-                    self.lblDeliveryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objAddress.name ?? "")")
-                    
-                    let strPhone: String = "\(objAddress.phone ?? "")".trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
-                    self.lblDeliveryNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strPhone)
-                    imgColor(imgColor: self.imgDeliveryCall, colorHex: .secondary)
+        self.lblDeliveryEmail.text = ""
+        if self.isBillingView{
+            if self.objOrderData.objDeliveryAddress != nil{
+                if let objAddress = self.objOrderData.objDeliveryAddress{
                     self.lblDeliveryEmail.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objAddress.email ?? "")")
-                    self.lblEmail.alpha = 0.7
-                    
-                    imgColor(imgColor: self.imgDeliveryMapAddress, colorHex: .secondary)
-                    imgColor(imgColor: self.imgDeliveryEditAddress, colorHex: .secondary)
-                    self.lblDeliveryAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objAddress.address ?? ""), \(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.country ?? ""), \(objAddress.zip_code ?? "")")
+                    self.lblDeliveryEmail.alpha = 0.7
                 }
-
             }
         }
-        //        self.lblSubTotlaPrice.configureLable(textAlignment: .right, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(Application.currency)\(Checkout.shared.itemPrice.stringValue)", numberOfLines: 1)
         
-        self.lblNoteTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strDeliveryNote)
-        self.lblNote.configureLable(textColor: .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strAddNote)
-        imgColor(imgColor: self.imgNote, colorHex: .secondary)
-        if self.objOrderData.description != "" && self.objOrderData.description != nil{
-            self.lblNote.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: self.objOrderData.description ?? str.strAddNote)
-        }
         
         //SET HEADER
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -280,34 +235,231 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             DispatchQueue.main.asyncAfter(deadline: .now()) {
                 self.tblView.reloadData()
             }
+        }
+    }
+    
+    func setTheView(){
+        self.isLoading = false
+        self.stopLoading()
+        self.setFooter()
+        self.updateNavigationbar()
+        
+        //SET DETAILS
+        if self.objOrderData != nil{
+            self.lblProductTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strProductList)
 
+            
+            //SET BILLING ADDRESS
+            self.viewBilling.isHidden = true
+            if self.objOrderData.objBillingAddress != nil{
+                if let objAddress = self.objOrderData.objBillingAddress{
+                    self.viewBilling.isHidden = false
+
+                    self.lblBillingInfo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.BillingInfo)
+
+                    self.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objAddress.full_name ?? "")")
+
+                    let strPhone: String = "\(objAddress.phone ?? "")".trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    self.lblNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strPhone)
+                    imgColor(imgColor: self.imgCall, colorHex: .secondary)
+                    self.lblEmail.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objAddress.email ?? "")")
+                    self.lblEmail.alpha = 0.7
+                    
+                    imgColor(imgColor: self.imgMapAddress, colorHex: .secondary)
+                    imgColor(imgColor: self.imgEditAddress, colorHex: .secondary)
+                    self.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objAddress.address ?? "")\n\(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.zip_code ?? "")")
+                    self.lblAddress.numberOfLines = 0
+                }
+            }
+            
+            
+            //SET DELIVERY ADDRESS
+            if self.objOrderData.objDeliveryAddress != nil{
+                if let objAddress = self.objOrderData.objDeliveryAddress{
+                    self.lblDeliveryInfo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.DeliveryInfo)
+
+                    self.lblDeliveryName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objAddress.full_name ?? "")")
+                    
+                    
+                    let strPhone: String = "\(objAddress.phone ?? "")".trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                    self.lblDeliveryNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strPhone)
+                    imgColor(imgColor: self.imgDeliveryCall, colorHex: .secondary)
+                    self.lblDeliveryEmail.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objAddress.email ?? "")")
+                    self.lblDeliveryEmail.alpha = 0.7
+                    
+                    
+                    imgColor(imgColor: self.imgDeliveryMapAddress, colorHex: .secondary)
+                    imgColor(imgColor: self.imgDeliveryEditAddress, colorHex: .secondary)
+                    self.lblDeliveryAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objAddress.address ?? "")\n\(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.zip_code ?? "")")
+                    self.lblDeliveryAddress.numberOfLines = 0
+                }
+                
+
+            }
+            
+    
+//            //CHECK ADDRESS SAME
+//            self.viewDelivery.isHidden = false
+//            self.viewDeliverySame.isHidden = true
+//            if self.objOrderData.is_same_as_billing ?? false{
+//                self.viewDelivery.isHidden = true
+//                self.viewDeliverySame.isHidden = true
+//            }
         }
         
+        self.lblNoteTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strDeliveryNote)
+        self.lblAddNote.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strAddNoteBtn)
 
+        imgColor(imgColor: self.imgAddNoteBtn, colorHex: .secondary)
+        self.viewAddNoteBtn.backgroundColor = .clear
+        self.viewAddNoteBtn.viewCorneRadius(radius: 5.0, isRound: false)
+        
+//        let headerStack = UIStackView()
+        self.objNoteView.axis = .vertical
+        self.objNoteView.spacing = 0
+        self.objNoteView.translatesAutoresizingMaskIntoConstraints = false
+        self.objNoteView.removeAllArrangedSubviews()
+        for (idx, note) in self.objOrderData.arrOrderNote.enumerated() {
+            let row = NoteRowView()
+            row.configure(with: note)
+            row.onEdit = { [weak self] in self?.edit(at: idx) }
+            row.onDelete = { [weak self] in self?.delete(at: idx) }
+            self.objNoteView.addArrangedSubview(row)
+        }
+        
+        //CEHCK PRODUCT TYPE
+        self.objButtons1.isHidden = false
+        self.objButtons2.isHidden = false
+        self.objButtons3.isHidden = false
+        if self.checkProductType(arrData: self.objOrderData.arrProduct){
+            self.objButtons1.isHidden = true
+            self.objButtons2.isHidden = true
+            self.objButtons3.isHidden = true
+        }
+
+        //SET HEADER
+        self.updateBillingView()
+
+    }
+    
+    
+    
+    func checkProductType(arrData : [ProductModel]) -> Bool{
+        for obj in arrData{
+            if obj.objProductData?.product_type?.lowercased() == "rental"{
+                return false
+            }
+        }
+        return true
+    }
+    
+    private func edit(at index: Int) {
+        print(index)
+        if self.objOrderData == nil && arrUserList.count == 0{
+            return
+        }
+        
+        let objDate = objOrderData.arrOrderNote[index]
+
+        //ADD NOTE POPUP
+        let window = UIApplication.shared.windows.filter {$0.isKeyWindow}.first
+        window?.endEditing(true)
+        let aleartView = AddNoteView(frame: CGRect(x: 0, y: 0 ,width : window?.frame.width ?? 0.0, height: window?.frame.height ?? 0.0))
+        aleartView.delegate = self
+        aleartView.objNoteData = objDate
+        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: str.strAddNote , arr: self.arrUserList)
+        window?.addSubview(aleartView)
+        
+    }
+    
+    private func delete(at index: Int) {
+        if self.objOrderData == nil && arrUserList.count == 0{
+            return
+        }
+
+        let objDate = objOrderData.arrOrderNote[index]
+
+        //CALL API
+        let alert = UIAlertController(title: Application.appName, message: "Are you sure you want to delete this note?", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
+            
+//            if NetworkReachabilityManager()!.isReachable {
+//                //CALL API
+//                RentnKing.deleteNote(struniqueID: objDate.unique_id ?? "", note_id: 0) { is_success in
+//                    
+//                    indicatorHide()
+//                    
+//                    //UPDATE DATA
+//                    self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId, product_id: self.strProductID))
+//                }
+//            }
+//            else {
+                self.deleteNoteDataNoInternetCase(note_dic: objDate)
+//            }
+       
+        }))
+        alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
+        self.present(alert, animated: true)
+    }
+
+    
+    //CHECKLIST
+    @objc func UpdateCheckListsProduct(notification : NSNotification){
+        if self.objOrderData == nil{
+            return
+        }
+        
+        if let userInfo = notification.userInfo,
+           let arrUpdateCheckList = userInfo["checklist_data"] as? [NoteModel], let selectIndex = userInfo["index"] as? Int , let strType = userInfo["type"] as? Bool {
+            
+            //              var objData = self.arrOrderList[selectIndex]
+            for obj in arrUpdateCheckList{
+                let MenuID = self.objOrderData.arrProduct.map{$0.id}
+                if let index = MenuID.firstIndex(of: obj.productID){
+                    var objProduct = self.objOrderData.arrProduct[index]
+                    if strType{
+                        objProduct.is_delivered = true
+                    }
+                    else{
+                        objProduct.is_returned = true
+                    }
+                    
+                    
+                    self.objOrderData.arrProduct.remove(at: index)
+                    self.objOrderData.arrProduct.insert(objProduct, at: index)
+                }
+            }
+            
+            //SET FOOTER
+            self.setFooter()
+        }
     }
     
     func setFooter(){
         //SET DETAILS
         if self.objOrderData != nil{
             self.lblSubAmount.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.SubAmount)
-            self.lblSubAmountPrice.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.sub_total ?? "")
-
+            self.lblSubAmountPrice.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.subtotal ?? "")
+            self.lblSubAmountPrice.textAlignment = .right
+            
             self.lblTax.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.strTax)
             self.lblTaxPrice.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.tax_amount ?? "")
+            self.lblTaxPrice.textAlignment = .right
 
             self.lblTotalAmount.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.TotalAmount)
             self.lblTotlaPrice.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.amount ?? "")
-
+            self.lblTotlaPrice.textAlignment = .right
+            
             self.lblPayment.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: str.paymentStatus)
-            self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.payment?.status?.label ?? "")
+            self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.objOrderData.payment_status ?? "")
             
             //SET PAYMENT TYPE
             self.viewPaymentType.backgroundColor = .secondary
             self.viewPaymentType.viewCorneRadius(radius: 5.0, isRound: false)
-            if self.objOrderData.payment?.status?.label?.lowercased() == "pending"{
+            if self.objOrderData.payment_status?.lowercased() == "pending"{
                 self.viewPaymentType.backgroundColor = .secondaryText
             }
-            else if self.objOrderData.payment?.status?.label?.lowercased() == "failed"{
+            else if self.objOrderData.payment_status?.lowercased() == "failed"{
                 self.lblPaymentType.textColor = .primary
                 self.viewPaymentType.backgroundColor = .redText
             }
@@ -315,68 +467,66 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             //SET OTHER BUTTONS
             self.lblLicense.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strLinces)
             self.lblTermsAndCondition.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strTerms)
-            self.lblHoursStart.configureLable(textColor: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strHoursStart)
-            self.lblHoursEnd.configureLable(textColor: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strHoursEnd)
             self.lblCheckListDeliv.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListDeliv)
             self.lblCheckListRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListRet)
-            self.lblPhotVideo.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideo)
             self.lblDeliveryStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDeliveyStatus)
             self.lblPickupStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickupStatus)
 
+            self.lblPhotVideoDeli.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoDeli)
+            self.lblPhotVideoRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoRec)
             
             //CHECK AND SET VIEW
             self.viewLicense.backgroundColor = .clear
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgLicense, colorHex: .secondary)
             
-            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
-            if self.objOrderData.license_image_links.count != 0 || arrData.count != 0 || self.objOrderData.addLicenseImageLocally == true{
+            //GET LOACA DATA
+            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
+            if self.objOrderData.arrLicense.count != 0 || arrData.count != 0 {
                 self.lblLicense.textColor = .background
                 imgColor(imgColor: self.imgLicense, colorHex: .background)
                 self.viewLicense.backgroundColor = .secondary
             }
             
+            
             //T&C
             self.viewTermsAndCondition.backgroundColor = .clear
             self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            self.viewTermsAndCondition.viewBorderCorneRadius(borderColour: self.checkTermsAndConditionStatus() == true ? .secondary : .lightGray, size: 1)
-            self.lblTermsAndCondition.textColor = self.checkTermsAndConditionStatus() == true ? .secondary : .lightGray
-
-            if self.objOrderData.customer_signature != "" && self.objOrderData.customer_signature != nil && self.checkTermsAndConditionStatus() == true{
+            self.lblTermsAndCondition.textColor = .secondary
+            if self.objOrderData.terms_status == "Accepted"{
                 self.lblTermsAndCondition.textColor = .background
                 self.viewTermsAndCondition.backgroundColor = .secondary
             }
-            
-            //HOURS
-            self.viewHoursStart.backgroundColor = .clear
-            self.viewHoursEnd.backgroundColor = .clear
-            self.viewHoursStart.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            self.viewHoursEnd.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            self.viewHoursStart.viewBorderCorneRadius(borderColour: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray, size: 1)
-            self.viewHoursEnd.viewBorderCorneRadius(borderColour: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray, size: 1)
-            imgColor(imgColor: self.imgHoursStart, colorHex: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray)
-            imgColor(imgColor: self.imgHoursEnd, colorHex: self.checkMachineHoursAllocate() == true ? .secondary : .lightGray)
-
-            if self.checkMachineHoursAllocate() == true && self.checkMachineStartHoursComplate() == true{
-                self.lblHoursStart.textColor = .background
-                imgColor(imgColor: self.imgHoursStart, colorHex: .background)
-                self.viewHoursStart.backgroundColor = .secondary
+            else if self.objOrderData.terms_status == "Exempt"{
+                self.viewTermsAndCondition.backgroundColor = .clear
+                self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .lightGray)
+                self.lblTermsAndCondition.textColor =  .lightGray
             }
             
-            if self.checkMachineHoursAllocate() == true && self.checkMachineEndHoursComplate() == true{
-                self.lblHoursEnd.textColor = .background
-                imgColor(imgColor: self.imgHoursEnd, colorHex: .background)
-                self.viewHoursEnd.backgroundColor = .secondary
-            }
             
-            //CHECKLIST
-            self.viewCheckListDeliv.backgroundColor = .clear
-            self.viewCheckListDeliv.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            imgColor(imgColor: self.imgCheckListDeliv, colorHex: .secondary)
+            //PHOT/VIDEO DELIVERY
+            self.viewPhotVideoDeli.backgroundColor = .clear
+            self.viewPhotVideoDeli.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
+            imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .secondary)
+            
+            let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "delivery")
+            if self.objOrderData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0 {
+                self.lblPhotVideoDeli.textColor = .background
+                imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .background)
+                self.viewPhotVideoDeli.backgroundColor = .secondary
+            }
+                      
+            //PHOT/VIDEO RETURN
+            self.viewPhotVideoRet.backgroundColor = .clear
+            self.viewPhotVideoRet.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
+            imgColor(imgColor: self.imgPhotVideoRet, colorHex: .secondary)
 
-            self.viewCheckListRet.backgroundColor = .clear
-            self.viewCheckListRet.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            imgColor(imgColor: self.imgCheckListRet, colorHex: .secondary)
+            let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "pickup")
+            if self.objOrderData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0 {
+                self.lblPhotVideoRet.textColor = .background
+                imgColor(imgColor: self.imgPhotVideoRet, colorHex: .background)
+                self.viewPhotVideoRet.backgroundColor = .secondary
+            }
             
             //CHECKLIST
             self.viewCheckListDeliv.backgroundColor = .clear
@@ -390,7 +540,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             
             imgColor(imgColor: self.imgCheckListDeliv, colorHex: .secondary )
             imgColor(imgColor: self.imgCheckListRet, colorHex: .secondary)
-
+            
+            
             //CHECK DELIVERY CHECKLIST
             if self.checkCheckListStatus(isDelivery: true){
                 self.lblCheckListDeliv.textColor = .background
@@ -413,69 +564,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
             
-            if checkCheckListActive() == false{
-                self.lblCheckListDeliv.textColor = .lightGray
-                imgColor(imgColor: self.imgCheckListDeliv, colorHex: .lightGray)
-                self.viewCheckListDeliv.backgroundColor = .clear
-                self.viewCheckListDeliv.viewBorderCorneRadius(borderColour: .lightGray, size: 1)
-
-                self.lblCheckListRet.textColor = .lightGray
-                imgColor(imgColor: self.imgCheckListRet, colorHex: .lightGray)
-                self.viewCheckListRet.backgroundColor = .clear
-                self.viewCheckListRet.viewBorderCorneRadius(borderColour: .lightGray, size: 1)
-            }
             
-            //PHOT/VIDEO
-            self.viewPhotVideo.backgroundColor = .clear
-            self.viewPhotVideo.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
-            imgColor(imgColor: self.imgPhotVideo, colorHex: .secondary)
-
-            let arrDataVideo = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: "\(self.objOrderData.id ?? 0)", strType: uploadType.video_image.rawValue)
-            if self.objOrderData.order_image_links.count != 0 || arrDataVideo.count != 0{
-                self.lblPhotVideo.textColor = .background
-                imgColor(imgColor: self.imgPhotVideo, colorHex: .background)
-                self.viewPhotVideo.backgroundColor = .secondary
-            }
-            
-
-            //DELIVERY STATUS
-            let getDeliveryData = checkDeliveryPickupStatus(isDeliveryType: true)
-
-            self.viewDeliveryStatus.backgroundColor = .clear
-            self.viewDeliveryStatus.viewBorderCorneRadius(radius: 10, borderColour: self.objOrderData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray)
-            self.imgDeliveryStatus.image = UIImage(named: getDeliveryData.0)
-            imgColor(imgColor: self.imgDeliveryStatus, colorHex: self.objOrderData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray)
-            
-            if getDeliveryData.1 == true{
-                self.lblDeliveryStatus.textColor = .background
-                imgColor(imgColor: self.imgDeliveryStatus, colorHex: .background)
-                self.viewDeliveryStatus.backgroundColor = .secondary
-            }
-            
-          
-            //PICKUP STATUS
-            let getPickupData = checkDeliveryPickupStatus(isDeliveryType: false)
-
-            self.viewPickupStatus.backgroundColor = .clear
-            self.viewPickupStatus.viewBorderCorneRadius(radius: 10, borderColour: self.objOrderData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray)
-            self.imgPickupStatus.image = UIImage(named: getPickupData.0)
-            imgColor(imgColor: self.imgPickupStatus, colorHex: self.objOrderData.arrDeliveryStatus.count != 0 ? .secondary : .lightGray)
-            
-            if getPickupData.1 == true{
-                self.lblPickupStatus.textColor = .background
-                imgColor(imgColor: self.imgPickupStatus, colorHex: .background)
-                self.viewPickupStatus.backgroundColor = .secondary
-            }
-            
-            
-            
-
+        
             //SET HEADER
             DispatchQueue.main.asyncAfter(deadline: .now()) {
 
-                let height = self.objOrderData.payment?.status?.label?.lowercased() == "failed" ? 0 : self.objButtons.frame.size.height + 20
+                let height = self.objOrderData.payment_status?.lowercased() == "failed" ? 0 : self.objButtons.frame.size.height + 20
                 self.objButtons.isHidden = false
-                if self.objOrderData.payment?.status?.label?.lowercased() == "failed"{
+                if self.objOrderData.payment_status?.lowercased() == "failed"{
                     self.objButtons.isHidden = true
                 }
                 
@@ -485,22 +581,46 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
                 self.tblView.tableFooterView = vw_Table
             }
-            
         }
-            
     }
+
     func stopLoading(){
         indicatorHide()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
             self.orderDetailsPlaceholderMarker.remove()
         }
     }
+    
+    
+    func checkCheckListStatus(isDelivery : Bool) -> Bool{
+        //GET DATA
+        if self.objOrderData == nil{
+            return false
+        }
+        
+        
+        let checklistType = isDelivery ? "Delivery" : "Return"
+        if getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(self.objOrderData.unique_id ?? "")") != nil{
+            return true
+        }
+        
+        for obj in self.objOrderData.arrProduct{
+            if isDelivery {
+                return obj.is_delivered ?? false
+
+            }
+            else{
+                return obj.is_returned ?? false
+            }
+        }
+        return false
+    }
 }
 
 
 //MARK: - BUTTON ACTION
-extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, LicenseUploadDelegate, TermsDelegate, ImageVideoUploadDelegate, PayMentDelegate, AddNoteDelegate, CheckListDelegate{
-   
+extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, PayMentDelegate, AddNoteDelegate, LicenseUploadDelegate, TermsDelegate{
+    
     @IBAction func btnCallClicked(_ sender : UIButton) {
         if self.objOrderData == nil{
             return
@@ -508,10 +628,10 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         
         var getNumber = ""
         if sender.tag == 0{
-            getNumber = self.objOrderData.billing_address?.phone ?? ""
+            getNumber = self.objOrderData.objBillingAddress?.phone ?? ""
         }
         else{
-            getNumber = self.objOrderData.shipping_address?.phone ?? ""
+            getNumber = self.objOrderData.objDeliveryAddress?.phone ?? ""
         }
         
         getNumber = getNumber.replacingOccurrences(of: "+1", with: "")
@@ -548,10 +668,15 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         pickerAlert.addAction(sendMessage)
         pickerAlert.addAction(cancel)
         
-        if let presenter = pickerAlert.popoverPresentationController {
-            presenter.sourceView = sender
-            presenter.sourceRect = sender.frame
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if let presenter = pickerAlert.popoverPresentationController {
+                presenter.sourceView = self.view
+                presenter.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                presenter.permittedArrowDirections = []
+
+            }
         }
+        
         self.present(pickerAlert, animated: true, completion: nil)
     }
     
@@ -568,31 +693,19 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         
         var strAddress : String = ""
         if sender.tag == 0{
-            if let objAddress = self.objOrderData.billing_address{
-                strAddress = "\(objAddress.address ?? ""), \(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.country ?? ""), \(objAddress.zip_code ?? "")"
+            if let objAddress = self.objOrderData.objBillingAddress{
+                strAddress = "\(objAddress.full_address ?? "")"
             }
         }
         else{
-            if let objAddress = self.objOrderData.shipping_address{
-                strAddress = "\(objAddress.address ?? ""), \(objAddress.city ?? ""), \(objAddress.state ?? ""), \(objAddress.country ?? ""), \(objAddress.zip_code ?? "")"
+            if let objAddress = self.objOrderData.objDeliveryAddress{
+                strAddress = "\(objAddress.full_address ?? "")"
             }
         }
 
         if strAddress != ""{
             openAddressInMap(address: strAddress)
-//            if (UIApplication.shared.canOpenURL(URL(string:"comgooglemaps://")!)) {  //if phone has an app
-//                
-//                if let url = URL(string: "comgooglemaps-x-callback://?saddr=&daddr=\(strAddress)&directionsmode=driving") {
-//                    UIApplication.shared.open(url, options: [:])
-//                }}
-//            else {
-//                //Open in browser
-//                if let urlDestination = URL.init(string: "https://www.google.co.in/maps/dir/?saddr=&daddr=\(strAddress)&directionsmode=driving") {
-//                    UIApplication.shared.open(urlDestination)
-//                }
-//            }
         }
-      
     }
     
     
@@ -607,13 +720,16 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "AddressViewController") as? AddressViewController{
             if sender.tag == 0{
+                newViewController.strAddressTryp = "Billing"
                 newViewController.strTitle = str.BillingInfo
-                newViewController.objAdress = self.objOrderData.billing_address
+                newViewController.objAdress = self.objOrderData.objBillingAddress
             }
             else{
+                newViewController.strAddressTryp = "Shipping"
                 newViewController.strTitle = str.DeliveryInfo
-                newViewController.objAdress = self.objOrderData.shipping_address
+                newViewController.objAdress = self.objOrderData.objDeliveryAddress
             }
+            newViewController.strOrderUniqueId = self.strOrderUniqueId
             newViewController.orderID = "\(self.objOrderData.id ?? 0)"
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
@@ -621,7 +737,8 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
     }
     
     @IBAction func btnEditNoteClicked(_ sender : UIButton) {
-        if self.objOrderData == nil{
+        if self.objOrderData == nil && arrUserList.count == 0 {
+            self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater())
             return
         }
         
@@ -631,51 +748,39 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         window?.endEditing(true)
         let aleartView = AddNoteView(frame: CGRect(x: 0, y: 0 ,width : window?.frame.width ?? 0.0, height: window?.frame.height ?? 0.0))
         aleartView.delegate = self
-        aleartView.loadPopUpView(strOrderID: "\(self.objOrderData.id ?? 0)", strNote: self.lblNote.text == str.strAddNote ? "" : self.lblNote.text ?? "")
+//        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: self.lblNote.text == str.strAddNote ? "" : self.lblNote.text ?? "", arr: self.arrUserList)
+        aleartView.loadPopUpView(strOrderID: self.objOrderData.unique_id ?? "", strNote: str.strAddNote  , arr: self.arrUserList)
         window?.addSubview(aleartView)
     }
     
     func strAddNote(strNote: String) {
-        self.lblNote.configureLable(textColor: .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strAddNote)
-        if strNote != ""{
-            self.lblNote.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strNote)
-        }
-        
-        //SET HEADER
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            //SET TABLE HEADER
-            let vw_Table = self.tblView.tableHeaderView
-            vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.lblProductTitle.frame.origin.y + self.lblProductTitle.frame.size.height)
-
-            self.tblView.tableHeaderView = vw_Table
-            
-            //RELOAD TABLE
-            DispatchQueue.main.asyncAfter(deadline: .now()) {
-                self.tblView.reloadData()
-            }
-
-        }
+        self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
     }
-    
-   
+ 
     
     @IBAction func btnPaymentClicked(_ sender : UIButton) {
         if self.objOrderData == nil{
             return
         }
         
-        if self.objOrderData.payment?.status?.label?.lowercased() == "pending"{
+        if self.objOrderData.payment_status?.lowercased() == "pending"{
             //VERIFICATION POPUP
             let window = UIApplication.shared.windows.filter {$0.isKeyWindow}.first
             window?.endEditing(true)
             let aleartView = PaymentView(frame: CGRect(x: 0, y: 0 ,width : window?.frame.width ?? 0.0, height: window?.frame.height ?? 0.0))
             aleartView.delegate = self
-            aleartView.loadPopUpView(strOrderID: "\(self.objOrderData.id ?? 0)")
+            aleartView.loadPopUpView(strOrderUniqueId: "\(self.objOrderData.unique_id ?? "")")
             window?.addSubview(aleartView)
 
         }
     }
     
+    func PaymnetSuccess() {
+        //CALL API
+        self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
+    }
+    
+
     @IBAction func btnLicenseClicked(_ sender : UIButton) {
         if self.objOrderData == nil{
             return
@@ -685,75 +790,92 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "LicenseUploadViewController") as? LicenseUploadViewController{
             newViewController.delegate = self
-            newViewController.arrLicense = self.objOrderData.license_image_links
-            newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
+            newViewController.arrLicense = self.objOrderData.arrLicense
+            newViewController.strOrderID = self.objOrderData.unique_id ?? ""
             newViewController.selectIndex = sender.tag
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
     
     
+    func linceUploadSucess(selectIndex: Int, arrImage: [String]) {
+        self.isLoading = false
+        self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
+    }
+    
+
     @IBAction func btnTermsAndConditionClicked(_ sender : UIButton) {
         if self.objOrderData == nil{
             return
         }
         
-        if self.checkTermsAndConditionStatus() == true{
-            var strTermsUrl : String = ""
-            if self.objOrderData.token != "" && self.objOrderData.token != nil{
-                strTermsUrl = "\(Application.TermsURL)\(self.objOrderData.token ?? "")/sign-terms?admin=true"
-            }
-            else{
-                showAlertMessage(strMessage: str.somethingWentWrong)
-                return
-            }
-            
-            //TERMS AND CONDITION
+        
+        //GET DATA
+        if self.objOrderData.status == "Exempt"{
+            return
+        }
+
+        
+        if self.objOrderData.terms_page != ""{
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TermsAndConditionViewController") as? TermsAndConditionViewController{
                 newViewController.isOrderFrom = true
                 newViewController.delegate = self
                 newViewController.selectIndex = sender.tag
-                newViewController.signUrl = strTermsUrl
+                newViewController.signUrl = self.objOrderData.terms_page ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
     }
-    
-    
-    @IBAction func btnMachineHoursClicked(_ sender : UIButton) {
-        if self.objOrderData == nil || checkMachineHoursAllocate() == false{
-            return
-        }
-     
-        //TERMS AND CONDITION
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineHoursViewController") as? MachineHoursViewController{
-            newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
-            newViewController.strProductID = self.strProductID
-            self.navigationController?.pushViewController(newViewController, animated: true)
-        }
-    }
-    
-    
-    @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
+  
+   
+    func termsSucess(selectIndex: Int) {
         if self.objOrderData == nil{
             return
         }
         
-        if checkCheckListActive() == false{
-            return
-        }
+        //UPDATE DATA
+        self.objOrderData.terms_status = "Accepted"
+        
+        //UODATE TERMS
+        self.setFooter()
+    }
     
-        if self.checkCheckListStatus(isDelivery: true){
+    @IBAction func btnDeliveryImageVideoUploadClicked(_ sender : UIButton) {
+        //IMAGE VIDEO DELIVERY
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
+            newViewController.strType = "delivery"
+            newViewController.selectIndex = selectIndex
+            newViewController.objOrderDetail = self.objOrderData
+            newViewController.strOrderID = self.strOrderUniqueId
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+    
+    @IBAction func btnReturnImageVideoUploadClicked(_ sender : UIButton) {
+        //IMAGE VIDEO RETURN
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
+            newViewController.strType = "pickup"
+            newViewController.selectIndex = selectIndex
+            newViewController.objOrderDetail = self.objOrderData
+            newViewController.strOrderID = self.strOrderUniqueId
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+    
+    @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
+        if self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false }) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
-                newViewController.isUpdateData = true
                 newViewController.isOrderDetailsView = true
+                newViewController.isUpdateData = true
                 newViewController.isDeliveryType = true
-                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
+                newViewController.isDeleteChecklist = true
+                newViewController.selectIndex = self.selectIndex
+                newViewController.strOrderUniqueId = self.strOrderUniqueId
+                newViewController.strOrderID = self.strOrderID
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
@@ -762,382 +884,44 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Li
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
                 newViewController.isOrderDetailsView = true
                 newViewController.isDeliveryType = true
-                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
+                newViewController.selectIndex = self.selectIndex
+                newViewController.strOrderUniqueId = self.strOrderUniqueId
+                newViewController.strOrderID = self.objOrderData.order_number ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
-       
     }
     
     @IBAction func btnCheckListRetClicked(_ sender : UIButton) {
-        if self.objOrderData == nil{
+        if self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false }) == false{
             return
         }
-        
-        if self.checkCheckListStatus(isDelivery: true) == false || checkCheckListActive() == false{
-            return
-        }
-      
-        
-        
-        if self.checkCheckListStatus(isDelivery: false){
+
+        if self.objOrderData.arrProduct.contains(where: { $0.is_returned ?? false }) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
-                newViewController.isUpdateData = true
                 newViewController.isOrderDetailsView = true
+                newViewController.isUpdateData = true
                 newViewController.isDeliveryType = false
-                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
+                newViewController.selectIndex = self.selectIndex
+                newViewController.strOrderUniqueId = self.strOrderUniqueId
+                newViewController.strOrderID = self.strOrderID
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
-        else{
+        else {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
                 newViewController.isOrderDetailsView = true
                 newViewController.isDeliveryType = false
-                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
+                newViewController.selectIndex = self.selectIndex
+                newViewController.strOrderUniqueId = self.strOrderUniqueId
+                newViewController.strOrderID = self.objOrderData.order_number ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
-       
     }
     
-    @IBAction func btnImageVideoUploadClicked(_ sender : UIButton) {
-        if self.objOrderData == nil{
-            return
-        }
-     
-        
-        //GET DATA
-        var arrImageVideoLisr : [ImageVideoModel] = []
-        for objImage in self.objOrderData.order_image_links{
-            let isImageType = objImage.isImageType()
-            let url: URL = URL(fileURLWithPath: "")
-            let objData = ImageVideoModel(type: isImageType ? "img" : "video", image: UIImage(), strVideo: url, strUrl: objImage, isUpload: true)
-            arrImageVideoLisr.append(objData)
-        }
-     
-        
-        //TERMS AND CONDITION
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController{
-            newViewController.delegate = self
-            newViewController.selectIndex = sender.tag
-            newViewController.arrImageVideoLisr = arrImageVideoLisr
-            newViewController.strOrderID = "\(self.objOrderData.id ?? 0)"
-            self.navigationController?.pushViewController(newViewController, animated: true)
-        }
-    }
-    
-    @IBAction func btnDeliveryStatusClicked(_ sender : UIButton) {
-        if self.objOrderData == nil{
-            return
-        }
-        
-        //GET
-        let getDeliveryData = checkDeliveryPickupStatus(isDeliveryType: true)
-        if getDeliveryData.1 == false{
-            //GET PRODUCT NAME
-            
-            let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-            if let index = MenuID.firstIndex(of: getDeliveryData.2){
-                let productName = self.objOrderData.arrProduct[index].product_name
-                
-                
-                //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName ?? "")' to \(self.objOrderData.objAdress?.name ?? "" )", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
-                    
-                   
-                    let MenuID = self.objOrderData.arrDeliveryStatus.map{$0.product_id}
-                    if let index = MenuID.firstIndex(of: getDeliveryData.2){
-                        self.deliveryType = "Delivery"
-                        
-                        self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "2", pickup_status: ""), index: index)
-                    }
-               
-                }))
-                alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
-                self.present(alert, animated: true)
-            }
-        }
-    }
-    
-    @IBAction func btnPickupStatusClicked(_ sender : UIButton) {
-        if self.objOrderData == nil{
-            return
-        }
-        
-        
-        //GET
-        let getDeliveryData = checkDeliveryPickupStatus(isDeliveryType: false)
-        if getDeliveryData.1 == false{
-            //GET PRODUCT NAME
-            
-            let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-            if let index = MenuID.firstIndex(of: getDeliveryData.2){
-                let productName = self.objOrderData.arrProduct[index].product_name
-                
-                
-                //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName ?? "")' to \(self.objOrderData.objAdress?.name ?? "" )", preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
-                    
-                    let MenuID = self.objOrderData.arrDeliveryStatus.map{$0.product_id}
-                    if let index = MenuID.firstIndex(of: getDeliveryData.2){
-                        self.deliveryType = "Pickup"
-                        
-                        self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "", pickup_status: "2"), index: index)
-                    }
-               
-                }))
-                alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
-                self.present(alert, animated: true)
-            }
-        }
-    }
- 
-    func PaymnetSuccess() {
-        //CALL API
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
-    }
-    
-  
-    func termsSucess(selectIndex: Int) {
-        self.isLoading = false
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
-
-    }
-    
-    func linceUploadSucess(selectIndex: Int, arrImage: [String]) {
-   
-       
-        self.isLoading = false
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
-    }
-    
-    func ImageVideoUploadSucess(selectIndex: Int, arrImage: [String]) {
-        self.isLoading = false
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
-    }
-    
-
-    //CHECKLIST
-    @objc func UpdateCheckListsProduct(notification : NSNotification){
-        
-        if let userInfo = notification.userInfo,
-             let arrUpdateCheckList = userInfo["checklist_data"] as? [NoteModel], let selectIndex = userInfo["index"] as? Int {
-              
-            for obj in arrUpdateCheckList{
-                let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-                if let index = MenuID.firstIndex(of: obj.productID){
-                    var objProduct = self.objOrderData.arrProduct[index]
-                    objProduct.delivery_note = obj.dNote
-                    objProduct.returned_note = obj.rNote
-                    objProduct.delivery_emp = Int(obj.dEmplayessId) ?? 0
-                    objProduct.returned_emp = Int(obj.rEmplayessId) ?? 0
-                    objProduct.delivery_sign = "true"
-                    objProduct.return_sign = "true"
-                    
-                    self.objOrderData.arrProduct.remove(at: index)
-                    self.objOrderData.arrProduct.insert(objProduct, at: index)
-                }
-            }
-        }
-    }
-    
-    func UpdateCheckListProduct(selectIndex: Int, arrUpdateCheckList: [NoteModel]) {
-        for obj in arrUpdateCheckList{
-            let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-            if let index = MenuID.firstIndex(of: obj.productID){
-                var objProduct = self.objOrderData.arrProduct[index]
-                objProduct.delivery_note = obj.dNote
-                objProduct.returned_note = obj.rNote
-                objProduct.delivery_emp = Int(obj.dEmplayessId) ?? 0
-                objProduct.returned_emp = Int(obj.rEmplayessId) ?? 0
-                objProduct.delivery_sign = "true"
-                objProduct.return_sign = "true"
-                
-                self.objOrderData.arrProduct.remove(at: index)
-                self.objOrderData.arrProduct.insert(objProduct, at: index)
-            }
-        }
-    }
-    
-    func checkCheckListStatus(isDelivery : Bool) -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-        
-        for obj in self.objOrderData.arrProduct{
-            if isDelivery {
-                if obj.delivery_emp != 0 && obj.delivery_sign != ""{
-                    return true
-                }
-            }
-            else{
-                if obj.returned_emp != 0 && obj.return_sign != ""{
-                    return true
-                }
-            }
-        }
-        return false
-    }
-    
-    func checkCheckListActive() -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-        
-        //GET PRODUCT DATA
-        for obj in self.objOrderData.arrProduct{
-            if obj.objProduct?.checklist_id != 0{
-                return true
-            }
-        }
-        
-        return false
-    }
-
-    
-    func checkMachineHoursAllocate() -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-        for obj in objOrderData.arrMachineHours{
-            if obj.allocated != 0{
-                return true
-            }
-        }
-        
-        return false
-    }
-    
-    func checkMachineStartHoursComplate() -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-
-        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
-        if arrData.count != 0{
-            for obj in arrData{
-                if obj.start == "" || obj.start == "0" || obj.start == "0.0" || obj.start == nil{
-                    return false
-                }
-            }
-        }
-        else{
-            for obj in objOrderData.arrMachineHours{
-                if obj.start == 0{
-                    return false
-                }
-            }
-        }
-        return true
-    }
-    
-    func checkMachineEndHoursComplate() -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-
-        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.hours.rawValue)
-        if arrData.count != 0{
-            for obj in arrData{
-                if obj.end == "" || obj.end == "0" || obj.end == "0.0" || obj.end == nil{
-                    return false
-                }
-            }
-        }
-        else{
-            for obj in objOrderData.arrMachineHours{
-                if obj.end == 0{
-                    return false
-                }
-            }
-        }
-        
-        return true
-    }
-    
-    
-    func checkTermsAndConditionStatus() -> Bool{
-        if self.objOrderData == nil{
-            return false
-        }
-        
-        if self.objOrderData.token != "" && self.objOrderData.token != nil{
-            if self.objOrderData.arrProduct.count != 0{
-                for obj in self.objOrderData.arrProduct{
-                    if obj.objProduct?.use_global == true{
-                        return true
-                    }
-                }
-            }
-        }
-
-        
-        return false
-    }
- 
-    func checkDeliveryPickupStatus(isDeliveryType : Bool) -> (String, Bool, Int){
-        if self.objOrderData == nil{
-            return ("icon_delivery_pending", false, 0)
-        }
-        
-        
-        var strImg : String = "icon_delivery_pending"
-        if self.objOrderData.arrDeliveryStatus.count != 0{
-            
-            for obj in self.objOrderData.arrDeliveryStatus{
-                if isDeliveryType{
-                    //GET IMAGE
-                    if obj.customer_delivery == 2{
-                        strImg = "icon_delivery_pending"
-                    }
-                    else{
-                        strImg = "icon_store"
-                    }
-                    
-                    //CHECK STATUS
-                    if obj.delivery_status?.value != "2"{
-                        return (strImg, false, obj.product_id ?? 0)
-                    }
-                    else{
-                        return (strImg, true, obj.product_id ?? 0)
-                    }
-                }
-                else{
-                    //GET IMAGE
-                    if obj.customer_pickup == 2{
-                        strImg = "icon_delivery_pending"
-                    }
-                    else{
-                        strImg = "icon_store"
-                    }
-                    
-                    //CHECK STATUS
-                    if obj.pickup_status?.value != "2"{
-                        return (strImg, false, obj.product_id ?? 0)
-                    }
-                    else{
-                        return (strImg, true, obj.product_id ?? 0)
-                    }
-                }
-            }
-        }
-        else{
-            return (strImg, false, 0)
-        }
-        
-        return (strImg, true, 0)
-    }
 }
 
 
@@ -1183,84 +967,167 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
             cell.viewLine.backgroundColor = .lightGray
             cell.con_imgHeight.constant = manageWidth(size: 70)
             cell.imgProduct.viewCorneRadius(radius: 5, isRound: false)
-            cell.imgProduct.setImage(strImg: objDetails.product_image ?? "")
             cell.imgProduct.backgroundColor = .white
+            if let strImg = objDetails.objProductData?.product_image_url{
+                cell.imgProduct.setImage(strImg: strImg)
+            }
 
-            let getPrice = getProductTotlaPrice(productID: objDetails.id ?? 0)
+//            let getPrice = getProductTotlaPrice(productID: objDetails.id ?? 0)
 
-        
+            var productVariant : String = ""
+            if let variant = objDetails.objProductData?.product_variant{
+                productVariant = variant
+            }
+            
             //SET FONT
-            cell.lblProductName.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "\(objDetails.product_name ?? "") * \(objDetails.qty )")
-            cell.lblTotlaPrice.configureLable(textAlignment: .right, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "")
+            cell.lblProductName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "\(objDetails.product_name ?? "")-\(productVariant.capitalized)")
             
             
             //SET SCHEDULE DATE
-            cell.lblScheduleDate.text = ""
-            if objDetails.product_options != nil{
-                let strScheduleDate = convertStringToNewFormateString(date: "\(objDetails.product_options.deldate ?? "")", withFormat: Application.passServertDAte, newFormate: Application.strDateFormet) ?? ""
+//            cell.lblScheduleDate.text = ""
+//            if objDetails.objProductData?.product_type == "Rental"{
+//                let strDate = setFontAttributes(str: str.sttScheduleDate, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0)
+//                strDate.append(setFontAttributes(str: " \(objDetails.objProductData?.pickup_date ?? "")", fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0))
+//                cell.lblScheduleDate.attributedText = strDate
+//            }
 
-                let strDate = setFontAttributes(str: str.sttScheduleDate, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0)
-                strDate.append(setFontAttributes(str: " \(strScheduleDate)", fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0))
-                cell.lblScheduleDate.attributedText = strDate
-            }
+            //PRODUCT PRICE
+            cell.objPrice.isHidden = false
+            cell.lblPrice.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "\(str.strPrice)(*\(objDetails.quantity ?? 0 ))")
+            cell.lblPriceTotal.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "$\(objDetails.objProductData?.product_price ?? "")")
+            cell.lblPriceTotal.textAlignment = .right
+            
+            //SET OPTIONS VALUE
+            cell.lblDistances.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strDistance)
+            cell.lblDistances.attributedText = setUndelineFontAttributes(str: str.strDistance, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0)
 
             
-            //CHECK OPTION
-            cell.objPrice.isHidden = true
-            cell.objOptions.isHidden = true
-            if objDetails.dicOptions != nil{
-//                cell.objPrice.isHidden = false
-                cell.objOptions.isHidden = false
+            //CHECK DISTANCES
+            cell.objDistances.isHidden = true
+            cell.lblDistancesPrice.text = ""
+            var strDistancesValue : String = ""
+            if objDetails.objProductData?.distance_type ?? "" != "" && objDetails.objProductData?.distance_range ?? "" != ""{
+                cell.objDistances.isHidden = false
+                strDistancesValue = "- \(objDetails.objProductData?.distance_type ?? "") (\(objDetails.objProductData?.distance_range ?? ""))"
+                cell.lblDistancesValues.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: strDistancesValue)
+
                 
+                if let price = objDetails.objProductData?.service_option_price{
+                    cell.lblDistancesPrice.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "$\(price)")
+                    cell.lblDistancesPrice.textAlignment = .right
+                }
+            }
+            
+
+
+            
+            
+            //CHECK OPTION
+            cell.objOptions.isHidden = true
+            if objDetails.objProductData?.arrProductOptions.count != 0 || objDetails.objProductData?.arrProductMoreOptions.count != 0{
+                cell.objOptions.isHidden = false
             }
 
             //SET OPTIONS VALUE
             cell.lblOptionsValues.text = ""
-            cell.lblPrice.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strPrice)
-            if getPrice.1 != 0{
-                cell.lblPriceTotal.configureLable(textAlignment: .right, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "\(Application.currency)\((getPrice.1).stringValue)")
-            }
-
             cell.lblOptions.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strOptionsTotal)
-            if getPrice.2 != 0{
-//                cell.lblOptionsPrice.configureLable(textAlignment: .right, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "\(Application.currency)\((getPrice.2).stringValue)")
-                cell.lblOptionsPrice.configureLable(textAlignment: .right, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "")
-            }
-            
+            cell.lblOptions.attributedText = setUndelineFontAttributes(str: str.strOptionsTotal, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0)
+
 
             //SET OPTION VALUE
             var strValues : String = ""
-            if let dicCartValue = objDetails.dicOptions?["optionCartValue"] as? NSDictionary{
-                let allKey  = dicCartValue.allKeys
-                for objKey in allKey{
-                    if let arrData = dicCartValue["\(objKey)"] as? NSArray{
-                        
-                        for objData in arrData {
-                            let dicData = objData as? NSDictionary
-                            let price = dicData?["option_value"] as? String
-                            if strValues == ""{
-                                strValues = "- \(price ?? "")"
-                            }
-                            else{
-                                strValues = "\(strValues)\n- \(price ?? "")"
-                            }
-                        }
-                    }
+            var optionTotalPrice : Float = 0
+            for objOptions in objDetails.objProductData?.arrProductMoreOptions ?? []{
+                optionTotalPrice = optionTotalPrice + (objOptions.value ?? 0.0)
+                if strValues == ""{
+                    strValues = "- \(objOptions.label ?? "")"
+                }
+                else{
+                    strValues = "\(strValues)\n- \(objOptions.label ?? "")"
                 }
             }
             
+            for objOptions in objDetails.objProductData?.arrProductOptions ?? []{
+                optionTotalPrice = optionTotalPrice + (objOptions.price ?? 0.0)
+                if strValues == ""{
+                    strValues = "- \(objOptions.name ?? "")"
+                }
+                else{
+                    strValues = "\(strValues)\n- \(objOptions.name ?? "")"
+                }
+            }
+
+    
+            if optionTotalPrice != 0{
+                cell.lblOptionsPrice.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "$\(optionTotalPrice)")
+                cell.lblOptionsPrice.textAlignment = .right
+            }
+
             cell.lblOptionsValues.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: strValues)
        
             //CHECK STORE ADDRESS
-            cell.imgStore.isHidden = false
-            cell.con_imgStore.constant = 0
-            cell.lblStoreAddress.text = ""
-            if objDetails.storeAdderss != nil{
-                cell.con_imgStore.constant = 30
-                imgColor(imgColor: cell.imgStore, colorHex: .secondary)
-                cell.lblStoreAddress.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "\(objDetails.storeAdderss?.address ?? ""), \(objDetails.storeAdderss?.city ?? ""), \(objDetails.storeAdderss?.state ?? ""), \(objDetails.storeAdderss?.zip_code ?? "")")
+            if objDetails.objProductData?.delivery_transport_mode == "Truck"{
+                cell.imgDelivery.image = UIImage(named: "icon_delivery_pending")
+            }
+            else{
+                cell.imgDelivery.image = UIImage(named: "icon_store")
             }
             
+            if objDetails.objProductData?.pickup_transport_mode == "Truck"{
+                cell.imgPickup.image = UIImage(named: "icon_delivery_pending")
+            }
+            else{
+                cell.imgPickup.image = UIImage(named: "icon_store")
+            }
+           
+            imgColor(imgColor: cell.imgDelivery, colorHex: .secondary)
+            imgColor(imgColor: cell.imgPickup, colorHex: .secondary)
+
+            
+            //SET DELIVERY
+            let linkTextDeliveryWithColor : String = "Delivery From :"
+            var locationDelivery : String = "Pending"
+            if let objDelivery = objDetails.delivery_store, let name = objDelivery.name{
+                locationDelivery = name
+            }
+            
+            var deliveryDate : String = ""
+            if let strDeliveryDate = objDetails.objProductData?.delivery_date{
+                deliveryDate = strDeliveryDate
+            }
+            let textDelivery = "\(linkTextDeliveryWithColor) \(locationDelivery)  |  \(deliveryDate)"
+            
+            let rangeDelivery = (textDelivery as NSString).range(of: linkTextDeliveryWithColor)
+            let attributedStringDelivery = NSMutableAttributedString(string:textDelivery)
+            attributedStringDelivery.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.secondary , range: rangeDelivery)
+            cell.lblDelivery.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "")
+            cell.lblDelivery.attributedText = attributedStringDelivery
+
+            
+            //SET RETURN
+            let linkTextPickupWithColor : String = "Return To :"
+            var locationPickup : String = "Pending"
+            if let objReturn = objDetails.pickup_store, let name = objReturn.name{
+                locationPickup = name
+            }
+            
+            var pickupDate : String = ""
+            if let strPickupDate = objDetails.objProductData?.pickup_date{
+                pickupDate = strPickupDate
+            }
+
+            let textPickup = "\(linkTextPickupWithColor) \(locationPickup)  |  \(pickupDate)"
+
+            let rangeReturn = (textPickup as NSString).range(of: linkTextPickupWithColor)
+            let attributedStringReturn = NSMutableAttributedString(string:textPickup)
+            attributedStringReturn.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.secondary , range: rangeReturn)
+            cell.lblPickup.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "")
+            cell.lblPickup.attributedText = attributedStringReturn
+
+            
+            
+
+
             return cell
         }
 
@@ -1316,6 +1183,25 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
 }
 
 
+
+func setUndelineFontAttributes(str : String, fontName: String , fontSize: Double) -> NSMutableAttributedString{
+    let yourAttributes: [NSAttributedString.Key: Any] = [
+        .foregroundColor: UIColor.primary ,
+        .font: SetTheFont(fontName: fontName, size: fontSize),
+
+        .underlineStyle: NSUnderlineStyle.single.rawValue,
+    ]
+
+    
+    let attributeString = NSMutableAttributedString(
+        string: str,
+        attributes: yourAttributes
+    )
+
+    return attributeString
+}
+
+
 func setFontAttributes(str : String, fontName: String , fontSize: Double) -> NSMutableAttributedString{
     let yourAttributes: [NSAttributedString.Key: Any] = [
         .foregroundColor: UIColor.primary ,
@@ -1332,48 +1218,6 @@ func setFontAttributes(str : String, fontName: String , fontSize: Double) -> NSM
 }
 
 
-extension OrderDetailsViewController{
-  
- 
-    
-    func getProductTotlaPrice(productID : Int) -> (Double, Double, Double){
-        if productID != 0{
-            if let index = self.objOrderData.arrProduct.firstIndex(where: { $0.id == productID }){
-                
-                let productItem = self.objOrderData.arrProduct[index]
-                
-                //GET PRICE
-                let itemPrice = (Float(productItem.product_price ?? "") ?? 0) * Float(productItem.qty)
-                
-                //GET OPTIONS PRICES
-                var optionsPrice : Double = 0.0
-                if let dicOptions = productItem.dicOptions{
-                    
-                    if let dicCartValue = dicOptions["optionCartValue"] as? NSDictionary{
-                        let allKey  = dicCartValue.allKeys
-                        for objKey in allKey{
-                            if let arrData = dicCartValue["\(objKey)"] as? NSArray{
-                                
-                                for objData in arrData {
-                                    let dicData = objData as? NSDictionary
-                                    
-                                    let price = Float(dicData?.getStringForID(key: "affect_price") ?? "") ?? 0.0
-                                    optionsPrice = optionsPrice + Double(price)
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                return ((Double(itemPrice) + (optionsPrice * Double(productItem.qty))), Double(itemPrice), optionsPrice)
-                
-            }
-        }
-        return (0, 0, 0)
-    }
-}
-
-
 ///Opens text address in maps
 func openAddressInMap(address: String?){
     guard let address = address else {return}
@@ -1387,15 +1231,7 @@ func openAddressInMap(address: String?){
         let location = placemarks.location?.coordinate
         
         if let lat = location?.latitude, let lon = location?.longitude{
-//
-//                let query = "?ll=\(lat),\(lon)"
-//                let urlString = "http://maps.apple.com/".appending(query)
-//                if let url = URL(string: urlString) {
-//                    UIApplication.shared.open(url, options: [:], completionHandler: nil)
-//                }
-//
-//
-            
+
             let destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)))
             destination.name = address
             
@@ -1403,5 +1239,186 @@ func openAddressInMap(address: String?){
                 with: [destination]
             )
         }
+    }
+}
+
+
+extension UIStackView {
+    func removeAllArrangedSubviews() {
+        let removedSubviews = arrangedSubviews.reduce([]) { (allSubviews, subview) -> [UIView] in
+            self.removeArrangedSubview(subview)
+            return allSubviews + [subview]
+        }
+        removedSubviews.forEach { $0.removeFromSuperview() }
+    }
+}
+
+
+//MARK: - LOCAL DATABASE MANAGE
+extension OrderDetailsViewController{
+
+    //API CALL
+    func getUserDataFromLocally() {
+        // Always show existing local data immediately
+        let localUserData = self.getUsersData()
+        if !localUserData.isEmpty {
+            self.arrUserList = localUserData
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 1.0) {
+            //CALL API
+            self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater())
+        }
+    }
+    
+    func getOrderDetailFromLocally() {
+        // Always show existing local data immediately
+        let localData = self.getOrderDetailData(order_id: self.strOrderUniqueId)
+        if localData != nil {
+            self.objOrderData = localData
+            self.setTheView()
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: DispatchTime.now() + 0.1) {
+            //CALL API
+            self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
+        }
+    }
+        
+    // MARK: - Get Local Data
+    func getUsersData() -> [UserListModel] {
+        if let arr = SDKUserDefault.getMappableArray(UserListModel.self, for: kFileStorageName.kOrderDetailUserData.rawValue) {
+            return arr
+        }
+        return []
+    }
+    
+    func getOrderDetailData(order_id: String) -> OrdersListModel? {
+        if let dic = SDKUserDefault.getMappableObject(OrdersListModel.self, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(order_id)") {
+            return dic
+        }
+        return nil
+    }
+    
+    
+    
+    // MARK: - ADD / UPDATE NOTE LOCALLY (OFFLINE CASE)
+    func updateDataNoInternetCase(note_dic: OrderNoteModel?, for_delete: Bool) {
+        guard let dic_note = note_dic else { return }
+        
+        let storageKey = "\(kFileStorageName.kOrderNoteData.rawValue)"
+        var arrNoteData: [OrderNoteModel] = SDKUserDefault.getMappableArray(OrderNoteModel.self, for: storageKey) ?? []
+        
+        // Check if note already exists
+        if let index = arrNoteData.firstIndex(where: { $0.id == dic_note.id }) {
+            // Replace existing note (edit case)
+            arrNoteData[index] = dic_note
+            print("Updated existing note")
+        } else {
+            // Append new note
+            arrNoteData.append(dic_note)
+            print("Added new note")
+        }
+        
+        // Save updated array
+        SDKUserDefault.saveMappableArray(arrNoteData, for: storageKey)
+        
+        if for_delete == false {
+            self.saveNoteDataInOrderDetails(arr_data: arrNoteData)
+        }
+    }
+
+    // MARK: - SAVE NOTE DATA INSIDE ORDER DETAILS LOCALLY
+    func saveNoteDataInOrderDetails(arr_data: [OrderNoteModel]) {
+        guard var localData = self.getOrderDetailData(order_id: self.strOrderUniqueId) else {
+            print("No local order data")
+            return
+        }
+        
+        var arrNote = localData.arrOrderNote
+        
+        for note in arr_data {
+            if (note.type ?? "") != "delete" && note.mainOrderUniqueID == self.strOrderUniqueId {
+                if let index = arrNote.firstIndex(where: { $0.id == note.id }) {
+                    // Replace existing note
+                    arrNote[index] = note
+                    print("Update note")
+                } else {
+                    // Append new note
+                    arrNote.insert(note, at: 0)
+                    print("Added new note")
+                }
+            }
+        }
+        
+        // Save updated note array back to local data
+        localData.arrOrderNote = arrNote
+        
+        // Save updated order object in MMKV
+        SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
+        
+        self.objOrderData = localData
+        self.setTheView()
+    }
+    
+    
+    
+    // MARK: - DELETE NOTE LOCALLY (OFFLINE CASE)
+    func deleteNoteDataNoInternetCase(note_dic: OrderNoteModel?) {
+        guard let dic_note = note_dic else { return }
+        
+        let storageKey = "\(kFileStorageName.kOrderNoteData.rawValue)"
+        
+        // Fetch existing notes from local MMKV
+        var arrNoteData: [OrderNoteModel] = SDKUserDefault.getMappableArray(OrderNoteModel.self, for: storageKey) ?? []
+        
+        // Remove note from array if it exists
+        if let index = arrNoteData.firstIndex(where: { $0.id == dic_note.id }) {
+            arrNoteData.remove(at: index)
+            
+            // Save updated array back
+            SDKUserDefault.saveMappableArray(arrNoteData, for: storageKey)
+            
+        }
+        else {
+            print("Note not found locally for delete")
+
+            var dic_OrderNote = OrderNoteModel.init(JSON: [:])
+            dic_OrderNote?.id = Int(randomNumber(length: 5))
+            dic_OrderNote?.status = kOrderStatusType.kPending.rawValue
+            dic_OrderNote?.type = kOrderStatusType.kDelete.rawValue
+            dic_OrderNote?.unique_id = note_dic?.unique_id ?? ""
+            dic_OrderNote?.mainOrderUniqueID = self.strOrderUniqueId
+            self.updateDataNoInternetCase(note_dic: dic_OrderNote, for_delete: true)
+        }
+        
+        // Update order details accordingly
+        self.deleteNoteFromOrderDetails(note: dic_note)
+    }
+
+    
+    // MARK: - DELETE NOTE INSIDE ORDER DETAILS LOCALLY
+    func deleteNoteFromOrderDetails(note: OrderNoteModel) {
+        guard var localData = self.getOrderDetailData(order_id: self.strOrderUniqueId) else {
+            print("⚠️ No local order data found for ID \(self.strOrderUniqueId)")
+            return
+        }
+        
+        var arrNote = localData.arrOrderNote
+        
+        // Remove note from order details if exists
+        if let index = arrNote.firstIndex(where: { $0.id == note.id }) {
+            arrNote.remove(at: index)
+            print("🗑️ Removed note from order details with id: \(note.id ?? 0)")
+        } else {
+            print("⚠️ Note not found in order details with id: \(note.id ?? 0)")
+        }
+        
+        // Save updated data
+        localData.arrOrderNote = arrNote
+        SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
+        
+        self.objOrderData = localData
+        self.setTheView()
     }
 }

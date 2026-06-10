@@ -2,8 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -18,24 +20,12 @@
 		<string>Roboto-Black.ttf</string>
 		<string>HelveticaNeue.ttc</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Need microphone access for uploading audio</string>
-	<key>NSCameraUsageDescription</key>
-	<string>We need this permission to capture and update driver profile picture.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We need this permission to get photos from library for update driver linces picture.</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>This Application need to access your calendar to add event on it</string>
-    
-    <key>UIStatusBarStyle</key><string>UIStatusBarStyleLightContent</string>
-
-    <key>LSApplicationQueriesSchemes</key>
-        <array>
-        <string>comgooglemaps</string>
-        </array>
-        
-        
 </dict>
 </plist>

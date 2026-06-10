@@ -124,7 +124,7 @@ extension ClockInViewController{
             self.updateEmployeesStatusAPI(EmployeParameater: EmployeParameater(employee_id: "\(self.objData.id ?? 0)", status_code: self.selectStatusCode, comment: ""))
         }
         else{
-            showAlertMessage(strMessage: "Please select status")
+            showAlertMessage(strMessage: "Please select a status.")
         }
     }
 }

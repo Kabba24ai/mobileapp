@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="25B78" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+    <entity name="CategoryList" representedClassName="CategoryList" syncable="YES" codeGenerationType="class">
+        <attribute name="id" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="image" optional="YES" attributeType="String"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="uniqueId" optional="YES" attributeType="String"/>
+        <relationship name="children" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CategoryList" inverseName="parent" inverseEntity="CategoryList"/>
+        <relationship name="parent" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CategoryList" inverseName="children" inverseEntity="CategoryList"/>
+    </entity>
+    <entity name="OrderList" representedClassName="OrderList" syncable="YES" codeGenerationType="class">
+        <attribute name="orderID" optional="YES" attributeType="String"/>
+        <attribute name="type" optional="YES" attributeType="String"/>
+    </entity>
+    <entity name="UploadData" representedClassName="UploadData" syncable="YES" codeGenerationType="class">
+        <attribute name="allocated" optional="YES" attributeType="String"/>
+        <attribute name="auto_inject_by" optional="YES" attributeType="String"/>
+        <attribute name="checklist_delivered" optional="YES" attributeType="String"/>
+        <attribute name="checklist_returned" optional="YES" attributeType="String"/>
+        <attribute name="checklist_Value" optional="YES" attributeType="String"/>
+        <attribute name="end" optional="YES" attributeType="String"/>
+        <attribute name="image_side" optional="YES" attributeType="String"/>
+        <attribute name="isImage" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="license_expiry_date" optional="YES" attributeType="String"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="orderID" optional="YES" attributeType="String"/>
+        <attribute name="over" optional="YES" attributeType="String"/>
+        <attribute name="over_rate" optional="YES" attributeType="String"/>
+        <attribute name="productID" optional="YES" attributeType="String"/>
+        <attribute name="qustion_id" optional="YES" attributeType="String"/>
+        <attribute name="start" optional="YES" attributeType="String"/>
+        <attribute name="status" optional="YES" attributeType="String"/>
+        <attribute name="total" optional="YES" attributeType="String"/>
+        <attribute name="total_cost" optional="YES" attributeType="String"/>
+        <attribute name="type" optional="YES" attributeType="String"/>
+        <attribute name="videoType" optional="YES" attributeType="String"/>
+    </entity>
+</model>

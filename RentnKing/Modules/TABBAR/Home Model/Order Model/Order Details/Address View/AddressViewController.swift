@@ -16,9 +16,13 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
     @IBOutlet weak var lblSubmit : UILabel!
     @IBOutlet weak var viewSubmit: UIView!
     
-    @IBOutlet weak var viewName: UIView!
-    @IBOutlet weak var txtName: UITextField!
-    @IBOutlet weak var lblName: UILabel!
+    @IBOutlet weak var viewFirstName: UIView!
+    @IBOutlet weak var txtFirstName: UITextField!
+    @IBOutlet weak var lblFirstName: UILabel!
+
+    @IBOutlet weak var viewLastName: UIView!
+    @IBOutlet weak var txtLastName: UITextField!
+    @IBOutlet weak var lblLastName: UILabel!
 
     @IBOutlet weak var viewPhone: UIView!
     @IBOutlet weak var txtPhone: UITextField!
@@ -50,13 +54,18 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
     var orderID : String = ""
     var arrStates : [StatesModel] = []
     var objAdress: AddressModel?
-
+    var strStatesID : String = ""
+    var strOrderUniqueId : String = ""
+    var strAddressTryp : String = ""
 
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setupKeyboard(true)
-
+        if self.objAdress != nil{
+            self.strStatesID = self.objAdress?.state_id ?? ""
+        }
+        
         // Do any additional setup after loading the view.
         
         //GET STATES
@@ -97,7 +106,8 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
     func setTheView() {
 
         //SET LABLE
-        self.lblName.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: "Name")
+        self.lblFirstName.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: "First Name")
+        self.lblLastName.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: "Last Name")
         self.lblPhone.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: str.strPhone)
         self.lblEmail.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: str.strEmail)
         self.lblState.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: str.strState)
@@ -106,8 +116,11 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
         self.lblZip.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: str.strZipCode)
 
         
-        self.txtName.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "\(self.objAdress?.name ?? "")", placeholder: "Enter name")
-        self.txtName.delegate = self
+        self.txtFirstName.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "\(self.objAdress?.first_name ?? "")", placeholder: "Enter first name")
+        self.txtFirstName.delegate = self
+
+        self.txtLastName.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "\(self.objAdress?.last_name ?? "")", placeholder: "Enter last name")
+        self.txtLastName.delegate = self
 
         self.txtPhone.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "\(self.objAdress?.phone ?? "")", placeholder: str.enterPhone)
         self.txtPhone.delegate = self
@@ -129,7 +142,8 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
 
         
         //SET VIEW
-        self.viewName.setTheTextView(bgColor: .secondary )
+        self.viewFirstName.setTheTextView(bgColor: .secondary )
+        self.viewLastName.setTheTextView(bgColor: .secondary )
         self.viewPhone.setTheTextView(bgColor: .secondary )
         self.viewEmail.setTheTextView(bgColor: .secondary )
         self.viewState.setTheTextView(bgColor: .secondary )
@@ -150,6 +164,7 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
             let vw_Table = self.tblView.tableHeaderView
             vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.viewSubmit.frame.origin.y + self.viewSubmit.frame.size.height)
 
+            
             self.tblView.tableHeaderView = vw_Table
         }
     }
@@ -166,6 +181,7 @@ extension AddressViewController {
         
         actionPicker(sender, strTitle: str.strSelectState, arrData: self.arrStates.compactMap { $0.name}, selectValue: self.txtState.text ?? "") { index, selectValue in
             
+            self.strStatesID = "\(self.arrStates[index].id ?? 0)"
             self.txtState.text = selectValue
         }
     }
@@ -174,7 +190,8 @@ extension AddressViewController {
     @IBAction func btnUpdateClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         //CHECK VALIDATION
-        let strName: String = self.txtName.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        let strFirstName: String = self.txtFirstName.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        let strLastName: String = self.txtLastName.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         let strPhone: String = self.txtPhone.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         let strEmil: String = self.txtEmail.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         let strState: String = self.txtState.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
@@ -183,37 +200,40 @@ extension AddressViewController {
         let strZip: String = self.txtZip.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         
         
-        if strName == ""{
-            showAlertMessage(strMessage: "Please enter name")
+        if strFirstName == ""{
+            showAlertMessage(strMessage: "Please enter your first name.")
+        }
+        else if strFirstName == ""{
+            showAlertMessage(strMessage: "Please enter your last name.")
         }
         else if strPhone == ""{
-            showAlertMessage(strMessage: "Please enter phone")
+            showAlertMessage(strMessage: "Please enter your phone number.")
         }
         else if strEmil == ""{
-            showAlertMessage(strMessage: "Please enter email")
+            showAlertMessage(strMessage: "Please enter your email address.")
         }
         else if !validateEmail(enteredEmail: strEmil){
-            showAlertMessage(strMessage: "Please enter valide email")
+            showAlertMessage(strMessage: "Please enter a valid email address.")
         }
        
         else if strPhone.validPhoneNumber == false || strPhone.count != 14{
-            showAlertMessage(strMessage: "Please enter valide phone")
+            showAlertMessage(strMessage: "Please enter a valid phone number.")
         }
         else if strState == ""{
-            showAlertMessage(strMessage: "Please select State")
+            showAlertMessage(strMessage: "Please select a state.")
         }
         else if strCity == ""{
-            showAlertMessage(strMessage: "Please enter city")
+            showAlertMessage(strMessage: "Please enter your city.")
         }
         else if strAddress == ""{
-            showAlertMessage(strMessage: "Please enter address")
+            showAlertMessage(strMessage: "Please enter your address.")
         }
         else if strZip == ""{
-            showAlertMessage(strMessage: "Please enter zip code")
+            showAlertMessage(strMessage: "Please enter your ZIP code.")
         }
         else {
             //CALLAPI
-            self.updateAddress(UpdateAddressParameater: UpdateAddressParameater(address_id: "\(self.objAdress?.id ?? 0)", name: strName, phone: strPhone, email: strEmil, state: strState, city: strCity, zip_code: strZip, address: strAddress))
+            self.updateAddress(UpdateAddressParameater: UpdateAddressParameater(order_unique_id: self.strOrderUniqueId, type: self.strAddressTryp, first_name: strFirstName, last_name: strLastName, phone: strPhone, address: strAddress, state: strState, state_id: self.strStatesID, city: strCity, zip_code: strZip))
         }
     }
 }

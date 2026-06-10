@@ -546,34 +546,34 @@ extension PaymentViewController{
        
         
         if strFirstName == ""{
-            showAlertMessage(strMessage: "Please enter first name")
+            showAlertMessage(strMessage: "Please enter your first name.")
         }
         else if strLastName == ""{
-            showAlertMessage(strMessage: "Please enter last name")
+            showAlertMessage(strMessage: "Please enter your last name.")
         }
         else if strEmil == ""{
-            showAlertMessage(strMessage: "Please enter email")
+            showAlertMessage(strMessage: "Please enter your email address.")
         }
         else if !validateEmail(enteredEmail: strEmil){
-            showAlertMessage(strMessage: "Please enter valide email")
+            showAlertMessage(strMessage: "Please enter a valid email address.")
         }
         else if strPhone == ""{
-            showAlertMessage(strMessage: "Please enter phone")
+            showAlertMessage(strMessage: "Please enter your phone number.")
         }
         else if strPhone.validPhoneNumber == false || strPhone.count != 14{
-            showAlertMessage(strMessage: "Please enter valide phone")
+            showAlertMessage(strMessage: "Please enter a valid phone number.")
         }
         else if strAddress == ""{
-            showAlertMessage(strMessage: "Please enter address")
+            showAlertMessage(strMessage: "Please enter your address.")
         }
         else if strState == ""{
-            showAlertMessage(strMessage: "Please select State")
+            showAlertMessage(strMessage: "Please select a state.")
         }
         else if strCity == ""{
-            showAlertMessage(strMessage: "Please enter city")
+            showAlertMessage(strMessage: "Please enter your city.")
         }
         else if strZip == ""{
-            showAlertMessage(strMessage: "Please enter zip code")
+            showAlertMessage(strMessage: "Please enter your ZIP code.")
         }
         else {
             if self.isDeliveySameBilling == false{
@@ -587,26 +587,26 @@ extension PaymentViewController{
                     showAlertMessage(strMessage: "Please enter delivery email")
                 }
                 else if !validateEmail(enteredEmail: strDeliveryEmil){
-                    showAlertMessage(strMessage: "Please enter valide delivery email")
+                    showAlertMessage(strMessage: "Please enter a valid delivery email address.")
                 }
 
                 else if strDeliveryPhone == ""{
-                    showAlertMessage(strMessage: "Please enter delivery phone")
+                    showAlertMessage(strMessage: "Please enter the delivery phone number.")
                 }
                 else if strDeliveryPhone.validPhoneNumber == false || strDeliveryPhone.count != 14{
                     showAlertMessage(strMessage: "Please enter valide delivery phone")
                 }
                 else if strDeliveryAddress == ""{
-                    showAlertMessage(strMessage: "Please enter delivery address")
+                    showAlertMessage(strMessage: "Please enter the delivery address.")
                 }
                 else if strDeliveryState == ""{
-                    showAlertMessage(strMessage: "Please select delivery State")
+                    showAlertMessage(strMessage: "Please select a delivery state.")
                 }
                 else if strDeliveryCity == ""{
-                    showAlertMessage(strMessage: "Please enter delivery city")
+                    showAlertMessage(strMessage: "Please enter the delivery city.")
                 }
                 else if strDeliveryZip == ""{
-                    showAlertMessage(strMessage: "Please enter delivery zip code")
+                    showAlertMessage(strMessage: "Please enter the delivery ZIP code.")
                 }
                 else{
                     if self.isPayCard{
@@ -658,26 +658,26 @@ extension PaymentViewController{
         let strCVC: String = self.txtCVC.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
 
         if strPaymentFirstName == ""{
-            showAlertMessage(strMessage: "Please enter payment first name")
+            showAlertMessage(strMessage: "Please enter the payment first name.")
         }
         else if strPaymentFirstLastName == ""{
-            showAlertMessage(strMessage: "Please enter payment last name")
+            showAlertMessage(strMessage: "Please enter the payment last name.")
         }
         else if strCardNumber == ""{
-            showAlertMessage(strMessage: "Please enter card number")
+            showAlertMessage(strMessage: "Please enter the card number.")
         }
         else if validatePhoneNumber(value: strCardNumber){
-            showAlertMessage(strMessage: "Please enter valide card number")
+            showAlertMessage(strMessage: "Please enter a valid card number.")
         }
         else if strMonth == ""{
-            showAlertMessage(strMessage: "Please select month")
+            showAlertMessage(strMessage: "Please select a month.")
         }
    
         else if strYear == ""{
-            showAlertMessage(strMessage: "Please select year")
+            showAlertMessage(strMessage: "Please select a year.")
         }
         else if strCVC == ""{
-            showAlertMessage(strMessage: "Please enter CVC")
+            showAlertMessage(strMessage: "Please enter the CVC.")
         }
         else{
             return true

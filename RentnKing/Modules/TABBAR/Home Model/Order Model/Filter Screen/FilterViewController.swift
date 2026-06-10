@@ -8,7 +8,7 @@
 import UIKit
 
 protocol FilterProtocol : AnyObject {
-    func SelectFilter(categoryID : Int, strStatus : String, strDeliveryType : String)
+    func SelectFilter(categoryID : Int, strStatus : String, strPaymentType : String, strDeliveryType : String, strNotificationType : String)
 }
 
 
@@ -30,15 +30,23 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     //SET OTHER VALUE   Multiple Pick up and for other stores
     @IBOutlet weak var viewItemMenu: UIView!
     
-    @IBOutlet weak var con_SelectView: NSLayoutConstraint!
     @IBOutlet weak var viewCaregory: UIView!
     @IBOutlet weak var lblCaregory: UILabel!
 
     @IBOutlet weak var viewStatus: UIView!
     @IBOutlet weak var lblStatus: UILabel!
     
+    @IBOutlet weak var viewPaymentType: UIView!
+    @IBOutlet weak var lblPaymentType: UILabel!
+
     @IBOutlet weak var viewType: UIView!
     @IBOutlet weak var lblType: UILabel!
+
+    @IBOutlet weak var viewNotificationType: UIView!
+    @IBOutlet weak var lblNotificationType: UILabel!
+
+    @IBOutlet weak var viewPastOrder: UIView!
+    @IBOutlet weak var lblPastOrder: UILabel!
 
     
     var initialConViewBgTop: CGFloat = 0.0
@@ -47,14 +55,22 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     var bgAlpha: CGFloat = 0.5
     var selectFilterIndex : Int = 1
     var selectCategoryID : Int = 0
-    var selectStatus :  String = "all"
-    var selectType :  String = "all"
+    var selectStatus :  String = "All"
+    var selectPaymentType :  String = "All"
+    var selectType :  String = "Pending"
+    var selectNotificationType :  String = "All"
     var isScheduleScreen : Bool = false
-    
-    var arrCategorys : [CategoryModel] = []
-    var arrStatus : [String] = ["all","completed", "failed", "fraud" ,"refunded", "refunding", "pending"]
-    var arrDeliveryType : [String] = ["all","delivery", "in store", "Rescheduled"]
+    var strPastSelect : String = "None"
 
+    var arrCategorys : [CategoryModel] = []
+    var arrStatus : [String] = ["All","Paid", "Pending", "Account" ,"Partial Refund", "Refunded", "Failed"]
+    var arrPaymentMethos: [String] = ["All","Card", "COD", "Account"]
+    var arrScheduleStatus : [String] = ["Pending","Completed"]
+    var arrNotification: [String] = ["All","Unread", "Read"]
+    var arrPastOrder: [String] = ["None", "Past 7 Days", "Past 15 Days", "Past 30 Days"]
+
+
+    
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -131,7 +147,10 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     func setSelectFilterViews(select : Int){
         self.viewCaregory.backgroundColor = .clear
         self.viewStatus.backgroundColor = .clear
+        self.viewPaymentType.backgroundColor = .clear
+        self.viewNotificationType.backgroundColor = .clear
         self.viewType.backgroundColor = .clear
+        self.viewPastOrder.backgroundColor = .clear
 
         self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Category")
         self.lblCaregory.textAlignment = .center
@@ -139,9 +158,17 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         self.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
         self.lblStatus.textAlignment = .center
 
-        self.lblType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Delivery Type")
+        self.lblPaymentType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Payment Type")
+        self.lblPaymentType.textAlignment = .center
+
+        self.lblType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
         self.lblType.textAlignment = .center
 
+        self.lblNotificationType.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Notification")
+        self.lblNotificationType.textAlignment = .center
+
+        self.lblPastOrder.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Past Orders")
+        self.lblPastOrder.textAlignment = .center
 
         if select == 1{
             self.viewCaregory.backgroundColor = .background
@@ -152,16 +179,34 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
             self.lblStatus.textColor = .primary
         }
         else if select == 3{
+            self.viewPaymentType.backgroundColor = .background
+            self.lblPaymentType.textColor = .primary
+        }
+        else if select == 4{
             self.viewType.backgroundColor = .background
             self.lblType.textColor = .primary
+        }
+        else if select == 5{
+            self.viewNotificationType.backgroundColor = .background
+            self.lblNotificationType.textColor = .primary
+        }
+        else if select == 6{
+            self.viewPastOrder.backgroundColor = .background
+            self.lblPastOrder.textColor = .primary
         }
         
         //CHECK TYPE
         self.viewType.isHidden = true
         self.viewStatus.isHidden = false
+        self.viewPaymentType.isHidden = false
+        self.viewNotificationType.isHidden = false
+        self.viewPastOrder.isHidden = true
         if self.isScheduleScreen{
             self.viewType.isHidden = false
             self.viewStatus.isHidden = true
+            self.viewPaymentType.isHidden = true
+            self.viewNotificationType.isHidden = true
+            self.viewPastOrder.isHidden = false
         }
     }
    
@@ -200,7 +245,7 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
         }) { finished in
             
             //GET DATA
-            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus != "all" ? self.selectStatus : "", strDeliveryType: self.selectType)
+            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus, strPaymentType: self.selectPaymentType, strDeliveryType: self.selectType, strNotificationType: self.selectNotificationType)
             
             DispatchQueue.main.async {
                 self.dismiss(animated: false)
@@ -209,16 +254,25 @@ class FilterViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     
     @IBAction func btnSelectFilterClicked(_ sender: UIButton) {
-        if sender.tag == 1{
-            self.selectFilterIndex = 1
-        }
-        else if sender.tag == 2{
-            self.selectFilterIndex = 2
-        }
-        else if sender.tag == 3{
-            self.selectFilterIndex = 3
-        }
-        
+//        if sender.tag == 1{
+//            self.selectFilterIndex = 1
+//        }
+//        else if sender.tag == 2{
+//            self.selectFilterIndex = 2
+//        }
+//        else if sender.tag == 3{
+//            self.selectFilterIndex = 3
+//        }
+//        else if sender.tag == 4{
+//            self.selectFilterIndex = 4
+//        }
+//        else if sender.tag == 5{
+//            self.selectFilterIndex = 5
+//        }
+//        else if sender.tag == 6{
+//            
+//        }
+        self.selectFilterIndex = sender.tag
         //SET VIEW AND REPLAOD
         self.setSelectFilterViews(select: self.selectFilterIndex)
         self.tblView.reloadData()
@@ -296,7 +350,16 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             return self.arrStatus.count
         }
         else if self.selectFilterIndex == 3{
-            return self.arrDeliveryType.count
+            return self.arrPaymentMethos.count
+        }
+        else if self.selectFilterIndex == 4{
+            return self.arrScheduleStatus.count
+        }
+        else if self.selectFilterIndex == 5{
+            return self.arrNotification.count
+        }
+        else if self.selectFilterIndex == 6{
+            return self.arrPastOrder.count
         }
         return 0
     }
@@ -326,9 +389,30 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
             else if self.selectFilterIndex == 3{
-                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrDeliveryType[indexPath.row].capitalized)
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrPaymentMethos[indexPath.row].capitalized)
                 
-                if self.selectType.lowercased() == self.arrDeliveryType[indexPath.row].lowercased(){
+                if self.selectPaymentType.lowercased() == self.arrPaymentMethos[indexPath.row].lowercased(){
+                    cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                }
+            }
+            else if self.selectFilterIndex == 4{
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrScheduleStatus[indexPath.row] .capitalized)
+                
+                if self.selectType.lowercased() == self.arrScheduleStatus[indexPath.row].lowercased(){
+                    cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                }
+            }
+            else if self.selectFilterIndex == 5{
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrNotification[indexPath.row] .capitalized)
+                
+                if self.selectNotificationType.lowercased() == self.arrNotification[indexPath.row].lowercased(){
+                    cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                }
+            }
+            else if self.selectFilterIndex == 6{
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrPastOrder[indexPath.row] .capitalized)
+                
+                if self.strPastSelect.lowercased() == self.arrPastOrder[indexPath.row].lowercased(){
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                 }
             }
@@ -347,10 +431,19 @@ extension FilterViewController : UITableViewDelegate, UITableViewDataSource{
             self.selectCategoryID = self.arrCategorys[indexPath.row].id ?? 0
         }
         else if self.selectFilterIndex == 2{
-            self.selectStatus = self.arrStatus[indexPath.row].lowercased()
+            self.selectStatus = self.arrStatus[indexPath.row]
         }
         else if self.selectFilterIndex == 3{
-            self.selectType = self.arrDeliveryType[indexPath.row].lowercased()
+            self.selectPaymentType = self.arrPaymentMethos[indexPath.row]
+        }
+        else if self.selectFilterIndex == 4{
+            self.selectType = self.arrScheduleStatus[indexPath.row]
+        }
+        else if self.selectFilterIndex == 5{
+            self.selectNotificationType = self.arrNotification[indexPath.row]
+        }
+        else if self.selectFilterIndex == 6{
+            self.strPastSelect = self.arrPastOrder[indexPath.row]
         }
         //RELOAD TABLE
         self.tblView.reloadData()

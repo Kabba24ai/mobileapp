@@ -9,16 +9,16 @@ import Foundation
 import ObjectMapper
 
 struct UpdateAddressParameater: Codable {
-    var address_id : String
-    var name: String
+    var order_unique_id: String
+    var type: String //Billing, Shipping
+    var first_name: String
+    var last_name: String
     var phone: String
-    var email: String
+    var address: String
     var state: String
+    var state_id: String
     var city: String
     var zip_code: String
-    var address: String
-    var country: String = "US"
-
 }
 
 extension AddressViewController :WebServiceHelperDelegate{
@@ -70,12 +70,12 @@ extension AddressViewController :WebServiceHelperDelegate{
     
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
 
         if data.getStringForID(key: "success") == "1"{
             if strRequest == "getStates"{
-                if let arrData = data["data"] as? NSArray{
+                if let arrData = data["states"] as? NSArray{
                    
                     self.arrStates = []
                     self.arrStates = Mapper<StatesModel>().mapArray(JSONArray: arrData as! [[String : Any]])

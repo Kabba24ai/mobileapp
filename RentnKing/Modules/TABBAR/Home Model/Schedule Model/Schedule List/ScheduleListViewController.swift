@@ -9,6 +9,7 @@ import UIKit
 import MessageUI
 import EventKit
 import EventKitUI
+import Alamofire
 extension UIButton {
     func toBarButtonItem() -> UIBarButtonItem? {
         return UIBarButtonItem(customView: self)
@@ -24,27 +25,37 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     
     @IBOutlet weak var viewDelivery: UIView!
     @IBOutlet weak var lblDelivery: UILabel!
+    @IBOutlet weak var imgDelivery: UIImageView!
+    @IBOutlet weak var imgSelectDelivery: UIImageView!
+
     @IBOutlet weak var viewPickup: UIView!
     @IBOutlet weak var lblPickup: UILabel!
-    @IBOutlet weak var con_DeliveryPickupLine: NSLayoutConstraint!
-    @IBOutlet weak var viewLine: UIView!
+    @IBOutlet weak var imgPickup: UIImageView!
+    @IBOutlet weak var imgSelectPickup: UIImageView!
 
-    @IBOutlet weak var viewPending: UIView!
-    @IBOutlet weak var lblPending: UILabel!
-    @IBOutlet weak var viewCompleted: UIView!
-    @IBOutlet weak var lblCompleted: UILabel!
+    @IBOutlet weak var viewTodayOnly: UIView!
+//    @IBOutlet weak var lblTodayOnly: UILabel!
+//    var isTodayOnly : Bool = true
+//    private let customTodayOnlySwitch: CustomSwitch = {
+//        let sw = CustomSwitch()
+//        sw.translatesAutoresizingMaskIntoConstraints = false
+//        sw.onTintColor = .systemGreen
+//        sw.offTintColor = .darkGray
+//        sw.thumbTintColor = .white
+//        sw.isOn = true
+//        return sw
+//    }()
+    var strSelectDay = "Today"
+    private let segmentedControl = CustomSegmentedControl()
 
-    @IBOutlet weak var viewPendingCount: UIView!
-    @IBOutlet weak var lblPendingCount: UILabel!
 
-    @IBOutlet weak var viewCompletedCount: UIView!
-    @IBOutlet weak var lblCompletedCount: UILabel!
+    
+//    @IBOutlet weak var viewPending: UIView!
+//    @IBOutlet weak var lblPending: UILabel!
+//    @IBOutlet weak var viewCompleted: UIView!
+//    @IBOutlet weak var lblCompleted: UILabel!
 
-    @IBOutlet weak var viewDeliveryCount: UIView!
-    @IBOutlet weak var lblDeliveryCount: UILabel!
 
-    @IBOutlet weak var viewPickupCount: UIView!
-    @IBOutlet weak var lblPickupCount: UILabel!
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
 
     
@@ -70,7 +81,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 //    var arrAllData : [SchedulesModel] = []
     var arrScheduleList : [SchedulesModel] = []
 //    var arrSearchScheduleList : [SchedulesModel] = []
-    var arrCategorys : [CategoryModel] = []
+    var arrCategoryList : [CategoryModel] = []
 
     //OTHER
     var isLoading : Bool = true
@@ -86,12 +97,13 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 //    var strFilter : String = "All"
     
     var selectCategoryID : String = ""
-    var selectDeliveryType : String = ""
+    var selectDeliveryType : String = "All"
 
+    var isSelectPickup : Bool = true
+    var isSelectDelivery : Bool = true
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
         self.setSearchBar(isHide: true)
 
         
@@ -107,23 +119,24 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 
         
         //SET LOADING
-        self.viewLine.backgroundColor = .clear
         self.setupTableView()
+        
+        
+        //GET CATEGORY DATA
+        getCategoryList { arr_data in
+            self.arrCategoryList = arr_data
+        }
     }
     
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
-        self.getCategorys()
+//        self.getCategorys(CatrgoryParameater: CatrgoryParameater())
 
         //GET DATA
         self.refreshList()
         
-        //SET COUNT
-        self.setcount()
-        GlobalMainConstants.appDelegate?.getScheduleCount()
-
         
         //SET VIEW
         self.view.backgroundColor = .background
@@ -162,9 +175,9 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
                 let view = storyboard.instantiateViewController(withIdentifier: "FilterViewController") as! FilterViewController
                 view.delegate = self
                 view.isScheduleScreen = true
-                view.arrCategorys = self.arrCategorys
+                view.arrCategorys = self.arrCategoryList
                 view.selectCategoryID = Int(self.selectCategoryID) ?? 0
-                view.selectType = self.selectDeliveryType == "" ? "all" : self.selectDeliveryType
+                view.selectType = self.selectStatus == "1" ? "Pending" : "Completed"
                 view.view.backgroundColor = UIColor.clear
                 view.modalPresentationStyle = .overCurrentContext
                 self.present(view, animated: false) {
@@ -176,7 +189,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     
     func checkFilter() -> Bool{
         //CEHCK FILTER
-        if self.selectCategoryID != "" || self.selectDeliveryType != ""{
+        if self.selectCategoryID != "" || self.selectDeliveryType != "All"{
             return true
         }
         else{
@@ -184,40 +197,104 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         }
     }
     
-    @objc func refreshList(){
-        //GET DATA
-        self.viewPendingCount.isHidden = true
-        self.viewPickupCount.isHidden = true
-        self.viewDeliveryCount.isHidden = true
-        self.viewCompletedCount.isHidden = true
-
+    // MARK: - Refresh Action
+    @objc func refreshList() {
+        self.pageCount = 1
+        self.bool_Load = true
         self.isLoading = true
         self.arrScheduleList = []
         self.tblView.reloadData()
-        self.pageCount = 1
-        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType))
 
+
+        // Always show existing local data immediately
+        let localData = self.getScheduleOrderData(schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed")
+        if !localData.isEmpty {
+            self.arrScheduleList = localData
+            self.setTheView()
+        }
+        else {
+            self.arrScheduleList.removeAll()
+            self.setTheView()
+        }
+
+        if NetworkReachabilityManager()!.isReachable {
+            self.APICall()
+        }
     }
+     
+    func APICall() {
+        let params = OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay)
+        self.fetchOrders(OrdersParameater: params, overrideLocal: true)
+    }
+    
+//    @objc func refreshList(){
+//        //GET DATA
+//        self.viewPendingCount.isHidden = true
+//        self.viewPickupCount.isHidden = true
+//        self.viewDeliveryCount.isHidden = true
+//        self.viewCompletedCount.isHidden = true
+//
+//        self.isLoading = true
+//        self.arrScheduleList = []
+//        self.tblView.reloadData()
+//        self.pageCount = 1
+//        
+//        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType))
+//
+//    }
     
     func setTheView(){
         self.objSearchIndicator.isHidden = true
         self.objSearchIndicator.stopAnimating()
 
+        self.viewTodayOnly.backgroundColor = .clear
+        segmentedControl.translatesAutoresizingMaskIntoConstraints = false
+        self.viewTodayOnly.addSubview(segmentedControl)
+        
+        NSLayoutConstraint.activate([
+            segmentedControl.centerXAnchor.constraint(equalTo: self.viewTodayOnly.centerXAnchor),
+            segmentedControl.centerYAnchor.constraint(equalTo: self.viewTodayOnly.centerYAnchor),
+            segmentedControl.widthAnchor.constraint(equalToConstant: 250)
+        ])
+        
+        segmentedControl.valueChanged = { segment in
+            switch segment {
+            case .today:
+                if self.strSelectDay != "Today"{
+                    self.strSelectDay = "Today"
+                    self.refreshList()
+                }
+                
+                
+            case .tomorrow:
+                if self.strSelectDay != "Tomorrow"{
+                    self.strSelectDay = "Tomorrow"
+                    self.refreshList()
+                }
+                
+            case .all:
+                if self.strSelectDay != "All"{
+                    self.strSelectDay = "All"
+                    self.refreshList()
+                }
+            }
+        }
+        
+//        self.viewTodayOnly.addSubview(self.customTodayOnlySwitch)
+//        self.customTodayOnlySwitch.addTarget(self,action: #selector(switchChanged(_:)),for: .valueChanged)
+//        self.lblTodayOnly.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 12, text: "Today Only")
+
+        
+        //SET IMAGE
+        imgColor(imgColor: self.imgDelivery, colorHex: .secondary)
+        imgColor(imgColor: self.imgPickup, colorHex: .secondary)
+        self.setDeliveryType()
         
         //SET FONT
-        self.lblDelivery.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDelivery)
-        self.lblPickup.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickup)
-
-        self.lblPending.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strPending)
-        self.lblCompleted.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strCompleted)
-        self.lblCompletedCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblPendingCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblDeliveryCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-        self.lblPickupCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
-
+        self.lblDelivery.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strDelivery)
+        self.lblPickup.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: str.strPickup)
         
         self.setTheType(isDelivery: self.isDeliveryType)
-        self.setOrderType(isPending: self.isPending)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
             //STOP LOADING
@@ -233,58 +310,54 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
             //RELOAD DATA
             self.tblView.reloadData()
         }
-        
-        //SET COUNT
-        self.setcount()
 
     }
     
+//    @objc private func switchChanged(_ sender: CustomSwitch) {
+//        self.view.endEditing(true)
+//        self.isTodayOnly = sender.isOn
+//        self.refreshList()
+//    }
     func setTheType(isDelivery : Bool){
-        self.selectType = isDelivery == true ? "Delivery" : "Pickup"
-
-        self.viewLine.backgroundColor = .secondary
-        self.lblDelivery.textColor = isDelivery == true ? .secondary : .primary.withAlphaComponent(0.6)
-        self.lblPickup.textColor = isDelivery == false ? .secondary : .primary.withAlphaComponent(0.6)
-
-        //ANIMATION
-        UIView.animate(withDuration: 0.2,
-                   delay: 0.1,
-                       options: UIView.AnimationOptions.curveEaseIn,
-                   animations: { () -> Void in
-            if isDelivery{
-                self.con_DeliveryPickupLine.constant = 0
-                
-            }
-            else{
-                let strPickupSize = self.viewPickup.frame.origin.x + (self.viewPickup.frame.size.width / 2) - (self.viewLine.frame.size.width / 2)
-                let strDeliverySize = (self.viewDelivery.frame.origin.x + (self.viewDelivery.frame.size.width / 2) - (self.viewLine.frame.size.width / 2))
-                self.con_DeliveryPickupLine.constant = strPickupSize - strDeliverySize
-
-            }
-
-            self.view.layoutIfNeeded()
-
-        }, completion: { (finished) -> Void in
-        // ....
-        })
+        self.selectType = isDelivery == true ? "Delivery" : "Return"
+       
         
-    }
-    
-    func setOrderType(isPending : Bool){
-        self.selectStatus = isPending == true ? "1" : "2"
-
-        self.lblPending.textColor = isPending == true ? .background : .primary
-        self.lblCompleted.textColor = isPending == false ? .background : .primary
+        self.lblDelivery.textColor = isDelivery == true ? .background : .primary
+        self.lblPickup.textColor = isDelivery == false ? .background : .primary
 
         //SET VIEW
-        self.viewPending.viewCorneRadius(radius: 10.0, isRound: false)
-        self.viewCompleted.viewCorneRadius(radius: 10.0, isRound: false)
-        self.viewPending.viewBorderCorneRadius(borderColour: .secondary)
-        self.viewCompleted.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewDelivery.viewCorneRadius(radius: 10.0, isRound: false)
+        self.viewPickup.viewCorneRadius(radius: 10.0, isRound: false)
+        self.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewPickup.viewBorderCorneRadius(borderColour: .secondary)
         
-        self.viewPending.backgroundColor = isPending == true ? .secondary : .clear
-        self.viewCompleted.backgroundColor = isPending == false ? .secondary : .clear
+        self.viewDelivery.backgroundColor = isDelivery == true ? .secondary : .clear
+        self.viewPickup.backgroundColor = isDelivery == false ? .secondary : .clear
+        
     }
+    
+    func setDeliveryType(){
+        
+        
+        self.imgSelectDelivery.image = UIImage(named: "icon_unCheck")
+        self.imgSelectPickup.image = UIImage(named: "icon_unCheck")
+        if self.isSelectDelivery && self.isSelectPickup{
+            self.selectDeliveryType = "All"
+            
+            self.imgSelectDelivery.image = UIImage(named: "icon_Check")
+            self.imgSelectPickup.image = UIImage(named: "icon_Check")
+        }
+        else if self.isSelectDelivery && !self.isSelectPickup{
+            self.selectDeliveryType = "Truck"
+            self.imgSelectDelivery.image = UIImage(named: "icon_Check")
+
+        }
+        else if self.isSelectPickup && !self.isSelectDelivery{
+            self.selectDeliveryType = "Store"
+            self.imgSelectPickup.image = UIImage(named: "icon_Check")
+        }
+    }
+ 
     
     func stopLoading(){
         indicatorHide()
@@ -294,63 +367,6 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     
-    @objc func setcount(){
-        //SET SCHEDUKE COUNT
-        self.viewPendingCount.backgroundColor = .redText
-        self.viewPendingCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewPendingCount.isHidden = true
-        
-        self.viewCompletedCount.backgroundColor = .redText
-        self.viewCompletedCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewCompletedCount.isHidden = true
-        
-        self.viewDeliveryCount.backgroundColor = .redText
-        self.viewDeliveryCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewDeliveryCount.isHidden = true
-
-        self.viewPickupCount.backgroundColor = .redText
-        self.viewPickupCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.viewPickupCount.isHidden = true
-
-//        let pendingCount = pendingDelivertCount + pendingPickupCount
-//        self.viewPendingCount.isHidden = true
-//        if pendingCount != 0{
-//            self.viewPendingCount.isHidden = false
-//            self.lblPendingCount.text = "\(pendingCount)"
-//        }
-// 
-//        let complteCount = complateDelivertCount + complatePickupCount
-//        self.viewCompletedCount.isHidden = true
-//        if complteCount != 0{
-//            self.viewCompletedCount.isHidden = false
-//            self.lblCompletedCount.text = "\(complteCount)"
-//        }
-        
-        if self.isPending{
-            self.setPickupDeliveryCount(strDelivery: pendingDelivertCount + pastDelivertCount, strPickup: pendingPickupCount + pastPickupCount)
-        }
-        else{
-            self.viewDeliveryCount.isHidden = true
-            self.viewPickupCount.isHidden = true
-
-//            self.setPickupDeliveryCount(strDelivery: complateDelivertCount, strPickup: complatePickupCount)
-        }
-
-    }
-    
-    func setPickupDeliveryCount(strDelivery : Int , strPickup : Int){
-        self.viewDeliveryCount.isHidden = true
-        if strDelivery != 0{
-            self.viewDeliveryCount.isHidden = false
-            self.lblDeliveryCount.text = "\(strDelivery)"
-        }
-        
-        self.viewPickupCount.isHidden = true
-        if strPickup != 0{
-            self.viewPickupCount.isHidden = false
-            self.lblPickupCount.text = "\(strPickup)"
-        }
-    }
     
     func setSearchBar(isHide : Bool){
         //SET VIEW
@@ -367,22 +383,16 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingDidEndOnExit)
         
         self.viewSearch.isHidden = true
-        self.viewPending.isHidden = false
-        self.viewCompleted.isHidden = false
         self.viewDelivery.isHidden = false
         self.viewPickup.isHidden = false
-        self.viewLine.isHidden = false
         
         //SEARCH VIEW
         self.con_statusHeight.constant = 50
         self.con_searchTop.constant = -(self.viewSearch.frame.size.height)
         if isHide == false{
             self.con_statusHeight.constant = 0
-            self.viewPending.isHidden = true
-            self.viewCompleted.isHidden = true
             self.viewDelivery.isHidden = true
             self.viewPickup.isHidden = true
-            self.viewLine.isHidden = true
             UIView.animate(withDuration: 0.2) {
                 self.viewSearch.isHidden = false
                 self.con_searchTop.constant = 0
@@ -390,6 +400,8 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.view.layoutIfNeeded()
             }
         }
+        
+        
     }
     
     // MARK: - UITEXTFIELD
@@ -421,61 +433,17 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         self.arrScheduleList = []
         self.emptyDataView.isHidden = true
 
-        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: search, category_id: category_id, deliveryType: deliveryType))
-
+        self.selectDeliveryType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
         
+        let params =  OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType == "" ? "All" : self.selectDeliveryType, date_filter: self.strSelectDay)
+        fetchOrders(OrdersParameater: params, overrideLocal: false)
+                
         //RELOAD TABLE
         self.tblView.reloadData()
     }
-    
-//    func filter(){
-//        if self.strFilter == "All"{
-//            self.arrScheduleList = self.arrAllData
-//        }
-//        else if self.selectType.lowercased() == "Delivery".lowercased(){
-//            if self.strFilter == "Delivery"{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_delivery ?? 0)" as NSString?)?.range(of: "2").location ?? 0) != NSNotFound}
-//            }
-//            else{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_delivery ?? 0)" as NSString?)?.range(of: "1").location ?? 0) != NSNotFound}
-//            }
-//        }
-//        else{
-//            if self.strFilter == "Delivery"{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_pickup ?? 0)" as NSString?)?.range(of: "2").location ?? 0) != NSNotFound}
-//            }
-//            else{
-//                self.arrScheduleList = self.arrAllData.filter { Int(("\($0.customer_pickup ?? 0)" as NSString?)?.range(of: "1").location ?? 0) != NSNotFound}
-//            }
-//
-//        }
-//        
-//        //RELOAD
-//        self.tblView.reloadData()
-//    }
 }
 
 
-
-extension ScheduleListViewController : FilterProtocol{
-    func SelectFilter(categoryID: Int, strStatus: String, strDeliveryType: String) {
-        self.selectCategoryID = ""
-        self.selectDeliveryType = ""
-
-        if categoryID != 0{
-            self.selectCategoryID = "\(categoryID)"
-        }
-        
-        
-        if strDeliveryType != "" && strDeliveryType.lowercased() != "all"{
-            self.selectDeliveryType = strDeliveryType
-        }
-        
-        //CALL API
-        self.setNavigation()
-        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
-    }
-}
 
 //MARK: - BUTTON ACTION
 extension ScheduleListViewController {
@@ -512,28 +480,116 @@ extension ScheduleListViewController {
         }
     }
     
-    @IBAction func btnPendingClicked(_ sender: UIButton) {
-        if self.isPending == false{
-            self.isPending = true
+    @IBAction func btnSelectTypeClicked(_ sender: UIButton) {
+        if sender.tag == 100{
+            if self.isSelectDelivery{
+                self.isSelectDelivery = false
+            }
+            else{
+                self.isSelectDelivery = true
+            }
+        }
+        else if sender.tag == 101{
+            if self.isSelectPickup{
+                self.isSelectPickup = false
+            }
+            else{
+                self.isSelectPickup = true
+            }
+        }
+        
+        //SET DATA
+        self.setDeliveryType()
+        
+        //CALL API
+        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
+
+    }
+
+}
+
+extension ScheduleListViewController : FilterProtocol{
+    func SelectFilter(categoryID: Int, strStatus: String, strPaymentType: String, strDeliveryType: String, strNotificationType: String) {
+        self.selectCategoryID = ""
+        self.selectDeliveryType = ""
+
+        if categoryID != 0{
+            self.selectCategoryID = "\(categoryID)"
+        }
+        
+        
+        if strDeliveryType == "Pending"{
+            self.selectStatus = "1"
+        }
+        else if strDeliveryType == "Completed"{
+            self.selectStatus = "2"
+        }
+        
+        
+        //CALL API
+        self.setDeliveryType()
+        self.setNavigation()
+        self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType)
+    }
+}
+
+
+
+//MARK: - LOCAL DATABASE MANAGE
+extension ScheduleListViewController{
+    
+    // MARK: - Fetch Orders (Main Controller)
+    func fetchOrders(OrdersParameater : OrdersParameater, overrideLocal: Bool = false) {
+        
+        let params = OrdersParameater
+        
+        callAPIforGetScheduleList(OrdersParameater: params) { [weak self] isSaved in
+            guard let self = self else { return }
             
-            //SET VIEW
-            self.setOrderType(isPending: self.isPending)
+            self.isLoading = false
+            self.stopAnimatingView()
+            self.objRefresh?.endRefreshing()
+            if self.pageCount == 1{
+                self.arrScheduleList = []
+            }
             
-            //CALL API
-            self.refreshList()
+            if isSaved {
+                let localData = self.getScheduleOrderData(schedule_type: OrdersParameater.schedule_type, schedule_status: OrdersParameater.schedule_status)
+                
+                if overrideLocal {
+                    // Replace all old data
+                    self.arrScheduleList = localData
+                } else {
+                    // Append only new unique orders
+                    let newItems = localData.filter { newItem in
+                        !self.arrScheduleList.contains(where: { $0.id == newItem.id })
+                    }
+                    self.arrScheduleList.append(contentsOf: newItems)
+                }
+                
+                // Pagination Control
+                if localData.count >= Int(Application.PageOrderLimit) {
+                    self.bool_Load = false
+                    self.pageCount += 1
+                } else {
+                    self.bool_Load = true
+                }
+            } else {
+                self.bool_Load = true
+            }
+            
+            DispatchQueue.main.async {
+                self.setTheView()
+            }
         }
     }
-    
-    @IBAction func btnCompletedClicked(_ sender: UIButton) {
-        if self.isPending == true{
-            self.isPending = false
-            
-            //SET VIEW
-            self.setOrderType(isPending: self.isPending)
-            
-            //CALL API
-            self.refreshList()
+        
+    // MARK: - Get Local Data
+    func getScheduleOrderData(schedule_type: String, schedule_status: String) -> [SchedulesModel] {
+        if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(schedule_type)_\(schedule_status)_\(self.strSelectDay)") {
+            return arr
         }
+        return []
     }
 }
 
@@ -587,6 +643,8 @@ class ScheduleListCell : UITableViewCell{
 //MARK: -- UITABEL DELEGATE --
 
 extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSource, MFMessageComposeViewControllerDelegate , OrderDetailsDelegate{
+
+    
    
  
     
@@ -621,23 +679,23 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
     //MARK: - Scrollview Delegate -
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         self.view.endEditing(true)
-
-        if scrollView == tblView{
-            if tblView.contentSize.height <= tblView.contentOffset.y + tblView.frame.size.height && tblView.contentOffset.y >= 0 {
-                if self.arrScheduleList.count != 0 && self.txtSearch.text == ""{
-                    if bool_Load == false {
-
-                        //Refresh code
-                        self.bool_Load = true
-
-                        //START LOADING
-                        startAnimatingView()
-
-                        //CALL API
-                        self.getScheduleList(OrdersParameater: OrdersParameater(page: "\(self.pageCount)", type: self.selectType, status: self.selectStatus, search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, deliveryType: self.selectDeliveryType))
-                    }
-                }
-            }
+        
+        guard scrollView == tblView else { return }
+        
+        let offsetY = scrollView.contentOffset.y
+        let contentHeight = scrollView.contentSize.height
+        let frameHeight = scrollView.frame.size.height
+        
+        if offsetY > contentHeight - frameHeight - 50, !bool_Load, !isLoading, txtSearch.text?.isEmpty == true {
+            bool_Load = true
+            isLoading = true
+            
+            //START LOADING
+            startAnimatingView()
+            
+            //CALL API
+            let params = OrdersParameater(page: "\(self.pageCount)", schedule_type: self.selectType, schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay)
+            fetchOrders(OrdersParameater: params)
         }
     }
     
@@ -678,38 +736,37 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             let objData = self.arrScheduleList[indexPath.row]
             
             //SET FONT
-            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.name ?? "")")
+            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.customer_name ?? "")")
 //            #if DEBUG
 //            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.id ?? 0) : \(objData.name ?? "")")
 //            #endif
-            cell.lblPhone.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.phone ?? "")")
+            cell.lblPhone.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.customer_phone ?? "")")
             imgColor(imgColor: cell.imgCall, colorHex: .secondary)
             
 //            cell.lblDelivery.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strLinces)
             
             //SET ADDRESS
             imgColor(imgColor: cell.imgMapAddress, colorHex: .secondary)
-            cell.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objData.location ?? "")")
+            cell.lblAddress.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "\(objData.order?.objDeliveryAddress?.full_address ?? "")")
 
             //SET DATE
             var strDate : String = ""
             var strTime : String = ""
             if self.selectType.lowercased() == "Delivery".lowercased(){
                 //GET DELIVERY DATA
-                strDate = convertStringToNewFormateString(date: "\(objData.delivery_date ?? "")", withFormat: Application.pickerDateFormet, newFormate: Application.strDateFormet) ?? ""
-                strTime = convertStringToNewFormateString(date: "\(objData.delivery_time ?? "")", withFormat: Application.HHMMSS, newFormate: Application.HMMA) ?? ""
+                strDate = "\(objData.delivery_date ?? "")"
+                strTime = "\(objData.delivery_time ?? "")"
                 
                 //SET IMAGE
-                if objData.customer_delivery == 2{
+                if objData.delivery_transport_mode == "Truck"{
                     cell.imgOrderType.image = UIImage(named: "icon_delivery_pending")
                 }
                 else{
                     cell.imgOrderType.image = UIImage(named: "icon_store")
                     
                     //SET STORE ADDRESS
-                    
-                    if self.getStoreAddress(arr: objData.order?.products ?? []) != ""{
-                        let text = "In Store : \(self.getStoreAddress(arr: objData.order?.products ?? []))"
+                    if objData.objProduct?.store_name != ""{
+                        let text = "In Store : \(objData.objProduct?.store_name ?? "")"
                         let linkTextWithColor = "In Store :"
 
                         let range = (text as NSString).range(of: linkTextWithColor)
@@ -723,20 +780,29 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
             else{
                 //GET PICKUP DATA
-                strDate = convertStringToNewFormateString(date: "\(objData.pickup_date ?? "")", withFormat: Application.pickerDateFormet, newFormate: Application.strDateFormet) ?? ""
-                strTime = convertStringToNewFormateString(date: "\(objData.pickup_time ?? "")", withFormat: Application.HHMMSS, newFormate: Application.HMMA) ?? ""
-                
+                strDate = "\(objData.pickup_date ?? "")"
+                strTime = "\(objData.pickup_time ?? "")"
+
                 //SET IMAGE
-                if objData.customer_pickup == 2{
+                if objData.pickup_transport_mode  == "Truck"{
                     cell.imgOrderType.image = UIImage(named: "icon_delivery_pending")
                 }
                 else{
                     cell.imgOrderType.image = UIImage(named: "icon_store")
                     
                     //SET STORE ADDRESS
-                    if self.getStoreAddress(arr: objData.order?.products ?? []) != ""{
-                        cell.lblAddress.text = "In Store : \(self.getStoreAddress(arr: objData.order?.products ?? []))"
+                    if objData.objProduct?.store_name != ""{
+                        let text = "In Store : \(objData.objProduct?.store_name ?? "")"
+                        let linkTextWithColor = "In Store :"
+
+                        let range = (text as NSString).range(of: linkTextWithColor)
+
+                        let attributedString = NSMutableAttributedString(string:text)
+                        attributedString.addAttribute(NSAttributedString.Key.foregroundColor, value: UIColor.secondary , range: range)
+
+                        cell.lblAddress.attributedText = attributedString
                     }
+                    
                 }
             }
             cell.lblDateTime.configureLable(textColor: .primary.withAlphaComponent(0.6), fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(strDate) \(strTime)")
@@ -744,59 +810,9 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             
           
             
+            //SET STORE NAME
+            cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "\(objData.product_name ?? "")")
             
-//            if objDetails.storeAdderss != nil{
-//                cell.con_imgStore.constant = 30
-//                imgColor(imgColor: cell.imgStore, colorHex: .secondary)
-//                cell.lblStoreAddress.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: "\(objDetails.storeAdderss?.address ?? ""), \(objDetails.storeAdderss?.city ?? ""), \(objDetails.storeAdderss?.state ?? ""), \(objDetails.storeAdderss?.zip_code ?? "")")
-//            }
-            
-            //SET NAME
-            var strProduct : String = ""
-            for objProduct in objData.order?.products ?? []{
-                if strProduct != "" {
-                    strProduct = "\(strProduct)\n• \(objProduct.product_name ?? "")"
-                }
-                else{
-                    strProduct = "• \(objProduct.product_name ?? "")"
-                }
-            }
-            
-            cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: strProduct)
-            
-//            cell.viewDelivery.backgroundColor = .clear
-//            cell.con_Delivery.constant = manageWidth(size: checkDeviceiPad() ? 450 : 350)
-//            DispatchQueue.main.asyncAfter(wallDeadline: .now()) {
-//                cell.viewDelivery.tag = indexPath.row
-//                cell.viewDelivery.sliderViewTopDistance = 0
-//                cell.viewDelivery.thumbnailViewTopDistance = 4;
-//                cell.viewDelivery.thumbnailViewStartingDistance = 4;
-//                cell.viewDelivery.layer.cornerRadius =  cell.viewDelivery.frame.size.height / 2
-//                cell.viewDelivery.thumnailImageView.backgroundColor = .secondaryView
-//                cell.viewDelivery.draggedView.backgroundColor = .clear
-//                cell.viewDelivery.delegate = self
-//                cell.viewDelivery.thumnailImageView.image = #imageLiteral(resourceName: "icon_slideNext").imageFlippedForRightToLeftLayoutDirection()
-//                imgColor(imgColor: cell.viewDelivery.thumnailImageView, colorHex: .background)
-//                cell.viewDelivery.sliderBackgroundColor = .clear
-//                cell.viewDelivery.viewBorderCorneRadius(borderColour: .secondary)
-//                cell.viewDelivery.textFont = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
-//                cell.viewDelivery.labelText = ""
-//                
-//                cell.viewDelivery.textColor = UIColor.white
-//                DispatchQueue.main.asyncAfter(deadline: .now()){
-//                    if self.selectType.lowercased() == "Delivery".lowercased(){
-//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: 0)
-//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: 0)
-//                        cell.viewDelivery.labelText = "Delivery Completed - Swipe Right"
-//                    }
-//                    else{
-//                        cell.viewDelivery.transform = CGAffineTransform(rotationAngle: CGFloat.pi)
-//                        cell.viewDelivery.textLabel.transform = CGAffineTransform(rotationAngle: -CGFloat.pi)
-//
-//                        cell.viewDelivery.labelText = "Pickup Completed - Swipe Left"
-//                    }
-//                }
-//            }
             
             //SET VIEW
             cell.viewComplate.backgroundColor = .secondary
@@ -808,10 +824,10 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             cell.viewComplate.isHidden = false
             cell.btnUpdateOrder.isHidden = false
             if self.selectType.lowercased() == "Delivery".lowercased(){
-                if objData.delivery_status?.value == "2"{
+                if objData.delivery_status == "Completed"{
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
-                    cell.lblComplate.text = "Delivery Completed - See Order Details"
+                    cell.lblComplate.text = "Delivery completed. See order details."
                     cell.btnUpdateOrder.isHidden = true
                 }
                 else{
@@ -822,10 +838,10 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
                 }
             }
             else{
-                if objData.pickup_status?.value == "2"{
+                if objData.pickup_status == "Completed"{
                     cell.viewDelivery.isHidden = true
                     cell.viewComplate.isHidden = false
-                    cell.lblComplate.text = "Pickup Completed - See Order Details"
+                    cell.lblComplate.text = "Pickup completed. See order details."
                     cell.btnUpdateOrder.isHidden = true
                 }
                 else{
@@ -837,7 +853,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
 
             cell.viewDelivery.isHidden = true
-            cell.viewComplate.isHidden = false
+            cell.viewComplate.isHidden = true
 
         
             // BUTTON ACTION
@@ -880,22 +896,21 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         }
         let objData = self.arrScheduleList[indexPath.row]
 
-     
-        //TERMS AND CONDITION
+        
+        //ORDER DETAILS SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
             newViewController.delegate = self
             newViewController.selectIndex = indexPath.row
-            newViewController.strOrderID = "\(objData.order_id ?? 0)"
-            newViewController.strProductID = "\(objData.product_id ?? 0)"
+            newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
+            newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
+
     }
     
     
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersModel) {
-        
-    }
+    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {}
     
     func getStoreAddress(arr : [ProductModel]) -> String{
         for objDetails in arr{
@@ -915,24 +930,20 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         
         
         let objData = self.arrScheduleList[sender.tag]
-        let getID = objData.id
 
         //GET NAME
-        var productName : String = ""
-        for objProduct in objData.order?.products ?? []{
-            productName = "\(objProduct.product_name ?? "")"
-        }
+        let productName : String = "\(objData.product_name ?? "")"
 
         
 
         if self.selectType.lowercased() == "Delivery".lowercased(){
-            if objData.delivery_status?.value != "2"{
+            if objData.delivery_status != "Completed"{
                                 
                 //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName)' to \(objData.order?.customer_name ?? "")", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                    
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(order_product_unique_id: objData.unique_id ?? "", schedule_type: "Delivery", schedule_status: "Completed"), index: sender.tag)
                 }))
                 alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
                 self.present(alert, animated: true)
@@ -940,12 +951,12 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             }
         }
         else{
-            if objData.pickup_status?.value != "2"{
+            if objData.pickup_status != "Completed"{
                 //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName)' to \(objData.name ?? "")", preferredStyle: .alert)
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have received '\(productName)' to \(objData.order?.customer_name ?? "")", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                     
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
+                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(order_product_unique_id: objData.unique_id ?? "", schedule_type: "Return", schedule_status: "Completed"), index: sender.tag)
                 }))
                 alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
                 self.present(alert, animated: true)
@@ -954,6 +965,11 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         }
     }
     
+    
+    
+    
+    
+    
     @objc func btnCallClicked(_ sender : UIButton) {
         if self.arrScheduleList.count == 0{
             return
@@ -961,7 +977,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         let objData = self.arrScheduleList[sender.tag]
 
     
-        var getNumber = objData.phone ?? ""
+        var getNumber = objData.order?.customer_phone ?? ""
         getNumber = getNumber.replacingOccurrences(of: "+1", with: "")
         
         let pickerAlert = UIAlertController.init(title: nil, message: nil, preferredStyle: .actionSheet)
@@ -972,7 +988,7 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
             pickerAlert.dismiss(animated: true, completion: nil)
         })
         
-        let call = UIAlertAction.init(title: "Call \(objData.phone ?? "")", style: UIAlertAction.Style.default, handler: { (action) in
+        let call = UIAlertAction.init(title: "Call \(getNumber)", style: UIAlertAction.Style.default, handler: { (action) in
             
                guard let number = URL(string: "tel://+1\(getNumber)") else { return }
                UIApplication.shared.open(number)
@@ -996,13 +1012,19 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         pickerAlert.addAction(sendMessage)
         pickerAlert.addAction(cancel)
         
-        if let presenter = pickerAlert.popoverPresentationController {
-            presenter.sourceView = sender
-            presenter.sourceRect = sender.frame
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            if let presenter = pickerAlert.popoverPresentationController {
+                presenter.sourceView = self.view
+                presenter.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+                presenter.permittedArrowDirections = []
+
+            }
         }
+
         self.present(pickerAlert, animated: true, completion: nil)
         
 
+        
     }
     
     func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
@@ -1016,40 +1038,26 @@ extension ScheduleListViewController : UITableViewDelegate, UITableViewDataSourc
         if self.arrScheduleList.count == 0{
             return
         }
+                      
         let objData = self.arrScheduleList[sender.tag]
         
-        let strAddress : String = objData.location ?? ""
-        if strAddress != ""{
-            openAddressInMap(address: strAddress)
-        }
-      
-    }
-}
-
-
-
-extension ScheduleListViewController : MTSlideToOpenDelegate{
-    
-    // MARK: MTSlideToOpenDelegate
-    func mtSlideToOpenDelegateDidFinish(_ sender: MTSlideToOpenView) {
-        if self.arrScheduleList.count == 0{
-            return
-        }
-        let objData = self.arrScheduleList[sender.tag]
-        
-        
-        let getID = objData.id
+        var strAddress : String = objData.order?.objDeliveryAddress?.full_address ?? ""
         if self.selectType.lowercased() == "Delivery".lowercased(){
-            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
+            if objData.delivery_transport_mode == "Store"{
+                strAddress = objData.objProduct?.store_address ?? ""
+            }
         }
         else{
-            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(getID ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
+            if objData.pickup_transport_mode == "Store"{
+                strAddress = objData.objProduct?.store_address ?? ""
+            }
         }
-        
+        openAddressInMap(address: strAddress)
     }
 }
 
 
-extension ScheduleListViewController{
-    
-}
+
+
+
+

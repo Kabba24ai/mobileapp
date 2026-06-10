@@ -10,10 +10,13 @@ import UIKit
 class MachinePageViewController: UIPageViewController {
     weak var tutorialDelegate: MachinePageViewControllerDelegate?
     var strID : String = ""
-    
+    var arrRentalReady : [RentalReadyModel] = []
+    var objRentalReadyData : MachineModel!
+
     fileprivate(set) lazy var orderedViewControllers: [UIViewController] = {
       // The view controllers will be shown in this order
-        return [self.newColoredViewController("NotesVC"), self.newColoredViewController("RantalReadyVC"), self.newColoredViewController("ChecklistVC"), self.newColoredViewController("PartsListVC"), self.newColoredViewController("ServiceVC")]
+//        return [self.newColoredViewController("RantalReadyVC"), self.newColoredViewController("ChecklistVC"), self.newColoredViewController("PartsListVC"), self.newColoredViewController("ServiceVC")]
+        return [self.newColoredViewController("RantalReadyVC")]
     }()
     
     fileprivate func newColoredViewController(_ nameVC: String) -> UIViewController {
@@ -31,9 +34,9 @@ class MachinePageViewController: UIPageViewController {
         delegate = self
         
 //        if let initialViewController = orderedViewControllers.first {
-//            
+//
 //        }
-        scrollToViewController(orderedViewControllers[1])
+        scrollToViewController(orderedViewControllers[0])
         
         tutorialDelegate?.MachinePageViewController(self,
                                                  didUpdatePageCount: orderedViewControllers.count)
@@ -95,6 +98,8 @@ class MachinePageViewController: UIPageViewController {
         
         if let vc = viewController as? RantalReadyVC{
             vc.strID = self.strID
+            vc.arrRentalReady = arrRentalReady
+            vc.objRentalReadyData = self.objRentalReadyData
         }
         
       setViewControllers([viewController],

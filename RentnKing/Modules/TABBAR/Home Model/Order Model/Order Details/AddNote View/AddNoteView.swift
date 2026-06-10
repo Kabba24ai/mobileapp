@@ -6,13 +6,16 @@
 //
 
 import UIKit
-@objc protocol AddNoteDelegate{
+import Alamofire
+
+protocol AddNoteDelegate{
     func strAddNote(strNote : String)
+    func updateDataNoInternetCase(note_dic: OrderNoteModel?, for_delete: Bool)
 }
 
 
-class AddNoteView: UIView {
-    weak var delegate: AddNoteDelegate?
+class AddNoteView: UIView, UITextFieldDelegate {
+    var delegate: AddNoteDelegate?
 
     //VIEW
     @IBOutlet weak var subView: UIView!
@@ -31,16 +34,22 @@ class AddNoteView: UIView {
     @IBOutlet weak var txtNote: UITextView!
     @IBOutlet weak var txtNotePlaceholder: UITextView!
 
-   
+    @IBOutlet weak var viewUser: UIView!
+    @IBOutlet weak var txtUSer: UITextField!
+    @IBOutlet weak var lblUser: UILabel!
+    
     @IBOutlet weak var viewClose: UIView!
     @IBOutlet weak var imgClose: UIImageView!
 
 
     var orderID : String = ""
     var strNote : String = ""
+    var arrUserList : [UserListModel] = []
+    var strUserID : String = ""
+    var objNoteData : OrderNoteModel?
     
     // method to load reasons xib.
-    func loadPopUpView(strOrderID: String ,strNote : String) {
+    func loadPopUpView(strOrderID: String ,strNote : String, arr : [UserListModel]) {
         // ContactUS name of the XIB.
         Bundle.main.loadNibNamed("AddNoteView", owner:self, options:nil)
         self.backgroundColor = UIColor.black.withAlphaComponent(0.85)
@@ -63,6 +72,7 @@ class AddNoteView: UIView {
         
         
         //SET FONT
+        self.arrUserList = arr
         self.orderID = strOrderID
         self.strNote = strNote
         self.setTheView()
@@ -102,16 +112,31 @@ class AddNoteView: UIView {
         self.inerView.viewCorneRadius(radius: 10.0, isRound: false)
         self.inerView.viewBorderCorneRadius(borderColour: .secondary)
         self.inerView.viewBorderCorneRadius2(borderSize: 2.0, borderColour: .secondary.withAlphaComponent(0.4))
-        
+        self.lblUser.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 12.0, text: str.strUser)
+
         
         self.txtNote.configureText(bgColour: .clear, textColor: .primary , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "")
         self.txtNote.delegate = self
 
+        self.txtUSer.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.selectUser)
+        self.txtUSer.delegate = self
+
+        
         self.txtNotePlaceholder.configureText(bgColour: .clear, textColor: .lightGray , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strAddNote)
         if self.strNote != ""{
             self.txtNote.text = self.strNote
             self.txtNotePlaceholder.text = ""
         }
+        
+        
+        //CEHCK DATA
+        if self.objNoteData != nil{
+            self.txtNotePlaceholder.text = ""
+            self.txtNote.text = self.objNoteData?.note
+            self.txtUSer.text = self.objNoteData?.created_by
+            self.strUserID = "\(self.objNoteData?.created_by_id ?? 0)"
+        }
+        
         
         self.viewPay.backgroundColor = .secondaryTextView
         self.viewClose.backgroundColor = .background
@@ -122,6 +147,10 @@ class AddNoteView: UIView {
         //SET CONSTANT
         self.con_Btn.constant = manageWidth(size: 45)
         self.lblPay.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Save")
+        
+        //SET USER
+        self.viewUser.setTheTextView(bgColor: .secondary )
+
 
     }
     
@@ -136,103 +165,85 @@ class AddNoteView: UIView {
         self.endEditing(true)
 
         let strNote: String = self.txtNote.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        
-        if strNote == ""{
-            showAlertMessage(strMessage: "Please enter note")
+        let strUser: String = self.txtUSer.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+
+        if strUser == ""{
+            showAlertMessage(strMessage: "Please select a user.")
+        }
+        else if strNote == ""{
+            showAlertMessage(strMessage: "Please enter a note.")
         }
         else {
-            //CALL API
-            self.addNote(AddNoteParameater: AddNoteParameater(order_id: self.orderID, order_note: strNote))
-        }
-
-    }
-    
-}
-
-
-
-
-
-
-
-
-
-
-struct AddNoteParameater: Codable {
-    var order_id : String
-    var order_note: String
-}
-
-
-extension AddNoteView :WebServiceHelperDelegate{
-    
-    func addNote(AddNoteParameater:AddNoteParameater){
-       
-        guard let parameater = try? AddNoteParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
-
-        //Declaration URL
-        let strURL = "\(Url.addOrderNote.absoluteString!)"
-        
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "addOrderNote"
-        webHelper.methodType = "post"
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = true
-        webHelper.callAPI()
-    }
-    
-   
-    
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
-        indicatorHide()
-
-        if data.getStringForID(key: "success") == "1"{
-            if strRequest == "addOrderNote"{
-                print(data)
+//            if NetworkReachabilityManager()!.isReachable {
+//                //CALL API
+//                if self.objNoteData != nil {
+//                    RentnKing.updateNote(UpdateNoteParameater: UpdateNoteParameater(order_note_unique_id: self.objNoteData?.unique_id ?? "", note: strNote, user_id: self.strUserID), note_id: 0) { is_succss in
+//                        self.manageRasponseClosePopup()
+//                    }
+//                }
+//                else{
+//                    RentnKing.addNote(AddNoteParameater: AddNoteParameater(order_unique_id: self.orderID, note: strNote, user_id: self.strUserID), note_id: 0) { is_succss in
+//                        self.manageRasponseClosePopup()
+//                    }
+//
+//                }
+//            }
+            //else {
+                var dic_OrderNote = OrderNoteModel.init(JSON: [:])
+                dic_OrderNote?.id = Int(randomNumber(length: 5))
                 
-                self.removeViewWithAnimation(isClose: true)
-                DispatchQueue.main.async {
-                    self.delegate?.strAddNote(strNote: self.txtNote.text)
+                if self.objNoteData != nil {
+                    dic_OrderNote = self.objNoteData
                 }
                 
-            }
-        }
-        else{
-            indicatorHide()
-            //SET THE VIEW
-            if data.getStringForID(key: "message") != ""{
-                showAlertMessage(strMessage: data.getStringForID(key: "message"))
-            }
-            else{
-                showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
-            }
-        }
-    }
-    
-    func appDataArraySuccess(_ arr: NSArray, request strRequest: String, index: Int) {
-    }
-    
-    func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
-        indicatorHide()
-        
+                dic_OrderNote?.status = kOrderStatusType.kPending.rawValue
+                dic_OrderNote?.type = self.objNoteData != nil ? kOrderStatusType.kEdit.rawValue : kOrderStatusType.kAdd.rawValue
+                dic_OrderNote?.note = strNote
+                dic_OrderNote?.created_at = getCurrentDate()
+                dic_OrderNote?.created_by = strUser
+                dic_OrderNote?.created_by_id = Int(self.strUserID) ?? 0
+                dic_OrderNote?.unique_id = self.objNoteData != nil ? self.objNoteData?.unique_id ?? "" : self.orderID
+                dic_OrderNote?.mainOrderUniqueID = self.orderID
+                self.delegate?.updateDataNoInternetCase(note_dic: dic_OrderNote, for_delete: false)
+                self.removeViewWithAnimation(isClose: true)
+            //}
 
-        showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
+        }
+
+    }
+    
+    func manageRasponseClosePopup() {
+        self.removeViewWithAnimation(isClose: true)
+        DispatchQueue.main.async {
+            self.delegate?.strAddNote(strNote: self.txtNote.text)
+        }
+    }
+    
+    
+    @IBAction func btnSelectUserClicked(_ sender: UIButton) {
+        if self.arrUserList.count == 0{
+            return
+        }
+        
+        actionPicker(sender, strTitle: str.strSelectState, arrData: self.arrUserList.compactMap { $0.full_name}, selectValue: self.txtUSer.text ?? "") { index, selectValue in
+            
+            self.strUserID = "\(self.arrUserList[index].id ?? 0)"
+            self.txtUSer.text = selectValue
+        }
     }
 }
 
+struct AddNoteParameater: Codable {
+    var order_unique_id : String
+    var note: String
+    var user_id: String
+}
 
-
-
+struct UpdateNoteParameater: Codable {
+    var order_note_unique_id : String
+    var note: String
+    var user_id: String
+}
 
 
 extension AddNoteView:  UITextViewDelegate{

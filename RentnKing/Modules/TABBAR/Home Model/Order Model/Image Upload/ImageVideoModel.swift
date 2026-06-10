@@ -15,13 +15,17 @@ class ImageVideoModel: NSObject{
     var strVideo : URL
     var strUrl : String
     var isUpload : Bool
+    var productId : String
+    var recentSelect: Bool = false
 
-    init(type: String, image: UIImage, strVideo: URL, strUrl: String, isUpload: Bool = false) {
+    init(type: String, image: UIImage, strVideo: URL, strUrl: String, isUpload: Bool = false, productId: String = "", recentSelect: Bool = false) {
         self.type = type
         self.image = image
         self.strVideo = strVideo
         self.strUrl = strUrl
         self.isUpload = isUpload
+        self.productId = productId
+        self.recentSelect = recentSelect
     }
 }
 
@@ -32,114 +36,114 @@ class ImageVideoModel: NSObject{
 
 extension ImageUploadViewController: WebServiceHelperDelegate {
     
+//    
+//    func getOrderDetails(OrdersDetailsParameater : OrdersDetailsParameater, isLoading : Bool){
+//        guard let parameater = try? OrdersDetailsParameater.asDictionary() else {
+//            showAlertMessage(strMessage: str.invalidRequestParamater)
+//            return
+//        }
+//
+//        //Declaration URL
+//        let strURL = "\(Url.orderDetails.absoluteString!)"
+//        
+//       
+//        //Create object for webservicehelper and start to call method
+//        let webHelper = WebServiceHelper()
+//        webHelper.strMethodName = "orderDetails"
+//        webHelper.methodType = "post"
+//        webHelper.strURL = strURL
+//        webHelper.dictType = parameater
+//        webHelper.dictHeader = NSDictionary()
+//        webHelper.delegateWeb = self
+//        webHelper.showLogForCallingAPI = true
+//        webHelper.serviceWithAlert = true
+//        webHelper.indicatorShowOrHide = isLoading
+//        webHelper.callAPI()
+//    }
     
-    func getOrderDetails(OrdersDetailsParameater : OrdersDetailsParameater, isLoading : Bool){
-        guard let parameater = try? OrdersDetailsParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
+//    
+//    struct ImageVideoUploadParameater: Codable {
+//        var order_id : String
+//    }
 
-        //Declaration URL
-        let strURL = "\(Url.orderDetails.absoluteString!)"
-        
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "orderDetails"
-        webHelper.methodType = "post"
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = isLoading
-        webHelper.callAPI()
-    }
+//    func callImageVideoUploadAPI(ImageVideoUploadParameater : ImageVideoUploadParameater) {
+//        guard let parameater = try? ImageVideoUploadParameater.asDictionary() else {
+//            showAlertMessage(strMessage: str.invalidRequestParamater)
+//            return
+//        }
+//        
+//        //Declaration URL
+//        let strURL = "\(Url.uploadImageVideo.absoluteString!)"
+//
+//        //Create object for webservicehelper and start to call method
+//        let webHelper = WebServiceHelper()
+//        
+//        //SET IMAGE
+//        var arr_Mutlipleimages : [[String : Any]] = []
+//        for obj in self.arrImageVideoLisr{
+//            if obj.type == "img"{
+//                if obj.image != UIImage(){
+//                    let dicData = ["img": obj.image ,
+//                                   "name": "\(Date().timeIntervalSince1970).jpeg",
+//                                   "type": "img",
+//                                   "key": "file[]"] as [String : Any]
+//                    arr_Mutlipleimages.append(dicData)
+//                }
+//            }
+//            else{
+//                if obj.strVideo.absoluteString != ""{
+//                    let dicData = ["img": "" ,
+//                                   "videoUrl": obj.strVideo ,
+//                                   "name": "\(Date().timeIntervalSince1970).mp4",
+//                                   "type": "video",
+//                                   "key": "file[]"] as [String : Any]
+//                    arr_Mutlipleimages.append(dicData)
+//                }
+//            }
+//        }
+//
+//        webHelper.arr_Mutlipleimages = arr_Mutlipleimages
+//        webHelper.strMethodName = "uploadImageVideo"
+//        webHelper.strURL = strURL
+//        webHelper.dictType = parameater
+//        webHelper.dictHeader = NSDictionary()
+//        webHelper.delegateWeb = self
+//        webHelper.showLogForCallingAPI = true
+//        webHelper.serviceWithAlert = true
+//        webHelper.indicatorShowOrHide = true
+////        webHelper.callUploadingMultipleImages()
+//    }
+//    
+//    
+//    struct ImageVideoRemoveParameater: Codable {
+//        var order_id : String
+//        var file_name : String
+//    }
+//    func removeImageVideo(ImageVideoRemoveParameater : ImageVideoRemoveParameater){
+//        guard let parameater = try? ImageVideoRemoveParameater.asDictionary() else {
+//            showAlertMessage(strMessage: str.invalidRequestParamater)
+//            return
+//        }
+//
+//        //Declaration URL
+//        let strURL = "\(Url.removeImageVideo.absoluteString!)"
+//        
+//       
+//        //Create object for webservicehelper and start to call method
+//        let webHelper = WebServiceHelper()
+//        webHelper.strMethodName = "removeImageVideo"
+//        webHelper.methodType = "post"
+//        webHelper.strURL = strURL
+//        webHelper.dictType = parameater
+//        webHelper.dictHeader = NSDictionary()
+//        webHelper.delegateWeb = self
+//        webHelper.showLogForCallingAPI = true
+//        webHelper.serviceWithAlert = true
+//        webHelper.indicatorShowOrHide = true
+//        webHelper.callAPI()
+//    }
     
-    
-    struct ImageVideoUploadParameater: Codable {
-        var order_id : String
-    }
-
-    func callImageVideoUploadAPI(ImageVideoUploadParameater : ImageVideoUploadParameater) {
-        guard let parameater = try? ImageVideoUploadParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
-        
-        //Declaration URL
-        let strURL = "\(Url.uploadImageVideo.absoluteString!)"
-
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        
-        //SET IMAGE
-        var arr_Mutlipleimages : [[String : Any]] = []
-        for obj in self.arrImageVideoLisr{
-            if obj.type == "img"{
-                if obj.image != UIImage(){
-                    let dicData = ["img": obj.image ,
-                                   "name": "\(Date().timeIntervalSince1970).jpeg",
-                                   "type": "img",
-                                   "key": "file[]"] as [String : Any]
-                    arr_Mutlipleimages.append(dicData)
-                }
-            }
-            else{
-                if obj.strVideo.absoluteString != ""{
-                    let dicData = ["img": "" ,
-                                   "videoUrl": obj.strVideo ,
-                                   "name": "\(Date().timeIntervalSince1970).mp4",
-                                   "type": "video",
-                                   "key": "file[]"] as [String : Any]
-                    arr_Mutlipleimages.append(dicData)
-                }
-            }
-        }
-
-        webHelper.arr_Mutlipleimages = arr_Mutlipleimages
-        webHelper.strMethodName = "uploadImageVideo"
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = true
-        webHelper.callUploadingMultipleImages()
-    }
-    
-    
-    struct ImageVideoRemoveParameater: Codable {
-        var order_id : String
-        var file_name : String
-    }
-    func removeImageVideo(ImageVideoRemoveParameater : ImageVideoRemoveParameater){
-        guard let parameater = try? ImageVideoRemoveParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
-
-        //Declaration URL
-        let strURL = "\(Url.removeImageVideo.absoluteString!)"
-        
-       
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.strMethodName = "removeImageVideo"
-        webHelper.methodType = "post"
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.delegateWeb = self
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = true
-        webHelper.callAPI()
-    }
-    
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
 
         if data.getStringForID(key: "success") == "1"{
@@ -170,7 +174,7 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
             else if strRequest == "uploadImageVideo"{
                 
                 if let dicData = data["data"] as? [String]{                    
-                    showAlertMessage(strMessage: "Upload successfully")
+                    showAlertMessage(strMessage: "Uploaded Successfully", isDismiss: true)
                     self.delegate?.ImageVideoUploadSucess(selectIndex: self.selectIndex, arrImage: dicData)
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
@@ -183,7 +187,7 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
                 
                 //RELOAD
                 self.addDeleteButton()
-                self.objCollectionView.reloadData()
+                self.tblView.reloadData()
 
 //                self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID), isLoading: true)
 
@@ -202,7 +206,7 @@ extension ImageUploadViewController: WebServiceHelperDelegate {
     func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
         indicatorHide()
         self.setTheView()
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: ""), isLoading: true)
+//        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderID, product_id: ""), isLoading: true)
 
 //        showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }

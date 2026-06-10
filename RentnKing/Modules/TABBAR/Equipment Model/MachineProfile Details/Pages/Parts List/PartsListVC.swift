@@ -33,7 +33,7 @@ class PartsListVC: UIViewController {
         self.view.backgroundColor = .background
         setNeedsStatusBarAppearanceUpdate()
     
-        self.lblTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "Parts List Vomming Soon")
+        self.lblTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: "Parts List Coming Soon")
         
     }
 

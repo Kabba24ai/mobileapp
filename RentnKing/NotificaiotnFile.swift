@@ -9,7 +9,7 @@ import UIKit
 import Foundation
 import FirebaseCore
 import FirebaseMessaging
- 
+
 
 
 extension AppDelegate : UNUserNotificationCenterDelegate{
@@ -90,8 +90,9 @@ extension AppDelegate : MessagingDelegate{
         // TODO: If necessary send token to application server.
         // Note: This callback is fired at each app startup and whenever a new token is generated.
         
-        self.updateToken(DeviceTokenParameater: DeviceTokenParameater(device_token: strUUID, fcm_token: fcmToken ?? ""))
-        
+        if UserDefaults.standard.user != nil{
+            self.updateToken(DeviceTokenParameater: DeviceTokenParameater(device_token: strUUID, fcm_token: fcmToken ?? ""))
+        }
     }
     
     func application(application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
@@ -107,6 +108,7 @@ extension AppDelegate : MessagingDelegate{
 
       // With swizzling disabled you must let Messaging know about the message, for Analytics
       // Messaging.messaging().appDidReceiveMessage(userInfo)
+        UIApplication.shared.applicationIconBadgeNumber += 1
 
     
       // Print full message.
@@ -154,8 +156,8 @@ extension AppDelegate : MessagingDelegate{
        
         //REDRIRECT TO SCREEN
         let ViewController = UIApplication.getTopViewController()
-        if dicData.getStringForID(key: "order_id") != ""{
-            if let orderID = dicData.getStringForID(key: "order_id"){
+        if dicData.getStringForID(key: "order_unique_id") != ""{
+            if let orderID = dicData.getStringForID(key: "order_unique_id"){
 
                 //MOVE TO SHOW SCREEN
                 dicNotificationData = [:]
@@ -163,7 +165,8 @@ extension AppDelegate : MessagingDelegate{
                 //SHOW DETAILS SCREEN
                 let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
                 if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                    newViewController.strOrderID = orderID
+                    newViewController.strOrderUniqueId = orderID
+                    newViewController.OrderID = dicData.getStringForID(key: "order_id")
                     newViewController.isPresent = true
                     let vieweNavigationController = UINavigationController(rootViewController: newViewController)
                     vieweNavigationController.modalPresentationStyle = .fullScreen

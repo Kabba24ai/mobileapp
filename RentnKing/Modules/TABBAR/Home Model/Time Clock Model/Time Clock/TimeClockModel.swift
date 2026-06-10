@@ -29,6 +29,7 @@ struct EmpStatusModel: Mappable{
 
 struct EmployeesModel: Mappable{
     internal var id: Int?
+    internal var unique_id: String?
     internal var name: String?
     internal var employee_code: String?
     internal var email: String?
@@ -40,7 +41,8 @@ struct EmployeesModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
-        name <- map["name"]
+        unique_id <- map["unique_id"]
+        name <- map["full_name"]
         employee_code <- map["employee_code"]
         email <- map["email"]
         phone <- map["phone"]
@@ -48,23 +50,6 @@ struct EmployeesModel: Mappable{
 }
 
 
-struct MachineModel: Mappable{
-    internal var id: Int?
-    internal var category_id: Int?
-    internal var machine_id: String?
-    internal var product_name: String?
-
-    init?(map:Map) {
-        mapping(map: map)
-    }
-
-    mutating func mapping(map:Map){
-        id <- map["id"]
-        category_id <- map["category_id"]
-        machine_id <- map["machine_id"]
-        product_name <- map["product_name"]
-    }
-}
 
 
 
@@ -145,7 +130,7 @@ extension TimeClockViewController :WebServiceHelperDelegate{
     }
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         if strRequest != "employeeStatus"{
             indicatorHide()
         }
@@ -293,7 +278,7 @@ extension TimeClockViewController :WebServiceHelperDelegate{
 
 
 extension ClockInViewController :WebServiceHelperDelegate{
-
+    
     
     struct EmployeParameater: Codable {
         var employee_id : String
@@ -328,7 +313,7 @@ extension ClockInViewController :WebServiceHelperDelegate{
     }
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         if strRequest != "employeeStatus"{
             indicatorHide()
         }
@@ -342,7 +327,7 @@ extension ClockInViewController :WebServiceHelperDelegate{
                     self.navigationController?.popToRootViewController(animated: true)
 
                     DispatchQueue.main.async {
-                        showAlertMessage(strMessage: "Status successful update")
+                        showAlertMessage(strMessage: "Status updated successfully.")
                     }
                 }
     
@@ -415,7 +400,7 @@ extension TimeClockLockViewController :WebServiceHelperDelegate{
         webHelper.callAPI()
     }
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
      
 
         let arrKey  = data.allKeys as [AnyObject]

@@ -77,7 +77,7 @@ class EmptyDataView: UIView {
 extension EmptyDataView{
 
     func noDataFound(){
-        configure(imageName: "", title: "No results found", subtitle:"", tintColor: UIColor.primary)
+        configure(imageName: "", title: "No results found.", subtitle:"", tintColor: UIColor.primary)
     }
     
     func noItemsFound(){

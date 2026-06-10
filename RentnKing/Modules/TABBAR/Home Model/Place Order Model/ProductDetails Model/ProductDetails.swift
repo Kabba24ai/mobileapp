@@ -11,6 +11,7 @@ import ObjectMapper
 
 struct StoreModel: Mappable{
     internal var id: Int?
+    internal var unique_id: String?
     internal var name: String?
     internal var phone: String?
     internal var address: String?
@@ -26,9 +27,10 @@ struct StoreModel: Mappable{
 
     mutating func mapping(map:Map){
         id <- map["id"]
-        name <- map["name"]
+        unique_id <- map["unique_id"]
+        name <- map["store_name"]
         phone <- map["phone"]
-        address <- map["address"]
+        address <- map["full_address"]
         city <- map["city"]
         state <- map["state"]
         zip_code <- map["zip_code"]
@@ -135,23 +137,7 @@ struct SelectAnswerModel: Mappable{
 }
 
 
-struct AnswerCheckListModel: Mappable{
-    internal var id: Int?
-    internal var answer: String?
-    internal var answer_value: Float?
-    internal var rentalAnswer_value: String?
 
-    init?(map:Map) {
-        mapping(map: map)
-    }
-
-    mutating func mapping(map:Map){
-        id <- map["id"]
-        answer <- map["answer"]
-        answer_value <- map["answer_value"]
-        rentalAnswer_value <- map["answer_value"]
-    }
-}
 
 extension ProductDetailsViewController :WebServiceHelperDelegate{
     struct ProductParameater: Codable {
@@ -208,7 +194,7 @@ extension ProductDetailsViewController :WebServiceHelperDelegate{
     }
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
         self.isLoading = false
 

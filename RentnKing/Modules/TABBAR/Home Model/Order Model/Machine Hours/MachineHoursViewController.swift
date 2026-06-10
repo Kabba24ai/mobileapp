@@ -44,7 +44,7 @@ class MachineHoursViewController: UIViewController, UIGestureRecognizerDelegate 
         
         //CALL API
         self.viewSubmit.isHidden = true
-        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(order_id: self.strOrderID, product_id: self.strProductID))
+        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderID))
         
         
         
@@ -116,7 +116,7 @@ extension MachineHoursViewController {
         self.view.endEditing(true)
 
         if chekcAddHours() == false{
-            showAlertMessage(strMessage: "Please enter start or end hours")
+            showAlertMessage(strMessage: "Please enter the start or end hours.")
         }
        
         else{
@@ -159,7 +159,7 @@ extension MachineHoursViewController {
                     self.saveHoursData(arr: arrData)
                 }
                 else{
-                    showAlertMessage(strMessage: "Machine Hours not update")
+                    showAlertMessage(strMessage: "Machine hours were not updated.")
                 }
             }
         }
@@ -174,7 +174,7 @@ extension MachineHoursViewController {
                 GlobalMainConstants.appDelegate?.uploadAllData()
             }
             
-            showAlertMessage(strMessage: "Machine Hours update successfully")
+            showAlertMessage(strMessage: "Machine hours updated successfully.")
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
                 self.navigationController?.popViewController(animated: true)

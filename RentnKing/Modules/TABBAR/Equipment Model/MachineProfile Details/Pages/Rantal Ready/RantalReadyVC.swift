@@ -41,8 +41,10 @@ class RantalReadyVC: UIViewController {
 
     var strID : String = ""
     var selectTequID : String = ""
+    var selectTequserName : String = ""
     
-    var objRentalReadyData : RentalReadyModel!
+    var objRentalReadyData : MachineModel!
+    var arrRentalReady : [RentalReadyModel] = []
     var arrEmployesList : [EmployeesModel] = []
     var strMachineHours : String = ""
     
@@ -53,20 +55,28 @@ class RantalReadyVC: UIViewController {
         self.lblNoData.isHidden = true
         self.lblNoData.configureLable(textAlignment: .center, textColor: .primary.withAlphaComponent(0.6), fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strNoRentalReadyData)
 
-        //GET DATA
-        self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(id: self.strID))
-        self.getEmployeesListAPI()
+        //GET SATA
+        //TEMP COMMENT//self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(equipment_unique_id: self.strID))
+
+        //GET EMPLOYEE LIST DATA
+        getEmployeeList { arr_data in
+            self.arrEmployesList = arr_data
+        }
     }
+    
     
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
+        syncEquipmentWithAPI()
         
         //SET VIEW
         self.view.backgroundColor = .background
         setNeedsStatusBarAppearanceUpdate()
         
+        //SET THE VIEW
+        self.setTheView()
     }
 
     
@@ -80,20 +90,21 @@ class RantalReadyVC: UIViewController {
             //CHECK DATA
             self.tblView.isHidden = true
             self.lblNoData.isHidden = false
-            if self.objRentalReadyData.checkList?.arrQuestions?.count != 0 && self.objRentalReadyData.checkList?.arrQuestions?.count != nil{
+            if self.objRentalReadyData.arrCheckList.count != 0{
                 self.tblView.isHidden = false
                 self.lblNoData.isHidden = true
             }
             
             
             self.lblUpdate.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: str.strUpdated)
-            self.lblUpdateName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.objRentalReadyData.objEmploye == nil ? "" : self.objRentalReadyData.objEmploye?.name ?? "")
-
-            self.lblUpdateTime.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.objRentalReadyData.status_change ?? "")
-            self.lblUpdateHours.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text:  self.objRentalReadyData.has_machine_hour == 0 ? "" : "Hrs : \(self.objRentalReadyData.machine_hour)")
+            self.lblUpdateName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.objRentalReadyData.current_status_updated_by)
+            self.lblUpdateName.textAlignment = .right
+            
+            self.lblUpdateTime.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.objRentalReadyData.current_status_changed_at )
+//            self.lblUpdateHours.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text:  self.objRentalReadyData.has_machine_hour == 0 ? "" : "Hrs : \(self.objRentalReadyData.machine_hour)")
 
             self.lblMachineHrTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: str.strMachineHours)
-            self.txtMachineHr.configureText(textAlignment: .center, keyboardTye: .numbersAndPunctuation, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.strMachineHours, placeholder: "0")
+            self.txtMachineHr.configureText(textAlignment: .center, keyboardTye: .numbersAndPunctuation, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: self.strMachineHours, placeholder: self.objRentalReadyData.equipment_hours != "" ? "\(self.objRentalReadyData.equipment_hours)" : "0")
             self.txtMachineHr.tag = 100
             self.txtMachineHr.delegate = self
             self.txtMachineHr.backgroundColor = .clear
@@ -110,12 +121,12 @@ class RantalReadyVC: UIViewController {
             self.tblView.reloadData()
             
             //SET HOURS
-            self.viewHours.isHidden = true
-            self.con_hours.constant = 0
-            if self.objRentalReadyData.has_machine_hour != 0 {
-                self.viewHours.isHidden = false
-                self.con_hours.constant = 45
-            }
+            self.viewHours.isHidden = false
+            self.con_hours.constant = 45
+//            if self.objRentalReadyData.has_machine_hour != 0 {
+//                self.viewHours.isHidden = false
+//                self.con_hours.constant = 45
+//            }
             
            //SET HEADER
            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -136,15 +147,17 @@ class RantalReadyVC: UIViewController {
     }
     
     func setTheButton(){
+        self.btnDamaged.accessibilityValue = "Damaged"
+        self.btnMainHold.accessibilityValue = "Maint. Hold"
+        self.btnRentalReady.accessibilityValue = "Available"
         self.btnDamaged.configureLable(bgColour:.lightGray, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Damaged")
         self.btnMainHold.configureLable(bgColour: .lightGray, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Maint. Hold")
         self.btnRentalReady.configureLable(bgColour: .lightGray, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Rental Ready")
+    
         
         self.btnDamaged.viewCorneRadius(radius: 10, isRound: false)
         self.btnMainHold.viewCorneRadius(radius: 10, isRound: false)
         self.btnRentalReady.viewCorneRadius(radius: 10, isRound: false)
-        
-        
         
       
         self.btnDamaged.isEnabled = false
@@ -169,12 +182,10 @@ class RantalReadyVC: UIViewController {
    
     func checkType() -> [String]{
         var arrTrpe : [String] = []
-        for objDetails in self.objRentalReadyData.checkList?.arrQuestions ?? []{
-            let MenuID = objDetails.objQuestion?.arrAnswer.map{$0.answer}
-            if objDetails.objQuestion?.objSelectAnswer != nil{
-                if let index = MenuID?.firstIndex(of: objDetails.objQuestion?.objSelectAnswer.answer ?? ""){
-                    arrTrpe.append(objDetails.objQuestion?.arrAnswer[index].rentalAnswer_value ?? "")
-                }
+        for objDetails in self.arrRentalReady{
+            let MenuID = objDetails.arrAnswer?.compactMap { $0.unique_id } ?? []
+            if let index = MenuID.firstIndex(of: objDetails.selected_answer ?? ""){
+                arrTrpe.append(objDetails.arrAnswer?[index].type ?? "")
             }
         }
         
@@ -234,10 +245,11 @@ extension RantalReadyVC{
             return
         }
         
-        actionPicker(sender, strTitle: "Select Tech / Mgt", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.txtSelctEmployee.text ?? "") { index, selectValue in
+        actionPicker(sender, strTitle: str.strSelectTechMgt, arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.txtSelctEmployee.text ?? "") { index, selectValue in
             
             self.txtSelctEmployee.text = selectValue
             self.selectTequID = "\(self.arrEmployesList[index].id ?? 0)"
+            self.selectTequserName = self.arrEmployesList[index].name ?? ""
         }
     }
     
@@ -245,35 +257,94 @@ extension RantalReadyVC{
     @IBAction func btnUpdateDataClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
-        if self.objRentalReadyData.has_machine_hour == 1{
-            if self.strMachineHours == ""{
-                showAlert("Please enter the machine hours")
-                return
-            }
-        }
-       
         if self.selectTequID == ""{
             showAlert("Please select tech/mgt.")
             return
         }
-        else{
-            self.updateRentalReady(UpdateRentalParameater: UpdateRentalParameater(inventory_id: "\(self.objRentalReadyData.id ?? 0)", machine_hour: self.strMachineHours, employee_id: self.selectTequID), arrData: self.getRentalReadyArray())
+        else {
+            let strHours = Int(self.txtMachineHr.text ?? "") ?? 0
+            
+            var dic_Equipment = SubmitEqipmentModel.init(JSON: [:])
+            dic_Equipment?.id = Int(randomNumber(length: 5))
+            dic_Equipment?.status = kOrderStatusType.kPending.rawValue
+            dic_Equipment?.equipment_unique_id = self.strID
+            dic_Equipment?.user_id = self.selectTequID
+            dic_Equipment?.user_name = self.selectTequserName
+            dic_Equipment?.equipment_hours = "\(strHours)"
+            dic_Equipment?.checklist = self.getRentalReadyArray()
+            dic_Equipment?.equipment_status = sender.accessibilityValue ?? ""
+            self.updateDataNoInternetCase(equipmet_dic: dic_Equipment)
+            
+            self.navigationController?.popViewController(animated: true)
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                showAlertMessage(strMessage: "Updated successfully.")
+                NotificationCenter.default.post(name: .refreshMachineProfileList, object: nil)
+            }
+            
+            /*
+             //TEMP COMMENT
+
+            let dicData : [String : Any] = [
+                "equipment_unique_id": self.strID,
+                "user_id": self.selectTequID,
+                "equipment_hours" : "0",
+                "checklist": self.getRentalReadyArray()
+            ]
+            
+            self.updateRentalReady(dicRentalReadyList: dicData)
+            */
         }
     }
     
+    
+    // MARK: - ADD / UPDATE LOCALLY (OFFLINE CASE)
+    func updateDataNoInternetCase(equipmet_dic: SubmitEqipmentModel?) {
+        guard let dic_equipmet = equipmet_dic else { return }
+        
+        let storageKey = "\(kFileStorageName.kEquipmentSubmit.rawValue)"
+        var arrEquipmentData: [SubmitEqipmentModel] = SDKUserDefault.getMappableArray(SubmitEqipmentModel.self, for: storageKey) ?? []
+        
+        // Check if note already exists
+        if let index = arrEquipmentData.firstIndex(where: { $0.equipment_unique_id == dic_equipmet.equipment_unique_id }) {
+            // Replace existing note (edit case)
+            arrEquipmentData[index] = dic_equipmet
+            print("Updated existing note")
+        } else {
+            // Append new note
+            arrEquipmentData.append(dic_equipmet)
+            print("Added new")
+        }
+        
+        if !getEquipmentData().isEmpty {
+            let arr_data = getEquipmentData()
+            var updatedArray = arr_data
+
+            if let index = updatedArray.firstIndex(where: { $0.unique_id == equipmet_dic?.equipment_unique_id }) {
+                updatedArray[index].current_status = equipmet_dic?.equipment_status ?? ""
+                updatedArray[index].current_status_changed_at = getCurrentDate()
+                updatedArray[index].current_status_updated_by = equipmet_dic?.user_name ?? ""
+            }
+
+            //SAVE ARRAY
+            SDKUserDefault.saveMappableArray(updatedArray, for: kFileStorageName.kEquipmentList.rawValue)
+        }
+        
+        // Save updated array
+        SDKUserDefault.saveMappableArray(arrEquipmentData, for: storageKey)
+    }
+    
+    
     func getRentalReadyArray() -> [[String : Any]]{
         var arrRentalReady : [[String : Any]] = []
-        for objDetails in self.objRentalReadyData.checkList?.arrQuestions ?? []{
-            let MenuID = objDetails.objQuestion?.arrAnswer.map{$0.answer}
-            if objDetails.objQuestion?.objSelectAnswer != nil{
-                if let index = MenuID?.firstIndex(of: objDetails.objQuestion?.objSelectAnswer.answer ?? ""){
-                    let dicData : [String : Any] = ["question_id" : "\(objDetails.objQuestion?.id ?? 0)" ,
-                                                    "answer" : "\(objDetails.objQuestion?.arrAnswer[index].answer ?? "")",
-                                                    "status" : "\(objDetails.objQuestion?.arrAnswer[index].rentalAnswer_value ?? "")"]
-                    arrRentalReady.append(dicData)
-                }
+        for objDetails in self.arrRentalReady {
+            let MenuID = objDetails.arrAnswer?.compactMap { $0.unique_id } ?? []
+            if let index = MenuID.firstIndex(of: objDetails.selected_answer ?? ""){
+                let dicData : [String : Any] = ["question_unique_id" : "\(objDetails.unique_id ?? "")" ,
+                                                "answer_unique_id" : "\(objDetails.arrAnswer?[index].unique_id ?? "")",
+                                                "note" : ""]
+                arrRentalReady.append(dicData)
             }
-            
         }
         return arrRentalReady
     }
@@ -327,7 +398,7 @@ extension RantalReadyVC : UITableViewDelegate, UITableViewDataSource{
         }
         else{
             if self.objRentalReadyData != nil{
-                return self.objRentalReadyData.checkList?.arrQuestions?.count ?? 0
+                return self.arrRentalReady.count
             }
             else{
                 return 0
@@ -352,32 +423,33 @@ extension RantalReadyVC : UITableViewDelegate, UITableViewDataSource{
                 return cell
             }
             
-            if self.objRentalReadyData == nil {
+        
+            
+            if self.arrRentalReady.count == 0 {
                 return cell
             }
             
-            if self.objRentalReadyData.checkList?.arrQuestions?.count == 0 {
-                return cell
-            }
-            
-            let  objDetails = self.objRentalReadyData.checkList?.arrQuestions?[indexPath.row]
+            let  objDetails = self.arrRentalReady[indexPath.row]
                         
 
-            cell.lblTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(objDetails?.objQuestion?.question ?? "")")
+            cell.lblTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text:  "\(objDetails.question_name ?? "")")
 
             
             //SET VALUE
             cell.lblSelectText.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
-            let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.answer}
-            if objDetails?.objQuestion?.objSelectAnswer != nil{
-                if let index = MenuID?.firstIndex(of: objDetails?.objQuestion?.objSelectAnswer.answer ?? ""){
-                    cell.lblSelectText.text = objDetails?.objQuestion?.arrAnswer[index].answer ?? ""
-                    
-                    
-                    cell.lblType.configureLable(textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: objDetails?.objQuestion?.arrAnswer[index].rentalAnswer_value ?? "")
-                    if objDetails?.objQuestion?.arrAnswer[index].rentalAnswer_value == "Damaged"{
-                        cell.lblType.textColor = .redText
-                    }
+
+
+            
+            let MenuID = objDetails.arrAnswer?.compactMap { $0.unique_id } ?? []
+            if let index = MenuID.firstIndex(of: objDetails.selected_answer ?? ""){
+                let objAnswer = objDetails.arrAnswer?[index]
+                
+                cell.lblSelectText.text = objAnswer?.answer_name ?? ""
+                
+                
+                cell.lblType.configureLable(textColor: .primary.withAlphaComponent(0.7), fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: objAnswer?.type ?? "")
+                if objAnswer?.type == "Damaged"{
+                    cell.lblType.textColor = .redText
                 }
             }
             
@@ -401,32 +473,28 @@ extension RantalReadyVC : UITableViewDelegate, UITableViewDataSource{
             return
         }
         
-        if self.objRentalReadyData.checkList?.arrQuestions?.count == 0 {
+        if self.arrRentalReady.count == 0 {
             return
         }
         
-        var  objDetails = self.objRentalReadyData.checkList?.arrQuestions?[sender.tag]
+        var  objDetails = self.arrRentalReady[sender.tag]
                
         //SELECT VALUE
         var strSelectValue : String = ""
-        let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.answer}
-        if objDetails?.objQuestion?.objSelectAnswer != nil{
-            if let index = MenuID?.firstIndex(of: objDetails?.objQuestion?.objSelectAnswer.answer ?? ""){
-                strSelectValue = objDetails?.objQuestion?.arrAnswer[index].answer ?? ""
-            }
+        let MenuID = objDetails.arrAnswer?.compactMap { $0.unique_id } ?? []
+        if let index = MenuID.firstIndex(of: objDetails.selected_answer ?? ""){
+            let objAnswer = objDetails.arrAnswer?[index]
+            strSelectValue = objAnswer?.answer_name ?? ""
         }
         
-        actionPicker(sender, strTitle: "Select", arrData: objDetails?.objQuestion?.arrAnswer.compactMap { $0.answer} ?? [], selectValue: strSelectValue) { index, selectValue in
+        actionPicker(sender, strTitle: "", arrData: objDetails.arrAnswer?.compactMap { $0.answer_name} ?? [], selectValue: strSelectValue) { index, selectValue in
             
-            var objStatus = objDetails?.objQuestion?.objSelectAnswer
-            objStatus?.answer = objDetails?.objQuestion?.arrAnswer[index].answer ?? ""
-            objDetails?.objQuestion?.objSelectAnswer = objStatus
+            objDetails.selected_answer = objDetails.arrAnswer?[index].unique_id ?? ""
             
             
             //UPDATE
-            self.objRentalReadyData.checkList?.arrQuestions?.remove(at: sender.tag)
-            self.objRentalReadyData.checkList?.arrQuestions?.insert(objDetails!, at: sender.tag)
-            
+            self.arrRentalReady.remove(at: sender.tag)
+            self.arrRentalReady.insert(objDetails, at: sender.tag)
             
          
             //RELOAD TABLE

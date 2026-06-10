@@ -56,7 +56,7 @@ extension AppDelegate {
     }
     
     func Event_Permission(){
-        let alert = UIAlertController(title: "Access to add event in calender permission.", message: "Open Settings -> SocrPro -> Calendars -> turn ON the switch.", preferredStyle: UIAlertController.Style.alert)
+        let alert = UIAlertController(title: "Calendar access is required to add this event.", message: "Open Settings -> SocrPro -> Calendars -> turn ON the switch.", preferredStyle: UIAlertController.Style.alert)
         alert.addAction(UIAlertAction(title: "Open Settings",style: UIAlertAction.Style.default, handler: {(_: UIAlertAction!) in
             
             //MOVE TO SETTING

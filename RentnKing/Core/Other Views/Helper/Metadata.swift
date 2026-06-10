@@ -106,8 +106,19 @@ enum Application {
 
     
     //Base URL
-//    static let BaseURLDEV = "https://rentalapp.rentnking.com/api/"
-    static let BaseURL = "https://archive.rentnking.com/api/v1/"
+    static let BaseURL = "https://rentnking.com/api/v1/"
+
+    //DEV API
+//    static let BaseURL_NEW = "https://api.kabba.ai/api/admin/v1/"
+//    static let token = "45|6ooR9OLqbXvvYEXAenVfPCl1XHXNT1XMeV51vBpH6417a822"
+   
+    //LIVE API
+    //static let BaseURL_NEW = "https://api.rentnking.com/api/admin/v1/"
+//    static let token = "5|rKRPxe0Bq3zxJGgmi4wtjfyoS1w2KzYHmTJ9uHS7229379e6"
+    //static let BaseURL_NEW = UserDefaults.standard.baseURL ?? ""
+    static var BaseURL_NEW: String {
+        return UserDefaults.standard.baseURL ?? ""
+    }
 
     //IMAGE / VIDEO URL
     static let imgURLDEV = "https://rentalapp.rentnking.com/storage/"
@@ -132,9 +143,9 @@ enum Application {
 
  
     //GOOGLE KEY
-    static let googleKey = "40382089760-cj1ne660eu2ebi0415utu7o3hlm6eh52.apps.googleusercontent.com"
-    
+    static let googleKey = ""
 
+    
 }
 
 

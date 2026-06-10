@@ -11,7 +11,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     func selectSearch() {
     }
     
-    @IBOutlet weak var con_Upload: NSLayoutConstraint!  
+    @IBOutlet weak var con_Upload: NSLayoutConstraint!
+    @IBOutlet weak var con_viewSize: NSLayoutConstraint!
     @IBOutlet weak var viewEcommerce: UIView!
     @IBOutlet weak var imgEcommerce: UIImageView!
     @IBOutlet weak var lblEcommerce: UILabel!
@@ -20,8 +21,6 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var imgSchedule: UIImageView!
     @IBOutlet weak var lblSchedule: UILabel!
     
-    @IBOutlet weak var viewScheduleCount: UIView!
-    @IBOutlet weak var lblScheduleCount: UILabel!
     
     @IBOutlet weak var viewCRM: UIView!
     @IBOutlet weak var imgCRM: UIImageView!
@@ -39,7 +38,9 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var imgInventory: UIImageView!
     @IBOutlet weak var lblInventory: UILabel!
 
-    
+    @IBOutlet weak var viewNotificationCount: UIView!
+    @IBOutlet weak var lblNotificationCount: UILabel!
+
     //SET NAVIGATION BAR
     @IBOutlet weak var con_NavigationBar : NSLayoutConstraint!
     @IBOutlet private weak var viewNavigation: NavigationBar!{
@@ -49,27 +50,43 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         }
     }
     
-    var timer : Timer!
+//    var timer : Timer!
 
     
     override func viewDidLoad() {
         super.viewDidLoad()
         isHomeScreen = true
-
-        NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .scheduleCount, object: nil)
+        self.con_viewSize.constant = manageWidth(size: 150)
+        
+        NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .notificationCount, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
         
         // Do any additional setup after loading the view.
         
-        //CEHCK NOTIFICAITON
+        BackgroundUploader.shared.restoreInFlightTasks { task in
+            print("Found task id=\(task), desc=\(task)")
+        }
+
+        // Observe progress & results (good for relaunch scenarios)
+        NotificationCenter.default.addObserver(self, selector: #selector(onProgress(_:)), name: .bgUploadProgress, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(onFinished(_:)), name: .bgUploadFinished, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(onFailed(_:)),   name: .bgUploadFailed,   object: nil)        //CEHCK NOTIFICAITON
         self.openDipLink()
         
         //SET TIMER
-        if timer == nil{
-            timer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(self.getTimeClockSettingAPI), userInfo: nil, repeats: true)
+//        if timer == nil{
+//            timer = Timer.scheduledTimer(timeInterval: 5.0, target: self, selector: #selector(self.getTimeClockSettingAPI), userInfo: nil, repeats: true)
+//        }
+        
+        if UserDefaults.standard.user != nil{
+            //SET DATA TO EXTENSION
+            defaultsToExtension?.set(UserDefaults.standard.accessToken, forKey: "auth_token")
+            defaultsToExtension?.synchronize()
         }
     }
+    
+
     
     
     func openDipLink() {
@@ -83,11 +100,28 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     }
     
     
+   
+
+    @objc private func onProgress(_ n: Notification) {
+        let p = (n.userInfo?["progress"] as? Double) ?? 0
+        print("Progress: \(Int(p * 100))%")
+    }
+    @objc private func onFinished(_ n: Notification) {
+        let status = (n.userInfo?["status"] as? Int) ?? 0
+        print("Finished (notification): status=\(status)")
+    }
+    @objc private func onFailed(_ n: Notification) {
+        let err = (n.userInfo?["error"] as? Error)
+        print("Failed (notification): \(String(describing: err))")
+    }
+    
+    
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
-        GlobalMainConstants.appDelegate?.getScheduleCount()
+        syncOrderNoteWithAPI()
+        syncEquipmentWithAPI()
         
         //UPLOAD LOCAL DATA
         self.stopUploadData()
@@ -106,6 +140,12 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         //sET THE VIEW
         self.setTheView()
         self.getTimeClockSettingAPI()
+        
+        
+        //GET NOTIFICATION COUNT
+        if UserDefaults.standard.user != nil{
+            GlobalMainConstants.appDelegate?.getNotificationListApi()
+        }
     }
     
     @objc func startUploadData(){
@@ -127,7 +167,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         imgColor(imgColor: self.imgInventory, colorHex: .secondary)
 
         //SET FONT
-        self.lblEcommerce.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strEcommerce)
+        self.lblEcommerce.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strOrders)
         self.lblSchedule.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strSchedule)
         self.lblProducts.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strEquipment)
         self.lblCRM.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strCRM)
@@ -166,16 +206,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     
     @objc func setcount(){
         //SET SCHEDUKE CIUNT
-        self.viewScheduleCount.backgroundColor = .redText
-        self.viewScheduleCount.viewCorneRadius(radius: 0.0, isRound: true)
-        self.lblScheduleCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 12.0, text: "")
+        self.viewNotificationCount.backgroundColor = .redText
+        self.viewNotificationCount.viewCorneRadius(radius: 0.0, isRound: true)
+        self.lblNotificationCount.configureLable(textColor: .white, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 10.0, text: "")
         
         
-        let scheduleCount = pendingDelivertCount + pendingPickupCount + pastDelivertCount + pastPickupCount
-        self.viewScheduleCount.isHidden = true
-        if scheduleCount != 0{
-            self.viewScheduleCount.isHidden = false
-            self.lblScheduleCount.text = "\(scheduleCount)"
+        self.viewNotificationCount.isHidden = true
+        if arrNotifications.count != 0{
+            self.viewNotificationCount.isHidden = false
+            self.lblNotificationCount.text = "\(arrNotifications.count)"
         }
     }
 }
@@ -187,17 +226,17 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
 extension HomeViewController{
     
     @IBAction func btnEcommerceClicked(_ sender: UIButton) {
-        
+
         //MOVE FORGOT SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CategoriesViewController") as? CategoriesViewController{
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
     
     @IBAction func btnScheduleClicked(_ sender: UIButton) {
         
-        //MOVE FORGOT SCREEN
+        //MOVE SCHEDULE SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ScheduleListViewController") as? ScheduleListViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
@@ -206,19 +245,19 @@ extension HomeViewController{
     
     @IBAction func btnTimeClockClicked(_ sender: UIButton) {
         
-        if UserDefaults.standard.useMasterCode == UserDefaults.standard.masterCode{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockViewController") as? TimeClockViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
-        }
-        else{
-            //MOVE FORGOT SCREEN
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockLockViewController") as? TimeClockLockViewController{
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
-        }
+//        if UserDefaults.standard.useMasterCode == UserDefaults.standard.masterCode{
+//            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
+//            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockViewController") as? TimeClockViewController{
+//                self.navigationController?.pushViewController(newViewController, animated: true)
+//            }
+//        }
+//        else{
+//            //MOVE FORGOT SCREEN
+//            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TIMECLOCK_MODEL, bundle: nil)
+//            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "TimeClockLockViewController") as? TimeClockLockViewController{
+//                self.navigationController?.pushViewController(newViewController, animated: true)
+//            }
+//        }
 
     }
     
@@ -230,6 +269,15 @@ extension HomeViewController{
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "MachineProfileViewController") as? MachineProfileViewController{
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
+    }
+    
+    @IBAction func bCRMClicked(_ sender: UIButton) {
+        //MOVE FORGOT SCREEN
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CRMListViewController") as? CRMListViewController{
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+        
     }
     
 }

@@ -71,7 +71,7 @@ class TimeClockViewController: UIViewController, UIGestureRecognizerDelegate {
             if SelectTag == 0{
                 
                 //CALL API
-                let alert = UIAlertController(title: Application.appName, message: "Are you sure you want to logout with Master Code?", preferredStyle: .alert)
+                let alert = UIAlertController(title: Application.appName, message: "Are you sure you want to log out with the master code?", preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                     //REMOVE CODE
                     UserDefaults.standard.useMasterCode = ""

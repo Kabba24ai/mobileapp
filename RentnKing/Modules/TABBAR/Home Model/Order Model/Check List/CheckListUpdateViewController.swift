@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import ObjectMapper
 
 
 //protocol  CheckListDelegate : NSObject {
@@ -39,19 +40,22 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var arrEmployesList : [EmployeesModel] = []
     var arrOtherData : [NoteModel] = []
     var objCheckListPrice : CheckListPriceModel!
-    var arrMachineList : [MachineModel] = []
-    
+    var arrPriceList : [PriceListModel] = []
+
     var selectIndex : Int = -1
     var strOrderID : String = ""
+    var strOrderUniqueId : String = ""
     var strProductID : String = ""
 
     var strTotalCharge : Float = 0.0
+    var strFuleTotalCharge : Float = 0.0
     var isDeliveryType : Bool = false
     var selectEmployessID : String = ""
     var deliveryIndex : Int = 0
     var isOrderDetailsView : Bool = false
     var isUpdateData : Bool = false
-
+    var isDeleteChecklist : Bool = false
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 //        setupCutomeKeyboard()
@@ -62,7 +66,44 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         self.viewSubmit.isHidden = true
         if self.isUpdateData{
             self.isLoading = true
-            self.getEmployeesListAPI()
+
+            //GET EMPLOYEE LIST DATA
+            getEmployeeList { arr_data in
+                self.arrEmployesList = arr_data
+            }
+         
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId)) { dicData in
+                    if dicData != nil{
+                        self.objOrderData = dicData
+                        
+                        let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+                        if let obj = getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(self.strOrderUniqueId)"){
+                            self.objOrderData = obj
+                        }
+                        
+                        var arrProduct : [ProductModel] = []
+                        for obj in self.objOrderData.arrProduct{
+                            if obj.objProductData?.product_type != "Retail"{
+                                arrProduct.append(obj)
+                            }
+                        }
+                        
+                        //UPDATE DATA
+                        self.objOrderData.arrProduct = arrProduct
+                        self.setupStaticData()
+                    }
+                    
+                }
+                
+                DispatchQueue.main.async {
+                    self.setTheView()
+                }
+            }
+
+            
+     
         }
         else{
             self.setTheView()
@@ -73,6 +114,10 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(notification:)), name: UIResponder.keyboardWillHideNotification , object:nil)
 
+        //GET PRICE LIST
+        getPriceList { arr_data in
+            self.arrPriceList = arr_data
+        }
     }
     
     
@@ -113,6 +158,8 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         setupKeyboard(true)
     }
     
+
+    
     func setTheView(){
         self.isLoading = false
         indicatorHide()
@@ -121,20 +168,23 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         //SET SUBMIT
         self.viewSubmit.isHidden = false
         self.con_Submit.constant = manageWidth(size: 45.0)
-        self.viewSubmit.backgroundColor = .secondaryTextView
-        self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strSubmit)
+        self.viewSubmit.backgroundColor = self.isDeleteChecklist ? .redText : .secondaryTextView
+        self.lblSubmit.configureLable(textColor: self.isDeleteChecklist ? .primary : .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.isDeleteChecklist ? str.strRemoveChecklist : str.strSubmit)
+        
+        if self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false){
+            self.viewSubmit.isHidden = true
+        }
         
         self.lblTotalChargeTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strTotalCheckList)
-        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(self.strTotalCharge)")
         self.lblTotalChargeTitle.isHidden = false
         self.lblTotalCharge.isHidden = false
         if self.isDeliveryType{
-            self.lblTotalChargeTitle.isHidden = true
-            self.lblTotalCharge.isHidden = true
+            self.lblTotalChargeTitle.isHidden = self.checkCheckListStatus(isDelivery: true) ? false : true
+            self.lblTotalCharge.isHidden = self.checkCheckListStatus(isDelivery: true) ? false : true
         }
         
         //UPDATE DATA
-        self.setCheckListData()
+//        self.setCheckListData()
         
      
         //SET HEADER
@@ -162,205 +212,24 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         }
     }
     
-    func setCheckListData(){
-        for i in 0..<self.objOrderData.arrProduct.count{
-            var objProduct = self.objOrderData.arrProduct[i]
-            
-            for j in 0..<(objProduct.checkList?.arrQuestions?.count ?? 0){
-                var objQuestion = objProduct.checkList?.arrQuestions?[j]
-
-                
-                
-                
-                if objQuestion?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                    if objQuestion?.objQuestion?.returned == 2{
-                        objQuestion?.objQuestion?.customerOwes = self.objCheckListPrice.tire_repair
-                    }
-                    else if objQuestion?.objQuestion?.returned == 3{
-                        objQuestion?.objQuestion?.customerOwes = self.objCheckListPrice.tire_10_ply
-                    }
-                    else if objQuestion?.objQuestion?.returned == 4{
-                        objQuestion?.objQuestion?.customerOwes = self.objCheckListPrice.tire_14_ply
-                    }
-                }
-                else if objQuestion?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                    var price : Float = 0.0
-                    if objQuestion?.objQuestion?.fuel_type == 1{
-                        price = Float(self.objCheckListPrice.diesel_price ?? "") ?? 0.0
-                    }
-                    else if objQuestion?.objQuestion?.fuel_type == 2{
-                        price = Float(self.objCheckListPrice.gas_price ?? "") ?? 0.0
-                    }
-                    else if objQuestion?.objQuestion?.fuel_type == 3{
-                        price = Float(self.objCheckListPrice.def_price ?? "") ?? 0.0
-                    }
-                    
-                    let getFuelData = self.FuelCalulateTotalCharge(total: objQuestion?.objQuestion?.question_value ?? 0.0, dSelect: objQuestion?.objQuestion?.delivered ?? 0.0, rSelect: objQuestion?.objQuestion?.returned ?? 0.0)
-
-                    //SET DATA
-                    objQuestion?.objQuestion?.balance = getFuelData >= 0 ? getFuelData : 0.0
-                    objQuestion?.objQuestion?.customerOwes = getFuelData >= 0 ? getFuelData * price : 0.0
-                }
-                else if objQuestion?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                    //SET DATA
-                    var deliveryPrice : Float = 0.0
-                    var returnPrice : Float = 0.0
-
-                    //GET DELIVERY DATA
-                    if objQuestion?.objQuestion?.delivered != 0 && objQuestion?.objQuestion?.delivered != -1{
-                        let strReturnKey : String = "\(Int(objQuestion?.objQuestion?.delivered ?? 0))"
-                        let strValue = objQuestion?.objQuestion?.clean_delivered_values[strReturnKey]
-                        if strValue == "Pre-Paid" || strValue == "Std. Clean Req."{
-                            deliveryPrice = Float(objQuestion?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                        }
-                    }
-                    
-                    
-                    //GET RETURN DATA
-                    if objQuestion?.objQuestion?.returned != 0{
-                        let strReturnKey : String = "\(Int(objQuestion?.objQuestion?.returned ?? 0))"
-                        let strValue = objQuestion?.objQuestion?.clean_returned_values[strReturnKey]
-                        if strValue == "Std. Clean Req."{
-                            returnPrice = Float(objQuestion?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                        }
-                        else if strValue == "Ext. Clean Req."{
-                            returnPrice = Float(objQuestion?.objQuestion?.ex_clean_price ?? "") ?? 0.0
-                        }
-
-                    }
-                   
-                    let strPayPrive = returnPrice - deliveryPrice
-                    objQuestion?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-
-                }
-                
-                else if objQuestion?.objQuestion?.checklist_type?.lowercased() == "default" && objQuestion?.objQuestion?.arrAnswer.count != 0{
-                
-                                        
-                    //GET DATA
-                    var deliveryPrice : Float = 0.0
-                    var returnPrice : Float = 0.0
-                    
-                    //GET DELIVERY DATA
-                    let strDeliveryId = objQuestion?.objQuestion?.delivered
-                    if strDeliveryId != 0{
-                        let MenuID = objQuestion?.objQuestion?.arrAnswer.map{$0.id}
-                        if let index = MenuID?.firstIndex(of: Int(strDeliveryId ?? 0)){
-                            deliveryPrice = objQuestion?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                        }
-                    }
-                    
-                    //GET RETURN DATA
-                    let strReturId = objQuestion?.objQuestion?.returned
-                    if strReturId != 0{
-                        let MenuID = objQuestion?.objQuestion?.arrAnswer.map{$0.id}
-                        if let index = MenuID?.firstIndex(of: Int(strReturId ?? 0)){
-                            returnPrice = objQuestion?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                        }
-                    }
-                    
-                    let strPayPrive = returnPrice - deliveryPrice
-                    objQuestion?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-                 
-                }
-                
-                
-                
-                else{
-                    //GET BALANCE
-                    var balance = (objQuestion?.objQuestion?.delivered ?? 0.0) - (objQuestion?.objQuestion?.returned ?? 0.0)
-                    if balance < 0{
-                        balance = 0.0
-                    }
-
-                    //GET CUSTOMER OWES
-                    var customerOwes = balance * (objQuestion?.objQuestion?.question_value ?? 0)
-                    if customerOwes < 0{
-                        customerOwes = 0.0
-                    }
-                    //SET DATA
-                    objQuestion?.objQuestion?.balance = balance
-                    objQuestion?.objQuestion?.customerOwes = customerOwes
-
-                }
-
-                
-                //UPDATE DATA
-                objProduct.checkList?.arrQuestions?.remove(at: j)
-                objProduct.checkList?.arrQuestions?.insert(objQuestion!, at: j)
-            }
-            
-            //UPDATE DATA
-            self.objOrderData.arrProduct.remove(at: i)
-            self.objOrderData.arrProduct.insert(objProduct, at: i)
-        }
-        
-        //RELOAD TABLE
-        DispatchQueue.main.asyncAfter(deadline: .now()){
-            self.CalculatTotalCharge()
-            self.tblView.reloadData()
-        }
-        
-    }
-    
-    
-
-    
-    
-    
-    
-    func checkDeliveryPickupStatus(isDeliveryType : Bool) -> (String, Bool, Int){
+    func checkCheckListStatus(isDelivery : Bool) -> Bool{
+        //GET DATA
         if self.objOrderData == nil{
-            return ("icon_delivery_pending", false, 0)
+            return false
         }
-        
-        
-        var strImg : String = "icon_delivery_pending"
-        if self.objOrderData.arrDeliveryStatus.count != 0{
-            
-            for obj in self.objOrderData.arrDeliveryStatus{
-                if isDeliveryType{
-                    //GET IMAGE
-                    if obj.customer_delivery == 2{
-                        strImg = "icon_delivery_pending"
-                    }
-                    else{
-                        strImg = "icon_store"
-                    }
-                    
-                    //CHECK STATUS
-                    if obj.delivery_status?.value != "2"{
-                        return (strImg, false, obj.product_id ?? 0)
-                    }
-                    else{
-                        return (strImg, true, obj.product_id ?? 0)
-                    }
-                }
-                else{
-                    //GET IMAGE
-                    if obj.customer_pickup == 2{
-                        strImg = "icon_delivery_pending"
-                    }
-                    else{
-                        strImg = "icon_store"
-                    }
-                    
-                    //CHECK STATUS
-                    if obj.pickup_status?.value != "2"{
-                        return (strImg, false, obj.product_id ?? 0)
-                    }
-                    else{
-                        return (strImg, true, obj.product_id ?? 0)
-                    }
-                }
+
+        for obj in self.objOrderData.arrProduct{
+            if isDelivery {
+                return obj.is_delivered ?? false
+
+            }
+            else{
+                return obj.is_returned ?? false
             }
         }
-        else{
-            return (strImg, false, 0)
-        }
-        
-        return (strImg, true, 0)
+        return false
     }
+  
 }
 
 
@@ -402,114 +271,150 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
     
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
-        if self.isUpdateData{
-            self.updateStatus()
-            self.navigationController?.popViewController(animated: true)
-            return
-        }
-        
-        if self.checkMachineData() == false{
-            return
-        }
-        
-        if self.checkOtherData() == false{
-            return
-        }
-     
-        if self.checkCustomerSignature() == false{
-            return
-        }
-        
-        var arrData : [[String : Any]] = []
-        for obj in self.objOrderData.arrProduct{
-            
-            for objChecklist in obj.checkList?.arrQuestions ?? []{
+        if self.isDeleteChecklist{
+            //REMOVE CHECKLIST
+            //CALL API
+            let alert = UIAlertController(title: Application.appName, message: "Are you sure you want to replace or delete this equipment?", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                 
-                let dic : [String : Any] = ["order_id" : self.strOrderID,
-                                            "product_id" : "\(obj.product_id ?? 0)",
-                                            "question_id" : "\(objChecklist.objQuestion?.id ?? 0)",
-                                            "in" : objChecklist.objQuestion?.delivered ?? 0,
-                                            "out" : objChecklist.objQuestion?.returned ?? 0 ,
-                                            "value" :"\(objChecklist.objQuestion?.question_value ?? 0)"]
-                arrData.append(dic)
-
-            }
-
-        }
-        
-
-        
-        //OTHER DATA
-        for obj in self.arrOtherData{
-            //GET CURRNET DATA AND TIME
-            let currentDate = Date()
-            let calendar = Calendar.current
-            var strDateTime : String = ""
-            
-            let components = calendar.dateComponents([.hour, .minute], from: currentDate)
-            if let hour = components.hour, let minute = components.minute {
-                print("Current time: \(hour):\(minute)")
-                strDateTime = "\(convertDateToString(date: Date(), withFormat: Application.passServertDAte)) | \(hour):\(minute)"
-            }
-
-            
-            let dic : [String : Any] = ["order_id" : self.strOrderID,
-                                        "product_id" : obj.productID,
-                                        "location" : obj.rStoreId,
-                                        "in_time" : self.isDeliveryType ? strDateTime : obj.outTime,
-                                        "out_time" : self.isDeliveryType ? obj.inTime : strDateTime,
-                                        "note" : self.isDeliveryType ? obj.dNote : obj.rNote,
-                                        "employee_id" : self.isDeliveryType ? obj.dEmplayessId : obj.rEmplayessId,
-                                        "machine_id" : obj.machine_id,
-                                        "type" :self.isDeliveryType ? "Delivery" : "Return"]
-            arrData.append(dic)
-        }
-        
-       
-
-        //CALL API
-        let alert = UIAlertController(title: Application.appName, message: "Are you sure you're ready to Submit this report?", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
-            
-            //UPDATE CHECK LIST
-            self.updateCheckList(arrCheckList: arrData)
-//            self.updateStatus()
-            
-        }))
-        
-        
-        alert.addAction(UIAlertAction(title: str.no, style: .default,handler: { (Action) in
-        }))
-        
-        self.present(alert, animated: true)
-       
-    }
-    
-
-    func updateStatus(){
-        //GET
-        let getDeliveryData = checkDeliveryPickupStatus(isDeliveryType: self.isDeliveryType)
-        if getDeliveryData.1{
-            //GET PRODUCT NAME
-            
-            let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-            if let index = MenuID.firstIndex(of: getDeliveryData.2){
                 
-                if self.isDeliveryType{
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "2", pickup_status: ""), index: 0)
+            }))
+            
+            
+            alert.addAction(UIAlertAction(title: str.no, style: .default,handler: { (Action) in
+            }))
+            
+            self.present(alert, animated: true)
+        }
+        else{
+           
+            if self.checkMachineData() == false{
+                return
+            }
+            
+            if self.checkOtherData() == false{
+                return
+            }
+         
+            if self.checkCustomerSignature() == false{
+                return
+            }
+            
+            
+            var dicData : [String : Any] = [:]
+            var arrCheckListData: [[String: Any]] = []
+            for obj in self.objOrderData.arrProduct{
+                var arrData : [[String : Any]] = []
+                for objChecklist in obj.arrQuestions{
+                    if objChecklist.type != "text" && objChecklist.type != "fuel"{
+                        let dic : [String : Any] = ["question_unique_id" : objChecklist.unique_id ?? "",
+                                                    "answer_unique_id" : self.isDeliveryType ? objChecklist.deliverAnswer.unique_id ?? "" : objChecklist.returnAnswer.unique_id ?? ""]
+                        arrData.append(dic)
+                    }
                 }
-                else{
-                    self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "", pickup_status: "2"), index: 0)
+                
+                
+                //CONVERT CHECKLIST DATA IN STRING
+                var strCheckList : String = ""
+//                var jsonObject : Any?
+                do {
+
+                    
+                    let jsonData = try JSONSerialization.data(withJSONObject: arrData, options: [])
+                    
+//                    jsonObject = try JSONSerialization.jsonObject(with: jsonData, options: [])
+//                    print(jsonObject) // Array of dictionaries
+
+                    // If you want a String for debugging
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        strCheckList = jsonString
+                    }
+                } catch {
+                    print("Error serializing JSON:", error)
+                }
+                                
+                //OTHER DATA
+                for objOther in self.arrOtherData{
+                    
+                    dicData = [
+                        "order_product_unique_id": obj.unique_id ?? "",
+                        "equipment_unique_id": obj.objMachine?.unique_id ?? "",
+                        "checklist[]": strCheckList,
+
+                        "start_hours": self.isDeliveryType ? "\(objOther.startHours)" : "",
+                        "end_hours": self.isDeliveryType ? "" : "\(objOther.endHours)",
+                        "user_id": self.isDeliveryType ? objOther.dEmplayessId : objOther.rEmplayessId,
+                        "note": self.isDeliveryType ? objOther.dNote : objOther.rNote,
+                        "total_charge": self.isDeliveryType ? "" : "\(self.strTotalCharge)",
+                        "store_id": self.isDeliveryType ? "" : objOther.rStoreId,
+                        "fuel_initial_reading": objOther.selectFuleDelivery,
+                        "fuel_final_reading": objOther.selectFuleReturn,
+                        "fuel_total_charge": self.isDeliveryType ? "" : "\(self.strFuleTotalCharge)",
+                        "dSignature": self.isDeliveryType ? (objOther.dSignature ?? UIImage()) : UIImage(),
+                        "rSignature":  self.isDeliveryType ? UIImage() : (objOther.rSignature ?? UIImage()),
+                        "type": self.isDeliveryType ? "Delivery" : "Return"
+                    ]
+                    arrCheckListData.append(dicData)
                 }
             }
+           
+
+            //CALL API
+            let alert = UIAlertController(title: Application.appName, message: "Are you sure you're ready to submit this report?", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
+                
+//                self.updateCheckList(dicCheckList: dicData)
+                indicatorShow()
+                
+                //UPDATE CHECK LIST
+                saveArrayWithImages(arrCheckListData)
+                
+                //SET DATA IN LOCAL
+                let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+                SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
+                SDKUserDefault.saveNSObjectArray(self.arrOtherData, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
+
+
+                
+              
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+                    
+                    NotificationCenter.default.post(name: .updateCheckList, object: nil, userInfo: ["checklist_data": self.arrOtherData, "index" : self.selectIndex, "type" : self.isDeliveryType] )
+
+                    if self.isOrderDetailsView{
+                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
+                            self.navigationController?.popToViewController(targetViewController, animated: true)
+                        }
+                    }
+                    else{
+                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                            self.navigationController?.popToViewController(targetViewController, animated: true)
+                        }
+                    }
+                    
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1){
+                        indicatorHide()
+                        showAlertMessage(strMessage: "Checklist updated successfully.", isDismiss: true)
+                    }
+                })
+                                
+            }))
+            
+            
+            alert.addAction(UIAlertAction(title: str.no, style: .default,handler: { (Action) in
+            }))
+            
+            self.present(alert, animated: true)
         }
     }
-
     
+  
     func checkMachineData() -> Bool{
         for objData in self.objOrderData.arrProduct{
             if objData.objMachine == nil{
-                showAlertMessage(strMessage: "Please select machine id")
+                showAlertMessage(strMessage: "Please select an equipment ID.")
                 return false
             }
         }
@@ -520,7 +425,7 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
         for obj in self.arrOtherData{
             if self.isDeliveryType{
                 if obj.dEmplayessId == ""{
-                    showAlertMessage(strMessage: "Please select delivered by")
+                    showAlertMessage(strMessage: "Please select who delivered the equipment.")
                     return false
                 }
                 
@@ -531,7 +436,7 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             }
             else{
                 if obj.rEmplayessId == ""{
-                    showAlertMessage(strMessage: "Please select returnd by")
+                    showAlertMessage(strMessage: "Please select who returned the equipment.")
                     return false
                 }
                 
@@ -612,106 +517,199 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
     }
     
 
-    func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
-        
-        if textField.tag == 100 || textField.tag == 101{
-            let inverseSet = NSCharacterSet(charactersIn:"0123456789.").inverted
-            let components = string.components(separatedBy: inverseSet)
-            let filtered = components.joined(separator: "")
-            
-            if filtered == string {
-                guard let text = textField.text else { return false }
-                var newString = (text as NSString).replacingCharacters(in: range, with: string)
-                newString = newString.replacingOccurrences(of: "\(Application.currency)", with: "")
-                
-
-                let countdots = newString.components(separatedBy: ".").count - 1
-                if countdots <= 1
-                {
-                    let section : Int = Int(textField.accessibilityValue ?? "") ?? 0
-                    let index : Int = Int(textField.accessibilityLanguage ?? "") ?? 0
-
-                    var objProduct = self.objOrderData.arrProduct[section]
-                    var objdata = objProduct.checkList?.arrQuestions?[index]
-                    
-                    if textField.tag == 100{
-                        objdata?.objQuestion?.delivered = Float(newString) ?? 0.0
-                    }
-                    else{
-                        objdata?.objQuestion?.returned = Float(newString) ?? 0.0
-                    }
-
-                    //GET BALANCE
-                    var balance = (objdata?.objQuestion?.delivered ?? 0.0) - (objdata?.objQuestion?.returned ?? 0.0)
-                    if balance < 0{
-                        balance = 0.0
-                    }
-
-                    //GET CUSTOMER OWES
-                    var customerOwes = balance * (objdata?.objQuestion?.question_value ?? 0)
-                    if customerOwes < 0{
-                        customerOwes = 0.0
-                    }
-                    
-                    
-                    //SET DATA
-                    objdata?.objQuestion?.balance = balance
-                    objdata?.objQuestion?.customerOwes = customerOwes
-                    
-                    
-                    //UPDATE
-                    objProduct.checkList?.arrQuestions?.remove(at: index)
-                    objProduct.checkList?.arrQuestions?.insert(objdata!, at: index)
-                    
-                    //UPDATE ARRAY
-                    self.objOrderData.arrProduct.remove(at: section)
-                    self.objOrderData.arrProduct.insert(objProduct, at: section)
-                    
-                    //UPDATE DATA
-                    
-                    //RELOAD TABLE
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
-                        self.CalculatTotalCharge()
-                    }
-                }
-                else{
-                    return false
-                }
-                
-                
-                return true
-                
-            } else {
-                return false
-            }
-        }
-        else{
-            return true
-        }
-    }
     
     func CalculatTotalCharge(){
         self.strTotalCharge = 0.0
         if self.objOrderData == nil { return }
-
+        
         for i in 0..<self.objOrderData.arrProduct.count{
-            let objProduct = self.objOrderData.arrProduct[i]
+            var objProduct = self.objOrderData.arrProduct[i]
             
-            for j in 0..<(objProduct.checkList?.arrQuestions?.count ?? 0){
-                let objQuestion = objProduct.checkList?.arrQuestions?[j]
-                
-                //SET TOTAL CHARGE
-                self.strTotalCharge = self.strTotalCharge + (objQuestion?.objQuestion?.customerOwes ?? 0.0)
-                
+            if self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false){
+                self.strTotalCharge = self.strTotalCharge + Float(objProduct.total_charge)
+            }
+            else{
+                for (index,obj) in objProduct.arrQuestions.enumerated(){
+                    var objQuestion = obj
+                    if objQuestion.type == "text"{
+                        let hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                        let totalHours = Int(hours.rounded(.up))
+                        objQuestion.total = 0
+                        if totalHours > 0{
+                            //SET TOTAL HOURS
+                            objQuestion.total = Float(totalHours)
+                        }
+                        
+                        
+                        //SET ADDITION HOURS
+                        var additionslHours = Float(totalHours) - (objProduct.allocated_hours ?? 0)
+                        objQuestion.additinal = 0
+                        if additionslHours > 0{
+                            //SET TOTAL HOURS
+                            objQuestion.additinal = Int(Float(additionslHours))
+                        }
+                        else{
+                            additionslHours = 0
+                        }
+                        
+                        //SET TOTAL CHARGE
+                        self.strTotalCharge =  self.strTotalCharge + Float(additionslHours) * Float(objQuestion.hour_rate)
+                        objQuestion.total_cost = self.strTotalCharge
+                        
+                        
+                        //UPDATE
+                        objProduct.arrQuestions.remove(at: index)
+                        objProduct.arrQuestions.insert(objQuestion, at: index)
+                        
+                        //UPDATE ARRAY
+                        self.objOrderData.arrProduct.remove(at: i)
+                        self.objOrderData.arrProduct.insert(objProduct, at: i)
+                        
+                    }
+                    else if objQuestion.type == "fuel"{
+                        
+                        let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
+                        var totalPrice  : Float = 0.0
+                        if objQuestion.isDEF == "Yes"{
+                            totalPrice = price * (Float(objQuestion.def_tank_capacity ?? "") ?? 0)
+                        }
+                        else if objQuestion.fuleType == "diesel"{
+                            totalPrice = price * (Float(objQuestion.diesel_tank_capacity ?? "") ?? 0)
+                        }
+                        else if objQuestion.fuleType == "gas"{
+                            totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
+                        }
+                        
+                        
+                        self.strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
+                        self.strTotalCharge = self.strTotalCharge + self.strFuleTotalCharge
+                        
+                    }
+                    
+                    else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
+                        let strPrice = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
+                        if strPrice > 0{
+                            self.strTotalCharge = self.strTotalCharge + strPrice
+                        }
+                    }
+                }
             }
         }
         
+        
         //RELOAD TABLE
-        self.lblTotalCharge.text = "\(Application.currency)\(self.strTotalCharge)"
+        print("\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
+        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
+        print(self.lblTotalCharge.text ?? "")
+
     }
+    
+    func getPrice(strFuleType : String, isDef : String) -> Float{
+        if isDef == "Yes"{
+            let MenuID = self.arrPriceList.map{$0.setting_name}
+            if let index = MenuID.firstIndex(of: "def_price_per_gallon"){
+                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        else if strFuleType == "gas"{
+            let MenuID = self.arrPriceList.map{$0.setting_name}
+            if let index = MenuID.firstIndex(of: "gas_price_per_gallon"){
+                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        else if strFuleType == "diesel"{
+            let MenuID = self.arrPriceList.map{$0.setting_name}
+            if let index = MenuID.firstIndex(of: "diesel_price_per_gallon"){
+                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        
+        return 0
+    }
+    
 }
 
 
+
+class CheckListUpdateCell : UITableViewCell{
+
+    @IBOutlet weak var lblTitle: UILabel!
+    @IBOutlet weak var lblTitleReturn: UILabel!
+
+    @IBOutlet weak var viewDeliveredMain: UIView!
+    @IBOutlet weak var viewReturnedMain: UIView!
+
+    @IBOutlet weak var lblDeliverySelect: UILabel!
+//    @IBOutlet weak var imgDeliverySelect: UIImageView!
+//    @IBOutlet weak var btnDeliverySelect: UIButton!
+    
+    @IBOutlet weak var lblReturnSelect: UILabel!
+//    @IBOutlet weak var imgReturnSelect: UIImageView!
+//    @IBOutlet weak var btnReturnSelect: UIButton!
+
+    
+    
+    
+//    @IBOutlet weak var lblTitleDelivered: UILabel!
+
+        
+    
+    @IBOutlet weak var viewBalance: UIView!
+    @IBOutlet weak var lblBalance: UILabel!
+    @IBOutlet weak var txtBalance: UITextField!
+//
+//
+    
+    @IBOutlet weak var viewAdditional: UIView!
+    @IBOutlet weak var lblAdditional: UILabel!
+    @IBOutlet weak var txtAdditional: UITextField!
+//
+    
+    @IBOutlet weak var viewHourlyFee: UIView!
+    @IBOutlet weak var lblHourlyFee: UILabel!
+    @IBOutlet weak var txtHourlyFee: UITextField!
+//
+    
+    @IBOutlet weak var viewValue: UIView!
+    @IBOutlet weak var lblValue: UILabel!
+    @IBOutlet weak var txtValue: UITextField!
+
+    @IBOutlet weak var viewCustomerOwes: UIView!
+    @IBOutlet weak var lblCustomerOwes: UILabel!
+    @IBOutlet weak var txtCustomerOwes: UITextField!
+    @IBOutlet weak var viewCustomerOwesLine: UIView!
+
+
+    @IBOutlet weak var viewLine: UIView!
+
+    
+    func getAnimableSubviews() -> [UIView] {
+        return [UIView](getAllSubviews())
+    }
+    
+    private func getAllSubviews() -> [UIView] {
+        return [
+            lblTitle,
+//            lblDelivered,
+            viewDeliveredMain,
+//            lblReturned,
+            viewReturnedMain,
+//            lblBalance,
+//            txtBalance,
+//            lblValue,
+//            txtValue,
+//            lblCustomerOwes,
+//            txtCustomerOwes
+            
+        ]
+    }
+}
 
 
 //MARK: -- UITABEL DELEGATE --
@@ -724,7 +722,10 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             return 1
         }
         else{
-            return self.objOrderData.arrProduct.count
+            if objOrderData != nil{
+                return self.objOrderData.arrProduct.count
+            }
+            return 0
         }
     }
     
@@ -742,10 +743,11 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             //SET PRODUCT IMAGE
             cell.con_imgHeight.constant = manageWidth(size: 70)
             cell.imgProduct.viewCorneRadius(radius: 5, isRound: false)
-            cell.imgProduct.setImage(strImg: objProductDetails.product_image ?? "")
             cell.imgProduct.backgroundColor = .white
-            
-            
+            if let strImg = objProductDetails.objProductData?.product_image_url{
+                cell.imgProduct.setImage(strImg: strImg)
+            }
+
             //SET FONT
             cell.lblProduct.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "\(objProductDetails.product_name ?? "") * \(objProductDetails.qty )")
             
@@ -785,7 +787,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
     
             
 //            cell.lblTitleCategoryId.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "Category ID *")
-            cell.lblTitleMachineId.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "Machine ID")
+            cell.lblTitleMachineId.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "Equipment ID")
 //            cell.lblCategoryId.configureLable(textAlignment: .center, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             cell.lblMachineId.configureLable(textAlignment: .center, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
 //            imgColor(imgColor: cell.imgCategoryId, colorHex: .primary)
@@ -796,7 +798,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
 //            }
             
             if objProductDetails.objMachine != nil{
-                cell.lblMachineId.text = "\(objProductDetails.objMachine?.product_name ?? "")    ||    \(objProductDetails.objMachine?.machine_id ?? "")"
+                cell.lblMachineId.text = "\(objProductDetails.objMachine?.equipment_name ?? "")    ||    \(objProductDetails.objMachine?.equipment_id ?? "")"
             }
            
             
@@ -838,10 +840,19 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             let  objDetails = self.arrOtherData[section]
 
             cell.lblNote.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: self.isDeliveryType == true ? str.strDelivredNote : str.strReturnedNote, numberOfLines: 1)
-            cell.lblEmployee.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: self.isDeliveryType == true ? str.strDelivredEmployess : str.strReturnedEmployess, numberOfLines: 1)
-            
-            cell.txtSelctEmployee.configureText(textAlignment: .right ,bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rEmplayess, placeholder: str.strSelectEmployess)
+            cell.lblEmployee.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: str.strDelivredEmployess, numberOfLines: 1)
+            cell.lblReturnEmployee.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: str.strReturnedEmployess, numberOfLines: 1)
 
+            cell.txtSelctEmployee.configureText(textAlignment: .left ,bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: objDetails.dEmplayess, placeholder: str.strSelectEmployess)
+            cell.txtSelctReturnEmployee.configureText(textAlignment: .right ,bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: objDetails.rEmplayess, placeholder: str.strSelectEmployess)
+
+            
+            cell.viewEmployee.isHidden = false
+            cell.viewReturnEmployee.isHidden = false
+            if self.isDeliveryType == true{
+                cell.viewReturnEmployee.isHidden = true
+            }
+            
             cell.con_Bottom.constant = manageWidth(size: 45.0)
             
             cell.lblNote.text = ""
@@ -857,7 +868,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             
             //SET SIGNATURE
             cell.con_imgSignature.constant = 0
-            cell.viewSignature.backgroundColor = .secondaryTextView
+            cell.viewSignature.backgroundColor = .secondaryTextView?.withAlphaComponent(0.7)
             cell.lblSignature.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Customer Signature")
             
             if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
@@ -891,13 +902,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
         
         return UIView()
     }
-    
-  
-     @objc func rightButtonTapped() {
-         // Action for the right button (you can customize this)
-         self.view.endEditing(true)
-         self.tblView.reloadData()
-     }
+
     
     
     func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
@@ -905,7 +910,6 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             return 0
         }
         else{
-            
             let objDetails = self.arrOtherData[section]
             
             var noteHeight: CGFloat = 0
@@ -946,94 +950,8 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
         present(nav, animated: true, completion: nil)
 
     }
-    
-    @objc func btnComplateClicked(_ sender: UIButton) {
-        var objDelivery = self.objOrderData.arrDeliveryStatus[sender.tag]
-        
-        if self.isDeliveryType{
-            if objDelivery.delivery_status?.value == "2"{
-                objDelivery.delivery_status?.value = "1"
-            }
-            else{
-                objDelivery.delivery_status?.value = "2"
-            }
-        }
-        else{
-            if objDelivery.pickup_status?.value == "2"{
-                objDelivery.pickup_status?.value = "1"
-            }
-            else{
-                objDelivery.pickup_status?.value = "2"
-            }
-        }
-        
-        //UPDATE DATA
-        self.objOrderData.arrDeliveryStatus.remove(at: sender.tag)
-        self.objOrderData.arrDeliveryStatus.insert(objDelivery, at: sender.tag)
 
-        //RELOAD TABLE
-        self.tblView.reloadData()
-
-        
-//        //GET
-//        let getDeliveryData = checkDeliveryPickupStatus(isDeliveryType: self.isDeliveryType)
-//        if getDeliveryData.1 == false{
-//            //GET PRODUCT NAME
-//            
-//            let MenuID = self.objOrderData.arrProduct.map{$0.product_id}
-//            if let index = MenuID.firstIndex(of: getDeliveryData.2){
-//                let productName = self.objOrderData.arrProduct[index].product_name
-//                
-//                
-//                //CALL API
-//                let alert = UIAlertController(title: Application.appName, message: "Are you sure you have deliverd '\(productName ?? "")' to \(self.objOrderData.objAdress?.name ?? "" )", preferredStyle: .alert)
-//                alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
-//                   
-//                    let MenuID = self.objOrderData.arrDeliveryStatus.map{$0.product_id}
-//                    if let index = MenuID.firstIndex(of: getDeliveryData.2){
-//                        self.deliveryIndex = index
-//                        
-//                        if self.isDeliveryType{
-//                            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "2", pickup_status: ""), index: sender.tag)
-//                        }
-//                        else{
-//                            self.updateStatus(UpdateStatusParameater: UpdateStatusParameater(id: "\(self.objOrderData.arrDeliveryStatus[index].id ?? 0)", delivery_status: "", pickup_status: "2"), index: sender.tag)
-//                        }
-//                    }
-//               
-//                }))
-//                alert.addAction(UIAlertAction(title: str.no, style: .cancel, handler: nil))
-//                self.present(alert, animated: true)
-//            }
-//        }
-    }
-    
-    @objc func btnSelectEmployessClicked(_ sender: UIButton) {
-       // self.view.endEditing(true)
-        
-        if self.arrEmployesList.count == 0{
-            return
-        }
-        
-        actionPicker(sender, strTitle: "Select Emplopyee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
-            
-            //UPDATE DATA
-            let obj = self.arrOtherData[sender.tag]
-            if self.isDeliveryType{
-                obj.dEmplayess = selectValue
-                obj.dEmplayessId = "\(self.arrEmployesList[index].id ?? 0)"
-            }
-            else{
-                obj.rEmplayess = selectValue
-                obj.rEmplayessId = "\(self.arrEmployesList[index].id ?? 0)"
-            }
-            self.arrOtherData.remove(at: sender.tag)
-            self.arrOtherData.insert(obj, at: sender.tag)
-            
-            //RELAD
-            self.tblView.reloadData()
-        }
-    }
+  
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         if isLoading{
@@ -1041,7 +959,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
         }
         else{
             if self.objOrderData.arrProduct.count != 0{
-                return self.objOrderData.arrProduct[section].checkList?.arrQuestions?.count ?? 0
+                return self.objOrderData.arrProduct[section].arrQuestions.count
             }
             else{
                 return 0
@@ -1055,12 +973,17 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        if let cell = tableView.dequeueReusableCell(withIdentifier: "CheckListCell") as? CheckListCell{
+        if let cell = tableView.dequeueReusableCell(withIdentifier: "CheckListUpdateCell") as? CheckListUpdateCell{
             cell.backgroundColor = UIColor.clear
-            cell.viewLine.isHidden = false
-            cell.viewDeliverySelect.isHidden = true
-            cell.viewReturnSelect.isHidden = true
+            cell.viewLine.isHidden = true
+            cell.viewBalance.isHidden = true
+            cell.viewValue.isHidden = true
+            cell.viewCustomerOwes.isHidden = true
+            cell.viewReturnedMain.isHidden = true
+            cell.viewAdditional.isHidden = true
+            cell.viewHourlyFee.isHidden = true
             cell.viewLine.alpha = 0
+            cell.viewReturnedMain.isHidden = self.isDeliveryType
             
             if isLoading {
                 cell.viewLine.isHidden = true
@@ -1073,215 +996,126 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 return cell
             }
             
-            if self.objOrderData.arrProduct[indexPath.section].checkList?.arrQuestions?.count == 0 {
+            if self.objOrderData.arrProduct[indexPath.section].arrQuestions.count == 0 {
                 return cell
             }
             
-            let  objDetails = self.objOrderData.arrProduct[indexPath.section].checkList?.arrQuestions?[indexPath.row]
+            let  objDetails = self.objOrderData.arrProduct[indexPath.section].arrQuestions[indexPath.row]
                         
 
-            cell.lblTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(objDetails?.objQuestion?.question ?? "")")
-            cell.viewBalance.isHidden = false
-            cell.viewValue.isHidden = false
-            if objDetails?.objQuestion?.question_value == 0 || objDetails?.objQuestion?.question_value == nil{
-                cell.viewValue.isHidden = true
+            cell.lblTitle.configureLable(textColor: self.isDeliveryType ? .primary : .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: objDetails.question_delivery_text ?? "")
+            cell.lblTitleReturn.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: objDetails.question_return_text ?? "")
+            cell.lblTitleReturn.isHidden = true
+            if objDetails.type == "text" && self.isDeliveryType == false{
+                cell.lblTitleReturn.isHidden = false
             }
-            
-            if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                cell.lblTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(objDetails?.objQuestion?.question ?? "") (Tires)")
+            else if objDetails.question_delivery_text ?? "" != objDetails.question_return_text ?? "" && self.isDeliveryType == false{
+                cell.lblTitleReturn.isHidden = false
             }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                cell.viewValue.isHidden = false
+
+            cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Admin Override")
+            cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Admin Override")
+            if objDetails.type == "text"{
+                cell.lblDeliverySelect.text = objDetails.startHours == 0 ? "Admin Override" : "\(objDetails.startHours)"
                 
-                var strName : String = ""
-                if objDetails?.objQuestion?.fuel_type == 1{
-                    strName = "Diesel"
+                if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
+                    cell.lblReturnSelect.text = objDetails.startHours == 0 ? "Admin Override" : "\(objDetails.endHours)"
                 }
-                else if objDetails?.objQuestion?.fuel_type == 2{
-                    strName = "Gas"
+            }
+           
+            
+            if objDetails.type == "text" && self.isDeliveryType == false{
+                if objDetails.total_cost != 0.0{
+                    cell.lblTitle.text = str.strMachineHours
+                    cell.viewValue.isHidden = false
+                    cell.viewBalance.isHidden = false
+                    cell.viewCustomerOwes.isHidden = false
+                    cell.viewAdditional.isHidden = false
+                    cell.viewHourlyFee.isHidden = false
+                    cell.lblDeliverySelect.text = ""
+
+                    cell.lblValue.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strAllocatedHourse)
+                    cell.lblBalance.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strTotalHourse)
+                    cell.lblAdditional.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strAdditionalHourse)
+                    cell.lblHourlyFee.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strHourseFee)
+
+                    cell.lblCustomerOwes.configureLable(textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strTotalCharge)
+
+                    
+                    
+                    cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "\(objDetails.startHours)")
+                    cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "\(objDetails.endHours)")
+                    cell.txtValue.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(self.objOrderData.arrProduct[indexPath.section].allocated_hours ?? 0.0)", placeholder: "0.0")
+                    cell.txtBalance.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(objDetails.total)", placeholder: "0.0")
+                    cell.txtAdditional.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(objDetails.additinal ?? 0)", placeholder: "0.0")
+                    cell.txtHourlyFee.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(objDetails.hour_rate)", placeholder: "0.0")
+                    cell.txtCustomerOwes.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "$\((String(format: "%.2f", objDetails.total_cost)) )", placeholder: "0.0")
+
                 }
-                else if objDetails?.objQuestion?.fuel_type == 3{
-                    strName = "DEF"
+            }
+            else if objDetails.type == "fuel" {
+                let price = self.getPrice(strFuleType: objDetails.fuleType ?? "", isDef: objDetails.isDEF ?? "")
+                var totalPrice  : Float = 0.0
+                if objDetails.isDEF == "Yes"{
+                    totalPrice = price * (Float(objDetails.def_tank_capacity ?? "") ?? 0)
                 }
-                cell.lblTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "Fuel (\(strName))")
+                else if objDetails.fuleType == "diesel"{
+                    totalPrice = price * (Float(objDetails.diesel_tank_capacity ?? "") ?? 0)
+                }
+                else if objDetails.fuleType == "gas"{
+                    totalPrice = price * (Float(objDetails.gas_tank_capacity ?? "") ?? 0)
+                }
+                
+                let totalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objDetails.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objDetails.selectFuleReturn ?? "") ?? 0)
+
+                //SET DATA
+                let strFule = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
+                cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strFule == "Select" ? "Admin Override" : strFule)
+                
+                cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: getFlueName(strId: objDetails.selectFuleReturn ?? ""))
+                if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
+                    let strReturnFule = getFlueName(strId: objDetails.selectFuleReturn ?? "")
+                    cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strReturnFule == "Select" ? "Admin Override" : strReturnFule)
+                }
+
+
+                if totalCharge != 0{
+                    cell.viewCustomerOwes.isHidden = false
+                    
+                    cell.lblCustomerOwes.configureLable(textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strCustomerOwes)
+                    cell.txtCustomerOwes.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "$\(String(format: "%.2f", totalCharge))", placeholder: "0.0")
+
+                }
 
             }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                cell.viewBalance.isHidden = true
-                cell.viewValue.isHidden = true
-                cell.lblTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "Cleaning")
-            }
-            
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "default" && objDetails?.objQuestion?.arrAnswer.count != 0{
-                cell.viewBalance.isHidden = true
-                cell.viewValue.isHidden = true
-            }
+            else{
+                if objDetails.deliverAnswer != nil{
+                    cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: objDetails.deliverAnswer.answer_delivery_text ?? "")
+                    cell.lblDeliverySelect.numberOfLines = 2
+                }
+                
+                if objDetails.returnAnswer != nil{
+                    cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: objDetails.returnAnswer.answer_return_text ?? "")
+                    cell.lblReturnSelect.numberOfLines = 2
+                }
 
-            
-            cell.lblDelivered.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strDelivered)
-            cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "-")
-            cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "-")
-
-            cell.txtDelivered.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: objDetails?.objQuestion?.delivered ?? 0 <= 0 ? "" : "\(Int(objDetails?.objQuestion?.delivered ?? 0.0))", placeholder: "0")
-            cell.txtDelivered.accessibilityValue = "\(indexPath.section)"
-            cell.txtDelivered.tag = 100
-            cell.txtDelivered.accessibilityLanguage = "\(indexPath.row)"
-            cell.txtDelivered.delegate = self
-
-            
-            cell.lblReturned.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strReturned)
-            cell.txtReturned.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: objDetails?.objQuestion?.returned ?? 0 <= 0 ? "" : "\(Int(objDetails?.objQuestion?.returned ?? 0))", placeholder: "0")
-            cell.txtReturned.accessibilityValue = "\(indexPath.section)"
-            cell.txtReturned.tag = 101
-            cell.txtReturned.accessibilityLanguage = "\(indexPath.row)"
-            cell.txtReturned.delegate = self
-            if objDetails?.objQuestion?.checklist_type?.lowercased() == "default" && objDetails?.objQuestion?.arrAnswer.count != 0{
-                if objDetails?.objQuestion?.delivered != 0 && objDetails?.objQuestion?.delivered != -1{
-                    let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.id}
-                    if let arrIndex = MenuID?.firstIndex(of: Int(objDetails?.objQuestion?.delivered ?? 0)){
-                        cell.lblDeliverySelect.text = objDetails?.objQuestion?.arrAnswer[arrIndex].answer ?? ""
+                
+                
+                if objDetails.deliverAnswer != nil && objDetails.returnAnswer != nil{
+                    if objDetails.deliverAnswer.unique_id != objDetails.returnAnswer.unique_id{
+                        cell.viewCustomerOwes.isHidden = false
+                        
+                        
+                        let totalCharge = Float(objDetails.deliverAnswer.delivery_amt) + Float(objDetails.returnAnswer.return_amt)
+                        
+                        cell.lblCustomerOwes.configureLable(textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strCustomerOwes)
+                        cell.txtCustomerOwes.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .redText, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "$\(String(format: "%.2f", totalCharge))", placeholder: "0.0")
+//                        cell.viewCustomerOwesLine.backgroundColor = .redText
                     }
                 }
-                
-                if objDetails?.objQuestion?.returned != 0 && objDetails?.objQuestion?.returned != -1{
-                    let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.id}
-                    if let arrIndex = MenuID?.firstIndex(of: Int(objDetails?.objQuestion?.returned ?? 0)){
-                        cell.lblReturnSelect.text = objDetails?.objQuestion?.arrAnswer[arrIndex].answer ?? ""
-                    }
-                }
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                if objDetails?.objQuestion?.returned != 0 && objDetails?.objQuestion?.returned != -1{
-                    let strKey : String = "\(Int(objDetails?.objQuestion?.returned ?? 0))"
-                    cell.lblReturnSelect.text = objDetails?.objQuestion?.tires_values[strKey]
-                }
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                if objDetails?.objQuestion?.delivered != 0 && objDetails?.objQuestion?.delivered != -1{
-                    let strKey : String = "\(Int(objDetails?.objQuestion?.delivered ?? 0))"
-                    cell.lblDeliverySelect.text = objDetails?.objQuestion?.clean_delivered_values[strKey]
-                }
-                
-                if objDetails?.objQuestion?.returned != 0 && objDetails?.objQuestion?.returned != -1{
-                    let strKey : String = "\(Int(objDetails?.objQuestion?.returned ?? 0))"
-                    cell.lblReturnSelect.text = objDetails?.objQuestion?.clean_returned_values[strKey]
-                }
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                if objDetails?.objQuestion?.delivered != -1{
-                    let strKey : String = "\(Int(objDetails?.objQuestion?.delivered ?? 0))"
-                    if objDetails?.objQuestion?.fuel_type == 2{
-                        cell.lblDeliverySelect.text = objDetails?.objQuestion?.fuel_values_with_no_guage[strKey]
-                    }
-                    else{
-                        cell.lblDeliverySelect.text = objDetails?.objQuestion?.fuel_values_with_guage[strKey]
-                    }
-                }
-                
-                
-                if objDetails?.objQuestion?.returned != 0 && objDetails?.objQuestion?.returned != -1{
-                    let strKey : String = "\(Int(objDetails?.objQuestion?.returned ?? 0))"
-                    if objDetails?.objQuestion?.fuel_type == 2{
-                        cell.lblReturnSelect.text = objDetails?.objQuestion?.fuel_values_with_no_guage[strKey]
-                    }
-                    else{
-                        cell.lblReturnSelect.text = objDetails?.objQuestion?.fuel_values_with_guage[strKey]
-                    }
-                }
             }
             
-            
-            cell.lblBalance.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strBalance)
-            cell.txtBalance.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(Int(objDetails?.objQuestion?.balance ?? 0)) \(objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel" ? "Gallons" : "")", placeholder: "0.0")
-            cell.txtBalance.delegate = self
-            if objDetails?.objQuestion?.balance == 0 || objDetails?.objQuestion?.balance == nil || self.isDeliveryType{
-                cell.viewBalance.isHidden = true
-            }
-            
-            cell.lblValue.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strValue)
-            cell.txtValue.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(Application.currency)\(objDetails?.objQuestion?.question_value ?? 0)", placeholder: "0")
-            cell.txtValue.delegate = self
-            if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                
-                var strPrice : String = ""
-                if objDetails?.objQuestion?.fuel_type == 1 {
-                    strPrice = self.objCheckListPrice.diesel_price ?? ""
-                }
-                else if objDetails?.objQuestion?.fuel_type == 2{
-                    strPrice = self.objCheckListPrice.gas_price ?? ""
-                }
-                else if objDetails?.objQuestion?.fuel_type == 3{
-                    strPrice = self.objCheckListPrice.def_price ?? ""
-                }
-                cell.txtValue.text = "$\(strPrice)/Gallon"
-            }
-            
-            
-            cell.lblCustomerOwes.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strCustomerOwes)
-            cell.txtCustomerOwes.configureText(textAlignment: .center, keyboardTye: .numberPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "\(Application.currency)\(objDetails?.objQuestion?.customerOwes ?? 0)", placeholder: "0")
-            cell.txtCustomerOwes.delegate = self
-            
-            
-            //SET TYPE
-//            imgColor(imgColor: cell.imgDeliverySelect, colorHex: .primary)
-//            imgColor(imgColor: cell.imgReturnSelect, colorHex: .primary)
-            cell.viewDeliverySelect.isHidden = true
-            cell.viewReturnSelect.isHidden = true
-            cell.txtDelivered.isHidden = false
-            cell.txtReturned.isHidden = false
-
-            if objDetails?.objQuestion?.checklist_type?.lowercased() != "default" || objDetails?.objQuestion?.arrAnswer.count != 0{
-                cell.viewDeliverySelect.isHidden = false
-                cell.viewReturnSelect.isHidden = false
-                cell.txtDelivered.isHidden = true
-                cell.txtReturned.isHidden = true
-                
-                if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                    cell.viewDeliverySelect.isHidden = true
-                    cell.txtDelivered.isHidden = false
-                }
-            }
-
-            //GET DELIVERY TEXT
-            var strText : String = cell.txtDelivered.text ?? ""
-            if cell.txtDelivered.text == ""{
-                strText = "0.0"
-            }
-            cell.lblTitleDelivered.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: cell.viewDeliverySelect.isHidden ? strText : cell.lblDeliverySelect.text ?? "-")
-
-            //GET RETURN TEXT
-            var strTextReturn : String = cell.txtReturned.text ?? ""
-            if cell.txtReturned.text == ""{
-                strTextReturn = "0.0"
-            }
-            
-            let strRetrunTEXT =  cell.viewReturnSelect.isHidden ? strTextReturn : cell.lblReturnSelect.text ?? "-"
-            
-            
-            //SET MAIN VIEW
-            cell.lblTitleDelivered.isHidden = self.isDeliveryType ? false : true
-            cell.viewDeliveredMain.isHidden = self.isDeliveryType ? true : false
-            cell.viewReturnedMain.isHidden = self.isDeliveryType ? true : false
-
-            if strRetrunTEXT == cell.lblTitleDelivered.text ?? ""{
-                cell.lblTitleDelivered.isHidden = false
-                cell.viewDeliveredMain.isHidden = true
-                cell.viewReturnedMain.isHidden = true
-            }
-            
-            //SET VIEW
-            cell.viewValue.isHidden = false
-            if cell.lblTitleDelivered.text ?? "" == "-" || cell.lblTitleDelivered.text ?? "" == "0.0" || cell.lblTitleDelivered.text ?? "" == "" || cell.lblTitleDelivered.text ?? "" == "0" || objDetails?.objQuestion?.question_value == 0 || objDetails?.objQuestion?.question_value == nil{
-                cell.viewValue.isHidden = true
-            }
-            
-            cell.viewCustomerOwes.isHidden = false
-            if objDetails?.objQuestion?.customerOwes == 0 || objDetails?.objQuestion?.customerOwes == nil || self.isDeliveryType{
-                cell.viewCustomerOwes.isHidden = true
-                cell.viewBalance.isHidden = true
-            }
-            
-            
+    
             return cell
         }
 
@@ -1289,397 +1123,9 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
         
     }
     
-
-    @objc func btnDeliverySelectClicked(_ sender: UIButton) {
-        let section : Int = Int(sender.accessibilityValue ?? "") ?? 0
-
-        if self.objOrderData.arrProduct.count == 0 {
-            return
-        }
-        
-        if self.objOrderData.arrProduct[section].checkList?.arrQuestions?.count == 0 {
-            return
-        }
-        
-        let  objDetails = self.objOrderData.arrProduct[section].checkList?.arrQuestions?[sender.tag]
-                 
-        
-        if objDetails?.objQuestion?.checklist_type?.lowercased() == "default" && objDetails?.objQuestion?.arrAnswer.count != 0{
-            actionPicker(sender, strTitle: "Select", arrData: objDetails?.objQuestion?.arrAnswer.compactMap { $0.answer} ?? [], selectValue: "") { index, selectValue in
-                
-                
-                var objProduct = self.objOrderData.arrProduct[section]
-                var objdata = objProduct.checkList?.arrQuestions?[sender.tag]
-                objdata?.objQuestion?.delivered = Float(objDetails?.objQuestion?.arrAnswer[index].id ?? 0)
-                
-                //SET DATA
-                var deliveryPrice : Float = 0.0
-                var returnPrice : Float = 0.0
-                
-                //GET DELIVERY DATA
-                if objdata?.objQuestion?.delivered != 0 && objdata?.objQuestion?.delivered != -1{
-                    deliveryPrice = objDetails?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                }
-                
-                
-                //GET RETURN DATA
-                let strReturId = objdata?.objQuestion?.returned
-                if strReturId != 0 && strReturId != -1{
-                    let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.id}
-                    if let index = MenuID?.firstIndex(of: Int(strReturId ?? 0)){
-                        returnPrice = objDetails?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                    }
-                }
-                
-                let strPayPrive = returnPrice - deliveryPrice
-                objdata?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-                
-                
-                //UPDATE
-                objProduct.checkList?.arrQuestions?.remove(at: sender.tag)
-                objProduct.checkList?.arrQuestions?.insert(objdata!, at: sender.tag)
-                
-                //UPDATE ARRAY
-                self.objOrderData.arrProduct.remove(at: section)
-                self.objOrderData.arrProduct.insert(objProduct, at: section)
-                
-                //RELOAD TABLE
-                self.tblView.reloadData()
-                
-                
-                //RELOAD TABLE
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
-                    self.CalculatTotalCharge()
-                }
-            }
-        }
-        else{
-            var arrData : [String : String] = [:]
-            if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                arrData = objDetails?.objQuestion?.tires_values ?? [:]
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                if objDetails?.objQuestion?.fuel_type == 2{
-                    arrData = objDetails?.objQuestion?.fuel_values_with_no_guage  ?? [:]
-                }
-                else{
-                    arrData = objDetails?.objQuestion?.fuel_values_with_guage ?? [:]
-                }
-
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                arrData = objDetails?.objQuestion?.clean_delivered_values ?? [:]
-
-            }
-            
-            let strKey : String = "\(Int(objDetails?.objQuestion?.delivered ?? 0))"
-            actionPicker(sender, strTitle: "Select", arrData: arrData.sorted { $0.key > $1.key }.compactMap { $0.value}, selectValue: arrData[strKey] ?? "") { index, selectValue in
-
-                print(index)
-                print(selectValue)
-                
-                if let key = arrData.first(where: { $0.value == selectValue })?.key {
-                    var objProduct = self.objOrderData.arrProduct[section]
-                    var objdata = objProduct.checkList?.arrQuestions?[sender.tag]
-                    
-                    objdata?.objQuestion?.delivered = Float(key) ?? 0.0
-
-                    if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                        
-                        //SET DATA
-                        var deliveryPrice : Float = 0.0
-                        var returnPrice : Float = 0.0
-
-                        //GET DELIVERY DATA
-                        if objdata?.objQuestion?.delivered != 0 && objdata?.objQuestion?.delivered != -1{
-                            let strReturnKey : String = "\(Int(objdata?.objQuestion?.delivered ?? 0))"
-                            let strValue = objdata?.objQuestion?.clean_delivered_values[strReturnKey]
-                            if strValue == "Pre-Paid" || strValue == "Std. Clean Req."{
-                                deliveryPrice = Float(objdata?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                            }
-                        }
-                        
-                        
-                        //GET RETURN DATA
-                        if objdata?.objQuestion?.returned != 0 && objdata?.objQuestion?.returned != -1{
-                            let strReturnKey : String = "\(Int(objdata?.objQuestion?.returned ?? 0))"
-                            let strValue = objdata?.objQuestion?.clean_returned_values[strReturnKey]
-                            if strValue == "Std. Clean Req."{
-                                returnPrice = Float(objdata?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                            }
-                            else if strValue == "Ext. Clean Req."{
-                                returnPrice = Float(objdata?.objQuestion?.ex_clean_price ?? "") ?? 0.0
-                            }
-
-                        }
-                       
-                        let strPayPrive = returnPrice - deliveryPrice
-                        objdata?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-                    }
-                    else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                        var price : Float = 0.0
-                        if objDetails?.objQuestion?.fuel_type == 1{
-                            price = Float(self.objCheckListPrice.diesel_price ?? "") ?? 0.0
-                        }
-                        else if objDetails?.objQuestion?.fuel_type == 2{
-                            price = Float(self.objCheckListPrice.gas_price ?? "") ?? 0.0
-                        }
-                        else if objDetails?.objQuestion?.fuel_type == 3{
-                            price = Float(self.objCheckListPrice.def_price ?? "") ?? 0.0
-                        }
-                        
-                        let getFuelData = self.FuelCalulateTotalCharge(total: objdata?.objQuestion?.question_value ?? 0.0, dSelect: objdata?.objQuestion?.delivered ?? 0.0, rSelect: objdata?.objQuestion?.returned ?? 0.0)
-
-                        //SET DATA
-                        objdata?.objQuestion?.balance = getFuelData >= 0 ? getFuelData : 0.0
-                        objdata?.objQuestion?.customerOwes = getFuelData >= 0 ? getFuelData * price : 0.0
-                        
-                    }
-
-                    
-                    
-                  
-                    //UPDATE
-                    objProduct.checkList?.arrQuestions?.remove(at: sender.tag)
-                    objProduct.checkList?.arrQuestions?.insert(objdata!, at: sender.tag)
-                    
-                    //UPDATE ARRAY
-                    self.objOrderData.arrProduct.remove(at: section)
-                    self.objOrderData.arrProduct.insert(objProduct, at: section)
-                    
-                    //RELOAD TABLE
-                    self.tblView.reloadData()
-
-                    
-                    //RELOAD TABLE
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
-                        self.CalculatTotalCharge()
-                    }
-                    
-                    
-                }
-            
-            }
-        }
-    }
-
-
-    @objc func btnReturnSelectClicked(_ sender: UIButton) {
-        let section : Int = Int(sender.accessibilityValue ?? "") ?? 0
-
-        if self.objOrderData.arrProduct.count == 0 {
-            return
-        }
-        
-        if self.objOrderData.arrProduct[section].checkList?.arrQuestions?.count == 0 {
-            return
-        }
-        
-        let  objDetails = self.objOrderData.arrProduct[section].checkList?.arrQuestions?[sender.tag]
-                 
-        
-        if objDetails?.objQuestion?.checklist_type?.lowercased() == "default" && objDetails?.objQuestion?.arrAnswer.count != 0{
-            
-            
-            actionPicker(sender, strTitle: "Select", arrData: objDetails?.objQuestion?.arrAnswer.compactMap { $0.answer} ?? [], selectValue: "") { index, selectValue in
-                
-                var objProduct = self.objOrderData.arrProduct[section]
-                var objdata = objProduct.checkList?.arrQuestions?[sender.tag]
-                objdata?.objQuestion?.returned = Float(objDetails?.objQuestion?.arrAnswer[index].id ?? 0)
-                
-                //SET DATA
-                var deliveryPrice : Float = 0.0
-                var returnPrice : Float = 0.0
-                
-                //GET RETURN DATA
-                if objdata?.objQuestion?.returned != 0{
-                    returnPrice = objDetails?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                }
-                
-                
-                //GET DELIVERY DATA
-                let strReturId = objdata?.objQuestion?.delivered
-                if strReturId != 0{
-                    let MenuID = objDetails?.objQuestion?.arrAnswer.map{$0.id}
-                    if let index = MenuID?.firstIndex(of: Int(strReturId ?? 0)){
-                        deliveryPrice = objDetails?.objQuestion?.arrAnswer[index].answer_value ?? 0
-                    }
-                }
-                
-                let strPayPrive = returnPrice - deliveryPrice
-                objdata?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-                
-                
-                //UPDATE
-                objProduct.checkList?.arrQuestions?.remove(at: sender.tag)
-                objProduct.checkList?.arrQuestions?.insert(objdata!, at: sender.tag)
-                
-                //UPDATE ARRAY
-                self.objOrderData.arrProduct.remove(at: section)
-                self.objOrderData.arrProduct.insert(objProduct, at: section)
-                
-                //RELOAD TABLE
-                self.tblView.reloadData()
-                
-                
-                //RELOAD TABLE
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
-                    self.CalculatTotalCharge()
-                }
-            }
-        }
-        else{
-            var arrData : [String : String] = [:]
-            if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                arrData = objDetails?.objQuestion?.tires_values ?? [:]
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                if objDetails?.objQuestion?.fuel_type == 2{
-                    arrData = objDetails?.objQuestion?.fuel_values_with_no_guage ?? [:]
-                }
-                else{
-                    arrData = objDetails?.objQuestion?.fuel_values_with_guage ?? [:]
-                }
-
-            }
-            else if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                arrData = objDetails?.objQuestion?.clean_returned_values ?? [:]
-
-            }
-            
-            let strKey : String = "\(Int(objDetails?.objQuestion?.returned ?? 0))"
-            actionPicker(sender, strTitle: "Select", arrData: arrData.sorted { $0.key < $1.key }.compactMap { $0.value}, selectValue: arrData[strKey] ?? "") { index, selectValue in
-
-                print(index)
-                print(selectValue)
-                
-                if let key = arrData.first(where: { $0.value == selectValue })?.key {
-                    var objProduct = self.objOrderData.arrProduct[section]
-                    var objdata = objProduct.checkList?.arrQuestions?[sender.tag]
-                    
-                    objdata?.objQuestion?.returned = Float(key) ?? 0.0
-
-                    
-                    if objDetails?.objQuestion?.checklist_type?.lowercased() == "tires"{
-                        if key == "2"{
-                            objdata?.objQuestion?.customerOwes = self.objCheckListPrice.tire_repair
-                        }
-                        else if key == "3"{
-                            objdata?.objQuestion?.customerOwes = self.objCheckListPrice.tire_10_ply
-                        }
-                        else if key == "4"{
-                            objdata?.objQuestion?.customerOwes = self.objCheckListPrice.tire_14_ply
-                        }
-                    }
-                    else if objDetails?.objQuestion?.checklist_type?.lowercased() == "cleaning"{
-                        
-                        //SET DATA
-                        var deliveryPrice : Float = 0.0
-                        var returnPrice : Float = 0.0
-
-                        //GET DELIVERY DATA
-                        if objdata?.objQuestion?.delivered != 0 && objdata?.objQuestion?.delivered != -1{
-                            let strReturnKey : String = "\(Int(objdata?.objQuestion?.delivered ?? 0))"
-                            let strValue = objdata?.objQuestion?.clean_delivered_values[strReturnKey]
-                            if strValue == "Pre-Paid" || strValue == "Std. Clean Req."{
-                                deliveryPrice = Float(objdata?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                            }
-                        }
-                        
-                        
-                        //GET RETURN DATA
-                        if objdata?.objQuestion?.returned != 0 && objdata?.objQuestion?.returned != -1{
-                            let strReturnKey : String = "\(Int(objdata?.objQuestion?.returned ?? 0))"
-                            let strValue = objdata?.objQuestion?.clean_returned_values[strReturnKey]
-                            if strValue == "Std. Clean Req."{
-                                returnPrice = Float(objdata?.objQuestion?.sd_clean_price ?? "") ?? 0.0
-                            }
-                            else if strValue == "Ext. Clean Req."{
-                                returnPrice = Float(objdata?.objQuestion?.ex_clean_price ?? "") ?? 0.0
-                            }
-
-                        }
-                       
-                        let strPayPrive = returnPrice - deliveryPrice
-                        objdata?.objQuestion?.customerOwes = strPayPrive >= 0 ? strPayPrive : 0.0
-                    }
-                    else if objDetails?.objQuestion?.checklist_type?.lowercased() == "fuel"{
-                        var price : Float = 0.0
-                        if objDetails?.objQuestion?.fuel_type == 1{
-                            price = Float(self.objCheckListPrice.diesel_price ?? "") ?? 0.0
-                        }
-                        else if objDetails?.objQuestion?.fuel_type == 2{
-                            price = Float(self.objCheckListPrice.gas_price ?? "") ?? 0.0
-                        }
-                        else if objDetails?.objQuestion?.fuel_type == 3{
-                            price = Float(self.objCheckListPrice.def_price ?? "") ?? 0.0
-                        }
-                        
-                        
-                        let getFuelData = self.FuelCalulateTotalCharge(total: objdata?.objQuestion?.question_value ?? 0.0, dSelect: objdata?.objQuestion?.delivered ?? 0.0, rSelect: objdata?.objQuestion?.returned ?? 0.0)
-
-                        //SET DATA
-                        objdata?.objQuestion?.balance = getFuelData >= 0 ? getFuelData : 0.0
-                        objdata?.objQuestion?.customerOwes = getFuelData >= 0 ? getFuelData * price : 0.0
-                    }
-
-                    
-                    
-                  
-                    //UPDATE
-                    objProduct.checkList?.arrQuestions?.remove(at: sender.tag)
-                    objProduct.checkList?.arrQuestions?.insert(objdata!, at: sender.tag)
-                    
-                    //UPDATE ARRAY
-                    self.objOrderData.arrProduct.remove(at: section)
-                    self.objOrderData.arrProduct.insert(objProduct, at: section)
-                    
-                    //RELOAD TABLE
-                    self.tblView.reloadData()
-
-                    //RELOAD TABLE
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
-                        self.CalculatTotalCharge()
-                    }
-                    
-                    
-                }
-            
-            }
-        }
-
-    }
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-      
-    }
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {}
     
     
- 
-    func FuelCalulateTotalCharge(total : Float, dSelect : Float , rSelect : Float) -> Float{
-        if dSelect <= 0 || rSelect <= 0{
-            return 0
-        }
-        return (total/8) * (dSelect - rSelect)
-    }
-    
-    func CalculatChecklistTotalCharge(){
-        self.strTotalCharge = 0.0
-        
-        for i in 0..<self.objOrderData.arrProduct.count{
-            let objProduct = self.objOrderData.arrProduct[i]
-            
-            for j in 0..<(objProduct.checkList?.arrQuestions?.count ?? 0){
-                let objQuestion = objProduct.checkList?.arrQuestions?[j]
-                
-                //SET TOTAL CHARGE
-                self.strTotalCharge = self.strTotalCharge + (objQuestion?.objQuestion?.customerOwes ?? 0.0)
-                
-            }
-        }
-        
-        //RELOAD TABLE
-        self.lblTotalCharge.text = "\(Application.currency)\(self.strTotalCharge)"
-    }
 }
 
 
@@ -1706,3 +1152,140 @@ extension CheckListUpdateViewController {
     }
 }
 
+
+
+//MARK: - LOCAL DATABASE MANAGE
+extension CheckListUpdateViewController{
+    
+    
+    func setupStaticData() {
+        
+        let arrData = self.objOrderData.arrProduct
+        self.objOrderData.arrProduct = []
+        
+        //GET PRODUCT DATA
+        for obj in arrData{
+            if obj.objProduct?.checklist_id != 0{
+                self.objOrderData.arrProduct.append(obj)
+            }
+        }
+        
+        let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+        if isCheckListOtherDataSaved(strOrderUniqeID: self.strOrderUniqueId) == false{
+            //SET SIGNATURE ARRAT
+            self.arrOtherData = []
+            for i in 0..<self.objOrderData.arrProduct.count{
+                let  obj = self.objOrderData.arrProduct[i]
+                self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading ))
+                
+                
+                
+                //CHECK EQUMPEMT
+                if obj.objMachine != nil{
+                    if obj.objMachine?.unique_id != ""{
+                        
+                        let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+                        if isCheckListOrderDetailSaved(strOrderUniqeID: "\(checklistType)_\(self.strOrderUniqueId)") == false{
+                            self.setUpTheEqupmentData(objEquipment: obj.objMachine, arrQuestions: obj.arrQuestions, index: i)
+                            
+                            //CALL API ALSO
+                            self.getCheckListPriceAPI(CheckListParameater: CheckListParameater(equipment_unique_id: obj.objMachine?.unique_id ?? "", type: "return", order_product_unique_id: obj.unique_id ?? ""), index: i)
+                        }
+                        
+                    }
+                }
+                else{
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
+                        self.tblView.reloadData()
+                    })
+                }
+            }
+        }
+        else{
+            self.arrOtherData = []
+            let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+            self.arrOtherData = getChecklistOtherData(strOrderUniqeID: "\(checklistType)_\(self.strOrderUniqueId)") ?? []
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
+                self.tblView.reloadData()
+            })
+
+        }
+
+    }
+    
+    
+    func setUpTheEqupmentData(objEquipment : MachineModel?, arrQuestions: [CustomerCheckListModel], index : Int){
+        
+        var objProduct = self.objOrderData.arrProduct[index]
+        objProduct.arrQuestions = arrQuestions
+        
+        if objEquipment?.hour_tracking == "Yes"{
+            //ADD START HOUR
+            let map = Map(mappingType: .fromJSON, JSON: [:])
+            var objCheckList = CustomerCheckListModel(map: map)
+            objCheckList?.type = "text"
+            objCheckList?.question_delivery_text = "Start Hours"
+            objCheckList?.question_return_text = "End Hours"
+            objCheckList?.startHours = objProduct.start_hours
+            objCheckList?.endHours = objProduct.end_hours
+            objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
+            
+            objProduct.arrQuestions.insert(objCheckList!, at: 0)
+            
+            
+            
+            if objEquipment != nil{
+                if objEquipment?.powerSourceType != ""{
+                    //SET FULE
+                    let map = Map(mappingType: .fromJSON, JSON: [:])
+                    var objCheckListFule = CustomerCheckListModel(map: map)
+                    objCheckListFule?.type = "fuel"
+                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
+                    objCheckListFule?.isDEF = objEquipment?.hasDEF
+                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+                    
+                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+                    
+                    objProduct.arrQuestions.insert(objCheckListFule!, at: 1)
+                }
+            }
+            
+        }
+        else{
+            if objEquipment != nil{
+                if objEquipment?.powerSourceType != ""{
+                    //SET FULE
+                    let map = Map(mappingType: .fromJSON, JSON: [:])
+                    var objCheckListFule = CustomerCheckListModel(map: map)
+                    objCheckListFule?.type = "fuel"
+                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
+                    objCheckListFule?.isDEF = objEquipment?.hasDEF
+                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+                    
+                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+                    objProduct.arrQuestions.insert(objCheckListFule!, at: 0)
+                }
+            }
+        }
+        
+        
+        self.objOrderData.arrProduct.remove(at: index)
+        self.objOrderData.arrProduct.insert(objProduct, at: index)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
+            self.tblView.reloadData()
+        })
+    }
+    
+}

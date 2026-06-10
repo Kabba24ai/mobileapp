@@ -16,16 +16,27 @@ class SplashViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+
         // Do any additional setup after loading the view.
         
         self.objIndicator.startAnimating()
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0){
             self.moveToHomeScreen()
         }
+        
+        //GET CATEGORY LIST DATA
+        callAPIforCategoryList(CatrgoryParameater: CatrgoryParameater()) { _ in
+        }
+        
+        callAPIforCustomerTagList() { _ in
+        }
+    
+        getPriceListAPI(completion: {_ in})
     }
     
     
     override func viewWillAppear(_ animated: Bool) {
+
         //SET VIEW
         self.view.backgroundColor = .background
 
@@ -43,10 +54,24 @@ class SplashViewController: UIViewController {
     func moveToHomeScreen(){
         self.objIndicator.stopAnimating()
         
-        //MOVE TO TABBAR
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TABBAR, bundle: nil)
-        let tabBariewController = storyBoard.instantiateViewController(withIdentifier: "TabbarViewController") as! TabbarViewController
-        GlobalMainConstants.appDelegate?.window?.rootViewController = tabBariewController
-        GlobalMainConstants.appDelegate?.window?.makeKeyAndVisible()
+        if UserDefaults.standard.user != nil && UserDefaults.standard.accessToken != nil && UserDefaults.standard.baseURL != nil && UserDefaults.standard.baseURL != ""{
+            //MOVE TO TABBAR
+            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.TABBAR, bundle: nil)
+            let tabBariewController = storyBoard.instantiateViewController(withIdentifier: "TabbarViewController") as! TabbarViewController
+            GlobalMainConstants.appDelegate?.window?.rootViewController = tabBariewController
+            GlobalMainConstants.appDelegate?.window?.makeKeyAndVisible()
+        }
+        else{
+//            UserDefaults.standard.baseURL = ""
+            
+            //MOVE SCHEDULE SCREEN
+            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.LOGIN_MODEL, bundle: nil)
+            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "LoginViewController") as? LoginViewController{
+                self.navigationController?.pushViewController(newViewController, animated: true)
+            }
+        }
     }
+    
+    
+    
 }

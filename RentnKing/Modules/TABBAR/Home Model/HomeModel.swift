@@ -36,7 +36,7 @@ extension HomeViewController :WebServiceHelperDelegate{
    
    
     
-    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int) {
+    func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
       
         let arrKey  = data.allKeys as [AnyObject]
         if (arrKey.firstIndex(where: { $0 as! String == "error" }) == nil){
@@ -48,7 +48,6 @@ extension HomeViewController :WebServiceHelperDelegate{
 
                     }
                 }
-    
             }
 
         }

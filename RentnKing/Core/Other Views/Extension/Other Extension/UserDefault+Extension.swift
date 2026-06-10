@@ -16,6 +16,9 @@ enum NSUDKey {
     static let language = "language"
     static let userData = "userData"
     static let profile = "profile"
+    static let accessToken = "access_token"
+    static let baseURL = "base_url"
+
 }
 
 
@@ -23,53 +26,84 @@ extension Notification.Name {
     static let languageUpdate = Notification.Name("languageUpdate")
     static let cartUpdated = Notification.Name("cartUpdated")
     static let scheduleCount = Notification.Name("scheduleCount")
+    static let notificationCount = Notification.Name("notificationCount")
 
     static let startUploadData = Notification.Name("startUploadData")
     static let stopUploadData = Notification.Name("stopUploadData")
     static let updateCheckList = Notification.Name("updateCheckList")
+    static let refreshMachineProfileList = Notification.Name("refreshMachineProfileList")
 
 }
 
 
 extension UserDefaults{
-//    var user: User? {
-//
-//        get {
-//            guard dictionaryRepresentation().keys.contains(NSUDKey.userData)
-//                else { return nil }
-//
-//            guard let data = data(forKey: NSUDKey.userData)
-//                else { return nil }
-//
-//        
-//            do {
-//                if let archivedCategoryNames = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) as? User {
-//                    return archivedCategoryNames
-//                }
-//            } catch {
-//                return nil
-//            }
-//            
-//            return nil
-//
-//        }
-//        set{
-//            if newValue == nil {
-//                removeObject(forKey: NSUDKey.userData)
-//            }
-//            else{
-//                
-//                do {
-//                    let data = try NSKeyedArchiver.archivedData(withRootObject: newValue!, requiringSecureCoding: false)
-//                    set(data, forKey: NSUDKey.userData)
-//                    
-//                } catch {
-//                }
-//            }
-//            synchronize()
-//        }
-//    }
-//    
+    var user: User? {
+
+        get {
+            guard dictionaryRepresentation().keys.contains(NSUDKey.userData)
+                else { return nil }
+
+            guard let data = data(forKey: NSUDKey.userData)
+                else { return nil }
+
+        
+            do {
+                if let archivedCategoryNames = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(data) as? User {
+                    return archivedCategoryNames
+                }
+            } catch {
+                return nil
+            }
+            
+            return nil
+
+        }
+        set{
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.userData)
+            }
+            else{
+                
+                do {
+                    let data = try NSKeyedArchiver.archivedData(withRootObject: newValue!, requiringSecureCoding: false)
+                    set(data, forKey: NSUDKey.userData)
+                    
+                } catch {
+                }
+            }
+            synchronize()
+        }
+    }
+    
+    var baseURL: String?{
+        get {
+            return string(forKey: NSUDKey.baseURL)
+        }
+        set {
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.baseURL)
+            }
+            else{
+                set(newValue, forKey: NSUDKey.baseURL)
+            }
+            synchronize()
+        }
+    }
+    
+    var accessToken: String?{
+        get {
+            return string(forKey: NSUDKey.accessToken)
+        }
+        set {
+            if newValue == nil {
+                removeObject(forKey: NSUDKey.accessToken)
+            }
+            else{
+                set(newValue, forKey: NSUDKey.accessToken)
+            }
+            synchronize()
+        }
+    }
     
     
     var language: String{
