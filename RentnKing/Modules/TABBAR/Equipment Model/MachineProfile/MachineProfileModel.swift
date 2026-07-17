@@ -40,7 +40,8 @@ struct MachineModel: Mappable{
     internal var arrCheckList : [ChecklistQuestionsModel] = []
     internal var arrAnswerRentalCheckList: [RentalReadyModel]?//: [RentalReadyAnswerModel]?
     internal var arrAnswerCheckList: [CustomerCheckListModel]?
-    
+    internal var equipment_store: StoreOptionsModel?
+
     init?(map:Map) {
         mapping(map: map)
     }
@@ -70,6 +71,7 @@ struct MachineModel: Mappable{
         arrAnswerRentalCheckList <- map["rental_ready_checklist_questions"]
         arrAnswerCheckList <- map["checklist_qas"]
         equipment_hours <- map["equipment_hours"]
+        equipment_store <- map["equipment_store"]
     }
 }
 
@@ -160,6 +162,7 @@ struct CustomerModel: Mappable{
     internal var tax_document_valid_until: String?
     internal var tax_status: String?
     internal var unique_id: String?
+    internal var orders_count: Int?
     internal var arr_notes : [NotesModel] = []
     internal var arr_tags : [TagsModel] = []
     internal var objDeliveryAddress: AddressModel?
@@ -195,6 +198,7 @@ struct CustomerModel: Mappable{
         tax_document_valid_until <- map["tax_document_valid_until"]
         tax_status <- map["tax_status"]
         unique_id <- map["unique_id"]
+        orders_count <- map["orders_count"]
         
         arr_notes <- map["notes"]
         arr_tags <- map["tags"]
@@ -211,7 +215,7 @@ struct NotesModel: Mappable{
     internal var description: String?
     internal var created_by: String?
     internal var created_date: String?
-    internal var created_time: Bool?
+    internal var created_time: String?
     
     init?(map:Map) {
         mapping(map: map)

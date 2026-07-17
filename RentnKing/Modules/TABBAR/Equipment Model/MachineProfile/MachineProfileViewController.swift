@@ -16,6 +16,16 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     @IBOutlet weak var viewSearch: UIView!
     @IBOutlet weak var txtSearch: UITextField!
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
+    
+    @IBOutlet weak var imgSelectStore: UIImageView!
+    @IBOutlet weak var viewSelectStore: UIView!
+    @IBOutlet weak var txtSelectStore: UITextField!
+    
+    @IBOutlet weak var viewCurrentlyAssign: UIControl!
+    @IBOutlet weak var imgCurrentlyAssignTick: UIImageView!
+    @IBOutlet weak var img_Calender: UIImageView!
+    @IBOutlet weak var lblCurrentlyAssign: UILabel!
+    
     @IBOutlet var emptyDataView : EmptyDataView!{
         didSet{
             emptyDataView.noDataFound()
@@ -25,6 +35,8 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
 
     
     //OTHER
+    var strTxtSearch = ""
+    var int_CurrentlyAssignedTick: Int = 1
     let machineProfilePlaceholderMarker = Placeholder()
     var isLoading : Bool = true
     var objRefresh : UIRefreshControl?
@@ -34,11 +46,14 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     var arrCategoryList : [CategoryModel] = []
     var arrStatues : [FilterTypes] = []
     var arrServices : [FilterTypes] = []
+    var arrStoreList :[StoreModel] = []
 
     var selectCategoryID : Int = 0
     var selectStatus : String = "All"
     var selectService : String = "All"
 
+    var strSelectStore : String = str.strSelectStore
+    var strStoreID : String = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -54,7 +69,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         
                 
         
-        self.txtSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSearch)
+        self.txtSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSearchEqupment)
         self.txtSearch.clearButtonMode = .whileEditing
         self.txtSearch.text = ""
         if let clearButton = txtSearch.value(forKey: "_clearButton") as? UIButton{
@@ -66,11 +81,44 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         }
 
         
+        self.txtSelectStore.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.strSelectStore, placeholder: str.strSelectStore)
+        
+        self.imgCurrentlyAssignTick.image = .iconCheck
+        self.lblCurrentlyAssign.configureLable(textColor: .darkGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 15, text: str.strCurrentlyAssigned)
+        
+        
         //GET CATEGORY DATA
         getCategoryList { arr_data in
             self.arrCategoryList = arr_data
         }
         
+
+        //GET STORE LIST DATA FROM LOCAL
+        getStoreList { arr_data in
+            var mappedStores = arr_data.map { obj -> StoreModel in
+                var updatedObj = obj
+                updatedObj.fullAddress = [
+                    obj.address,
+                    obj.city,
+                    obj.state,
+                    obj.zip_code
+                ]
+                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: ", ")
+                return updatedObj
+            }
+
+            // Add "All Stores" option at the top (this page only)
+            if var allStores = StoreModel(JSON: [:]) {
+                allStores.id = 0
+                allStores.name = str.strSelectStore
+                mappedStores.insert(allStores, at: 0)
+            }
+
+            self.arrStoreList = mappedStores
+        }
+
         //GET DATA
         self.refreshList()
        
@@ -180,12 +228,19 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     func setTheView(){
         self.objSearchIndicator.isHidden = true
         self.objSearchIndicator.stopAnimating()
-        
+                
         //SET THE VIEW
         self.viewSearch.backgroundColor = .clear
         self.viewSearch.viewBorderCorneRadius(borderColour: .secondary)
         self.viewSearch.viewCorneRadius(radius: 10.0, isRound: false)
         imgColor(imgColor: self.imgSearch, colorHex: .secondary)
+        
+        
+        //SET THE VIEW
+        self.viewSelectStore.backgroundColor = .clear
+        self.viewSelectStore.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewSelectStore.viewCorneRadius(radius: 10.0, isRound: false)
+        imgColor(imgColor: self.imgSelectStore, colorHex: .secondary)
         
         
         //SET SEARCH TEXT
@@ -230,36 +285,93 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     
     // MARK: - UITEXTFIELD
     @objc func textFieldDidChangeSearch() {
-    
+        self.callAPI()
+        
+    }
+
+    func callAPI (){
         let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        if strSearch.count <= 3{
+        self.strTxtSearch = strSearch
+        
+        //GET Equipment LIST DATA
+        getFilterEquipmentList(str_search: self.strTxtSearch, str_store_id: self.strStoreID, int_assigned: self.int_CurrentlyAssignedTick) { arr_data in
+            self.isLoading = false
+            self.objRefresh?.endRefreshing()
+            self.sortData(arr_machine: arr_data)
+        }
+        
+
+    }
+    
+    
+//    func callAPI(category_id: Int, status: String, service_status: String, search: String){
+//        self.arrMachineProfileList = []
+//        
+//        //APPLY FILTER
+//        self.arrMachineProfileList = self.arrMainMachineProfileList.filter {
+//            ($0.current_status == status) ||
+//            ($0.objProductCategory?.id == category_id)
+//        }
+//        
+//        
+//        let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+//        
+//        //GET arrSearchPhoneContacts LIST
+//        self.arrMachineProfileList = self.arrMachineProfileList.filter { (Int((($0.equipment_name?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound) || (Int((($0.equipment_id?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound)}
+//        
+//
+//        self.emptyDataView.isHidden = self.arrMachineProfileList.count == 0 ? false : true
+//
+//        //RELOAD TABLE
+//        self.tblView.reloadData()
+//
+//    }
+    
+    
+    // MARK: - Action
+    @IBAction func btn_CurrentlyAssign_Action(_ sender: UIControl) {
+        if self.int_CurrentlyAssignedTick == 1 {
+            self.int_CurrentlyAssignedTick = 0
+            self.imgCurrentlyAssignTick.image = .iconUnCheck
+        }
+        else {
+            self.int_CurrentlyAssignedTick = 1
+            self.imgCurrentlyAssignTick.image = .iconCheck
+        }
+        
+        //GET Equipment LIST DATA
+        getFilterEquipmentList(str_search: self.strTxtSearch, str_store_id: self.strStoreID, int_assigned: self.int_CurrentlyAssignedTick) { arr_data in
+            self.isLoading = false
+            self.objRefresh?.endRefreshing()
+            self.sortData(arr_machine: arr_data)
+        }
+    }
+    
+    
+    @IBAction func btnSelctLocationClicked(_ sender: UIButton) {
+        self.view.endEditing(true)
+        
+        if self.arrStoreList.count == 0{
             return
         }
         
-        
-    }
-    
-    func callAPI(category_id: Int, status: String, service_status: String, search: String){
-        self.arrMachineProfileList = []
-        
-        //APPLY FILTER
-        self.arrMachineProfileList = self.arrMainMachineProfileList.filter {
-            ($0.current_status == status) ||
-            ($0.objProductCategory?.id == category_id)
+        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.strSelectStore) { index, selectValue in
+           
+            //UPDATE DATA
+            self.strSelectStore = selectValue
+            if selectValue == str.strSelectStore{
+                self.strStoreID = ""
+            }
+            else{
+                self.strStoreID = "\(self.arrStoreList[index].id ?? 0)"
+            }
+            
+            self.txtSelectStore.text = self.strSelectStore
+            
+            //CALL API
+            self.callAPI()
         }
         
-        
-        let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        
-        //GET arrSearchPhoneContacts LIST
-        self.arrMachineProfileList = self.arrMachineProfileList.filter { (Int((($0.equipment_name?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound) || (Int((($0.equipment_id?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound)}
-        
-
-        self.emptyDataView.isHidden = self.arrMachineProfileList.count == 0 ? false : true
-
-        //RELOAD TABLE
-        self.tblView.reloadData()
-
     }
 }
 
@@ -363,6 +475,8 @@ class MachineProfileListCell : UITableViewCell{
 
     @IBOutlet weak var viewLine: UIView!
  
+    @IBOutlet weak var lblStoreLocation: UILabel!
+    @IBOutlet weak var imgStoreLocation: UIImageView!
 
     
     func getAnimableSubviews() -> [UIView] {
@@ -383,6 +497,8 @@ class MachineProfileListCell : UITableViewCell{
             viewStatus,
             imgService,
             viewLine,
+            lblStoreLocation,
+            imgStoreLocation
         ]
     }
 }
@@ -443,14 +559,14 @@ extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSou
             
            
 //            cell.lblTechName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.first_name ?? "") \(objData.last_name ?? "")")
-            
-    
-//            cell.lblLocation.configureLable(textAlignment: .right, textColor: .secondary, fontName: objData.order_id != nil ? GlobalMainConstants.APP_FONT_Roboto_Bold : GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: objData.order_id != nil ? 16 : 14, text: objData.order_id != nil ? "\(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
-//            if objData.order_id != nil{
-//                cell.lblLocation.attributedText = setFontAttributes(str: objData.order_id != nil ? "Order ID : \(objData.order_id ?? 0)" : "\(objData.location_name ?? "")")
-//            }
-            
-            
+
+            cell.lblStoreLocation.text = ""
+            cell.imgStoreLocation.isHidden = true
+            if objData.equipment_store != nil{
+                cell.imgStoreLocation.isHidden = false
+                cell.lblStoreLocation.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "\(objData.equipment_store?.name ?? "")")
+            }
+            imgColor(imgColor: cell.imgStoreLocation, colorHex: .secondary)
             
         
             //SET BUTTON STATUS

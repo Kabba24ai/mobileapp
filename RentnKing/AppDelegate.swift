@@ -83,6 +83,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         if UserDefaults.standard.user != nil{
             self.getNotificationListApi()
             self.updateCheckListData()
+            syncDriverChecklistWithAPI()
+            syncDeliveryPickupInputsWithAPI()
         }
         
         //UPDATE ORDER NOTE DATA
@@ -141,15 +143,32 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // 🔄 Sync immediately if already online
         if monitor.isReachable() {
             print("✅ Internet available at launch → Sync now")
-            syncOrderNoteWithAPI()
-            syncEquipmentWithAPI()
+            
+            //GET NOTIFICATION COUNT
+            if UserDefaults.standard.user != nil{
+                syncOrderNoteWithAPI()
+                syncEquipmentWithAPI()
+                self.getNotificationListApi()
+                self.updateCheckListData()
+                syncDriverChecklistWithAPI()
+                syncDeliveryPickupInputsWithAPI()
+            }
         }
         
+
         // 👂 Listen for future internet restoration
         monitor.onNetworkRestored = {
             print("🌐 Internet restored after launch → Sync now")
-            syncOrderNoteWithAPI()
-            syncEquipmentWithAPI()
+            
+            //GET NOTIFICATION COUNT
+            if UserDefaults.standard.user != nil{
+                syncOrderNoteWithAPI()
+                syncEquipmentWithAPI()
+                self.getNotificationListApi()
+                self.updateCheckListData()
+                syncDriverChecklistWithAPI()
+                syncDeliveryPickupInputsWithAPI()
+            }
         }
     }
     
@@ -592,25 +611,19 @@ extension AppDelegate :WebServiceHelperDelegate {
                 }
             }
             else if strRequest == "updateCheckList"{
-                //REMVOE DATA
+                //REFRESH ORDER DETAILS
                 self.CallAPIforGetOrderDetails(strChecklistType: strChecklistType, OrdersDetailsParameater: OrdersDetailsParameater(unique_id: orderid))
-                
-                // REMOVE DATA safely using a mutable local copy
+
+                // Remove ONLY the item that was just uploaded. updateCheckListData() always
+                // sends arr[0], so removing the first entry drains the queue one-by-one
+                // without dropping other rows that share the same equipment_unique_id.
                 var arr = getChecklistData() ?? []
-                
-                // Remove all items matching equipment_unique_id == orderid
-                arr.removeAll { item in
-                    (item["equipment_unique_id"] as? String) == orderid
+                if !arr.isEmpty {
+                    arr.removeFirst()
                 }
-                
-                if arr.count != 0{
-                    saveArrayWithImages(arr)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
-                        self.updateCheckListData()
-                    })
-                }
-                
-                    
+
+                // Persist the trimmed queue; saveArrayWithImages also triggers the next upload.
+                saveArrayWithImages(arr)
             }
             else if strRequest == "getNotification"{
                 UIApplication.shared.applicationIconBadgeNumber = 0

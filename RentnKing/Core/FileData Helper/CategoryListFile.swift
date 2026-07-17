@@ -260,14 +260,35 @@ func getEmployeeList(completion: @escaping ([EmployeesModel]) -> Void) {
         }
     }
 }
-
-
 func getEmployeeData() -> [EmployeesModel] {
     if let arr = SDKUserDefault.getMappableArray(EmployeesModel.self, for: kFileStorageName.kEmployesList.rawValue) {
         return arr
     }
     return []
 }
+
+func getDriverEmployeeList(completion: @escaping ([EmployeesModel]) -> Void) {
+    if !getDriverEmployeeData().isEmpty {
+        completion(getDriverEmployeeData())
+    }
+    
+    CallAPIforGetEmployeesList(CatrgoryParameater: CatrgoryParameater(is_driver: true)) { isSaved in
+        if isSaved {
+            completion(getDriverEmployeeData())
+        } else {
+            completion([])
+        }
+    }
+}
+
+func getDriverEmployeeData() -> [EmployeesModel] {
+    if let arr = SDKUserDefault.getMappableArray(EmployeesModel.self, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver") {
+        return arr
+    }
+    return []
+}
+
+
 
 func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, completion: @escaping (Bool) -> Void) {
     
@@ -295,9 +316,26 @@ func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, complet
                 
                 var arrData = Mapper<EmployeesModel>().mapArray(JSONArray: arrData as! [[String : Any]])
                 arrData = arrData.sorted(by: { $0.name ?? "" < $1.name ?? "" })
+                let arrEmpty: [EmployeesModel] = []
+                
                 
                 //SAVE ARRAY
-                SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue)
+                if CatrgoryParameater.is_driver == true{
+                    if arrData.count != 0{
+                        SDKUserDefault.saveMappableArray(arrData, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver")
+                    }
+                    else{
+                        SDKUserDefault.saveMappableArray(arrEmpty, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver")
+                    }
+                }
+                else{
+                    if arrData.count != 0{
+                        SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue)
+                    }else{
+                        SDKUserDefault.saveMappableArray(arrEmpty, for: kFileStorageName.kEmployesList.rawValue)
+                    }
+                }
+                
                 completion(true)
             }
         }

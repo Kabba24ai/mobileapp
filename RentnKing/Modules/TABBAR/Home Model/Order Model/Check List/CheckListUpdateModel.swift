@@ -208,8 +208,26 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
                             objCheckList?.startHours = objProduct.start_hours
                             objCheckList?.endHours = objProduct.end_hours
                             objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
-                            objCheckList?.total_cost = objProduct.total_charge
                             objProduct.arrQuestions.insert(objCheckList!, at: 0)
+                            
+                            
+                            let hours = Float(objProduct.end_hours) - Float(objProduct.start_hours)
+                            let totalHours = Int(hours.rounded(.up))
+                            
+                            //SET ADDITION HOURS
+                            var additionslHours = Float(totalHours) - (objProduct.allocated_hours ?? 0)
+                            if additionslHours > 0{
+                                //SET TOTAL HOURS
+                                objCheckList?.additinal = Int(Float(additionslHours))
+                            }
+                            else{
+                                additionslHours = 0
+                            }
+                            
+                            //SET TOTAL CHARGE
+                            objCheckList?.total_cost = Float(additionslHours) * Float(objProduct.hour_rate ?? 0.0)
+                            
+                            
                             
                             if objEquipment != nil{
                                 if objEquipment?.powerSourceType != ""{

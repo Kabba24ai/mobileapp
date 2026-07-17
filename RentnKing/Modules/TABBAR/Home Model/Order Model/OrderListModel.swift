@@ -163,7 +163,7 @@ struct AddressModel: Mappable{
     internal var email: String?
     internal var address: String?
     internal var city: String?
-    internal var state_id: String?
+    internal var state_id: Int?
     internal var state: String?
     internal var zip_code: String?
     
@@ -421,6 +421,7 @@ struct DeliveryModel: Mappable{
 struct CatrgoryParameater: Codable {
     var page : String = "1"
     var per_page : String = "100"
+    var is_driver: Bool = false
 }
 
 
@@ -440,6 +441,7 @@ extension OrderListViewController {//}:WebServiceHelperDelegate{
         var page : String
         var per_page : String = "50"
         var search : String = ""
+        var orderIDSearch : String
         var category_id : String = ""
         var status : String = "All"
         var payment_method  : String = "All"

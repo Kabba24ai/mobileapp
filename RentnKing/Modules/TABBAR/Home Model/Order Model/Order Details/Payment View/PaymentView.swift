@@ -50,16 +50,38 @@ class PaymentView: UIView {
     @IBOutlet weak var viewClose: UIView!
     @IBOutlet weak var imgClose: UIImageView!
 
+    // New outlets
+    @IBOutlet weak var lblBalanceDue: UILabel!
+    @IBOutlet weak var lblBalanceDueAmount: UILabel!
+    @IBOutlet weak var viewPaymentMethod: UIView!
+    @IBOutlet weak var txtPaymentMethod: UITextField!
+    @IBOutlet weak var viewCardFields: UIView!
+    @IBOutlet weak var con_CardFieldsHeight: NSLayoutConstraint!
+    @IBOutlet weak var viewPersonResponsible: UIView!
+    @IBOutlet weak var txtPersonResponsible: UITextField!
+    @IBOutlet weak var viewNotes: UIView!
+    @IBOutlet weak var txtNotes: UITextView!
+    @IBOutlet weak var lblPaymentMethod: UILabel!
+    @IBOutlet weak var lblPersonResponsible: UILabel!
+    @IBOutlet weak var lblNotes: UILabel!
+    @IBOutlet weak var viewCheckNumber: UIView!
+    @IBOutlet weak var txtCheckNumber: UITextField!
+    @IBOutlet weak var con_CheckNumberHeight: NSLayoutConstraint!
 
     var strOrderUniqueId : String = ""
+    var strBalanceDue : String = ""
     var arrMonth : [String] = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
     var arrYear : [String] = []
+    var arrPaymentMethod : [String] { [str.strPayMethodCreditDebit, str.strPayMethodCash, str.strPayMethodCheck, str.strPayMethodBankTransfer, str.strPayMethodOther] }
     private var previousTextFieldContent: String?
     private var previousSelection: UITextRange?
 
+    var strPaymentType : String = ""
+    var strPersonId : String = ""
     
     // method to load reasons xib.
-    func loadPopUpView(strOrderUniqueId: String) {
+    func loadPopUpView(strOrderUniqueId: String, balanceDue: String = "") {
+        self.strBalanceDue = balanceDue
         // ContactUS name of the XIB.
         Bundle.main.loadNibNamed("PaymentView", owner:self, options:nil)
         self.backgroundColor = UIColor.black.withAlphaComponent(0.85)
@@ -124,7 +146,7 @@ class PaymentView: UIView {
         self.con_Popup.constant = manageWidth(size: 350)
         
         //SET FONT
-        self.lblTitle.configureLable(textAlignment : .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strPayCard)
+        self.lblTitle.configureLable(textAlignment: .center, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strProcessPayment)
         
         //SET VIEW
         self.subView.backgroundColor = UIColor.clear
@@ -165,11 +187,47 @@ class PaymentView: UIView {
         self.viewClose.viewCorneRadius(radius: 0, isRound: true)
         self.viewClose.viewBorderCorneRadius(borderColour: .secondary)
         imgColor(imgColor: self.imgClose, colorHex: .secondary)
- 
+
         //SET CONSTANT
         self.con_Btn.constant = manageWidth(size: 45)
-        self.lblPay.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Pay")
+        self.lblPay.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strPay)
 
+        // Balance Due
+        self.lblBalanceDue?.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "Balance Due")
+        self.lblBalanceDueAmount?.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.strBalanceDue.isEmpty ? "$0.00" : self.strBalanceDue)
+
+        // Section labels
+        self.lblBalanceDue?.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strBalanceDue)
+        self.lblPaymentMethod?.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: str.strPaymentMethod)
+        self.lblPersonResponsible?.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: str.strPersonResponsible)
+        self.lblNotes?.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: str.strNotesOptional)
+
+        // Payment Method
+        self.txtPaymentMethod?.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strSelectPaymentMethod)
+        self.txtPaymentMethod?.isUserInteractionEnabled = false
+        self.viewPaymentMethod?.setTheTextView(bgColor: .secondary)
+
+        // Card fields hidden by default
+        self.con_CardFieldsHeight?.constant = 0
+        self.viewCardFields?.clipsToBounds = true
+
+        // Check Number hidden by default
+        self.txtCheckNumber?.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strEnterCheckNumber)
+        self.txtCheckNumber?.delegate = self
+        self.viewCheckNumber?.setTheTextView(bgColor: .secondary)
+        self.con_CheckNumberHeight?.constant = 0
+        self.viewCheckNumber?.clipsToBounds = true
+
+        // Person Responsible
+        self.txtPersonResponsible?.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: str.strSelectPersonResponsible)
+        self.txtPersonResponsible?.isUserInteractionEnabled = false
+        self.viewPersonResponsible?.setTheTextView(bgColor: .secondary)
+
+        // Notes
+        self.txtNotes?.backgroundColor = .clear
+        self.txtNotes?.textColor = UIColor.primary
+        self.txtNotes?.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 14.0)
+        self.viewNotes?.setTheTextView(bgColor: .secondary)
     }
     
     //......................... OTHER FUNCION .........................//
@@ -181,41 +239,136 @@ class PaymentView: UIView {
 
     @IBAction func btnPayClicked(_ sender: Any) {
         self.endEditing(true)
-        let strPaymentFirstName: String = self.txtPaymentFirstName.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        let strPaymentFirstLastName: String = self.txtPaymentLastName.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        let strCardNumber: String = self.txtCardNumber.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        let strMonth: String = self.txtMonth.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        let strYear: String = self.txtYear.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-        let strCVC: String = self.txtCVC.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        let selectedPaymentMethod = self.txtPaymentMethod?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let selectPerson = self.txtPersonResponsible?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let selectCheckNumber = self.txtCheckNumber?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-        if strPaymentFirstName == ""{
-            showAlertMessage(strMessage: "Please enter the payment first name.")
+        if selectedPaymentMethod.isEmpty {
+            showAlertMessage(strMessage: str.errSelectPaymentMethod)
+            return
         }
-        else if strPaymentFirstLastName == ""{
-            showAlertMessage(strMessage: "Please enter the payment last name.")
-        }
-        else if strCardNumber == ""{
-            showAlertMessage(strMessage: "Please enter the card number.")
-        }
-        else if validatePhoneNumber(value: strCardNumber){
-            showAlertMessage(strMessage: "Please enter a valid card number.")
-        }
-        else if strMonth == ""{
-            showAlertMessage(strMessage: "Please select a month.")
-        }
-   
-        else if strYear == ""{
-            showAlertMessage(strMessage: "Please select a year.")
-        }
-        else if strCVC == ""{
-            showAlertMessage(strMessage: "Please enter the CVC.")
-        }
-        else{
-            let carNumber : String = self.txtCardNumber.text?.replacingOccurrences(of: " ", with: "") ?? ""
 
-            //CALL API
-            self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_unique_id: self.strOrderUniqueId, card_number: carNumber, mm_yy: "\(self.txtMonth.text ?? "")/\(self.txtYear.text ?? "")", cvc: strCVC))
+        if selectedPaymentMethod == str.strPayMethodCreditDebit {
+            let strPaymentFirstName: String = self.txtPaymentFirstName.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let strPaymentFirstLastName: String = self.txtPaymentLastName.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let strCardNumber: String = self.txtCardNumber.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let strMonth: String = self.txtMonth.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let strYear: String = self.txtYear.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let strCVC: String = self.txtCVC.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            if strPaymentFirstName.isEmpty {
+                showAlertMessage(strMessage: str.errEnterFirstName)
+            } else if strPaymentFirstLastName.isEmpty {
+                showAlertMessage(strMessage: str.errEnterLastName)
+            } else if strCardNumber.isEmpty {
+                showAlertMessage(strMessage: str.errEnterCardNumber)
+            } else if validatePhoneNumber(value: strCardNumber) {
+                showAlertMessage(strMessage: str.errValidCardNumber)
+            } else if strMonth.isEmpty {
+                showAlertMessage(strMessage: str.errSelectMonth)
+            } else if strYear.isEmpty {
+                showAlertMessage(strMessage: str.errSelectYear)
+            } else if strCVC.isEmpty {
+                showAlertMessage(strMessage: str.errEnterCVC)
+            } else {
+                let carNumber = self.txtCardNumber.text?.replacingOccurrences(of: " ", with: "") ?? ""
+                self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_unique_id: self.strOrderUniqueId, payment_type: self.strPaymentType, responsible_person: self.strPersonId, payment_note: self.txtNotes.text ?? "", cheque_number: "", card_number: carNumber, mm_yy: "\(strMonth)/\(strYear)", cvc: strCVC))
+            }
         }
+        else if selectedPaymentMethod == str.strPayMethodCheck {
+            if selectCheckNumber.isEmpty{
+                showAlertMessage(strMessage: str.errenterCheck)
+                return
+            }
+            else if selectPerson.isEmpty{
+                showAlertMessage(strMessage: str.errSelectPerson)
+                return
+            }
+            
+            self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_unique_id: self.strOrderUniqueId, payment_type: self.strPaymentType, responsible_person: self.strPersonId, payment_note: self.txtNotes.text, cheque_number: selectCheckNumber, card_number: "", mm_yy: "", cvc: ""))
+
+
+        }
+        else {
+            if selectPerson.isEmpty{
+                showAlertMessage(strMessage: str.errSelectPerson)
+                return
+            }
+            
+            self.apiPayment(OrdersPaymentParameater: OrdersPaymentParameater(order_unique_id: self.strOrderUniqueId, payment_type: self.strPaymentType, responsible_person: self.strPersonId, payment_note: self.txtNotes.text, cheque_number: "", card_number: "", mm_yy: "", cvc: ""))
+        }
+    }
+
+    @IBAction func btnSelectPaymentMethodClicked(_ sender: UIButton) {
+        let ViewController = UIApplication.getTopViewController()
+        
+        let sheet = UIAlertController(title: str.strPaymentMethod, message: nil, preferredStyle: .actionSheet)
+        for method in self.arrPaymentMethod {
+            sheet.addAction(UIAlertAction(title: method, style: .default, handler: { [weak self] _ in
+                guard let self = self else { return }
+                
+                if method == str.strPayMethodCreditDebit{
+                    self.strPaymentType = "CreditCard"
+                }
+                else if method == str.strPayMethodCash{
+                    self.strPaymentType = "Cash"
+                }
+                else if method == str.strPayMethodBankTransfer{
+                    self.strPaymentType = "BankTransfer"
+                }
+                else if method == str.strPayMethodCheck{
+                    self.strPaymentType = "Cheque"
+                }
+                else if method == str.strPayMethodOther{
+                    self.strPaymentType = "Other"
+                }
+                                
+                
+                
+                self.txtPaymentMethod?.text = method
+                let isCard = method == str.strPayMethodCreditDebit
+                let isCheck = method == str.strPayMethodCheck
+                self.con_CardFieldsHeight?.constant = isCard ? 148 : 0
+                self.con_CheckNumberHeight?.constant = isCheck ? 44 : 0
+                if !isCheck { self.txtCheckNumber?.text = "" }
+                UIView.animate(withDuration: 0.25) {
+                    self.viewCardFields?.superview?.layoutIfNeeded()
+                }
+            }))
+        }
+        sheet.addAction(UIAlertAction(title: str.cancel, style: .cancel))
+
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = sender
+            popover.sourceRect = sender.bounds
+        }
+
+        ViewController?.present(sheet, animated: true)
+    }
+
+    @IBAction func btnSelectPersonResponsibleClicked(_ sender: UIButton) {
+        let ViewController = UIApplication.getTopViewController()
+        
+        let arrUserList = SDKUserDefault.getMappableArray(UserListModel.self, for: kFileStorageName.kOrderDetailUserData.rawValue) ?? []
+        guard !arrUserList.isEmpty else { return }
+
+        let sheet = UIAlertController(title: str.strPersonResponsible, message: nil, preferredStyle: .actionSheet)
+        for user in arrUserList {
+            let name = user.full_name ?? ""
+            sheet.addAction(UIAlertAction(title: name, style: .default, handler: { [weak self] _ in
+                self?.txtPersonResponsible?.text = name
+                self?.strPersonId = "\(user.id ?? 0)"
+            }))
+        }
+        sheet.addAction(UIAlertAction(title: str.cancel, style: .cancel))
+
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = sender
+            popover.sourceRect = sender.bounds
+        }
+
+        ViewController?.present(sheet, animated: true)
+
     }
     
     
@@ -287,9 +440,6 @@ extension PaymentView : UITextFieldDelegate{
         }
     }
 }
-
-
-
 
 
 
@@ -388,6 +538,10 @@ extension PaymentView {
 
 struct OrdersPaymentParameater: Codable {
     var order_unique_id : String
+    var payment_type : String //Cash, Cheque, BankTransfer, CreditCard, Other
+    var responsible_person : String
+    var payment_note : String
+    var cheque_number : String
     var card_number: String
     var mm_yy: String
     var cvc: String

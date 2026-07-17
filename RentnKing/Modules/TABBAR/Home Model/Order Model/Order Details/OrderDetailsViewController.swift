@@ -103,7 +103,11 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var imgPickupStatus: UIImageView!
     @IBOutlet weak var lblPickupStatus: UILabel!
 
-    
+    @IBOutlet weak var viewComplateDeliver: UIView!
+    @IBOutlet weak var lblComplateDeliver: UILabel!
+
+    @IBOutlet weak var objComplateDeliver: UIStackView!
+
     
     
     //LOADING
@@ -111,6 +115,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var arrUserList : [UserListModel] = []
     
     //OTHER
+    var fromCheckListScreen: Bool = false
     var isOrderScreen : Bool = false
     var isLoading : Bool = true
     var strOrderID : String = ""
@@ -124,6 +129,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var strProductID : String = ""
     var deliveryType : String = "Delivery"
     var isBillingView : Bool = false
+    var strComplateDelivery : String = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -141,6 +147,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         AppUtility.PortraitMode()
+        self.objComplateDeliver.isHidden = !fromCheckListScreen
         
         //CHECK DATA
         self.stopUploadData()
@@ -179,7 +186,15 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             else{
                 if self.isOrderScreen == true{
-                    self.navigationController?.popToRootViewController(animated: true)
+                    
+                    if self.fromCheckListScreen {
+                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController  }) {
+                            self.navigationController?.popToViewController(targetViewController, animated: true)
+                        }
+                    }
+                    else {
+                        self.navigationController?.popToRootViewController(animated: true)
+                    }
                 }
                 else{
                     self.navigationController?.popViewController(animated: true)
@@ -474,7 +489,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
             self.lblPhotVideoDeli.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoDeli)
             self.lblPhotVideoRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoRec)
-            
+            self.lblComplateDeliver.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: self.strComplateDelivery)
+
             //CHECK AND SET VIEW
             self.viewLicense.backgroundColor = .clear
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
@@ -564,7 +580,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
             
-            
+            //CHECKLIST — delivery → green, return → amber (same as dispatch buttons)
+            let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+            self.viewComplateDeliver.backgroundColor = isReturn ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+            self.viewComplateDeliver.viewCorneRadius(radius: 10, isRound: false)
         
             //SET HEADER
             DispatchQueue.main.asyncAfter(deadline: .now()) {
@@ -577,7 +596,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
                 
                 //SET TABLE HEADER
                 let vw_Table = self.tblView.tableFooterView
-                vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.objButtons.frame.origin.y + height )
+                vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.fromCheckListScreen ? (self.objComplateDeliver.frame.origin.y + height) : (self.objButtons.frame.origin.y + height))
 
                 self.tblView.tableFooterView = vw_Table
             }
@@ -828,7 +847,234 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         }
     }
   
-   
+    @IBAction func btnDeliveryComplatedClicked(_ sender : UIButton) {
+        if self.fromCheckListScreen {
+            // Delivery vs Return phase (return once products are delivered)
+            let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+
+            // T&C completed?
+            let termsDone = (self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt")
+
+            // License uploaded?
+            let arrLicenseUpload = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
+            let licenseUploaded = (self.objOrderData?.arrLicense.count ?? 0) != 0 || arrLicenseUpload.count != 0
+
+            // Photos / video uploaded? (delivery vs return media)
+            let mediaUploaded: Bool
+            if isReturn {
+                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
+                mediaUploaded = (self.objOrderData?.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) ?? false) || arrV.count != 0
+            } else {
+                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
+                mediaUploaded = (self.objOrderData?.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) ?? false) || arrV.count != 0
+            }
+
+            // Checklist completed?
+            let checklistDone = self.checkCheckListStatus(isDelivery: !isReturn)
+
+            // All steps complete → show the success animation and finish.
+            if termsDone && licenseUploaded && mediaUploaded && checklistDone {
+                self.completeDeliveryWithSuccess()
+                return
+            }
+
+            print("=============ODR==============>>>> \(self.strProductID)")
+            // Otherwise open the Driver Override / Warning screen with only the incomplete sections.
+            let warningVC = WarningViewController()
+            warningVC.strOrderID = "\(self.objOrderData?.order_number ?? "")"
+//            warningVC.strOrderUniqueId = self.strOrderUniqueId
+            warningVC.productUniqueId = self.strProductID
+            warningVC.isReturn = isReturn
+            warningVC.showTerms = !termsDone
+            warningVC.showLicense = !licenseUploaded
+            warningVC.showVideo = !mediaUploaded
+            warningVC.showChecklist = !checklistDone
+            self.navigationController?.pushViewController(warningVC, animated: true)
+        }
+    }
+
+    /// Runs the success animation, then returns to the dispatch list.
+    private func completeDeliveryWithSuccess() {
+        self.showOrderSuccessOverlay {
+            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController }) {
+                self.navigationController?.popToViewController(targetViewController, animated: true)
+            }
+        }
+    }
+
+    /// Shows a full-screen success popup (~1.5s) with animation, then runs `completion`.
+    private func showOrderSuccessOverlay(completion: @escaping () -> Void) {
+        let keyWindow = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })
+        let hostView: UIView = keyWindow ?? self.view.window ?? self.view
+
+        let accent = UIColor.secondaryView ?? UIColor(red: 0.933, green: 0.541, blue: 0.247, alpha: 1)
+
+        let overlay = UIView(frame: hostView.bounds)
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        overlay.backgroundColor = .black
+
+        // Animated checkmark container (drawn with Core Animation – no GIF/asset needed)
+        let checkSize: CGFloat = 120
+        let checkContainer = UIView()
+        checkContainer.translatesAutoresizingMaskIntoConstraints = false
+        checkContainer.heightAnchor.constraint(equalToConstant: checkSize).isActive = true
+        checkContainer.widthAnchor.constraint(equalToConstant: checkSize).isActive = true
+
+        let center = CGPoint(x: checkSize / 2, y: checkSize / 2)
+
+        // Expanding pulse ring
+        let pulseLayer = CAShapeLayer()
+        pulseLayer.path = UIBezierPath(arcCenter: center, radius: checkSize / 2 - 4,
+                                       startAngle: 0, endAngle: .pi * 2, clockwise: true).cgPath
+        pulseLayer.fillColor = accent.cgColor
+        pulseLayer.opacity = 0
+        checkContainer.layer.addSublayer(pulseLayer)
+
+        // Circle ring that draws itself
+        let ringLayer = CAShapeLayer()
+        ringLayer.path = UIBezierPath(arcCenter: center, radius: checkSize / 2 - 5,
+                                      startAngle: -.pi / 2, endAngle: .pi * 1.5, clockwise: true).cgPath
+        ringLayer.strokeColor = accent.cgColor
+        ringLayer.fillColor = UIColor.clear.cgColor
+        ringLayer.lineWidth = 6
+        ringLayer.lineCap = .round
+        ringLayer.strokeEnd = 0
+        checkContainer.layer.addSublayer(ringLayer)
+
+        // Checkmark that strokes in
+        let checkPath = UIBezierPath()
+        checkPath.move(to: CGPoint(x: checkSize * 0.30, y: checkSize * 0.52))
+        checkPath.addLine(to: CGPoint(x: checkSize * 0.45, y: checkSize * 0.67))
+        checkPath.addLine(to: CGPoint(x: checkSize * 0.72, y: checkSize * 0.37))
+        let checkLayer = CAShapeLayer()
+        checkLayer.path = checkPath.cgPath
+        checkLayer.strokeColor = UIColor.white.cgColor
+        checkLayer.fillColor = UIColor.clear.cgColor
+        checkLayer.lineWidth = 7
+        checkLayer.lineCap = .round
+        checkLayer.lineJoin = .round
+        checkLayer.strokeEnd = 0
+        checkContainer.layer.addSublayer(checkLayer)
+
+        // Second, softer pulse ring for a polished ripple effect
+        let pulseLayer2 = CAShapeLayer()
+        pulseLayer2.path = UIBezierPath(arcCenter: center, radius: checkSize / 2 - 5,
+                                        startAngle: 0, endAngle: .pi * 2, clockwise: true).cgPath
+        pulseLayer2.fillColor = UIColor.clear.cgColor
+        pulseLayer2.strokeColor = accent.cgColor
+        pulseLayer2.lineWidth = 2
+        pulseLayer2.opacity = 0
+        checkContainer.layer.insertSublayer(pulseLayer2, at: 0)
+
+        let lblMsg = UILabel()
+        lblMsg.text = "Your order is 100% completed successfully"
+        lblMsg.textColor = .white
+        lblMsg.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 20.0)
+        lblMsg.textAlignment = .center
+        lblMsg.numberOfLines = 0
+
+        let stack = UIStackView(arrangedSubviews: [checkContainer, lblMsg])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 24
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        overlay.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: overlay.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: overlay.centerYAnchor),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: overlay.leadingAnchor, constant: 30),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: overlay.trailingAnchor, constant: -30)
+        ])
+
+        hostView.addSubview(overlay)
+
+        // Fade the black background in, then run the layered success animation
+        overlay.alpha = 0
+        checkContainer.alpha = 0
+        checkContainer.transform = CGAffineTransform(scaleX: 0.4, y: 0.4)
+        lblMsg.alpha = 0
+
+        UIView.animate(withDuration: 0.25, animations: {
+            overlay.alpha = 1
+        }, completion: { _ in
+            // Pop the container in with a bounce
+            UIView.animate(withDuration: 0.5, delay: 0, usingSpringWithDamping: 0.55, initialSpringVelocity: 0.6, options: .curveEaseOut, animations: {
+                checkContainer.alpha = 1
+                checkContainer.transform = .identity
+            })
+
+            // Ring draws
+            let ringAnim = CABasicAnimation(keyPath: "strokeEnd")
+            ringAnim.fromValue = 0
+            ringAnim.toValue = 1
+            ringAnim.duration = 0.4
+            ringAnim.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            ringLayer.strokeEnd = 1
+            ringLayer.add(ringAnim, forKey: "ring")
+
+            // Checkmark strokes in just after the ring
+            let checkAnim = CABasicAnimation(keyPath: "strokeEnd")
+            checkAnim.fromValue = 0
+            checkAnim.toValue = 1
+            checkAnim.beginTime = CACurrentMediaTime() + 0.35
+            checkAnim.duration = 0.3
+            checkAnim.fillMode = .backwards
+            checkAnim.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            checkLayer.strokeEnd = 1
+            checkLayer.add(checkAnim, forKey: "check")
+
+            // Pulse rings expand + fade once the check lands (clean ripple)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                let scale = CABasicAnimation(keyPath: "transform.scale")
+                scale.fromValue = 1
+                scale.toValue = 1.8
+                let fade = CABasicAnimation(keyPath: "opacity")
+                fade.fromValue = 0.5
+                fade.toValue = 0
+                let group = CAAnimationGroup()
+                group.animations = [scale, fade]
+                group.duration = 0.6
+                group.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                pulseLayer.add(group, forKey: "pulse")
+
+                // Second ripple, slightly larger and delayed
+                let scale2 = CABasicAnimation(keyPath: "transform.scale")
+                scale2.fromValue = 1
+                scale2.toValue = 2.2
+                let fade2 = CABasicAnimation(keyPath: "opacity")
+                fade2.fromValue = 0.6
+                fade2.toValue = 0
+                let group2 = CAAnimationGroup()
+                group2.animations = [scale2, fade2]
+                group2.duration = 0.8
+                group2.beginTime = CACurrentMediaTime() + 0.15
+                group2.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                pulseLayer2.add(group2, forKey: "pulse2")
+            }
+
+            // Message fades in
+            UIView.animate(withDuration: 0.3, delay: 0.5, options: .curveEaseOut, animations: {
+                lblMsg.alpha = 1
+            }, completion: { _ in
+                // Hold, then fade out and continue
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    UIView.animate(withDuration: 0.3, animations: {
+                        overlay.alpha = 0
+                    }, completion: { _ in
+                        overlay.removeFromSuperview()
+                        completion()
+                    })
+                }
+            })
+        })
+    }
+
+
+ 
     func termsSucess(selectIndex: Int) {
         if self.objOrderData == nil{
             return
@@ -882,6 +1128,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         else{
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
+                newViewController.fromCheckListScreen = self.fromCheckListScreen
                 newViewController.isOrderDetailsView = true
                 newViewController.isDeliveryType = true
                 newViewController.selectIndex = self.selectIndex
@@ -912,6 +1159,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         else {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
+                newViewController.fromCheckListScreen = self.fromCheckListScreen
                 newViewController.isOrderDetailsView = true
                 newViewController.isDeliveryType = false
                 newViewController.selectIndex = self.selectIndex
@@ -921,9 +1169,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             }
         }
     }
-    
 }
-
 
 
 //MARK: -- UITABEL DELEGATE --

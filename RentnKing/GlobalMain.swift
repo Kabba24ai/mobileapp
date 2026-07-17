@@ -752,6 +752,17 @@ enum Url {
         return newAPI("orders/schedules/update")
     }
 
+    // MARK: - DISPATCH
+
+    static var dispatchList: NSURL {
+        return newAPI("orders/schedules/dispatch")
+    }
+
+    static var dispatchUpdateStatus: NSURL {
+        return newAPI("orders/schedules/assign-driver")
+    }
+
+    
     // MARK: - STATES
 
     static var getStates: NSURL {
@@ -796,6 +807,14 @@ enum Url {
 
     static var updateRantalReady: NSURL {
         return newAPI("orders/rental-ready-checklists/save-rental-ready")
+    }
+
+    static var driverChecklist: NSURL {
+        return newAPI("orders/schedules/driver-checklist")
+    }
+
+    static var updateDeliveryPickupInputs: NSURL {
+        return newAPI("orders/schedules/update-delivery-pickup-inputs")
     }
 
     

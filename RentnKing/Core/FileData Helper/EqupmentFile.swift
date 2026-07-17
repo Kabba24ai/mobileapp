@@ -11,17 +11,32 @@ import ObjectMapper
 
 struct EquipmentParameater: Codable {
     var type : String?
+    var search : String?
+    var store_id : String?
+    var currently_assigned : Int?
 }
 
 // MARK: - Get Equipment List
-func getEquipmentList(strType : String = "Checklist", completion: @escaping ([MachineModel]) -> Void) {
+func getEquipmentList(strType : String = "Checklist", int_assigned: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
+    
     if !getEquipmentData().isEmpty {
         completion(getEquipmentData())
     }
     
-    CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType)) { isSaved in
+    CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType, search: "", store_id: "", currently_assigned: int_assigned)) { isSaved in
         if isSaved {
             completion(getEquipmentData())
+        } else {
+            completion([])
+        }
+    }
+}
+
+func getFilterEquipmentList(strType : String = "Checklist", str_search: String? = "", str_store_id: String = "", int_assigned: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
+        
+    CallAPIforGetEquipmentListWithSearch(EquipmentParameater: EquipmentParameater(type: strType, search: str_search, store_id: str_store_id, currently_assigned: int_assigned)) { arr_data in
+        if arr_data.count != 0 {
+            completion(arr_data)
         } else {
             completion([])
         }
@@ -68,6 +83,39 @@ func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, compl
                 //SAVE ARRAY
                 SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEquipmentList.rawValue)
                 completion(true)
+            }
+        }
+    }
+}
+
+
+func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParameater, completion: @escaping ([MachineModel]) -> Void) {
+
+    guard let parameater = try? EquipmentParameater.asDictionary() else {
+        showAlertMessage(strMessage: str.invalidRequestParamater)
+        return
+    }
+    
+    //Declaration URL
+    let strURL = "\(Url.equipmentList.absoluteString!)"
+
+    //Create object for webservicehelper and start to call method
+    let webHelper = WebServiceHelper()
+    webHelper.methodType = "post"
+    webHelper.strURL = strURL
+    webHelper.dictType = parameater
+    webHelper.dictHeader = NSDictionary()
+    webHelper.showLogForCallingAPI = true
+    webHelper.serviceWithAlert = true
+    webHelper.indicatorShowOrHide = false
+    webHelper.callAPIwithCompletation { data, arr, isDic, error in
+        
+        if data?.getStringForID(key: "success") == "1" {
+            if let arrData = data?["equipment"] as? NSArray {
+                
+                var arrData = Mapper<MachineModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
+                completion(arrData)
             }
         }
     }

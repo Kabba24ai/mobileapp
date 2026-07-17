@@ -34,6 +34,8 @@ struct Text {
     var strSchedule = "Schedule".localized()
     var strEquipment = "Equipment".localized()
     var strCRM = "CRM".localized()
+    var strDispatch = "Dispatch".localized()
+    var strInStore = "Store Delivery".localized()
     var strTimeClock = "Time Clock".localized()
     var strInventory = "Inventory".localized()
     var strMachineProfile = "Machine Profile".localized()
@@ -51,6 +53,11 @@ struct Text {
     var strAddressInfo = "Address Information".localized()
     var strBillingAddress = "Billing Address".localized()
     var strDeliveryAddress = "Delivery Address".localized()
+    
+    var strTags = "Tags".localized()
+    var strNotes = "Notes".localized()
+    var strNoNoteAvailable = "No Notes Available".localized()
+    
     
     
     
@@ -174,6 +181,37 @@ struct Text {
     var strYear = "YY".localized()
     var strCVC = "CVC".localized()
 
+    //PROCESS PAYMENT POPUP
+    var strProcessPayment = "Process Payment".localized()
+    var strBalanceDue = "Balance Due".localized()
+    var strPaymentMethod = "Payment Method".localized()
+    var strSelectPaymentMethod = "Select Payment Method".localized()
+    var strCheckNumber = "Check Number".localized()
+    var strEnterCheckNumber = "Enter Check Number".localized()
+    var strPersonResponsible = "Person Responsible".localized()
+    var strSelectPersonResponsible = "Select Person Responsible".localized()
+    var strNotesOptional = "Notes".localized()
+    var strPay = "Pay".localized()
+
+    // Payment method options
+    var strPayMethodCreditDebit = "Credit / Debit Card".localized()
+    var strPayMethodCash = "Cash".localized()
+    var strPayMethodCheck = "Check".localized()
+    var strPayMethodBankTransfer = "Bank Transfer".localized()
+    var strPayMethodOther = "Other".localized()
+
+    // Payment validation messages
+    var errSelectPaymentMethod = "Please select a payment method.".localized()
+    var errEnterFirstName = "Please enter the payment first name.".localized()
+    var errEnterLastName = "Please enter the payment last name.".localized()
+    var errEnterCardNumber = "Please enter the card number.".localized()
+    var errValidCardNumber = "Please enter a valid card number.".localized()
+    var errSelectMonth = "Please select a month.".localized()
+    var errSelectYear = "Please select a year.".localized()
+    var errEnterCVC = "Please enter the CVC.".localized()
+    var errSelectPerson = "Please select the responsible person.".localized()
+    var errenterCheck = "Please enter the check number.".localized()
+
     
     
     //ORDER
@@ -190,6 +228,12 @@ struct Text {
     var strDeliveyStatus = "Deliv ".localized()
     var strPickupStatus = "Ret ".localized()
     var strSearch = "Search".localized()
+    var strSearchEqupment = "Search by equipment ID or name".localized()
+    
+    var strEquipIDSearch = "By Equip ID".localized()
+    var strSelectStore = "All Stores".localized()
+    var strCurrentlyAssigned = "Currently Assigned".localized()
+    var strOrderIDSearch = "Order ID".localized()
     var strSearchProduct = "Search Products".localized()
     var strDeliveryNote = "Order / Delivery Instructions".localized()
     var strAddNote = "Add Note".localized()
@@ -260,6 +304,8 @@ struct Text {
     var strCompleted = "Completed".localized()
 
     
+    var strDispatchTitle = "Dispatch".localized()
+
     //NO INTERNET
     var noNetTitle = "No Internet Connection".localized()
     var noNetTitle2 = "Please check your network connection and try again.".localized()
@@ -273,5 +319,14 @@ struct Text {
     
     var moveToOrder = "Move To Order".localized()
 
+    
+    //Driver CheckList
+    var strDriverCheckListTitle = "Driver Checklist\nPerform Before Leaving".localized()
+    var strCallCustomer = "1. Call Customer".localized()
+    var strDoubleCheck = "2. Double Check Equipment Fuel".localized()
+    var strKeys = "3. Keys".localized()
+    var strReadyToGo = "Load Map & Go".localized()
+    var strSelectEquipmentFuel = "Select Equipment Fuel".localized()
+    var strSelectKeys = "Select Keys".localized()
     
 }

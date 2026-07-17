@@ -32,6 +32,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     @IBOutlet weak var lblPickup: UILabel!
     @IBOutlet weak var imgPickup: UIImageView!
     @IBOutlet weak var imgSelectPickup: UIImageView!
+    @IBOutlet weak var objSelectDeliverPrick: UIStackView!
 
     @IBOutlet weak var viewTodayOnly: UIView!
 //    @IBOutlet weak var lblTodayOnly: UILabel!
@@ -101,6 +102,8 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 
     var isSelectPickup : Bool = true
     var isSelectDelivery : Bool = true
+    var inStoreDelviery : Bool = false
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -108,7 +111,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
 
         
         // Do any additional setup after loading the view.
-        //SET REFRSH CONTROL
+        //SET REFRSH CONTROLtransport_mode
         self.objRefresh = UIRefreshControl()
         let refreshView = UIView(frame: CGRect(x: 0, y: view.window?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0, width: 0, height: 0))
         self.tblView.addSubview(refreshView)
@@ -150,13 +153,14 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
         
         self.setNavigation()
        
+        self.objSelectDeliverPrick.isHidden = self.inStoreDelviery
     }
     
   
     
     func setNavigation(){
         //SET NAVIGATION BAR
-        setNavigationBarForButtons(controller: self, title: str.strScheduleTitle, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: ["icon_Filter", "icon_Search"], isFilter: self.checkFilter()) {
+        setNavigationBarForButtons(controller: self, title: self.inStoreDelviery ? str.strInStore : str.strScheduleTitle, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: ["icon_Filter", "icon_Search"], isFilter: self.checkFilter()) {
             
             //BACK SCREE
             self.navigationController?.popViewController(animated: true)
@@ -337,7 +341,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     func setDeliveryType(){
-        
+        if inStoreDelviery { return}
         
         self.imgSelectDelivery.image = UIImage(named: "icon_unCheck")
         self.imgSelectPickup.image = UIImage(named: "icon_unCheck")
@@ -586,7 +590,7 @@ extension ScheduleListViewController{
         
     // MARK: - Get Local Data
     func getScheduleOrderData(schedule_type: String, schedule_status: String) -> [SchedulesModel] {
-        if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(schedule_type)_\(schedule_status)_\(self.strSelectDay)") {
+        if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(schedule_type)_\(schedule_status)_\(self.strSelectDay)_\(self.selectDeliveryType)") {
             return arr
         }
         return []
@@ -606,6 +610,7 @@ class ScheduleListCell : UITableViewCell{
     @IBOutlet weak var btnCall: UIButton!
     @IBOutlet weak var lblDateTime: UILabel!
     @IBOutlet weak var imgOrderType: UIImageView!
+    @IBOutlet weak var lblStatus: UILabel!
 
     @IBOutlet weak var viewDelivery: MTSlideToOpenView!
     @IBOutlet weak var viewComplate: UIView!
@@ -615,6 +620,15 @@ class ScheduleListCell : UITableViewCell{
     @IBOutlet weak var lblAddress: UILabel!
     @IBOutlet weak var imgMapAddress: UIImageView!
     @IBOutlet weak var btnAddress: UIButton!
+    @IBOutlet weak var con_Address: NSLayoutConstraint!
+
+    @IBOutlet weak var lblReturnAddress: UILabel!
+    @IBOutlet weak var imgReturnMapAddress: UIImageView!
+    @IBOutlet weak var btnReturnAddress: UIButton!
+    @IBOutlet weak var con_ReturnAddress: NSLayoutConstraint!
+    
+    @IBOutlet weak var lblDriver: UILabel!
+    @IBOutlet weak var imgDriver: UIImageView!
 
     
     func getAnimableSubviews() -> [UIView] {
@@ -624,16 +638,15 @@ class ScheduleListCell : UITableViewCell{
     private func getAllSubviews() -> [UIView] {
         return [
             lblName,
+            lblStatus,
             lblPhone,
             imgCall,
             lblProductName,
             viewLine,
-            viewDelivery,
             lblAddress,
             imgMapAddress,
             lblDateTime,
-            imgOrderType,
-            viewComplate
+            imgOrderType
         ]
     }
 }

@@ -73,7 +73,7 @@ struct ProductModel: Mappable{
     internal var objProductData : ProductDataModel?
 
 //    internal var hour_tracking : Bool?
-//    internal var hour_rate : Float?
+    internal var hour_rate : Float?
     internal var allocated_hours : Float?
 
     internal var objCategory: CategoryModel?
@@ -152,7 +152,7 @@ struct ProductModel: Mappable{
         id <- map["id"]
         objProductData <- map["product_data"]
 //        hour_tracking <- map["hour_tracking"]
-//        hour_rate <- map["hour_rate"]
+        hour_rate <- map["hour_rate"]
         allocated_hours <- map["allocated_hours"]
         arrQuestions <- map["customer_checklist_questions"]
         unique_id <- map["unique_id"]

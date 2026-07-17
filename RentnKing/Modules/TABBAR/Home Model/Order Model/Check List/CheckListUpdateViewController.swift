@@ -82,7 +82,21 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
                         if let obj = getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(self.strOrderUniqueId)"){
                             self.objOrderData = obj
                         }
-                        
+
+                        //UPDATE ONLY SIGNATURE (delivery_sign & return_sign) FROM SERVER DATA
+                        if let arrServerProduct = dicData?.arrProduct {
+                            for i in 0..<self.objOrderData.arrProduct.count {
+                                let productId = self.objOrderData.arrProduct[i].id
+                                if let serverObj = arrServerProduct.first(where: { $0.id == productId }) {
+                                    self.objOrderData.arrProduct[i].returned_emp = serverObj.returned_emp
+                                    self.objOrderData.arrProduct[i].delivery_emp = serverObj.delivery_emp
+
+                                    self.objOrderData.arrProduct[i].delivery_sign = serverObj.delivery_sign
+                                    self.objOrderData.arrProduct[i].return_sign = serverObj.return_sign
+                                }
+                            }
+                        }
+
                         var arrProduct : [ProductModel] = []
                         for obj in self.objOrderData.arrProduct{
                             if obj.objProductData?.product_type != "Retail"{
@@ -250,18 +264,16 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
 
         print(signatureImage)
         
-        //UPDATE SIGNATURE ARRAY
-        let obj = self.arrOtherData[strIndex]
-        if self.isDeliveryType{
-            obj.dSignature = signatureImage
+        //UPDATE SIGNATURE ARRAY — apply the same signature to every product
+        for obj in self.arrOtherData {
+            if self.isDeliveryType{
+                obj.dSignature = signatureImage
+            }
+            else{
+                obj.rSignature = signatureImage
+            }
         }
-        else{
-            obj.rSignature = signatureImage
-        }
-        
-        self.arrOtherData.remove(at: strIndex)
-        self.arrOtherData.insert(obj, at: strIndex)
-        
+
         //RELOAD
         self.tblView.reloadData()
     }
@@ -316,16 +328,8 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 
                 //CONVERT CHECKLIST DATA IN STRING
                 var strCheckList : String = ""
-//                var jsonObject : Any?
                 do {
-
-                    
                     let jsonData = try JSONSerialization.data(withJSONObject: arrData, options: [])
-                    
-//                    jsonObject = try JSONSerialization.jsonObject(with: jsonData, options: [])
-//                    print(jsonObject) // Array of dictionaries
-
-                    // If you want a String for debugging
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
                         strCheckList = jsonString
                     }
@@ -554,7 +558,7 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
                         
                         //SET TOTAL CHARGE
                         self.strTotalCharge =  self.strTotalCharge + Float(additionslHours) * Float(objQuestion.hour_rate)
-                        objQuestion.total_cost = self.strTotalCharge
+                        objQuestion.total_cost = Float(additionslHours) * Float(objQuestion.hour_rate)
                         
                         
                         //UPDATE
@@ -1170,7 +1174,6 @@ extension CheckListUpdateViewController{
             }
         }
         
-        let checklistType = self.isDeliveryType ? "Delivery" : "Return"
         if isCheckListOtherDataSaved(strOrderUniqeID: self.strOrderUniqueId) == false{
             //SET SIGNATURE ARRAT
             self.arrOtherData = []

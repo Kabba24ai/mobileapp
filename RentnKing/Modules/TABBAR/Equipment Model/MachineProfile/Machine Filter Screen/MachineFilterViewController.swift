@@ -312,14 +312,16 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
             //SET FONT
             cell.imgTag.image = UIImage(named: "icon_RadioUnSelect")
             if self.selectFilterIndex == 1 {
-                
+
                 if self.screenFromCustomer {
-                    
+
                     cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrCustomerTag[indexPath.row].name?.capitalized ?? "")
-                    
+
                     let strID = "\(self.arrCustomerTag[indexPath.row].id ?? 0)"
                     if self.arrSelectedTag.contains(strID) {
-                        cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                        cell.imgTag.image = UIImage(named: "icon_Check")
+                    } else {
+                        cell.imgTag.image = UIImage(named: "icon_unCheck")
                     }
 
                 }

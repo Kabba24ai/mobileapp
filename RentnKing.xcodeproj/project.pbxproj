@@ -10,6 +10,7 @@
 		001D08292E8FFE33004F4B13 /* CategoryListFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D08282E8FFE25004F4B13 /* CategoryListFile.swift */; };
 		001D082B2E900062004F4B13 /* kEnum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D082A2E90005E004F4B13 /* kEnum.swift */; };
 		004DC9262F06660D00E70DCF /* SyncEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004DC9252F0665F600E70DCF /* SyncEquipment.swift */; };
+		004DC9292F06680000E70DCF /* SyncDriverChecklist.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004DC9282F06670000E70DCF /* SyncDriverChecklist.swift */; };
 		00639C3A2FBB161200C06053 /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00639C392FBB161200C06053 /* AppUpdateManager.swift */; };
 		0088E2592FC6C4E70077A52F /* CRMListDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0088E2582FC6C4E70077A52F /* CRMListDetailViewController.swift */; };
 		00B38B4B2F8518A3009D2059 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B38B4A2F8518A0009D2059 /* CameraViewController.swift */; };
@@ -169,6 +170,9 @@
 		C5387DA12B50093400BF78B4 /* CheckOutModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5387DA02B50093400BF78B4 /* CheckOutModel.swift */; };
 		C5387DA62B50098200BF78B4 /* WebServiceHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5387DA42B50098200BF78B4 /* WebServiceHelper.swift */; };
 		C53AB03D2F642321007ED732 /* kScheduleOrderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53AB03C2F642321007ED732 /* kScheduleOrderList.swift */; };
+		C53C13102FE40DC50076E2D1 /* AssignDriverViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53C130E2FE40DC50076E2D1 /* AssignDriverViewController.swift */; };
+		C53C13112FE40DC50076E2D1 /* AssignDriverModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53C130D2FE40DC50076E2D1 /* AssignDriverModel.swift */; };
+		C53C13142FE41DDC0076E2D1 /* DriverChecklistViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53C13132FE41DDC0076E2D1 /* DriverChecklistViewController.swift */; };
 		C54047932D2BDE7C002EADF4 /* CheckListUpdateViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54047922D2BDE7C002EADF4 /* CheckListUpdateViewController.swift */; };
 		C5438B322B747917005A9A2E /* MachineHoursModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5438B312B747917005A9A2E /* MachineHoursModel.swift */; };
 		C5438B342B747923005A9A2E /* MachineHoursViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5438B332B747923005A9A2E /* MachineHoursViewController.swift */; };
@@ -201,6 +205,8 @@
 		C56F9EBC2CA437DE002BF8D9 /* TimeClockViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */; };
 		C56F9EBE2CA44594002BF8D9 /* ClockInViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */; };
 		C578EEE62EE2E69100B92E3F /* CheckListFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C578EEE52EE2E68800B92E3F /* CheckListFile.swift */; };
+		C579F29E2FDBB251006C30CF /* DispatchListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C579F29B2FDBB251006C30CF /* DispatchListViewController.swift */; };
+		C579F29F2FDBB251006C30CF /* DispatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C579F29C2FDBB251006C30CF /* DispatchModel.swift */; };
 		C588F51F2BCE67D100678A13 /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C588F51E2BCE67D100678A13 /* UploadView.swift */; };
 		C588F5212BCE67DA00678A13 /* UploadView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C588F5202BCE67DA00678A13 /* UploadView.xib */; };
 		C589143C2B6E59D4007F9EB9 /* LicenseUploadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */; };
@@ -249,6 +255,9 @@
 		C5FCEAAD2B7E5100007D6141 /* OrderDetailsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FCEAAC2B7E5100007D6141 /* OrderDetailsViewController.swift */; };
 		C5FCEAB12B87B888007D6141 /* PaymentView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C5FCEAAF2B87B888007D6141 /* PaymentView.xib */; };
 		C5FCEAB22B87B888007D6141 /* PaymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FCEAB02B87B888007D6141 /* PaymentView.swift */; };
+		DD0001A22FE5000000000002 /* WarningModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001A12FE5000000000001 /* WarningModel.swift */; };
+		DD0001A42FE5000000000004 /* WarningViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001A32FE5000000000003 /* WarningViewController.swift */; };
+		DD0002A22FE5000000000012 /* SyncDeliveryPickupInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */; };
 		EB026B0B2E90F05800937ED5 /* MMKV in Frameworks */ = {isa = PBXBuildFile; productRef = EB026B0A2E90F05800937ED5 /* MMKV */; };
 		EB026B0D2E90F08B00937ED5 /* SDKUserDefault.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */; };
 /* End PBXBuildFile section */
@@ -281,6 +290,7 @@
 		001D08282E8FFE25004F4B13 /* CategoryListFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryListFile.swift; sourceTree = "<group>"; };
 		001D082A2E90005E004F4B13 /* kEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kEnum.swift; sourceTree = "<group>"; };
 		004DC9252F0665F600E70DCF /* SyncEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEquipment.swift; sourceTree = "<group>"; };
+		004DC9282F06670000E70DCF /* SyncDriverChecklist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDriverChecklist.swift; sourceTree = "<group>"; };
 		00639C392FBB161200C06053 /* AppUpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateManager.swift; sourceTree = "<group>"; };
 		0088E2582FC6C4E70077A52F /* CRMListDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CRMListDetailViewController.swift; sourceTree = "<group>"; };
 		00B38B4A2F8518A0009D2059 /* CameraViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
@@ -438,6 +448,9 @@
 		C5387DA02B50093400BF78B4 /* CheckOutModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckOutModel.swift; sourceTree = "<group>"; };
 		C5387DA42B50098200BF78B4 /* WebServiceHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WebServiceHelper.swift; sourceTree = "<group>"; };
 		C53AB03C2F642321007ED732 /* kScheduleOrderList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kScheduleOrderList.swift; sourceTree = "<group>"; };
+		C53C130D2FE40DC50076E2D1 /* AssignDriverModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignDriverModel.swift; sourceTree = "<group>"; };
+		C53C130E2FE40DC50076E2D1 /* AssignDriverViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssignDriverViewController.swift; sourceTree = "<group>"; };
+		C53C13132FE41DDC0076E2D1 /* DriverChecklistViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistViewController.swift; sourceTree = "<group>"; };
 		C54047922D2BDE7C002EADF4 /* CheckListUpdateViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckListUpdateViewController.swift; sourceTree = "<group>"; };
 		C5438B312B747917005A9A2E /* MachineHoursModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineHoursModel.swift; sourceTree = "<group>"; };
 		C5438B332B747923005A9A2E /* MachineHoursViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MachineHoursViewController.swift; sourceTree = "<group>"; };
@@ -453,6 +466,8 @@
 		C56F9EBA2CA437DE002BF8D9 /* TimeClockViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TimeClockViewController.swift; sourceTree = "<group>"; };
 		C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClockInViewController.swift; sourceTree = "<group>"; };
 		C578EEE52EE2E68800B92E3F /* CheckListFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckListFile.swift; sourceTree = "<group>"; };
+		C579F29B2FDBB251006C30CF /* DispatchListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchListViewController.swift; sourceTree = "<group>"; };
+		C579F29C2FDBB251006C30CF /* DispatchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchModel.swift; sourceTree = "<group>"; };
 		C588F51E2BCE67D100678A13 /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
 		C588F5202BCE67DA00678A13 /* UploadView.xib */ = {isa = PBXFileReference; lastKnownFileType = file.xib; path = UploadView.xib; sourceTree = "<group>"; };
 		C589143B2B6E59D4007F9EB9 /* LicenseUploadViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseUploadViewController.swift; sourceTree = "<group>"; };
@@ -502,6 +517,9 @@
 		C5FCEAAC2B7E5100007D6141 /* OrderDetailsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderDetailsViewController.swift; sourceTree = "<group>"; };
 		C5FCEAAF2B87B888007D6141 /* PaymentView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = PaymentView.xib; sourceTree = "<group>"; };
 		C5FCEAB02B87B888007D6141 /* PaymentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PaymentView.swift; sourceTree = "<group>"; };
+		DD0001A12FE5000000000001 /* WarningModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarningModel.swift; sourceTree = "<group>"; };
+		DD0001A32FE5000000000003 /* WarningViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarningViewController.swift; sourceTree = "<group>"; };
+		DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeliveryPickupInputs.swift; sourceTree = "<group>"; };
 		EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKUserDefault.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -560,6 +578,8 @@
 				C578EEE52EE2E68800B92E3F /* CheckListFile.swift */,
 				00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */,
 				004DC9252F0665F600E70DCF /* SyncEquipment.swift */,
+				004DC9282F06670000E70DCF /* SyncDriverChecklist.swift */,
+				DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */,
 				001D082A2E90005E004F4B13 /* kEnum.swift */,
 			);
 			path = "FileData Helper";
@@ -696,6 +716,7 @@
 			children = (
 				C5BE52DF2CB413830027A4C8 /* HomeModel.swift */,
 				C51AF52D2AD178130042589E /* HomeViewController.swift */,
+				C579F29D2FDBB251006C30CF /* Dispatch Model */,
 				C5C3643C2FC56F7100942B48 /* CRM Model */,
 				C56F9EB72CA437DE002BF8D9 /* Time Clock Model */,
 				C5D55B722B6C0630006AEC63 /* Place Order Model */,
@@ -1215,6 +1236,23 @@
 			path = WebserviceHepler;
 			sourceTree = "<group>";
 		};
+		C53C130F2FE40DC50076E2D1 /* Assign Driver */ = {
+			isa = PBXGroup;
+			children = (
+				C53C130D2FE40DC50076E2D1 /* AssignDriverModel.swift */,
+				C53C130E2FE40DC50076E2D1 /* AssignDriverViewController.swift */,
+			);
+			path = "Assign Driver";
+			sourceTree = "<group>";
+		};
+		C53C13122FE41DCA0076E2D1 /* Driver Checklist */ = {
+			isa = PBXGroup;
+			children = (
+				C53C13132FE41DDC0076E2D1 /* DriverChecklistViewController.swift */,
+			);
+			path = "Driver Checklist";
+			sourceTree = "<group>";
+		};
 		C5438B302B7478F2005A9A2E /* Machine Hours */ = {
 			isa = PBXGroup;
 			children = (
@@ -1304,6 +1342,18 @@
 				C56F9EBD2CA44594002BF8D9 /* ClockInViewController.swift */,
 			);
 			path = "Time Clock";
+			sourceTree = "<group>";
+		};
+		C579F29D2FDBB251006C30CF /* Dispatch Model */ = {
+			isa = PBXGroup;
+			children = (
+				C579F29C2FDBB251006C30CF /* DispatchModel.swift */,
+				C579F29B2FDBB251006C30CF /* DispatchListViewController.swift */,
+				C53C130F2FE40DC50076E2D1 /* Assign Driver */,
+				C53C13122FE41DCA0076E2D1 /* Driver Checklist */,
+				DD0001A52FE5000000000005 /* Warning Checklist */,
+			);
+			path = "Dispatch Model";
 			sourceTree = "<group>";
 		};
 		C588F5192BCE678600678A13 /* Upload */ = {
@@ -1523,6 +1573,15 @@
 			path = "Payment View";
 			sourceTree = "<group>";
 		};
+		DD0001A52FE5000000000005 /* Warning Checklist */ = {
+			isa = PBXGroup;
+			children = (
+				DD0001A12FE5000000000001 /* WarningModel.swift */,
+				DD0001A32FE5000000000003 /* WarningViewController.swift */,
+			);
+			path = "Warning Checklist";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1707,6 +1766,8 @@
 				C5044C882BBD5CF800A81242 /* RentnKingDataBase.xcdatamodeld in Sources */,
 				C510D6C82B567FE600D9871F /* ProductDetailsViewController.swift in Sources */,
 				004DC9262F06660D00E70DCF /* SyncEquipment.swift in Sources */,
+				004DC9292F06680000E70DCF /* SyncDriverChecklist.swift in Sources */,
+				DD0002A22FE5000000000012 /* SyncDeliveryPickupInputs.swift in Sources */,
 				C51AF5D22AD178220042589E /* UIView.swift in Sources */,
 				C5D208152F0E6936009B4747 /* LoginModel.swift in Sources */,
 				00C23A7B2F87A3A0001BF048 /* LicenseTypeViewController.swift in Sources */,
@@ -1750,6 +1811,8 @@
 				00B38B4B2F8518A3009D2059 /* CameraViewController.swift in Sources */,
 				C51AF5D02AD178220042589E /* UserDefault+Extension.swift in Sources */,
 				C5387DA12B50093400BF78B4 /* CheckOutModel.swift in Sources */,
+				C579F29E2FDBB251006C30CF /* DispatchListViewController.swift in Sources */,
+				C579F29F2FDBB251006C30CF /* DispatchModel.swift in Sources */,
 				C510D6D22B56952B00D9871F /* Checkout.swift in Sources */,
 				00639C3A2FBB161200C06053 /* AppUpdateManager.swift in Sources */,
 				C5C364432FC571B100942B48 /* CRMFile.swift in Sources */,
@@ -1804,6 +1867,9 @@
 				C51AF5E12AD178220042589E /* UserNotification.swift in Sources */,
 				C51AF6122AD178220042589E /* SpreadsheetView+Layout.swift in Sources */,
 				C56F9EBB2CA437DE002BF8D9 /* TimeClockModel.swift in Sources */,
+				C53C13142FE41DDC0076E2D1 /* DriverChecklistViewController.swift in Sources */,
+				DD0001A22FE5000000000002 /* WarningModel.swift in Sources */,
+				DD0001A42FE5000000000004 /* WarningViewController.swift in Sources */,
 				C521B1192D8990AC00D6B0D8 /* MachineFilterViewController.swift in Sources */,
 				C51AF5D12AD178220042589E /* StringNOhter+Extension.swift in Sources */,
 				C5A5E0C02B5251A700005B44 /* ProductListViewController.swift in Sources */,
@@ -1831,6 +1897,8 @@
 				C51AF5F72AD178220042589E /* BlinkAnimator.swift in Sources */,
 				001D082B2E900062004F4B13 /* kEnum.swift in Sources */,
 				C5A5E0BE2B5251A100005B44 /* ProductList.swift in Sources */,
+				C53C13102FE40DC50076E2D1 /* AssignDriverViewController.swift in Sources */,
+				C53C13112FE40DC50076E2D1 /* AssignDriverModel.swift in Sources */,
 				C5D00B2C2FA38FB000911139 /* InReviewViewController.swift in Sources */,
 				C5387DA62B50098200BF78B4 /* WebServiceHelper.swift in Sources */,
 				C578EEE62EE2E69100B92E3F /* CheckListFile.swift in Sources */,
@@ -2069,7 +2137,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2111,7 +2179,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2139,7 +2207,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2168,7 +2236,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.1;
+				MARKETING_VERSION = 1.0.5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

@@ -22,7 +22,7 @@ class CRMListViewController: UIViewController , UIGestureRecognizerDelegate {
     }
 
     var currentPage: Int = 1
-    var perPage: Int = 10
+    var perPage: Int = 50
     var isLoadingMore: Bool = false
     var hasMoreData: Bool = true
     
@@ -389,8 +389,10 @@ extension CRMListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblCustomerName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: strCustmerName)
 
             let strCustmerPhone = (objData.phone == "" || objData.phone == " ") ? "N/A" : objData.phone ?? ""
-            cell.lblCustomerPhone.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: strCustmerPhone)
-            cell.lblCustomerPhone.backgroundColor = .red
+            cell.lblCustomerPhone.configureLable(textAlignment: .left, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: strCustmerPhone)
+            //cell.lblCustomerPhone.backgroundColor = .red
+            cell.lblCustomerPhone.setContentHuggingPriority(.required, for: .horizontal)
+            cell.lblCustomerPhone.setContentCompressionResistancePriority(.required, for: .horizontal)
             
 
             //COMPANY
@@ -398,10 +400,12 @@ extension CRMListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblCompanyName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(strCompanyName)")
           
             let strCompanyPhone = (objData.company_phone == "" || objData.company_phone == " ") ? "N/A" : objData.company_phone ?? ""
-            cell.lblCompanyPhone.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: strCompanyPhone)
+            cell.lblCompanyPhone.configureLable(textAlignment: .left, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: strCompanyPhone)
+            cell.lblCompanyPhone.setContentHuggingPriority(.required, for: .horizontal)
+            cell.lblCompanyPhone.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-
-            cell.lblOrders.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14, text: "0 Orders")
+            let strOrders_count = objData.orders_count ?? 0
+            cell.lblOrders.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14, text: "\(strOrders_count) Orders")
             cell.lblTag.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14, text: "\(objData.arr_tags.count) \((objData.arr_tags.count == 0 || objData.arr_tags.count == 1) ? "Tag" : "Tags")")
             
             //SET VIEW

@@ -7,6 +7,8 @@
 
 import UIKit
 
+
+
 class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
 
     //CONSTANT
@@ -15,6 +17,7 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
     @IBOutlet weak var con_Btn: NSLayoutConstraint!
     @IBOutlet weak var lblSubmit : UILabel!
     @IBOutlet weak var viewSubmit: UIView!
+    
     
     @IBOutlet weak var viewFirstName: UIView!
     @IBOutlet weak var txtFirstName: UITextField!
@@ -58,12 +61,11 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
     var strOrderUniqueId : String = ""
     var strAddressTryp : String = ""
 
-    
     override func viewDidLoad() {
         super.viewDidLoad()
         setupKeyboard(true)
         if self.objAdress != nil{
-            self.strStatesID = self.objAdress?.state_id ?? ""
+            self.strStatesID = "\(self.objAdress?.state_id ?? 0)"
         }
         
         // Do any additional setup after loading the view.
@@ -157,6 +159,8 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
         self.con_Btn.constant = manageWidth(size: 45)
         self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strUpdate)
 
+       
+        
         
         //SET HEADER
         DispatchQueue.main.asyncAfter(deadline: .now()) {
@@ -169,11 +173,17 @@ class AddressViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
     
+   
+    
 }
 
 //MARK: -- BUTTON ACTION
 
 extension AddressViewController {
+    
+    
+  
+    
     @IBAction func btnSelectStateClicked(_ sender: UIButton) {
         if self.arrStates.count == 0{
             return
@@ -234,6 +244,7 @@ extension AddressViewController {
         else {
             //CALLAPI
             self.updateAddress(UpdateAddressParameater: UpdateAddressParameater(order_unique_id: self.strOrderUniqueId, type: self.strAddressTryp, first_name: strFirstName, last_name: strLastName, phone: strPhone, address: strAddress, state: strState, state_id: self.strStatesID, city: strCity, zip_code: strZip))
+            
         }
     }
 }

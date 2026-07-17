@@ -26,6 +26,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     @IBOutlet weak var imgCRM: UIImageView!
     @IBOutlet weak var lblCRM: UILabel!
     
+    @IBOutlet weak var viewDispatch: UIView!
+    @IBOutlet weak var imgDispatch: UIImageView!
+    @IBOutlet weak var lblDispatch: UILabel!
+
+    @IBOutlet weak var viewInStore: UIView!
+    @IBOutlet weak var imgInStore: UIImageView!
+    @IBOutlet weak var lblInStore: UILabel!
+
+    
     @IBOutlet weak var viewProducts: UIView!
     @IBOutlet weak var imgProducts: UIImageView!
     @IBOutlet weak var lblProducts: UILabel!
@@ -157,12 +166,20 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     }
     
     func setTheView(){
-        
+
+        //MATCH OUTLINE (LINE) STYLE — use line-style symbols like the In Store / Dispatch / Schedule icons
+        let lineIconConfig = UIImage.SymbolConfiguration(weight: .regular)
+        self.imgCRM.image      = UIImage(systemName: "person.2", withConfiguration: lineIconConfig)               // CRM → people
+        self.imgEcommerce.image = UIImage(systemName: "cart", withConfiguration: lineIconConfig)                  // Orders → cart
+        self.imgProducts.image = UIImage(systemName: "wrench.and.screwdriver", withConfiguration: lineIconConfig) // Equipment → tools
+
         //SET IMG
         imgColor(imgColor: self.imgEcommerce, colorHex: .secondary)
         imgColor(imgColor: self.imgSchedule, colorHex: .secondary)
         imgColor(imgColor: self.imgProducts, colorHex: .secondary)
         imgColor(imgColor: self.imgCRM, colorHex: .secondary)
+        imgColor(imgColor: self.imgDispatch, colorHex: .secondary)
+        imgColor(imgColor: self.imgInStore, colorHex: .secondary)
         imgColor(imgColor: self.imgChecking, colorHex: .secondary)
         imgColor(imgColor: self.imgInventory, colorHex: .secondary)
 
@@ -171,6 +188,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.lblSchedule.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strSchedule)
         self.lblProducts.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strEquipment)
         self.lblCRM.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strCRM)
+        self.lblDispatch.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strDispatch)
+        self.lblInStore.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strInStore)
         self.lblChecking.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strTimeClock)
         self.lblInventory.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16.0, text: str.strInventory)
 
@@ -190,6 +209,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.viewCRM.backgroundColor = .clear
         self.viewCRM.viewBorderCorneRadius(borderColour: .secondary)
         self.viewCRM.viewCorneRadius(radius: 15, isRound: false)
+        
+        self.viewInStore.backgroundColor = .clear
+        self.viewInStore.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewInStore.viewCorneRadius(radius: 15, isRound: false)
+
+        self.viewDispatch.backgroundColor = .clear
+        self.viewDispatch.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewDispatch.viewCorneRadius(radius: 15, isRound: false)
+
         
         self.viewChecking.backgroundColor = .clear
         self.viewChecking.viewBorderCorneRadius(borderColour: .secondary)
@@ -239,9 +267,15 @@ extension HomeViewController{
         //MOVE SCHEDULE SCREEN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ScheduleListViewController") as? ScheduleListViewController{
+            
+            if sender.tag == 1{
+                newViewController.selectDeliveryType = "Store"
+                newViewController.inStoreDelviery = true
+            }
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
+    
     
     @IBAction func btnTimeClockClicked(_ sender: UIButton) {
         
@@ -280,4 +314,11 @@ extension HomeViewController{
         
     }
     
+    
+    @IBAction func btnDispatchClicked(_ sender: UIButton) {
+          let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
+          if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DispatchListViewController") as? DispatchListViewController {
+              self.navigationController?.pushViewController(newViewController, animated: true)
+          }
+      }
 }

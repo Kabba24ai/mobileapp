@@ -65,6 +65,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
 
     @IBOutlet weak var lblTotalChargeTitle: UILabel!
     @IBOutlet weak var lblTotalCharge: UILabel!
+    @IBOutlet weak var lblCombine: UILabel!
+    @IBOutlet weak var objCombineSwitch: UISwitch!
+    @IBOutlet weak var con_table: NSLayoutConstraint!
+
+    var isCombineChecklist: Bool = true
 
    
 
@@ -104,8 +109,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
 
     var strSelectCategoty : String = ""
     var strSelectEquipment : String = ""
+    var fromCheckListScreen: Bool = false
 
-    
     //PICKER VIEW
     private let hiddenField = UITextField(frame: .zero)     // host for inputView/accessory
     private let picker = UIPickerView()
@@ -289,6 +294,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         self.viewSubmit.backgroundColor = .secondaryTextView
         self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strNext)
         
+
         self.lblTotalChargeTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strTotalCheckList)
         self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(self.strTotalCharge)")
         
@@ -299,6 +305,31 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
             self.lblTotalCharge.isHidden = true
         }
 
+        
+        //COMBINE SWITCH EVENT
+        self.objCombineSwitch.removeTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
+        self.objCombineSwitch.addTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
+
+        
+        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "Combine Delivery Checklist")
+        self.objCombineSwitch.isHidden = false
+        self.con_table.constant = 50
+        self.isCombineChecklist = true
+        if self.objOrderData.arrProduct.count == 1{
+            self.lblCombine.text = ""
+            self.objCombineSwitch.isHidden = true
+            self.con_table.constant = 16
+            self.isCombineChecklist = false
+        }
+
+
+        
+    }
+
+    @objc func combineSwitchChanged(_ sender: UISwitch) {
+        self.isCombineChecklist = sender.isOn
+        self.tblView.reloadData()
+        
     }
     
     func stopLoading(){
@@ -557,6 +588,28 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
 //MARK: - BUTTON ACTION
 extension CheckListViewController{
     
+    /// Removes products whose questions are all blank from both parallel arrays.
+    /// If EVERY product is blank, the first product is kept.
+    func removeBlankProducts(objOrderData: inout OrdersModel?, arrOtherData: inout [NoteModel]) {
+        guard let products = objOrderData?.arrProduct, !products.isEmpty else { return }
+
+        // Indexes of products whose questions are all blank
+        var blankIndexes = products.indices.filter { checkQuestionsIsBlank(objProduct: products[$0]) }
+
+        // If every product is blank, keep the first one
+        if blankIndexes.count == products.count {
+            blankIndexes.removeAll { $0 == 0 }
+        }
+
+        // Remove from the highest index down so earlier indexes stay valid
+        for index in blankIndexes.sorted(by: >) {
+            objOrderData?.arrProduct.remove(at: index)
+            if index < arrOtherData.count {
+                arrOtherData.remove(at: index)
+            }
+        }
+    }
+
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         
@@ -571,8 +624,12 @@ extension CheckListViewController{
             }
         }
 
-        
-        
+        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
+        if self.isCombineChecklist == false{
+            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        }
+
+
         let errors = checkQuestions(objOrderData: objTempOrderData!)
         if self.checkMachineData(objOrderData: objTempOrderData!) == false{
             return
@@ -669,6 +726,43 @@ extension CheckListViewController{
         }
         
         return errorIndexPaths
+    }
+    
+    func checkQuestionsIsBlank(objProduct : ProductModel?) -> Bool {
+        // Returns true only when EVERY question is blank; false if any is filled.
+        for objQuestion in objProduct?.arrQuestions ?? [] {
+            var isBlank = false
+
+            if isDeliveryType {
+                if objQuestion.type == "text" {
+                    isBlank = objQuestion.startHours == 0.0
+                }
+                else if objQuestion.type == "fuel"{
+                    isBlank = objQuestion.selectFuleDelivery == ""
+                }
+                else{
+                    isBlank = objQuestion.deliverAnswer == nil
+                }
+            } else {
+                if objQuestion.type == "text" {
+                    isBlank = objQuestion.endHours == 0.0
+                }
+                else if objQuestion.type == "fuel"{
+                    isBlank = objQuestion.selectFuleReturn == ""
+                }
+                else{
+                    isBlank = objQuestion.returnAnswer == nil
+                }
+            }
+
+            // Any filled question → not all blank
+            if !isBlank {
+                return false
+            }
+        }
+
+        // All questions were blank
+        return true
     }
     
     func scrollToCell(indexPath : IndexPath, isError : Bool){
@@ -855,7 +949,11 @@ extension CheckListViewController : UITextFieldDelegate{
             for (index,obj) in objProduct.arrQuestions.enumerated(){
                 var objQuestion = obj
                 if objQuestion.type == "text"{
-                    let hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                    var hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                    if objProduct.is_delivered == true && objQuestion.startHours == 0.0{
+                        hours = 0
+                    }
+
                     let totalHours = Int(hours.rounded(.up))
                     objQuestion.total = 0
                     if totalHours > 0{
@@ -902,6 +1000,8 @@ extension CheckListViewController : UITextFieldDelegate{
                     else if objQuestion.fuleType == "gas"{
                         totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
                     }
+                    
+                    
                     
                     
                     self.strTotalCharge = self.strTotalCharge + FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
@@ -1455,6 +1555,18 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             if self.isDeliveryType{
                 cell.viewLocation.isHidden = true
             }
+            
+            
+            cell.viewEmployee.isHidden = false
+            if self.isCombineChecklist{
+                // When combined, show the employee view only on the last product; hide on the others.
+                let lastSection = (self.objOrderData?.arrProduct.count ?? 0) - 1
+                cell.viewEmployee.isHidden = (section != lastSection)
+            }
+
+            // Hide the employee title label when the selector is showing → only the name is shown.
+            cell.lblEmployee.isHidden = cell.viewEmployee.isHidden
+
             return cell
         }
         
@@ -1480,12 +1592,18 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
 //            }
 //            else{
 //            }
-            if self.isDeliveryType{
-                return manageWidth(size: checkDeviceiPad() ? 360 : 310)
+            var size: CGFloat = self.isDeliveryType ? (checkDeviceiPad() ? 360 : 310)
+                                                    : (checkDeviceiPad() ? 430 : 380)
+
+            // When combined, the employee view is hidden on all but the last product → reduce height by that row.
+            if self.isCombineChecklist {
+                let lastSection = (self.objOrderData?.arrProduct.count ?? 0) - 1
+                if section != lastSection {
+                    size -= 70   // employee row height (matches the location-row delta)
+                }
             }
-            else{
-                return manageWidth(size: checkDeviceiPad() ? 430 : 380)
-            }
+
+            return manageWidth(size: size)
         }
     }
     
@@ -1493,26 +1611,31 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
     
     @objc func btnSelectEmployessClicked(_ sender: UIButton) {
        // self.view.endEditing(true)
+        if self.fromCheckListScreen == true{
+            return
+        }
         
         if self.arrEmployesList.count == 0{
             return
         }
         
         actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
-            
-            //UPDATE DATA
-            let obj = self.arrOtherData[sender.tag]
-            if self.isDeliveryType{
-                obj.dEmplayess = selectValue
-                obj.dEmplayessId = "\(self.arrEmployesList[index].id ?? 0)"
+
+            let empId = "\(self.arrEmployesList[index].id ?? 0)"
+
+            //UPDATE DATA — when combined, apply the same employee to every product
+            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            for obj in targets {
+                if self.isDeliveryType{
+                    obj.dEmplayess = selectValue
+                    obj.dEmplayessId = empId
+                }
+                else{
+                    obj.rEmplayess = selectValue
+                    obj.rEmplayessId = empId
+                }
             }
-            else{
-                obj.rEmplayess = selectValue
-                obj.rEmplayessId = "\(self.arrEmployesList[index].id ?? 0)"
-            }
-            self.arrOtherData.remove(at: sender.tag)
-            self.arrOtherData.insert(obj, at: sender.tag)
-            
+
             //RELAD
             self.tblView.reloadData()
         }
@@ -1532,16 +1655,25 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         
         actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.arrOtherData[sender.tag].rStore) { index, selectValue in
            
-            //UPDATE DATA
-            let obj = self.arrOtherData[sender.tag]
-            obj.rStore = selectValue
-            obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
+            //UPDATE DATA — when combined, apply the same employee to every product
+            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            for obj in targets {
+                obj.rStore = selectValue
+                obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
+            }
 
-            self.arrOtherData.remove(at: sender.tag)
-            self.arrOtherData.insert(obj, at: sender.tag)
-            
             //RELAD
             self.tblView.reloadData()
+            
+            
+//            //UPDATE DATA
+//            let obj = self.arrOtherData[sender.tag]
+//
+//            self.arrOtherData.remove(at: sender.tag)
+//            self.arrOtherData.insert(obj, at: sender.tag)
+//            
+//            //RELAD
+//            self.tblView.reloadData()
         }
         
     }

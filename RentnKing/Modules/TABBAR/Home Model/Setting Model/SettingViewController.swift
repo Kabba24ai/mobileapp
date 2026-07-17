@@ -17,6 +17,9 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
     @IBOutlet weak var viewLogOut : UIView!
     @IBOutlet weak var btnLogOut : UIButton!
     @IBOutlet weak var con_Button: NSLayoutConstraint!
+
+    /// App version banner shown below the Log Out button.
+    private let lblVersion = UILabel()
     
     //SET NAVIGATION BAR
     @IBOutlet weak var con_NavigationBar : NSLayoutConstraint!
@@ -79,6 +82,30 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         self.viewLogOut.backgroundColor = .clear
         self.viewLogOut.viewBorderCorneRadius(borderColour: .secondary)
         self.viewLogOut.viewCorneRadius(radius: 0, isRound: true)
+
+        //SET APP VERSION BANNER (below Log Out)
+        self.setupVersionLabel()
+    }
+
+    /// Adds/updates the "Version x.y.z (build)" banner under the Log Out button.
+    func setupVersionLabel() {
+        if lblVersion.superview == nil {
+            lblVersion.translatesAutoresizingMaskIntoConstraints = false
+            self.view.addSubview(lblVersion)
+            NSLayoutConstraint.activate([
+                lblVersion.topAnchor.constraint(equalTo: viewLogOut.bottomAnchor, constant: 8),
+                lblVersion.centerXAnchor.constraint(equalTo: viewLogOut.centerXAnchor)
+            ])
+        }
+
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+
+        lblVersion.textAlignment = .center
+        lblVersion.configureLable(textColor: .gray.withAlphaComponent(0.8),
+                                  fontName: GlobalMainConstants.APP_FONT_Roboto_Regular,
+                                  fontSize: 13.0,
+                                  text: "Version \(version) (\(build))")
     }
 }
 

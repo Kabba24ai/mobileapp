@@ -68,7 +68,7 @@ extension AddressViewController :WebServiceHelperDelegate{
         webHelper.callAPI()
     }
     
-   
+  
     
     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
@@ -92,6 +92,11 @@ extension AddressViewController :WebServiceHelperDelegate{
                 DispatchQueue.main.async {
                     showAlertMessage(strMessage: data.getStringForID(key: "message"))
                 }
+                
+            }
+            else if strRequest == "dispatchUpdateStatus"{
+                print(data)
+                
                 
             }
         }

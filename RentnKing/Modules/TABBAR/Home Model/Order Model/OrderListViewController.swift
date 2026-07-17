@@ -16,6 +16,11 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     @IBOutlet weak var imgSearch: UIImageView!
     @IBOutlet weak var viewSearch: UIView!
     @IBOutlet weak var txtSearch: UITextField!
+    
+    @IBOutlet weak var imgOrderIDSearch: UIImageView!
+    @IBOutlet weak var viewOrderIDSearch: UIView!
+    @IBOutlet weak var txtOrderIDSearch: UITextField!
+
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
     @IBOutlet weak var con_Upload: NSLayoutConstraint!  
     @IBOutlet var emptyDataView : EmptyDataView!{
@@ -79,6 +84,19 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
             // Finally, set the image color
             clearButton.tintColor = .gray
         }
+        
+        
+        self.txtOrderIDSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strOrderIDSearch)
+        self.txtOrderIDSearch.clearButtonMode = .whileEditing
+        self.txtOrderIDSearch.text = ""
+        if let clearButton = self.txtOrderIDSearch.value(forKey: "_clearButton") as? UIButton{
+            let templateImage =  clearButton.imageView?.image?.withRenderingMode(.alwaysTemplate)
+            // Set the template image copy as the button image
+            clearButton.setImage(templateImage, for: .normal)
+            // Finally, set the image color
+            clearButton.tintColor = .gray
+        }
+
 
         
         //GET CATEGORY DATA
@@ -187,7 +205,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            let params = OrdersParameater(page: "\(self.pageCount)", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, status: self.selectStatus)
+            let params = OrdersParameater(page: "\(self.pageCount)", search: self.txtSearch.text ?? "", orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, status: self.selectStatus)
             self.fetchOrders(OrdersParameater: params, overrideLocal: true)
         }
     }
@@ -202,9 +220,15 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.viewSearch.viewCorneRadius(radius: 10.0, isRound: false)
         imgColor(imgColor: self.imgSearch, colorHex: .secondary)
         
+        self.viewOrderIDSearch.backgroundColor = .clear
+        self.viewOrderIDSearch.viewBorderCorneRadius(borderColour: .secondary)
+        self.viewOrderIDSearch.viewCorneRadius(radius: 10.0, isRound: false)
+        imgColor(imgColor: self.imgOrderIDSearch, colorHex: .secondary)
+
         
         //SET SEARCH TEXT
         self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingDidEndOnExit)
+        self.txtOrderIDSearch.addTarget(self, action: #selector(textOrderIDFieldDidChangeSearch), for: .editingDidEndOnExit)
 
 
         //STOP LOADING
@@ -277,14 +301,31 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.objSearchIndicator.isHidden = true
         self.objSearchIndicator.stopAnimating()
         if strSearch != "" && strSearch.count >= 3{
-            self.callAPI(search: strSearch, category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+            self.callAPI(search: strSearch, orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
         }
         else{
-            self.callAPI(search: "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+            self.callAPI(search: "", orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
         }
     }
     
-    func callAPI(search: String, category_id: String, selectStatus: String, selectPaymentType: String){
+    
+    @objc func textOrderIDFieldDidChangeSearch() {
+        let strSearch = self.txtOrderIDSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
+        if strSearch.count <= 3 {
+            self.refreshList()
+            return
+        }
+                
+        //GET STORE LIST
+        if strSearch != "" && strSearch.count >= 3{
+            self.callAPI(search: self.txtSearch.text ?? "", orderIDSearch: strSearch, category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+        }
+        else{
+            self.callAPI(search: self.txtSearch.text ?? "", orderIDSearch: "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+        }
+    }
+    
+    func callAPI(search: String, orderIDSearch: String, category_id: String, selectStatus: String, selectPaymentType: String){
         //CALL API
         self.objSearchIndicator.isHidden = false
         self.objSearchIndicator.startAnimating()
@@ -293,7 +334,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.arrOrderList = []
         self.emptyDataView.isHidden = true
         
-        let params = OrdersParameater(page: "\(self.pageCount)", search: search, category_id: category_id, status: selectStatus, payment_method: selectPaymentType)
+        let params = OrdersParameater(page: "\(self.pageCount)", search: search, orderIDSearch : orderIDSearch, category_id: category_id, status: selectStatus, payment_method: selectPaymentType)
         fetchOrders(OrdersParameater: params, overrideLocal: false)
     }
 }
@@ -333,7 +374,7 @@ extension OrderListViewController : FilterProtocol{
         //CALL API
         self.setNavigation()
         if self.selectCategoryID != "" || self.selectStatus != "All" ||  self.selectPaymentType != "All"  {
-            self.callAPI(search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+            self.callAPI(search: self.txtSearch.text ?? "", orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
         }
     }
 }
@@ -445,6 +486,7 @@ class OrderListCell : UITableViewCell{
     @IBOutlet weak var viewNotificaiton: UIView!
     
     @IBOutlet weak var lblDate: UILabel!
+    @IBOutlet weak var lblOrderNumber: UILabel!
     @IBOutlet weak var lblName: UILabel!
     @IBOutlet weak var lblPhone: UILabel!
     @IBOutlet weak var lblEmail: UILabel!
@@ -582,7 +624,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             startAnimatingView()
             
             //CALL API
-            let params = OrdersParameater(page: "\(self.pageCount)", search: self.txtSearch.text ?? "", category_id: self.selectCategoryID, status: self.selectStatus)
+            let params = OrdersParameater(page: "\(self.pageCount)", search: self.txtSearch.text ?? "", orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, status: self.selectStatus)
             fetchOrders(OrdersParameater: params)
         }
     }
@@ -637,6 +679,8 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             
             //SET FONT
             cell.lblDate.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: objData.order_date ?? "")
+            cell.lblOrderNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: objData.order_number ?? "")
+            
             cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.customer_name ?? "")")
             
             let strPhone: String = "\(objData.objDeliveryAddress?.phone ?? "")".trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)

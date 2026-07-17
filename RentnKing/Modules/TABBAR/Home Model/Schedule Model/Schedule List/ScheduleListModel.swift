@@ -26,8 +26,18 @@ struct SchedulesModel: Mappable{
     internal var pickup_status: String?
 
     internal var objProduct: ProductDataModel?
-//
-//    
+    internal var delivery_checklist: CheckListResponeData?
+    internal var pickup_checklist: CheckListResponeData?
+    
+    internal var is_delivery_overdue: Bool?
+    internal var is_pickup_overdue: Bool?
+
+    internal var is_early: Bool?
+    internal var is_late_pickup: Bool?
+
+    internal var dispatch_delivery_date: String?
+    internal var dispatch_return_date: String?
+
 //    internal var location: String?
 //    internal var order_id: Int?
 //    internal var product_id: Int?
@@ -36,6 +46,17 @@ struct SchedulesModel: Mappable{
 //    internal var customer_pickup: Int?
     internal var order: OrdersListModel?
 
+//    internal var delivery_store: StoreOptionsModel?
+//    internal var pickup_store: StoreOptionsModel?
+    internal var objEquipment : MachineModel?
+
+    internal var is_delivered: Bool?
+    internal var is_returned: Bool?
+
+    internal var delivery_employee: EmployeesModel?
+    internal var pickup_employee: EmployeesModel?
+
+    
     init?(map:Map) {
         mapping(map: map)
     }
@@ -56,7 +77,18 @@ struct SchedulesModel: Mappable{
         pickup_status <- map["pickup_status"]
 
         objProduct <- map["product_data"]
-//
+        delivery_checklist <- map["delivery_checklist"]
+        pickup_checklist <- map["pickup_checklist"]
+
+        is_delivery_overdue <- map["is_delivery_overdue"]
+        is_pickup_overdue <- map["is_pickup_overdue"]
+        
+        is_early <- map["is_early"]
+        is_late_pickup <- map["is_late_pickup"]
+
+        dispatch_delivery_date <- map["dispatch_delivery_date"]
+        dispatch_return_date <- map["dispatch_return_date"]
+
 //        name <- map["product_name"]
 //        location <- map["location"]
 //        order_id <- map["order_id"]
@@ -65,8 +97,45 @@ struct SchedulesModel: Mappable{
 //        customer_delivery <- map["customer_delivery"]
 //        customer_pickup <- map["customer_pickup"]
         order <- map["order"]
+//        delivery_store <- map["delivery_store"]
+//        pickup_store <- map["pickup_store"]
+        objEquipment <- map["equipment"]
+
+        is_delivered <- map["is_delivered"]
+        is_returned <- map["is_returned"]
+
+        delivery_employee <- map["delivery_employee"]
+        pickup_employee <- map["pickup_employee"]
+
     }
 }
+
+
+struct CheckListResponeData: Mappable{
+    internal var arrived_at: String?
+    internal var equipment_driver_status: String?
+    internal var equipment_fuel: String?
+    internal var equipment_key_location: String?
+    internal var is_arrived: Bool?
+    internal var is_delivered: Bool?
+    internal var ready_to_go_at: String?
+
+    init?(map:Map) {
+        mapping(map: map)
+    }
+
+    mutating func mapping(map:Map){
+        arrived_at <- map["arrived_at"]
+        equipment_driver_status <- map["equipment_driver_status"]
+        equipment_fuel <- map["equipment_fuel"]
+        equipment_key_location <- map["equipment_key_location"]
+        is_arrived <- map["is_arrived"]
+        is_delivered <- map["is_delivered"]
+        ready_to_go_at <- map["ready_to_go_at"]
+    }
+}
+
+
 
 
 struct Type_Status: Mappable{
@@ -156,7 +225,7 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
                 // Manage local storage
                 if self.pageCount == 1 {
                     // Overwrite old data
-                    SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)_\(self.strSelectDay)")
+                    SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)_\(self.strSelectDay)_\(self.selectDeliveryType)")
                 } else {
                     // Append to local
                     var existing = self.getScheduleOrderData(schedule_type: OrdersParameater.schedule_type, schedule_status: OrdersParameater.schedule_status)
@@ -167,7 +236,7 @@ extension ScheduleListViewController :WebServiceHelperDelegate{
                     }
                     
                     existing.append(contentsOf: filteredNew)
-                    SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)_\(self.strSelectDay)")
+                    SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kScheduleOrderList.rawValue)_\(OrdersParameater.schedule_type)_\(OrdersParameater.schedule_status)_\(self.strSelectDay)_\(self.selectDeliveryType)")
                 }
                 
                 completion(true)
