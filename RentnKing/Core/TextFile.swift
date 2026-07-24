@@ -35,7 +35,7 @@ struct Text {
     var strEquipment = "Equipment".localized()
     var strCRM = "CRM".localized()
     var strDispatch = "Dispatch".localized()
-    var strInStore = "Store Delivery".localized()
+    var strInStore = "Queue Line".localized()
     var strTimeClock = "Time Clock".localized()
     var strInventory = "Inventory".localized()
     var strMachineProfile = "Machine Profile".localized()

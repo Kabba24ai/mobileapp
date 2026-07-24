@@ -157,10 +157,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.tabBarController?.tabBar.isHidden = true
         
         self.setNavigation()
-       
     }
-    
-  
+      
     
     func setNavigation(){
         //SET NAVIGATION BAR

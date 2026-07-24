@@ -240,6 +240,7 @@ struct ProductDataModel: Mappable{
     internal var delivery_transport_mode: String?
     internal var store_name: String?
     internal var store_address: String?
+    internal var arrProductSelectdOptions: [String] = []
     internal var arrProductOptions: [ProductOptionsItemsModel] = []
     internal var arrProductMoreOptions: [ProductOptionsItemsModel] = []
 
@@ -261,6 +262,7 @@ struct ProductDataModel: Mappable{
         delivery_date <- map["delivery_date"]
         delivery_transport_mode <- map["delivery_transport_mode"]
         arrProductOptions <- map["product_option_items"]
+        arrProductSelectdOptions <- map["product_rental_items"]
         arrProductMoreOptions <- map["product_rental_items_prices_with_labels"]
         store_name <- map["store_name"]
         store_address <- map["store_address"]

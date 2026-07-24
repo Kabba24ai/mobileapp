@@ -18,6 +18,7 @@ class MachineDetailsViewController: UIViewController , MachinePageViewController
     var strID : String = ""
     var arrRentalReady : [RentalReadyModel] = []
     var objRentalReadyData : MachineModel!
+    var isQueueLine : Bool = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -57,6 +58,7 @@ class MachineDetailsViewController: UIViewController , MachinePageViewController
             ProspectiveCustomersPageViewController?.strID = self.strID
             ProspectiveCustomersPageViewController?.arrRentalReady = self.arrRentalReady
             ProspectiveCustomersPageViewController?.objRentalReadyData = self.objRentalReadyData
+            ProspectiveCustomersPageViewController?.isQueueLine = self.isQueueLine
         }
     }
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {

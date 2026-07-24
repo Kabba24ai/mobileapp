@@ -11,6 +11,7 @@ enum kFileStorageName: String {
     case kOrderList = "OrderList"
     case kScheduleOrderList = "kScheduleOrderList"
     case kDispatchJobList   = "kDispatchJobList"
+    case kQueueLineList     = "kQueueLineList"
     case kEmployesList = "EmployesList"
     case kEquipmentList = "EquipmentList"
     case kOrderDetailUserData = "OrderDetailUserData"

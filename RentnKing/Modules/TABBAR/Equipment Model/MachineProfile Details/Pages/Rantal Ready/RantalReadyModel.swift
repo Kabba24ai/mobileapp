@@ -112,7 +112,6 @@ extension RantalReadyVC :WebServiceHelperDelegate{
         webHelper.callAPI()
     }
     
-    
    
     struct UpdateRentalParameater: Codable {
         var inventory_id : String?

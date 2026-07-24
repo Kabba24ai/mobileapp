@@ -17,7 +17,7 @@ struct FuleTypes {
     let name: String
 }
 
-let arrFlueDelivery : [FuleTypes] = [FuleTypes(id: 10, name: "Prepaid"),
+let arrFlueDelivery : [FuleTypes] = [
                                      FuleTypes(id: 9, name: "Full"),
                                      FuleTypes(id: 8, name: "7/8"),
                                      FuleTypes(id: 7, name: "3/4"),
@@ -321,9 +321,6 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
             self.con_table.constant = 16
             self.isCombineChecklist = false
         }
-
-
-        
     }
 
     @objc func combineSwitchChanged(_ sender: UISwitch) {
@@ -1002,10 +999,20 @@ extension CheckListViewController : UITextFieldDelegate{
                     }
                     
                     
+                    var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
+                  
+                    //CHECK PREPAID FULE
+                    let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
+                    if selectedOptions.contains("rental_prepaid_fuel") {
+                        // Option exists
+                        strFuleTotalCharge = 0
+                    }
                     
                     
-                    self.strTotalCharge = self.strTotalCharge + FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
                     
+                    self.strTotalCharge = self.strTotalCharge + strFuleTotalCharge
+                    
+                  
                 }else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
                     
                     let strPrice = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
@@ -1179,9 +1186,17 @@ class FooterCheckListCell : UITableViewCell{
 
 class CheckListCell : UITableViewCell{
 
+    
+
     @IBOutlet weak var lblTitle: UILabel!
     @IBOutlet weak var lblTitleReturn: UILabel!
-//
+    @IBOutlet weak var viewTitleReturn: UIView!
+    
+    @IBOutlet weak var viewPrepaid: UIView!
+    @IBOutlet weak var lblPrepaid: UILabel!
+    @IBOutlet weak var viewPrepaidReturn: UIView!
+    @IBOutlet weak var lblPrepaidReturn: UILabel!
+    
     @IBOutlet weak var txtDelivered: UITextField!
 //    
     @IBOutlet weak var txtReturned: UITextField!
@@ -1705,6 +1720,10 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.viewReturnedMain.backgroundColor = .clear
             cell.viewDeliveredMain.viewBorderCorneRadius(borderColour: .clear)
             cell.viewReturnedMain.viewBorderCorneRadius(borderColour: .clear)
+            cell.viewPrepaid.isHidden = true
+            cell.viewPrepaidReturn.isHidden = true
+            cell.lblPrepaid.configureLable(textAlignment: .right, textColor: .green, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: "Prepaid")
+            cell.lblPrepaid.configureLable(textAlignment: .right, textColor: .green, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: "Prepaid")
 
             if isLoading {
                 cell.viewLine.isHidden = true
@@ -1727,11 +1746,14 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblTitle.configureLable(textColor: self.isDeliveryType ? .primary : .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: objDetails.question_delivery_text ?? "")
             cell.lblTitleReturn.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: objDetails.question_return_text ?? "")
             cell.lblTitleReturn.isHidden = true
+            cell.viewTitleReturn.isHidden = true
             if objDetails.type == "text" && self.isDeliveryType == false{
                 cell.lblTitleReturn.isHidden = false
+                cell.viewTitleReturn.isHidden = false
             }
             else if objDetails.question_delivery_text ?? "" != objDetails.question_return_text ?? "" && self.isDeliveryType == false{
                 cell.lblTitleReturn.isHidden = false
+                cell.viewTitleReturn.isHidden = true
             }
 
             cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
@@ -1780,6 +1802,25 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             if objDetails.type == "fuel"{
                 cell.lblDeliverySelect.text = strDeliveredFule
                 cell.lblReturnSelect.text = getFlueName(strId: objDetails.selectFuleReturn ?? "")
+                
+                let selectedOptions = self.objOrderData
+                    .arrProduct[indexPath.section]
+                    .objProductData?
+                    .arrProductSelectdOptions ?? []
+
+                cell.viewPrepaid.isHidden = true
+                cell.viewPrepaidReturn.isHidden = true
+                if selectedOptions.contains("rental_prepaid_fuel") {
+                    // Option exists
+                    if self.isDeliveryType{
+                        cell.viewPrepaid.isHidden = false
+                        cell.viewPrepaidReturn.isHidden = true
+                    }
+                    else{
+                        cell.viewPrepaid.isHidden = false
+                        cell.viewPrepaidReturn.isHidden = false
+                    }
+                }
             }
             else{
                 if objDetails.deliverAnswer != nil{

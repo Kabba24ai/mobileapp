@@ -12,6 +12,7 @@ class MachinePageViewController: UIPageViewController {
     var strID : String = ""
     var arrRentalReady : [RentalReadyModel] = []
     var objRentalReadyData : MachineModel!
+    var isQueueLine : Bool = false
 
     fileprivate(set) lazy var orderedViewControllers: [UIViewController] = {
       // The view controllers will be shown in this order
@@ -97,6 +98,7 @@ class MachinePageViewController: UIPageViewController {
                                             direction: UIPageViewController.NavigationDirection = .forward) {
         
         if let vc = viewController as? RantalReadyVC{
+            vc.isQueueLine = self.isQueueLine
             vc.strID = self.strID
             vc.arrRentalReady = arrRentalReady
             vc.objRentalReadyData = self.objRentalReadyData

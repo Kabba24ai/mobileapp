@@ -752,6 +752,20 @@ enum Url {
         return newAPI("orders/schedules/update")
     }
 
+    // MARK: - QUEUE LINE
+
+    static var queueLine: NSURL {
+        return newAPI("queue-line")
+    }
+
+    static func queueLineReturnToPending(_ orderProductUniqueId: String) -> NSURL {
+        return newAPI("queue-line/\(orderProductUniqueId)/return-to-pending")
+    }
+
+    static func queueLineMarkStaged(_ orderProductUniqueId: String) -> NSURL {
+        return newAPI("queue-line/\(orderProductUniqueId)/mark-staged")
+    }
+
     // MARK: - DISPATCH
 
     static var dispatchList: NSURL {

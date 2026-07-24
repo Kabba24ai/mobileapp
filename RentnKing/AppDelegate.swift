@@ -46,6 +46,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     let store = EKEventStore()
     var event:EKEvent!
 
+    /// True while a checklist item is uploading, so a second submit (or a retry
+    /// trigger) doesn't start a duplicate concurrent upload of the same arr[0].
+    /// In-memory only → always reset to false on a fresh launch.
+    var isCheckListUploading = false
+
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
@@ -58,6 +63,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         createLicenseUploadFolder()
         createImageVideoUploadFolder()
         createFileStorageFolder()
+
+        //RECLAIM ALREADY-UPLOADED MEDIA (7-day grace; keeps Pending files)
+        MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
         
         
         //SET FIREBASE AND NOTIFICATION
@@ -226,46 +234,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                     uploadImagesAndVideos(arrData, meta: params)
                     
                 }
-                
-                
-
-//                if objData.type == uploadType.image.rawValue{
-//                    let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.orderID ?? "", strType: objData.type ?? "")
-//                    
-//                    let params = LicenseParameater(
-//                                order_unique_id: objData.orderID ?? "",
-//                                type: objData.type ?? "",
-//                                video_type: "license",
-//                                order_product_unique_id: objData.productID ?? ""
-//                            )
-//
-//                    uploadImagesAndVideos(arrData, meta: params)
-//                }
-//                else if objData.type == uploadType.video_image.rawValue {
-//                    
-//                    let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.orderID ?? "", strType: objData.type ?? "", strVideoType: objData.videoType ?? "")
-//                    
-//                    let params = LicenseParameater(
-//                                order_unique_id: objData.orderID ?? "",
-//                                type: objData.type ?? "",
-//                                video_type: objData.videoType ?? "delivery",
-//                                order_product_unique_id: objData.productID ?? ""
-//                            )
-//
-//                    uploadImagesAndVideos(arrData, meta: params)
-//
-//                }
-//                else if objData.type == uploadType.hours.rawValue{
-//                    let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.orderID ?? "", strType: objData.type ?? "")
-//                    self.updateHours(strOrderID: objData.orderID ?? "", arrHours: self.getMachineHoursArray(strOrderID: objData.orderID ?? "", arrData: arrData))
-//                }
-//                else if objData.type == uploadType.checkList.rawValue{
-//                    let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.orderID ?? "", strType: objData.type ?? "")
-//
-//                    self.updateCheckList(strOrderID: objData.orderID ?? "", arrCheckList: self.getCheckListArray(strOrderID: objData.orderID ?? "", arrData: arrData))
-//                }
             }
             else{
+                //QUEUE EMPTY — everything uploaded; reclaim local media (keeps Pending, 7-day grace)
+                MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
                 DispatchQueue.main.asyncAfter(deadline: .now()){
                     NotificationCenter.default.post(name: .stopUploadData, object: nil)
                 }
@@ -454,6 +426,13 @@ extension AppDelegate :WebServiceHelperDelegate {
                     print("Upload failed: \(error.localizedDescription)")
                 }
             }
+
+            // The temp compressed image copies were already streamed into the multipart
+            // body, so delete them now to free temporary storage.
+            let tmpDir = FileManager.default.temporaryDirectory.path
+            for part in fileParts where part.fileURL.path.hasPrefix(tmpDir) {
+                try? FileManager.default.removeItem(at: part.fileURL)
+            }
         } catch {
             print("Upload start error: \(error.localizedDescription)")
         }
@@ -515,12 +494,19 @@ extension AppDelegate :WebServiceHelperDelegate {
     
    
     func updateCheckListData(){
-        let arr = getChecklistData()
-        if arr?.count != 0{
-            if let obj = arr?[0]{
-                self.updateCheckList(dicCheckList: obj)
-            }
-        }
+        // Don't start a second upload while one is already in flight.
+        if isCheckListUploading { return }
+
+        // If offline, startUploadingMultipleImages() does nothing and fires no
+        // callback — so don't arm the flag here. The queue stays intact and the
+        // network-restore / launch triggers will call this again.
+        guard NetworkReachabilityManager()?.isReachable == true else { return }
+
+        let arr = getChecklistData() ?? []
+        guard let obj = arr.first else { return }
+
+        isCheckListUploading = true
+        self.updateCheckList(dicCheckList: obj)
     }
     
     
@@ -611,6 +597,9 @@ extension AppDelegate :WebServiceHelperDelegate {
                 }
             }
             else if strRequest == "updateCheckList"{
+                // Upload finished — release the in-flight lock BEFORE triggering the next drain.
+                self.isCheckListUploading = false
+
                 //REFRESH ORDER DETAILS
                 self.CallAPIforGetOrderDetails(strChecklistType: strChecklistType, OrdersDetailsParameater: OrdersDetailsParameater(unique_id: orderid))
 
@@ -642,7 +631,15 @@ extension AppDelegate :WebServiceHelperDelegate {
             }
         }
         else{
-            if strRequest == "getNotification"{
+            if strRequest == "updateCheckList"{
+                // Server accepted the HTTP call but rejected the checklist (success != "1").
+                // KEEP the item in the queue and just release the lock so it can be retried
+                // (on next launch / network restore). The server message, if any, is already
+                // surfaced by WebServiceHelper (serviceWithAlert). We intentionally don't drop
+                // the item here — losing an accepted-locally checklist is worse than a retry.
+                self.isCheckListUploading = false
+            }
+            else if strRequest == "getNotification"{
                 arrNotifications = []
                 UIApplication.shared.applicationIconBadgeNumber = 0
                 NotificationCenter.default.post(name: .notificationCount, object: nil)
@@ -650,13 +647,23 @@ extension AppDelegate :WebServiceHelperDelegate {
             }
         }
     }
-    
+
     func appDataArraySuccess(_ arr: NSArray, request strRequest: String, index: Int) {
     }
-    
+
     func appDataDidFail(_ error: Error, request strRequest: String, strUrl: String) {
+        if strRequest == "updateCheckList"{
+            // The checklist upload failed (network drop, parse error, or a code
+            // 100/101/102/401 rejection). DON'T drain the item and DON'T fall through
+            // to uploadAllData() — that drains the image/video queue, not this one.
+            // Just release the lock; the item stays queued and retries via the
+            // launch / network-restore triggers that call updateCheckListData().
+            self.isCheckListUploading = false
+            return
+        }
+
         self.uploadAllData()
-        
+
         if strRequest == "getNotification"{
             arrNotifications = []
             UIApplication.shared.applicationIconBadgeNumber = 0

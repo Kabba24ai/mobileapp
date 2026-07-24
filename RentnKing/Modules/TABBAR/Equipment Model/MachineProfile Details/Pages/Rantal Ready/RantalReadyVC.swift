@@ -47,6 +47,7 @@ class RantalReadyVC: UIViewController {
     var arrRentalReady : [RentalReadyModel] = []
     var arrEmployesList : [EmployeesModel] = []
     var strMachineHours : String = ""
+    var isQueueLine : Bool = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -56,7 +57,10 @@ class RantalReadyVC: UIViewController {
         self.lblNoData.configureLable(textAlignment: .center, textColor: .primary.withAlphaComponent(0.6), fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strNoRentalReadyData)
 
         //GET SATA
-        //TEMP COMMENT//self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(equipment_unique_id: self.strID))
+        if self.isQueueLine{
+            self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(equipment_unique_id: self.strID))
+        }
+        
 
         //GET EMPLOYEE LIST DATA
         getEmployeeList { arr_data in

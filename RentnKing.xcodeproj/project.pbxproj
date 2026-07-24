@@ -16,6 +16,8 @@
 		00B38B4B2F8518A3009D2059 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B38B4A2F8518A0009D2059 /* CameraViewController.swift */; };
 		00BF1D162E9F772A00EDDEC7 /* UpdateOrderNoteData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */; };
 		00C23A7B2F87A3A0001BF048 /* LicenseTypeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C23A7A2F87A3A0001BF048 /* LicenseTypeViewController.swift */; };
+		774BD89A95724C26A758D2E1 /* QueueLineModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */; };
+		79A13C531F31480F9DF79C68 /* QueueLineStagePopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A29B4D73DA4ACE902EE475 /* QueueLineStagePopup.swift */; };
 		C5044C7F2BBD5CD300A81242 /* CoreDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */; };
 		C5044C802BBD5CD300A81242 /* CoreaDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C772BBD5CD200A81242 /* CoreaDataModel.swift */; };
 		C5044C812BBD5CD300A81242 /* DownloadFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C782BBD5CD200A81242 /* DownloadFile.swift */; };
@@ -41,6 +43,7 @@
 		C51AF5382AD178130042589E /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52D2AD178130042589E /* HomeViewController.swift */; };
 		C51AF5392AD178130042589E /* TabbarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52E2AD178130042589E /* TabbarViewController.swift */; };
 		C51AF53A2AD178130042589E /* SettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5302AD178130042589E /* SettingViewController.swift */; };
+		3F1E1E641068462999BC3829 /* AppReleaseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */; };
 		C51AF53B2AD178130042589E /* SplashViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5332AD178130042589E /* SplashViewController.swift */; };
 		C51AF53C2AD178130042589E /* Home.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5352AD178130042589E /* Home.storyboard */; };
 		C51AF53D2AD178130042589E /* Login.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5362AD178130042589E /* Login.storyboard */; };
@@ -255,6 +258,7 @@
 		C5FCEAAD2B7E5100007D6141 /* OrderDetailsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FCEAAC2B7E5100007D6141 /* OrderDetailsViewController.swift */; };
 		C5FCEAB12B87B888007D6141 /* PaymentView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C5FCEAAF2B87B888007D6141 /* PaymentView.xib */; };
 		C5FCEAB22B87B888007D6141 /* PaymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5FCEAB02B87B888007D6141 /* PaymentView.swift */; };
+		C65BDCC6FA934F9D994825E0 /* QueueLineViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE024E5D65A4DAA969B646F /* QueueLineViewController.swift */; };
 		DD0001A22FE5000000000002 /* WarningModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001A12FE5000000000001 /* WarningModel.swift */; };
 		DD0001A42FE5000000000004 /* WarningViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0001A32FE5000000000003 /* WarningViewController.swift */; };
 		DD0002A22FE5000000000012 /* SyncDeliveryPickupInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */; };
@@ -296,6 +300,8 @@
 		00B38B4A2F8518A0009D2059 /* CameraViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
 		00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateOrderNoteData.swift; sourceTree = "<group>"; };
 		00C23A7A2F87A3A0001BF048 /* LicenseTypeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseTypeViewController.swift; sourceTree = "<group>"; };
+		65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineModel.swift; sourceTree = "<group>"; };
+		7BE024E5D65A4DAA969B646F /* QueueLineViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineViewController.swift; sourceTree = "<group>"; };
 		C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreDatabaseManager.swift; sourceTree = "<group>"; };
 		C5044C772BBD5CD200A81242 /* CoreaDataModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreaDataModel.swift; sourceTree = "<group>"; };
 		C5044C782BBD5CD200A81242 /* DownloadFile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DownloadFile.swift; sourceTree = "<group>"; };
@@ -323,6 +329,7 @@
 		C51AF52D2AD178130042589E /* HomeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeViewController.swift; sourceTree = "<group>"; };
 		C51AF52E2AD178130042589E /* TabbarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TabbarViewController.swift; sourceTree = "<group>"; };
 		C51AF5302AD178130042589E /* SettingViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingViewController.swift; sourceTree = "<group>"; };
+		799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppReleaseModel.swift; sourceTree = "<group>"; };
 		C51AF5332AD178130042589E /* SplashViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SplashViewController.swift; sourceTree = "<group>"; };
 		C51AF5352AD178130042589E /* Home.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Home.storyboard; sourceTree = "<group>"; };
 		C51AF5362AD178130042589E /* Login.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Login.storyboard; sourceTree = "<group>"; };
@@ -521,6 +528,7 @@
 		DD0001A32FE5000000000003 /* WarningViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarningViewController.swift; sourceTree = "<group>"; };
 		DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeliveryPickupInputs.swift; sourceTree = "<group>"; };
 		EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKUserDefault.swift; sourceTree = "<group>"; };
+		F3A29B4D73DA4ACE902EE475 /* QueueLineStagePopup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineStagePopup.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -583,6 +591,16 @@
 				001D082A2E90005E004F4B13 /* kEnum.swift */,
 			);
 			path = "FileData Helper";
+			sourceTree = "<group>";
+		};
+		B598A3CCA77F4F8CBDCAB495 /* Queue Line Model */ = {
+			isa = PBXGroup;
+			children = (
+				7BE024E5D65A4DAA969B646F /* QueueLineViewController.swift */,
+				65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */,
+				F3A29B4D73DA4ACE902EE475 /* QueueLineStagePopup.swift */,
+			);
+			path = "Queue Line Model";
 			sourceTree = "<group>";
 		};
 		C5044C722BBD5CD200A81242 /* CoreData */ = {
@@ -723,6 +741,7 @@
 				C5D55B6D2B6C04B3006AEC63 /* Order Model */,
 				C51AF52F2AD178130042589E /* Setting Model */,
 				C5FCEA9D2B7C6A6F007D6141 /* Schedule Model */,
+				B598A3CCA77F4F8CBDCAB495 /* Queue Line Model */,
 			);
 			path = "Home Model";
 			sourceTree = "<group>";
@@ -731,6 +750,7 @@
 			isa = PBXGroup;
 			children = (
 				C51AF5302AD178130042589E /* SettingViewController.swift */,
+				799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */,
 			);
 			path = "Setting Model";
 			sourceTree = "<group>";
@@ -1891,6 +1911,10 @@
 				C51AF61E2AD178220042589E /* CLWaterWaveModel+Defaults.swift in Sources */,
 				C510D6CA2B567FF300D9871F /* ProductDetails.swift in Sources */,
 				C51AF53A2AD178130042589E /* SettingViewController.swift in Sources */,
+				3F1E1E641068462999BC3829 /* AppReleaseModel.swift in Sources */,
+				C65BDCC6FA934F9D994825E0 /* QueueLineViewController.swift in Sources */,
+				774BD89A95724C26A758D2E1 /* QueueLineModel.swift in Sources */,
+				79A13C531F31480F9DF79C68 /* QueueLineStagePopup.swift in Sources */,
 				C51AF5D82AD178220042589E /* EmptyDataView.swift in Sources */,
 				C5474AA12D8A996E004277AC /* RantalReadyVC.swift in Sources */,
 				C51AF5D62AD178220042589E /* AlertPopUp.swift in Sources */,
@@ -2114,7 +2138,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2137,7 +2161,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2156,7 +2180,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2179,7 +2203,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2195,7 +2219,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2207,7 +2231,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2224,7 +2248,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2236,7 +2260,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.5;
+				MARKETING_VERSION = 1.0.7;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

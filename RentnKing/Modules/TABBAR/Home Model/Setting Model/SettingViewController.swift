@@ -18,9 +18,12 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
     @IBOutlet weak var btnLogOut : UIButton!
     @IBOutlet weak var con_Button: NSLayoutConstraint!
 
-    /// App version banner shown below the Log Out button.
-    private let lblVersion = UILabel()
-    
+    /// About / release-notes section (built once, below the email).
+    private let aboutStack = UIStackView()
+
+    /// Release data now lives in the AppReleaseInfo model object.
+    private var releases: [AppRelease] { AppReleaseInfo.all }
+
     //SET NAVIGATION BAR
     @IBOutlet weak var con_NavigationBar : NSLayoutConstraint!
     @IBOutlet private weak var viewNavigation: NavigationBar!{
@@ -83,29 +86,84 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         self.viewLogOut.viewBorderCorneRadius(borderColour: .secondary)
         self.viewLogOut.viewCorneRadius(radius: 0, isRound: true)
 
-        //SET APP VERSION BANNER (below Log Out)
-        self.setupVersionLabel()
+        //SET ABOUT / RELEASE NOTES SECTION
+        self.setupAboutSection()
     }
 
-    /// Adds/updates the "Version x.y.z (build)" banner under the Log Out button.
-    func setupVersionLabel() {
-        if lblVersion.superview == nil {
-            lblVersion.translatesAutoresizingMaskIntoConstraints = false
-            self.view.addSubview(lblVersion)
-            NSLayoutConstraint.activate([
-                lblVersion.topAnchor.constraint(equalTo: viewLogOut.bottomAnchor, constant: 8),
-                lblVersion.centerXAnchor.constraint(equalTo: viewLogOut.centerXAnchor)
-            ])
+    /// Builds the About block: Version, Release Date, Release Notes list, Full Archive.
+    func setupAboutSection() {
+        guard aboutStack.superview == nil else { return }   // build once
+
+        let bold = GlobalMainConstants.APP_FONT_Roboto_Bold
+        let regular = GlobalMainConstants.APP_FONT_Roboto_Regular
+        let cyan = UIColor.secondary
+        let grayValue = UIColor.gray.withAlphaComponent(0.9)
+
+        // "Label:  value" — cyan label + gray value.
+        func keyValue(_ label: String, _ value: String) -> UILabel {
+            let l = UILabel(); l.numberOfLines = 0
+            let s = NSMutableAttributedString(string: label,
+                    attributes: [.foregroundColor: cyan, .font: SetTheFont(fontName: bold, size: 17)])
+            s.append(NSAttributedString(string: value,
+                    attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 16)]))
+            l.attributedText = s
+            return l
         }
 
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        let latest = AppReleaseInfo.latest
+        let versionLabel = keyValue("Version:  ", AppReleaseInfo.versionDisplay)
+        let releaseDateLabel = keyValue("Release Date:  ", latest?.date ?? "")
 
-        lblVersion.textAlignment = .center
-        lblVersion.configureLable(textColor: .gray.withAlphaComponent(0.8),
-                                  fontName: GlobalMainConstants.APP_FONT_Roboto_Regular,
-                                  fontSize: 13.0,
-                                  text: "Version \(version) (\(build))")
+        let notesHeader = UILabel()
+        notesHeader.attributedText = NSAttributedString(string: "Release Notes",
+                attributes: [.foregroundColor: cyan, .font: SetTheFont(fontName: bold, size: 18)])
+
+        let notesLabel = UILabel()
+        notesLabel.numberOfLines = 0
+        let notesPara = NSMutableParagraphStyle(); notesPara.lineSpacing = 6
+        notesLabel.attributedText = NSAttributedString(
+            string: (latest?.notes ?? []).map { "~ \($0)" }.joined(separator: "\n"),
+            attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 16),
+                         .paragraphStyle: notesPara])
+
+        let fullArchive = UIButton(type: .system)
+        fullArchive.setTitle("Full Archive", for: .normal)
+        fullArchive.titleLabel?.font = SetTheFont(fontName: bold, size: 16)
+        fullArchive.setTitleColor(cyan, for: .normal)
+        fullArchive.contentEdgeInsets = UIEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
+        fullArchive.layer.cornerRadius = 8
+        fullArchive.layer.borderWidth = 1.5
+        fullArchive.layer.borderColor = cyan.cgColor
+        fullArchive.addTarget(self, action: #selector(btnFullArchiveClicked), for: .touchUpInside)
+
+        aboutStack.axis = .vertical
+        aboutStack.alignment = .leading
+        aboutStack.spacing = 16
+        aboutStack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(aboutStack)
+
+        aboutStack.addArrangedSubview(versionLabel)
+        aboutStack.addArrangedSubview(releaseDateLabel)
+        aboutStack.addArrangedSubview(notesHeader)
+        aboutStack.addArrangedSubview(notesLabel)
+//        aboutStack.addArrangedSubview(fullArchive)
+        aboutStack.setCustomSpacing(24, after: releaseDateLabel)
+        aboutStack.setCustomSpacing(10, after: notesHeader)
+
+        NSLayoutConstraint.activate([
+            aboutStack.topAnchor.constraint(equalTo: lblEmail.bottomAnchor, constant: 28),
+            aboutStack.leadingAnchor.constraint(equalTo: lblName.leadingAnchor),
+            aboutStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
+        ])
+    }
+
+    @objc func btnFullArchiveClicked() {
+        // Present every past release (version, date, notes) in a scrollable dark sheet.
+        let archive = ReleaseArchiveViewController()
+        archive.entries = releases.map { ($0.version, $0.date, $0.notes) }
+        archive.modalPresentationStyle = .overFullScreen
+        archive.modalTransitionStyle = .crossDissolve
+        self.present(archive, animated: true)
     }
 }
 
@@ -167,5 +225,120 @@ extension SettingViewController{
         defaultsToExtension?.set("", forKey: "auth_token")
         defaultsToExtension?.synchronize()
     }
-    
+
+}
+
+
+// MARK: - Release Archive (all past versions + notes)
+
+final class ReleaseArchiveViewController: UIViewController {
+
+    /// (version, date, notes) — newest first.
+    var entries: [(version: String, date: String, notes: [String])] = []
+
+    private let bold = GlobalMainConstants.APP_FONT_Roboto_Bold
+    private let regular = GlobalMainConstants.APP_FONT_Roboto_Regular
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+
+        let cyan = UIColor.secondary
+        let grayValue = UIColor.gray.withAlphaComponent(0.9)
+
+        // Card
+        let card = UIView()
+        card.backgroundColor = .background
+        card.layer.cornerRadius = 16
+        card.layer.borderWidth = 1
+        card.layer.borderColor = cyan.withAlphaComponent(0.35).cgColor
+        card.clipsToBounds = true
+        card.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(card)
+
+        // Header row: title + close
+        let title = UILabel()
+        title.attributedText = NSAttributedString(string: "Release Archive",
+                attributes: [.foregroundColor: cyan, .font: SetTheFont(fontName: bold, size: 19)])
+
+        let close = UIButton(type: .system)
+        close.setImage(UIImage(systemName: "xmark"), for: .normal)
+        close.tintColor = grayValue
+        close.setContentHuggingPriority(.required, for: .horizontal)
+        close.widthAnchor.constraint(equalToConstant: 26).isActive = true
+        close.addTarget(self, action: #selector(closeTapped), for: .touchUpInside)
+
+        let headerRow = UIStackView(arrangedSubviews: [title, UIView(), close])
+        headerRow.axis = .horizontal
+        headerRow.alignment = .center
+
+        // Scrollable list of releases
+        let contentStack = UIStackView()
+        contentStack.axis = .vertical
+        contentStack.alignment = .fill
+        contentStack.spacing = 22
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+
+        for entry in entries {
+            contentStack.addArrangedSubview(releaseBlock(entry, cyan: cyan, grayValue: grayValue))
+        }
+
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.showsVerticalScrollIndicator = true
+        scroll.addSubview(contentStack)
+
+        let outer = UIStackView(arrangedSubviews: [headerRow, scroll])
+        outer.axis = .vertical
+        outer.spacing = 16
+        outer.isLayoutMarginsRelativeArrangement = true
+        outer.layoutMargins = UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
+        outer.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(outer)
+
+        NSLayoutConstraint.activate([
+            card.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            card.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            card.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            card.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            card.topAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.topAnchor, constant: 30),
+            card.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -30),
+
+            outer.topAnchor.constraint(equalTo: card.topAnchor),
+            outer.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+            outer.leadingAnchor.constraint(equalTo: card.leadingAnchor),
+            outer.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+
+            contentStack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            contentStack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            contentStack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor),
+            contentStack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor),
+        ])
+    }
+
+    private func releaseBlock(_ entry: (version: String, date: String, notes: [String]),
+                              cyan: UIColor, grayValue: UIColor) -> UIView {
+        let head = UILabel()
+        head.numberOfLines = 0
+        let s = NSMutableAttributedString(string: "Version \(entry.version)",
+                attributes: [.foregroundColor: cyan, .font: SetTheFont(fontName: bold, size: 17)])
+        s.append(NSAttributedString(string: "   \(entry.date)",
+                attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 14)]))
+        head.attributedText = s
+
+        let notes = UILabel()
+        notes.numberOfLines = 0
+        let para = NSMutableParagraphStyle(); para.lineSpacing = 6
+        notes.attributedText = NSAttributedString(
+            string: entry.notes.map { "~ \($0)" }.joined(separator: "\n"),
+            attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 15),
+                         .paragraphStyle: para])
+
+        let block = UIStackView(arrangedSubviews: [head, notes])
+        block.axis = .vertical
+        block.spacing = 8
+        return block
+    }
+
+    @objc private func closeTapped() { dismiss(animated: true) }
 }

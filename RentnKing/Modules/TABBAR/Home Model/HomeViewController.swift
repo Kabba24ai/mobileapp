@@ -172,6 +172,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.imgCRM.image      = UIImage(systemName: "person.2", withConfiguration: lineIconConfig)               // CRM → people
         self.imgEcommerce.image = UIImage(systemName: "cart", withConfiguration: lineIconConfig)                  // Orders → cart
         self.imgProducts.image = UIImage(systemName: "wrench.and.screwdriver", withConfiguration: lineIconConfig) // Equipment → tools
+        self.imgInStore.image = UIImage(systemName: "rectangle.stack", withConfiguration: lineIconConfig)        // Queue Line → stacked cards
 
         //SET IMG
         imgColor(imgColor: self.imgEcommerce, colorHex: .secondary)
@@ -263,17 +264,25 @@ extension HomeViewController{
     }
     
     @IBAction func btnScheduleClicked(_ sender: UIButton) {
-        
-        //MOVE SCHEDULE SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ScheduleListViewController") as? ScheduleListViewController{
-            
-            if sender.tag == 1{
-                newViewController.selectDeliveryType = "Store"
-                newViewController.inStoreDelviery = true
-            }
+        if sender.tag == 1{
+            //MOVE QUEUE LINE SCREEN (programmatic — not in a storyboard)
+            let newViewController = QueueLineViewController()
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
+        else{
+            //MOVE SCHEDULE SCREEN
+            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
+            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ScheduleListViewController") as? ScheduleListViewController{
+                
+//                if sender.tag == 1{
+//                    newViewController.selectDeliveryType = "Store"
+//                    newViewController.inStoreDelviery = true
+//                }
+                self.navigationController?.pushViewController(newViewController, animated: true)
+            }
+
+        }
+        
     }
     
     

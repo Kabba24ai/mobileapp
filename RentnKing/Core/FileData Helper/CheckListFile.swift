@@ -44,6 +44,16 @@ func getChecklistData() -> [[String: Any]]? {
 }
 
 
+/// Appends new checklist submissions to the EXISTING local queue instead of
+/// overwriting it, so back-to-back / concurrent submissions are never lost while
+/// an earlier upload is still in flight. Then persists and triggers the uploader.
+func appendChecklistData(_ newItems: [[String: Any]]) {
+    var queue = getChecklistData() ?? []
+    queue.append(contentsOf: newItems)
+    saveArrayWithImages(queue)
+}
+
+
 func saveArrayWithImages(_ array: [[String: Any]]) {
     var safeArray = [[String: Any]]()
 

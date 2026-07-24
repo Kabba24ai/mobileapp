@@ -42,6 +42,9 @@ struct MachineModel: Mappable{
     internal var arrAnswerCheckList: [CustomerCheckListModel]?
     internal var equipment_store: StoreOptionsModel?
 
+    internal var is_fuel: Bool?
+    internal var is_key: Bool?
+
     init?(map:Map) {
         mapping(map: map)
     }
@@ -72,6 +75,8 @@ struct MachineModel: Mappable{
         arrAnswerCheckList <- map["checklist_qas"]
         equipment_hours <- map["equipment_hours"]
         equipment_store <- map["equipment_store"]
+        is_fuel <- map["is_fuel"]
+        is_key <- map["is_key"]
     }
 }
 

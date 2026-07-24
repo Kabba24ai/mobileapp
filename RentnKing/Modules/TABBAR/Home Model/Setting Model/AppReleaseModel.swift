@@ -1,0 +1,68 @@
+//
+//  AppReleaseModel.swift
+//  RentnKing
+//
+//  Release-notes model + provider. The newest release derives its version and
+//  date automatically from the app bundle / build, so bumping the build in
+//  Xcode is enough — no manual edits to the version or date here.
+//
+
+import Foundation
+
+/// One release entry shown in Settings → About / Full Archive.
+struct AppRelease {
+    let version: String
+    let date: String
+    let notes: [String]
+}
+
+/// Central source of app version + release notes.
+enum AppReleaseInfo {
+
+    /// Marketing version from the bundle, e.g. "1.0.7".
+    static var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
+    /// Build number from the bundle, e.g. "1001".
+    static var build: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+    }
+
+    /// "1.0.7 (1001)" — shown next to "Version:".
+    static var versionDisplay: String { "\(version) (\(build))" }
+
+    /// The date the app binary was built, formatted "Fri - July 24 - 2026".
+    static var buildDate: String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "EEE - MMMM d - yyyy"
+        return fmt.string(from: buildDateRaw ?? Date())
+    }
+
+    /// Build timestamp, read from the compiled Info.plist's modification date.
+    private static var buildDateRaw: Date? {
+        guard let infoPath = Bundle.main.path(forResource: "Info", ofType: "plist"),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: infoPath),
+              let date = attrs[.modificationDate] as? Date else { return nil }
+        return date
+    }
+
+    /// All releases, NEWEST FIRST.
+    /// The newest entry uses the automatic version + build date; add older
+    /// releases below it with their historical (hardcoded) version and date.
+    static let all: [AppRelease] = [
+        AppRelease(version: version, date: buildDate, notes: [
+            "New Queue Line module for staging equipment (Pending / Staged / Completed)",
+            "Fixed an issue where some checklist submissions did not sync to the server",
+            "Checklist reports now upload reliably and retry automatically when back online",
+            "Automatic cleanup of uploaded photos & videos to save device storage",
+            "Stability improvements and bug fixes",
+        ]),
+        // Older releases go here, e.g.:
+        // AppRelease(version: "1.0.6", date: "Wed - July 22 - 2026", notes: [ ... ]),
+    ]
+
+    /// The current (newest) release.
+    static var latest: AppRelease? { all.first }
+}

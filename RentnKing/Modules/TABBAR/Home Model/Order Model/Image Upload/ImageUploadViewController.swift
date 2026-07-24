@@ -395,49 +395,35 @@ extension ImageUploadViewController {
             
 
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                //SAVE IMAGE
-                if obj.type == "img"{
-                    let imageName = "\(self.strOrderID)_\(Date().timeIntervalSince1970).jpg"
-                    if self.saveImage(dataPath: uploadPath, image: obj.image, orderID: self.strOrderID, imageName: imageName){
-                        
-                        print(obj.productId)
-                        
-                        let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: true, name: imageName, videoType: self.strType, productID: obj.productId)
-                         
+                // Compress + write OFF the main thread (video export can take a while),
+                // then hop back to main for the Core Data save + recursion (UI-safe).
+                DispatchQueue.global(qos: .userInitiated).async {
+
+                    let isImage = (obj.type == "img")
+                    let fileName = isImage
+                        ? "\(self.strOrderID)_\(Date().timeIntervalSince1970).jpg"
+                        : "\(self.strOrderID)_\(Date().timeIntervalSince1970).mov"
+
+                    let saved = isImage
+                        ? self.saveImage(dataPath: uploadPath, image: obj.image, orderID: self.strOrderID, imageName: fileName)
+                        : self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: fileName)
+
+                    DispatchQueue.main.async {
+                        guard saved else {
+                            self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                            return
+                        }
+
+                        let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: isImage, name: fileName, videoType: self.strType, productID: obj.productId)
+
                         CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: saveParams) { isSave in
                             if isSave{
                                 //REMOVE
                                 arrData.remove(at: 0)
 
                                 self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
-
                             }
                         }
-                    }
-                    else{
-                        self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
-                    }
-                }
-                else{
-                    //SAVE VIDEO
-                    let videoName = "\(self.strOrderID)_\(Date().timeIntervalSince1970).mov"
-                    if self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: videoName) {
-                        
-                        let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: false, name: videoName, videoType: self.strType, productID: obj.productId)
-                        
-                        CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: saveParams) { isSave in
-                         
-                            if isSave{
-                                //REMOVE
-                                arrData.remove(at: 0)
-
-                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
-
-                            }
-                        }
-                    }
-                    else{
-                        self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
                     }
                 }
             }
@@ -462,10 +448,11 @@ extension ImageUploadViewController {
 
     
     func saveImage(dataPath : URL, image: UIImage, orderID : String, imageName : String) -> Bool {
-        guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
+        // Compress before storing locally (was quality 1 / raw PNG — huge on disk).
+        guard let data = image.jpegData(compressionQuality: 0.25) else {
             return false
         }
-      
+
         do {
             try data.write(to: dataPath.appendingPathComponent(imageName))
             return true
@@ -476,17 +463,30 @@ extension ImageUploadViewController {
     }
 
     func saveVideo(dataPath : URL, videoURL: URL, orderID : String, videoName : String) -> Bool {
+        // Export a compressed copy instead of storing the raw video (raw clips are 100-400 MB).
+        // Must run OFF the main thread — this method is called from a background queue.
+        let asset = AVURLAsset(url: videoURL)
+        let destURL = dataPath.appendingPathComponent(videoName)
+        try? FileManager.default.removeItem(at: destURL)
 
-        do {
-            let videoData = try Data(contentsOf: videoURL)
-            print(videoData)
-            try videoData.write(to: dataPath.appendingPathComponent(videoName), options: .atomic)
-            return true
-        } catch {
-            print("Error")
+        guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetMediumQuality) else {
             return false
         }
-       
+        export.outputURL = destURL
+        export.outputFileType = .mov
+        export.shouldOptimizeForNetworkUse = true
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var success = false
+        export.exportAsynchronously {
+            success = (export.status == .completed)
+            if !success {
+                print("Video export failed: \(export.error?.localizedDescription ?? "unknown")")
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return success
     }
 
     

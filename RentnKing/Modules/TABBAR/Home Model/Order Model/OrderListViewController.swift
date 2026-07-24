@@ -740,11 +740,12 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             imgColor(imgColor: cell.imgPhotVideoDeli, colorHex: .secondary)
             
             let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.unique_id ?? "", strType: uploadType.video_image.rawValue,strVideoType: "delivery")
-            if self.imageVideoDeliveryUpload(selectIndex: indexPath.row) || arrDataVideoDelivery.count != 0{
+            if objData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0{
                 cell.lblPhotVideoDeli.textColor = .background
                 imgColor(imgColor: cell.imgPhotVideoDeli, colorHex: .background)
                 cell.viewPhotVideoDeli.backgroundColor = .secondary
             }
+     
             
             //PHOT/VIDEO RETURN
             cell.viewPhotVideoRet.backgroundColor = .clear
@@ -752,7 +753,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             imgColor(imgColor: cell.imgPhotVideoRet, colorHex: .secondary)
 
             let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.unique_id ?? "", strType: uploadType.video_image.rawValue,strVideoType: "pickup")
-            if  self.imageVideoReturnUpload(selectIndex: indexPath.row) || arrDataVideoReturn.count != 0{
+            if  objData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0{
                 cell.lblPhotVideoRet.textColor = .background
                 imgColor(imgColor: cell.imgPhotVideoRet, colorHex: .background)
                 cell.viewPhotVideoRet.backgroundColor = .secondary
@@ -1089,35 +1090,35 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
     }
     
-    func imageVideoDeliveryUpload(selectIndex: Int)->Bool{
-        if self.arrOrderList.count == 0{
-            return false
-        }
-        
-        var objData = self.arrOrderList[selectIndex]
-        for obj in objData.arrProduct{
-            if obj.arrDeliveryMedia.count == 0{
-                return false
-            }
-        }
-        
-        return true
-    }
+//    func imageVideoDeliveryUpload(selectIndex: Int)->Bool{
+//        if self.arrOrderList.count == 0{
+//            return false
+//        }
+//
+//        var objData = self.arrOrderList[selectIndex]
+//        for obj in objData.arrProduct{
+//            if obj.arrDeliveryMedia.count == 0{
+//                return false
+//            }
+//        }
+//        
+//        return true
+//    }
     
-    func imageVideoReturnUpload(selectIndex: Int)->Bool{
-        if self.arrOrderList.count == 0{
-            return false
-        }
-        
-        var objData = self.arrOrderList[selectIndex]
-        for obj in objData.arrProduct{
-            if obj.arrPickupMedia.count == 0{
-                return false
-            }
-        }
-        
-        return true
-    }
+//    func imageVideoReturnUpload(selectIndex: Int)->Bool{
+//        if self.arrOrderList.count == 0{
+//            return false
+//        }
+//        
+//        var objData = self.arrOrderList[selectIndex]
+//        for obj in objData.arrProduct{
+//            if obj.arrPickupMedia.count == 0{
+//                return false
+//            }
+//        }
+//        
+//        return true
+//    }
     
     
     func checkProductType(arrData : [ProductModel]) -> Bool{
