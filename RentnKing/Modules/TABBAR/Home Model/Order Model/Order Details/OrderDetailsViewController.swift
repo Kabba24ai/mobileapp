@@ -398,7 +398,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         let alert = UIAlertController(title: Application.appName, message: "Are you sure you want to delete this note?", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
             
-//            if NetworkReachabilityManager()!.isReachable {
+//            if NetworkReachabilityManager()?.isReachable == true {
 //                //CALL API
 //                RentnKing.deleteNote(struniqueID: objDate.unique_id ?? "", note_id: 0) { is_success in
 //                    

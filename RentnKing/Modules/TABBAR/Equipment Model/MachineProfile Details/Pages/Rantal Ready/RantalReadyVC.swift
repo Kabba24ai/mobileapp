@@ -58,7 +58,7 @@ class RantalReadyVC: UIViewController {
 
         //GET SATA
         if self.isQueueLine{
-            self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(equipment_unique_id: self.strID))
+//            self.getRentalReadyAPI(RentalIDParameater: RentalIDParameater(equipment_unique_id: self.strID))
         }
         
 
@@ -266,29 +266,28 @@ extension RantalReadyVC{
             return
         }
         else {
-            let strHours = Int(self.txtMachineHr.text ?? "") ?? 0
+//            let strHours = Int(self.txtMachineHr.text ?? "") ?? 0
+//            
+//            var dic_Equipment = SubmitEqipmentModel.init(JSON: [:])
+//            dic_Equipment?.id = Int(randomNumber(length: 5))
+//            dic_Equipment?.status = kOrderStatusType.kPending.rawValue
+//            dic_Equipment?.equipment_unique_id = self.strID
+//            dic_Equipment?.user_id = self.selectTequID
+//            dic_Equipment?.user_name = self.selectTequserName
+//            dic_Equipment?.equipment_hours = "\(strHours)"
+//            dic_Equipment?.checklist = self.getRentalReadyArray()
+//            dic_Equipment?.equipment_status = sender.accessibilityValue ?? ""
+//            self.updateDataNoInternetCase(equipmet_dic: dic_Equipment)
+//            
+//            self.navigationController?.popViewController(animated: true)
+//
+//            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+//                showAlertMessage(strMessage: "Updated successfully.")
+//                NotificationCenter.default.post(name: .refreshMachineProfileList, object: nil)
+//            }
             
-            var dic_Equipment = SubmitEqipmentModel.init(JSON: [:])
-            dic_Equipment?.id = Int(randomNumber(length: 5))
-            dic_Equipment?.status = kOrderStatusType.kPending.rawValue
-            dic_Equipment?.equipment_unique_id = self.strID
-            dic_Equipment?.user_id = self.selectTequID
-            dic_Equipment?.user_name = self.selectTequserName
-            dic_Equipment?.equipment_hours = "\(strHours)"
-            dic_Equipment?.checklist = self.getRentalReadyArray()
-            dic_Equipment?.equipment_status = sender.accessibilityValue ?? ""
-            self.updateDataNoInternetCase(equipmet_dic: dic_Equipment)
             
-            self.navigationController?.popViewController(animated: true)
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                showAlertMessage(strMessage: "Updated successfully.")
-                NotificationCenter.default.post(name: .refreshMachineProfileList, object: nil)
-            }
-            
-            /*
              //TEMP COMMENT
-
             let dicData : [String : Any] = [
                 "equipment_unique_id": self.strID,
                 "user_id": self.selectTequID,
@@ -297,7 +296,7 @@ extension RantalReadyVC{
             ]
             
             self.updateRentalReady(dicRentalReadyList: dicData)
-            */
+            
         }
     }
     

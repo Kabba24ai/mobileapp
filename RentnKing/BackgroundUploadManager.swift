@@ -50,6 +50,17 @@ final class BackgroundUploader: NSObject {
     // Buffer response bodies per taskIdentifier
     private var buffers: [Int: Data] = [:]
 
+    // Temp multipart body file per taskIdentifier, so it can be deleted when the task finishes.
+    private var bodyFiles: [Int: URL] = [:]
+
+    // Guards completions / buffers / bodyFiles — they're touched from the caller's thread
+    // and from the URLSession delegate queue, so all access must be serialized.
+    private let stateLock = NSLock()
+    private func sync<T>(_ block: () -> T) -> T {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return block()
+    }
+
     // Persist/restore the set of pending uploads across launches
     private let pendingKey = "bg.pending.uploads"
 
@@ -105,13 +116,10 @@ final class BackgroundUploader: NSObject {
         let task = session.uploadTask(with: req, fromFile: bodyFileURL)
         task.taskDescription = id
 
-        // Remember completion for this process run
-        completions[task.taskIdentifier] = { [weak self] result in
-            // Clean temp file and state
-            try? FileManager.default.removeItem(at: bodyFileURL)
-            self?.completions[task.taskIdentifier] = nil
-            self?.removePending(id: id)
-            completion(result)
+        // Remember completion + body file for this task; cleanup happens in didCompleteWithError.
+        sync {
+            self.completions[task.taskIdentifier] = completion
+            self.bodyFiles[task.taskIdentifier] = bodyFileURL
         }
 
         // Persist so we can restore after relaunch
@@ -159,13 +167,11 @@ final class BackgroundUploader: NSObject {
         let task = session.uploadTask(with: req, fromFile: bodyFileURL)
         task.taskDescription = id
         
-        completions[task.taskIdentifier] = { [weak self] result in
-            try? FileManager.default.removeItem(at: bodyFileURL)
-            self?.completions[task.taskIdentifier] = nil
-            self?.removePending(id: id)
-            completion(result)
+        sync {
+            self.completions[task.taskIdentifier] = completion
+            self.bodyFiles[task.taskIdentifier] = bodyFileURL
         }
-        
+
         if let first = parts.first {
             let rec = UploadRecord(id: id, endpoint: endpoint, filePath: first.fileURL.path, mimeType: first.mimeType, fieldName: first.fieldName, fileName: first.fileName, extraParams: params)
             persistPending(rec)
@@ -179,8 +185,12 @@ final class BackgroundUploader: NSObject {
     /// Restore in-flight tasks after launch and reattach progress buffers.
     func restoreInFlightTasks(_ onComplete: @escaping ([URLSessionTask]) -> Void) {
         session.getAllTasks { tasks in
+            self.sync {
+                for t in tasks {
+                    self.buffers[t.taskIdentifier] = Data()
+                }
+            }
             for t in tasks {
-                self.buffers[t.taskIdentifier] = Data()
                 self.observeProgress(for: t)
             }
             print("Restored \(tasks.count) background tasks")
@@ -230,8 +240,10 @@ final class BackgroundUploader: NSObject {
 
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         guard keyPath == #keyPath(Progress.fractionCompleted), let progress = object as? Progress else { return }
-        // We can’t get id here reliably; broadcast by taskIdentifier, and UI can map using restore or your own store.
-        NotificationCenter.default.post(name: .bgUploadProgress, object: nil, userInfo: ["id": "unknown", "progress": progress.fractionCompleted])
+        // Recover the task identifier from the KVO context (set in observeProgress) so the UI can
+        // map progress to a specific upload — previously this always posted "unknown".
+        let id = String(Int(bitPattern: context))
+        NotificationCenter.default.post(name: .bgUploadProgress, object: nil, userInfo: ["id": id, "progress": progress.fractionCompleted])
     }
 }
 
@@ -245,15 +257,30 @@ extension BackgroundUploader: URLSessionDelegate, URLSessionTaskDelegate, URLSes
 
     // Collect server response data
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        buffers[dataTask.taskIdentifier, default: Data()].append(data)
+        sync {
+            buffers[dataTask.taskIdentifier, default: Data()].append(data)
+        }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let tid = task.taskIdentifier
         defer {
-            if let ctx = UnsafeMutableRawPointer(bitPattern: task.taskIdentifier) {
+            if let ctx = UnsafeMutableRawPointer(bitPattern: tid) {
                 task.progress.removeObserver(self, forKeyPath: #keyPath(Progress.fractionCompleted), context: ctx)
             }
-            buffers[task.taskIdentifier] = nil
+            // Task is terminal — delete the temp multipart body file, clear per-task
+            // state, and drain the persisted pending record. Previously none of this ran
+            // (the completion that did it was never invoked), so temp files and
+            // bg.pending.uploads grew without bound.
+            self.sync {
+                if let body = self.bodyFiles[tid] {
+                    try? FileManager.default.removeItem(at: body)
+                    self.bodyFiles[tid] = nil
+                }
+                self.buffers[tid] = nil
+                self.completions[tid] = nil
+            }
+            if let doneID = task.taskDescription { self.removePending(id: doneID) }
         }
 
         guard let id = task.taskDescription else { return }
@@ -275,7 +302,7 @@ extension BackgroundUploader: URLSessionDelegate, URLSessionTaskDelegate, URLSes
             return
         }
 
-        let body = buffers[task.taskIdentifier] ?? Data()
+        let body = self.sync { self.buffers[tid] ?? Data() }
 
         if http.statusCode == 200 {
             // ✅ Upload success → update DB

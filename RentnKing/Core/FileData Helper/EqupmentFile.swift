@@ -14,27 +14,36 @@ struct EquipmentParameater: Codable {
     var search : String?
     var store_id : String?
     var currently_assigned : Int?
+    var category : String?
+    var status : String?
+    var page : String?
+    var per_page : String = "\(Application.PageOrderLimit)"
 }
 
 // MARK: - Get Equipment List
 func getEquipmentList(strType : String = "Checklist", int_assigned: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
     
-    if !getEquipmentData().isEmpty {
-        completion(getEquipmentData())
+    if !getEquipmentData(strType: strType).isEmpty {
+        completion(getEquipmentData(strType: strType))
     }
     
     CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType, search: "", store_id: "", currently_assigned: int_assigned)) { isSaved in
         if isSaved {
-            completion(getEquipmentData())
+            completion(getEquipmentData(strType: strType))
         } else {
             completion([])
         }
     }
 }
 
-func getFilterEquipmentList(strType : String = "Checklist", str_search: String? = "", str_store_id: String = "", int_assigned: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
+func getFilterEquipmentList(strType : String = "Checklist", str_search: String? = "", str_store_id: String = "", int_assigned: Int = 1, str_category: String = "", str_status: String = "", pageCount: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
         
-    CallAPIforGetEquipmentListWithSearch(EquipmentParameater: EquipmentParameater(type: strType, search: str_search, store_id: str_store_id, currently_assigned: int_assigned)) { arr_data in
+    var strCategoryValue = str_category
+    if str_category == "0" {
+        strCategoryValue = ""
+    }
+    
+    CallAPIforGetEquipmentListWithSearch(EquipmentParameater: EquipmentParameater(type: strType, search: str_search, store_id: str_store_id, currently_assigned: int_assigned, category: strCategoryValue, status: str_status, page: "\(pageCount)")) { arr_data in
         if arr_data.count != 0 {
             completion(arr_data)
         } else {
@@ -45,8 +54,8 @@ func getFilterEquipmentList(strType : String = "Checklist", str_search: String? 
 
 
 
-func getEquipmentData() -> [MachineModel] {
-    if let arr = SDKUserDefault.getMappableArray(MachineModel.self, for: kFileStorageName.kEquipmentList.rawValue) {
+func getEquipmentData(strType : String = "Checklist") -> [MachineModel] {
+    if let arr = SDKUserDefault.getMappableArray(MachineModel.self, for: strType == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue) {
         return arr
     }
     return []
@@ -55,14 +64,19 @@ func getEquipmentData() -> [MachineModel] {
 
 func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, completion: @escaping (Bool) -> Void) {
 
-    guard let parameater = try? EquipmentParameater.asDictionary() else {
+    guard var parameater = try? EquipmentParameater.asDictionary() else {
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
     
     //Declaration URL
-    let strURL = "\(Url.equipmentList.absoluteString!)"
+    var strURL = "\(Url.equipmentList.absoluteString!)"
 
+    if EquipmentParameater.type == "RentalReady" {
+        strURL = "\(Url.equipmentRentalReadyList.absoluteString!)"
+        parameater.removeValue(forKey: "type")
+    }
+    
     //Create object for webservicehelper and start to call method
     let webHelper = WebServiceHelper()
     webHelper.methodType = "post"
@@ -78,10 +92,13 @@ func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, compl
             if let arrData = data?["equipment"] as? NSArray {
                 
                 var arrData = Mapper<MachineModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
+                
+                if EquipmentParameater.type != "RentalReady" {
+                    arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
+                }
                 
                 //SAVE ARRAY
-                SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEquipmentList.rawValue)
+                SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue)
                 completion(true)
             }
         }
@@ -91,13 +108,24 @@ func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, compl
 
 func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParameater, completion: @escaping ([MachineModel]) -> Void) {
 
-    guard let parameater = try? EquipmentParameater.asDictionary() else {
+    guard var parameater = try? EquipmentParameater.asDictionary() else {
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
     
     //Declaration URL
-    let strURL = "\(Url.equipmentList.absoluteString!)"
+    var strURL = "\(Url.equipmentList.absoluteString!)"
+    
+    if EquipmentParameater.type == "RentalReady" {
+        parameater.removeValue(forKey: "type")
+        strURL = "\(Url.equipmentRentalReadyList.absoluteString!)"
+    }
+    else {
+        parameater.removeValue(forKey: "status")
+        parameater.removeValue(forKey: "category")
+    }
+    
+    print("API URL====>>\(strURL)\n\nParams:=====>>\(parameater)")
 
     //Create object for webservicehelper and start to call method
     let webHelper = WebServiceHelper()
@@ -110,11 +138,16 @@ func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParamea
     webHelper.indicatorShowOrHide = false
     webHelper.callAPIwithCompletation { data, arr, isDic, error in
         
+        
         if data?.getStringForID(key: "success") == "1" {
             if let arrData = data?["equipment"] as? NSArray {
                 
                 var arrData = Mapper<MachineModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
+                
+                if EquipmentParameater.type != "RentalReady" {
+                    arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
+                }
+
                 completion(arrData)
             }
         }

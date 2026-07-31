@@ -47,6 +47,7 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     var bgAlpha: CGFloat = 0.5
     var selectFilterIndex : Int = 1
     var screenFromCustomer = false
+    var EquipmentType : String = "Checklist"
     
     
     var arrSelectedTag = [String]()
@@ -146,6 +147,7 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
             self.lblCaregory.textAlignment = .center
         }
         else {
+            self.viewService.isHidden = true
             self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Category")
             self.lblCaregory.textAlignment = .center
             
@@ -384,7 +386,7 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
             }
         }
         else if self.selectFilterIndex == 2{
-            self.selectStatus = self.arrStatues[indexPath.row].text?.lowercased() ?? ""
+            self.selectStatus = self.arrStatues[indexPath.row].text ?? ""
         }
         else if self.selectFilterIndex == 3{
             self.selectService = self.arrServices[indexPath.row].value?.lowercased() ?? ""

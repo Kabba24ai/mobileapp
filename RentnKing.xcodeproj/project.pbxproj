@@ -16,6 +16,7 @@
 		00B38B4B2F8518A3009D2059 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00B38B4A2F8518A0009D2059 /* CameraViewController.swift */; };
 		00BF1D162E9F772A00EDDEC7 /* UpdateOrderNoteData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */; };
 		00C23A7B2F87A3A0001BF048 /* LicenseTypeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C23A7A2F87A3A0001BF048 /* LicenseTypeViewController.swift */; };
+		3F1E1E641068462999BC3829 /* AppReleaseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */; };
 		774BD89A95724C26A758D2E1 /* QueueLineModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */; };
 		79A13C531F31480F9DF79C68 /* QueueLineStagePopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A29B4D73DA4ACE902EE475 /* QueueLineStagePopup.swift */; };
 		C5044C7F2BBD5CD300A81242 /* CoreDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */; };
@@ -43,7 +44,6 @@
 		C51AF5382AD178130042589E /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52D2AD178130042589E /* HomeViewController.swift */; };
 		C51AF5392AD178130042589E /* TabbarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52E2AD178130042589E /* TabbarViewController.swift */; };
 		C51AF53A2AD178130042589E /* SettingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5302AD178130042589E /* SettingViewController.swift */; };
-		3F1E1E641068462999BC3829 /* AppReleaseModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */; };
 		C51AF53B2AD178130042589E /* SplashViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5332AD178130042589E /* SplashViewController.swift */; };
 		C51AF53C2AD178130042589E /* Home.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5352AD178130042589E /* Home.storyboard */; };
 		C51AF53D2AD178130042589E /* Login.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5362AD178130042589E /* Login.storyboard */; };
@@ -301,6 +301,7 @@
 		00BF1D152E9F771A00EDDEC7 /* UpdateOrderNoteData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateOrderNoteData.swift; sourceTree = "<group>"; };
 		00C23A7A2F87A3A0001BF048 /* LicenseTypeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseTypeViewController.swift; sourceTree = "<group>"; };
 		65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineModel.swift; sourceTree = "<group>"; };
+		799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppReleaseModel.swift; sourceTree = "<group>"; };
 		7BE024E5D65A4DAA969B646F /* QueueLineViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineViewController.swift; sourceTree = "<group>"; };
 		C5044C762BBD5CD200A81242 /* CoreDatabaseManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreDatabaseManager.swift; sourceTree = "<group>"; };
 		C5044C772BBD5CD200A81242 /* CoreaDataModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CoreaDataModel.swift; sourceTree = "<group>"; };
@@ -329,7 +330,6 @@
 		C51AF52D2AD178130042589E /* HomeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeViewController.swift; sourceTree = "<group>"; };
 		C51AF52E2AD178130042589E /* TabbarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TabbarViewController.swift; sourceTree = "<group>"; };
 		C51AF5302AD178130042589E /* SettingViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingViewController.swift; sourceTree = "<group>"; };
-		799AC57816CD4A67BEA2D2AC /* AppReleaseModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppReleaseModel.swift; sourceTree = "<group>"; };
 		C51AF5332AD178130042589E /* SplashViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SplashViewController.swift; sourceTree = "<group>"; };
 		C51AF5352AD178130042589E /* Home.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Home.storyboard; sourceTree = "<group>"; };
 		C51AF5362AD178130042589E /* Login.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Login.storyboard; sourceTree = "<group>"; };
@@ -2138,7 +2138,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1002;
+				CURRENT_PROJECT_VERSION = 1000;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2161,7 +2161,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.7;
+				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2180,7 +2180,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1002;
+				CURRENT_PROJECT_VERSION = 1000;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2203,7 +2203,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.7;
+				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2219,7 +2219,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1002;
+				CURRENT_PROJECT_VERSION = 1000;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2231,7 +2231,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.7;
+				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2248,7 +2248,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1002;
+				CURRENT_PROJECT_VERSION = 1000;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2260,7 +2260,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.7;
+				MARKETING_VERSION = 1.0.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

@@ -185,7 +185,7 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
             if strRequest == "customerCheckList"{
                 if let arrData = data["customer_checklist_questions"] as? NSArray{
                     
-                    let arrData = Mapper<CustomerCheckListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    let arrData = Mapper<CustomerCheckListModel>().mapArray(JSONArray: (arrData as? [[String : Any]]) ?? [])
 
                     //GET EQUIPMENT
                     let map = Map(mappingType: .fromJSON, JSON: [:])

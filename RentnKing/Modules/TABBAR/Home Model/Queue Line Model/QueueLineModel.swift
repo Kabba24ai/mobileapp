@@ -37,6 +37,7 @@ struct QueueLineModel: Mappable {
     internal var readiness: String?
     internal var staged_by: String?     // employee who staged it (Entered By)
     internal var staged_at: String?     // timestamp it was staged
+    internal var is_fast_track: Bool?   // FAST TRACK tag (shown on Completed cards)
 
     init?(map: Map) { mapping(map: map) }
 
@@ -66,6 +67,7 @@ struct QueueLineModel: Mappable {
         readiness        <- map["readiness"]
         staged_by        <- map["staged_by"]
         staged_at        <- map["staged_at"]
+        is_fast_track    <- map["is_fast_track"]
     }
 }
 

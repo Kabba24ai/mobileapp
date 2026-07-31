@@ -41,6 +41,7 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var arrOtherData : [NoteModel] = []
     var objCheckListPrice : CheckListPriceModel!
     var arrPriceList : [PriceListModel] = []
+    var arrProductSettingList : [PriceListModel] = []
 
     var selectIndex : Int = -1
     var strOrderID : String = ""
@@ -131,6 +132,10 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         //GET PRICE LIST
         getPriceList { arr_data in
             self.arrPriceList = arr_data
+        }
+        
+        getProductSettingList { arr_data in
+            self.arrProductSettingList = arr_data
         }
     }
     
@@ -342,6 +347,7 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     
                     dicData = [
                         "order_product_unique_id": obj.unique_id ?? "",
+                        "order_unique_id": self.strOrderUniqueId,   // carried so we can clean up this order's media after the Return save
                         "equipment_unique_id": obj.objMachine?.unique_id ?? "",
                         "checklist[]": strCheckList,
 
@@ -536,7 +542,11 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
                 for (index,obj) in objProduct.arrQuestions.enumerated(){
                     var objQuestion = obj
                     if objQuestion.type == "text"{
-                        let hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                        var hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                        if objQuestion.startHours == 0.0{
+                            hours = 0
+                        }
+
                         let totalHours = Int(hours.rounded(.up))
                         objQuestion.total = 0
                         if totalHours > 0{
@@ -584,9 +594,15 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
                             totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
                         }
                         
-                        self.strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
+                        //SET FULE IS ADMIN OVERRIDE
+                        var strDeliveredFule : String = getFlueName(strId: objQuestion.selectFuleDelivery ?? "")
+                        if objProduct.is_delivered == true{
+                            strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
+                        }
                         
-                        
+
+                        self.strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
+                                                
                         //CHECK PREPAID FULE
                         let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
                         if selectedOptions.contains("rental_prepaid_fuel") {
@@ -1046,7 +1062,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 cell.lblDeliverySelect.text = objDetails.startHours == 0 ? "Admin Override" : "\(objDetails.startHours)"
                 
                 if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
-                    cell.lblReturnSelect.text = objDetails.startHours == 0 ? "Admin Override" : "\(objDetails.endHours)"
+                    cell.lblReturnSelect.text = objDetails.endHours == 0 ? "Admin Override" : "\(objDetails.endHours)"
                 }
             }
            
@@ -1093,7 +1109,14 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                     totalPrice = price * (Float(objDetails.gas_tank_capacity ?? "") ?? 0)
                 }
                 
-                let totalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objDetails.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objDetails.selectFuleReturn ?? "") ?? 0)
+                
+                //SET FULE IS ADMIN OVERRIDE
+                var strDeliveredFule : String = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
+                if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
+                    strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
+                }
+                
+                let totalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ? 9 : Float(objDetails.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objDetails.selectFuleReturn ?? "") ?? 0)
 
                 //SET DATA
                 let strFule = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
@@ -1226,8 +1249,7 @@ extension CheckListUpdateViewController{
             self.arrOtherData = []
             for i in 0..<self.objOrderData.arrProduct.count{
                 let  obj = self.objOrderData.arrProduct[i]
-                self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading ))
-                
+                self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "", selectCleaningReturn:  ""))
                 
                 
                 //CHECK EQUMPEMT

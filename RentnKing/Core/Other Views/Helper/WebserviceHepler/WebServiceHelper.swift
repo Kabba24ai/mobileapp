@@ -69,7 +69,7 @@ class WebServiceHelper: NSObject {
     // MARK: - StartDowload Method -
     func callAPI(){
         
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             do {
                 
                 webservice_Nool_Load = true
@@ -86,7 +86,7 @@ class WebServiceHelper: NSObject {
                 }
                 
                 //SET REWUEST
-                let strUrl = URL(string: "\(self.strURL)")!
+                let strUrl = URL(string: "\(self.strURL)") ?? URL(string: "about:blank")!
                 var request = URLRequest(url: strUrl)
 
                 //Declaration for service for get,post or other..
@@ -124,9 +124,10 @@ class WebServiceHelper: NSObject {
                 //}
                 
                 
-                //Calling service
+                //Calling service — set the timeout on the request itself; mutating AF's shared
+                //sessionConfiguration after its session is built has no effect.
+                request.timeoutInterval = 30
                 let manager = AF
-                manager.sessionConfiguration.timeoutIntervalForRequest = 10
                 manager.request(request).responseData{
                     (response) in
                     
@@ -153,6 +154,7 @@ class WebServiceHelper: NSObject {
                                 }
                             }
                             else if let arr = response as? NSArray{
+                                webservice_Nool_Load = false
                                 self.delegateWeb?.appDataArraySuccess(arr, request: self.strMethodName, index: self.selectIndex)
                             }
                             else{
@@ -185,29 +187,26 @@ class WebServiceHelper: NSObject {
             }
 
         }else{
-//            webservice_Nool_Load = false
-//            indicatorHide()
-//            
-//            let ViewController = UIApplication.getTopViewController()
-//            var NoInternetNaNavigation: UINavigationController!
-//            if let topVC = UIApplication.getTopViewController() {
-//                if !(topVC is NoInternetViewController){
-//                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalConstants.LOGIN_MODEL, bundle: nil)
-//                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "NoInternetViewController") as? NoInternetViewController{
-//                        NoInternetNaNavigation = UINavigationController(rootViewController: newViewController)
-//                        NoInternetNaNavigation.modalPresentationStyle = .fullScreen
-//                        topVC.present(NoInternetNaNavigation, animated: true, completion: nil)
-//                    }
-//                }
-//            }
+            // OFFLINE — always notify so callers/queues don't hang and flags get cleared.
+            webservice_Nool_Load = false
+            DispatchQueue.main.async {
+                indicatorHide()
+                self.delegateWeb?.appDataDidFail(self.offlineError(), request: self.strMethodName, strUrl: self.strURL)
+            }
         }
     }
-    
-    
+
+    /// Standard error handed back when the request is skipped because the device is offline.
+    private func offlineError() -> NSError {
+        return NSError(domain: NSURLErrorDomain, code: NSURLErrorNotConnectedToInternet,
+                       userInfo: [NSLocalizedDescriptionKey: "No internet connection."])
+    }
+
+
     // MARK: - StartDowload Method -
     func callAPIwithCompletation(completion: @escaping (_ data: NSDictionary?, _ arr: NSArray?, _ isDic: Bool, _ error: Error?) -> Void){
         
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             do {
                 
                 webservice_Nool_Load = true
@@ -224,7 +223,7 @@ class WebServiceHelper: NSObject {
                 }
                 
                 //SET REWUEST
-                let strUrl = URL(string: "\(self.strURL)")!
+                let strUrl = URL(string: "\(self.strURL)") ?? URL(string: "about:blank")!
                 var request = URLRequest(url: strUrl)
 
                 //Declaration for service for get,post or other..
@@ -262,9 +261,10 @@ class WebServiceHelper: NSObject {
                 //}
                 
                 
-                //Calling service
+                //Calling service — set the timeout on the request itself; mutating AF's shared
+                //sessionConfiguration after its session is built has no effect.
+                request.timeoutInterval = 30
                 let manager = AF
-                manager.sessionConfiguration.timeoutIntervalForRequest = 10
                 manager.request(request).responseData{
                     (response) in
                     
@@ -291,6 +291,7 @@ class WebServiceHelper: NSObject {
                                 }
                             }
                             else if let arr = response as? NSArray{
+                                webservice_Nool_Load = false
                                 completion(nil, arr, false, nil)
                             }
                             else{
@@ -315,14 +316,22 @@ class WebServiceHelper: NSObject {
                  }
             }
             catch {
-                
+
                 //Alert show for Header
                 webservice_Nool_Load = false
                 showAlertMessage(strMessage: "\(self.strMethodName) \(str.somethingWentWrong)")
             }
         }
+        else {
+            // OFFLINE — fire the completion so awaiting UI stops spinning (previously it hung forever).
+            webservice_Nool_Load = false
+            DispatchQueue.main.async {
+                indicatorHide()
+                completion(nil, nil, false, self.offlineError())
+            }
+        }
     }
-    
+
     func startUploadingMultipleImages() {
         var str_accessToken = ""
         
@@ -330,7 +339,7 @@ class WebServiceHelper: NSObject {
             str_accessToken = accessToken
         }
         
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             do {
                 webservice_Nool_Load = true
                 
@@ -422,10 +431,19 @@ class WebServiceHelper: NSObject {
 
             }
         }
+        else {
+            // OFFLINE — notify the delegate so callers (e.g. the checklist queue) release
+            // their in-flight lock and keep the item for retry, instead of silently doing nothing.
+            webservice_Nool_Load = false
+            DispatchQueue.main.async {
+                indicatorHide()
+                self.delegateWeb?.appDataDidFail(self.offlineError(), request: self.strMethodName, strUrl: self.strURL)
+            }
+        }
     }
 //    func callCheckListAPI(){
 //        
-//        if NetworkReachabilityManager()!.isReachable {
+//        if NetworkReachabilityManager()?.isReachable == true {
 //            
 //            do {
 //                
@@ -443,7 +461,7 @@ class WebServiceHelper: NSObject {
 //                }
 //                
 //                //SET REWUEST
-//                let strUrl = URL(string: "\(self.strURL)")!
+//                let strUrl = URL(string: "\(self.strURL)") ?? URL(string: "about:blank")!
 //                var request = URLRequest(url: strUrl)
 //
 //                //Declaration for service for get,post or other..
@@ -623,7 +641,7 @@ class WebServiceHelper: NSObject {
     
     //MARK: - UPLOAD MULTIPLE IMAGES
     func callUploadingMultipleImages() {
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             
             webservice_Nool_Load = true
             DispatchQueue.main.async {
@@ -633,7 +651,7 @@ class WebServiceHelper: NSObject {
             }
             
             // Prepare URL
-            let strUrl = URL(string: self.strURL)!
+            let strUrl = URL(string: self.strURL) ?? URL(string: "about:blank")!
             
             // Headers
             var headers: HTTPHeaders = [
@@ -701,8 +719,12 @@ class WebServiceHelper: NSObject {
             }
             
         } else {
+            // OFFLINE — notify the delegate so callers don't hang.
             webservice_Nool_Load = false
-            // Handle No Internet just like your other methods
+            DispatchQueue.main.async {
+                indicatorHide()
+                self.delegateWeb?.appDataDidFail(self.offlineError(), request: self.strMethodName, strUrl: self.strURL)
+            }
         }
     }
 

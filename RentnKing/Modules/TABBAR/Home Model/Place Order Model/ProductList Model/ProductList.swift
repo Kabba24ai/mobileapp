@@ -72,6 +72,10 @@ struct ProductModel: Mappable{
     internal var machine_id: Int?
     internal var objProductData : ProductDataModel?
 
+    //CLEANING
+    internal var is_product_clean : Bool?
+    internal var rental_prepaid_cleaning : Float?
+    
 //    internal var hour_tracking : Bool?
     internal var hour_rate : Float?
     internal var allocated_hours : Float?
@@ -126,6 +130,11 @@ struct ProductModel: Mappable{
     internal var end_hours: Float = 0.0
     internal var total_charge: Float = 0.0
 
+    internal var startCleaning: String = ""
+    internal var endCleaning: String = ""
+    internal var cleaningCharge: Float = 0.0
+
+    
     internal var is_delivered: Bool?
     internal var is_returned: Bool?
 
@@ -161,6 +170,13 @@ struct ProductModel: Mappable{
         objMachine <- map["equipment_details"]
         objProduct <- map["product"]
         storeAdderss <- map["store"]
+        
+        
+        is_product_clean <- map["is_product_clean"]
+        rental_prepaid_cleaning <- map["rental_prepaid_cleaning"]
+
+        
+        
 //        checkList <- map["checklist"]
         name <- map["name"]
         product_name <- map["product_name"]
@@ -202,6 +218,10 @@ struct ProductModel: Mappable{
         start_hours <- map["start_hours"]
         end_hours <- map["end_hours"]
 
+        startCleaning <- map["startCleaning"]
+        endCleaning <- map["endCleaning"]
+
+        
         is_delivered <- map["is_delivered"]
         is_returned <- map["is_returned"]
 
@@ -375,7 +395,7 @@ extension ProductListViewController :WebServiceHelperDelegate{
         self.isLoading = false
 
         let arrKey  = data.allKeys as [AnyObject]
-        if (arrKey.firstIndex(where: { $0 as! String == "error" }) == nil){
+        if (arrKey.firstIndex(where: { ($0 as? String) == "error" }) == nil){
 //            print(data)
             if data.getStringForID(key: "success") == "1"{
 
@@ -384,7 +404,7 @@ extension ProductListViewController :WebServiceHelperDelegate{
                         if let objProduct = objData["products"] as? NSDictionary{
                             if let arrData = objProduct["data"] as? NSArray{
                                 self.arrProductList = []
-                                self.arrProductList = Mapper<ProductModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                                self.arrProductList = Mapper<ProductModel>().mapArray(JSONArray: (arrData as? [[String : Any]]) ?? [])
                                 self.arrProductList = self.arrProductList.sorted(by: { $0.order ?? 0 < $1.order ?? 0})
 
                                 //SET THE VIEW
@@ -410,7 +430,7 @@ extension ProductListViewController :WebServiceHelperDelegate{
                 else if strRequest == "searchProducts"{
                     if let arrData = data["data"] as? NSArray{
                         self.arrProductList = []
-                        self.arrProductList = Mapper<ProductModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                        self.arrProductList = Mapper<ProductModel>().mapArray(JSONArray: (arrData as? [[String : Any]]) ?? [])
                         self.arrProductList = self.arrProductList.sorted(by: { $0.order ?? 0 < $1.order ?? 0})
 
                         //SET THE VIEW

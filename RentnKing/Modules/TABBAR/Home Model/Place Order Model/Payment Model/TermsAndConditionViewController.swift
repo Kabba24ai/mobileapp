@@ -64,7 +64,7 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     func setTheView(){
         
         //SET WEBVIEW
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             indicatorShow()
             
             self.objWebKit.navigationDelegate = self

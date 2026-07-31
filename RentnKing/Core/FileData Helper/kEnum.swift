@@ -14,6 +14,7 @@ enum kFileStorageName: String {
     case kQueueLineList     = "kQueueLineList"
     case kEmployesList = "EmployesList"
     case kEquipmentList = "EquipmentList"
+    case kERentalReadyList = "EquipmentList_Rental_Ready"
     case kOrderDetailUserData = "OrderDetailUserData"
     case kOrderDetailData = "kOrderDetailData"
     case kTermsConditionData = "kTermsConditionData"
@@ -30,6 +31,7 @@ enum kFileStorageName: String {
     case kSaveCheckList = "CheckList"
 
     case kPriceList = "kPriceList"
+    case kProductSettings = "kProductSettings"
     case kDriverChecklistSubmit = "kDriverChecklistSubmit"
     case kDeliveryPickupInputsSubmit = "kDeliveryPickupInputsSubmit"
 

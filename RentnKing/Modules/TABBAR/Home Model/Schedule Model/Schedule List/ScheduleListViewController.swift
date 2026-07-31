@@ -221,7 +221,7 @@ class ScheduleListViewController: UIViewController, UIGestureRecognizerDelegate 
             self.setTheView()
         }
 
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             self.APICall()
         }
     }

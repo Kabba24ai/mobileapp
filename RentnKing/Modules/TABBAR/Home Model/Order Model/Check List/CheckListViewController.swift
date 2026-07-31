@@ -28,6 +28,17 @@ let arrFlueDelivery : [FuleTypes] = [
                                      FuleTypes(id: 2, name: "1/8"),
                                      FuleTypes(id: 1, name: "Empty")]
 
+let arrCleaningDelivery : [FuleTypes] = [
+                                     FuleTypes(id: 1, name: "Pre-Paid"),
+                                     FuleTypes(id: 2, name: "Clean")]
+
+let arrCleaningReturn : [FuleTypes] = [
+                                    FuleTypes(id: 5, name: "Extreme Clean"),
+                                    FuleTypes(id: 4, name: "Moderate Clean"),
+                                    FuleTypes(id: 3, name: "Std Clean"),
+                                    FuleTypes(id: 2, name: "Clean"),
+                                    FuleTypes(id: 1, name: "Pre-Paid")]
+
 
 func getFlueName(strId : String) -> String{
     let MenuID = arrFlueDelivery.map{$0.id}
@@ -51,6 +62,15 @@ func FuelCalulateTotalCharge(total : Float, dSelect : Float , rSelect : Float) -
     return 0
 }
 
+func getCleaning(strId : String, isReturn : Bool) -> String{
+    
+    let arrData : [FuleTypes] = isReturn ? arrCleaningReturn : arrCleaningDelivery
+    let MenuID = arrData.map{$0.id}
+    if let index = MenuID.firstIndex(of: Int(strId) ?? 0){
+        return isReturn ? arrCleaningReturn[index].name : arrCleaningDelivery[index].name
+    }
+    return "Select"
+}
 
 
 class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UIPickerViewDataSource, UIPickerViewDelegate{
@@ -90,7 +110,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     var arrStoreList :[StoreModel] = []
     var sortedMachineList : [String : [MachineModel]] = [:]
     var arrPriceList : [PriceListModel] = []
-    
+    var arrProductSettingList : [PriceListModel] = []
+
 //    var objCheckListPrice : CheckListPriceModel!
     
     
@@ -194,6 +215,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         getPriceList { arr_data in
             self.arrPriceList = arr_data
         }
+        
+        getProductSettingList(completion: { arr_data in
+            self.arrProductSettingList = arr_data
+
+        })
     }
     
     // MARK: - GET LOCAL ORDER DETAILS DATA
@@ -691,6 +717,12 @@ extension CheckListViewController{
                             errorIndexPaths.append(indexPath)
                         }
                     }
+                    else if objQuestion.type == "cleaning" {
+                        if objQuestion.startCleaning == "" {
+                            errorIndexPaths.append(indexPath)
+                        }
+                    }
+
                     else if objQuestion.type == "fuel"{
                         if objQuestion.selectFuleDelivery == ""{
                             errorIndexPaths.append(indexPath)
@@ -705,6 +737,11 @@ extension CheckListViewController{
                 } else {
                     if objQuestion.type == "text" {
                         if objQuestion.endHours == 0.0 {
+                            errorIndexPaths.append(indexPath)
+                        }
+                    }
+                    else if objQuestion.type == "cleaning" {
+                        if objQuestion.endCleaning == "" {
                             errorIndexPaths.append(indexPath)
                         }
                     }
@@ -734,15 +771,22 @@ extension CheckListViewController{
                 if objQuestion.type == "text" {
                     isBlank = objQuestion.startHours == 0.0
                 }
+                else if objQuestion.type == "cleaning" {
+                    isBlank = objQuestion.startCleaning == ""
+                }
                 else if objQuestion.type == "fuel"{
                     isBlank = objQuestion.selectFuleDelivery == ""
                 }
+               
                 else{
                     isBlank = objQuestion.deliverAnswer == nil
                 }
             } else {
                 if objQuestion.type == "text" {
                     isBlank = objQuestion.endHours == 0.0
+                }
+                else if objQuestion.type == "cleaning" {
+                    isBlank = objQuestion.endCleaning == ""
                 }
                 else if objQuestion.type == "fuel"{
                     isBlank = objQuestion.selectFuleReturn == ""
@@ -984,8 +1028,12 @@ extension CheckListViewController : UITextFieldDelegate{
                     self.objOrderData.arrProduct.insert(objProduct, at: i)
                     
                 }
+                else if objQuestion.type == "cleaning"{
+                    //JIGAR
+                        
+                }
                 else if objQuestion.type == "fuel"{
-                    
+
                     let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
                     var totalPrice  : Float = 0.0
                     if objQuestion.isDEF == "Yes"{
@@ -998,8 +1046,13 @@ extension CheckListViewController : UITextFieldDelegate{
                         totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
                     }
                     
+                    //SET FULE IS ADMIN OVERRIDE
+                    var strDeliveredFule : String = getFlueName(strId: objQuestion.selectFuleDelivery ?? "")
+                    if objProduct.is_delivered == true{
+                        strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
+                    }
                     
-                    var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
+                    var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
                   
                     //CHECK PREPAID FULE
                     let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
@@ -1013,7 +1066,9 @@ extension CheckListViewController : UITextFieldDelegate{
                     self.strTotalCharge = self.strTotalCharge + strFuleTotalCharge
                     
                   
-                }else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
+                }
+               
+                else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
                     
                     let strPrice = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
                     if strPrice > 0{
@@ -1822,6 +1877,29 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     }
                 }
             }
+            else if objDetails.type == "cleaning"{
+                cell.lblDeliverySelect.text = getCleaning(strId: objDetails.selectCleaningDelivery ?? "", isReturn: !self.isDeliveryType)
+                cell.lblReturnSelect.text = getCleaning(strId: objDetails.selectCleaningReturn ?? "", isReturn: !self.isDeliveryType)
+                
+//                let selectedOptions = self.objOrderData
+//                    .arrProduct[indexPath.section]
+//                    .objProductData?
+//                    .arrProductSelectdOptions ?? []
+//
+//                cell.viewPrepaid.isHidden = true
+//                cell.viewPrepaidReturn.isHidden = true
+//                if selectedOptions.contains("rental_prepaid_fuel") {
+//                    // Option exists
+//                    if self.isDeliveryType{
+//                        cell.viewPrepaid.isHidden = false
+//                        cell.viewPrepaidReturn.isHidden = true
+//                    }
+//                    else{
+//                        cell.viewPrepaid.isHidden = false
+//                        cell.viewPrepaidReturn.isHidden = false
+//                    }
+//                }
+            }
             else{
                 if objDetails.deliverAnswer != nil{
                     cell.lblDeliverySelect.text = objDetails.deliverAnswer.answer_delivery_text ?? ""
@@ -1931,6 +2009,37 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
    
             }
         }
+        else if objDetails.type == "cleaning"{
+            actionPicker(sender, strTitle: "", arrData: arrCleaningDelivery.compactMap { $0.name}, selectValue: "") { index, selectValue in
+                
+                
+                //SET IN OTHER DATA
+                let objDate = self.arrOtherData[section]
+                objDate.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
+
+                //UPDATE DATA
+                self.arrOtherData.remove(at: section)
+                self.arrOtherData.insert(objDate, at: section)
+
+                
+                var objProduct = self.objOrderData.arrProduct[section]
+                var objdata = objProduct.arrQuestions[sender.tag]
+                objdata.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
+                
+                
+                //UPDATE
+                objProduct.arrQuestions.remove(at: sender.tag)
+                objProduct.arrQuestions.insert(objdata, at: sender.tag)
+                
+                //UPDATE ARRAY
+                self.objOrderData.arrProduct.remove(at: section)
+                self.objOrderData.arrProduct.insert(objProduct, at: section)
+                
+                //RELOAD TABLE
+                self.tblView.reloadData()
+   
+            }
+        }
         else{
             if  objDetails.arrAnswer.count != 0{
                 actionPicker(sender, strTitle: "", arrData: objDetails.arrAnswer.compactMap { $0.answer_delivery_text}, selectValue: "") { index, selectValue in
@@ -2013,6 +2122,40 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
         }
+        if objDetails.type == "cleaning"{
+            actionPicker(sender, strTitle: "", arrData: arrCleaningReturn.compactMap { $0.name}, selectValue: "") { index, selectValue in
+                
+                //SET IN OTHER DATA
+                let objDate = self.arrOtherData[section]
+                objDate.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
+
+                //UPDATE DATA
+                self.arrOtherData.remove(at: section)
+                self.arrOtherData.insert(objDate, at: section)
+
+                
+                var objProduct = self.objOrderData.arrProduct[section]
+                var objdata = objProduct.arrQuestions[sender.tag]
+                objdata.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
+                
+        
+                
+                //UPDATE
+                objProduct.arrQuestions.remove(at: sender.tag)
+                objProduct.arrQuestions.insert(objdata, at: sender.tag)
+                
+                //UPDATE ARRAY
+                self.objOrderData.arrProduct.remove(at: section)
+                self.objOrderData.arrProduct.insert(objProduct, at: section)
+                
+                //RELOAD TABLE
+                self.tblView.reloadData()
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
+                    self.CalculatTotalCharge()
+                }
+            }
+        }
         else{
             
             if  objDetails.arrAnswer.count != 0{
@@ -2059,7 +2202,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
 extension CheckListViewController {
     
     @objc func keyboardWillShow(notification: NSNotification) {
-       let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+       let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
        print(keyboardHeight)
 //        self.con_SubmitBottom.constant = (keyboardHeight - GetBottomSafeAreaHeight()) + 16
         self.con_SubmitBottom.constant = 16.0
@@ -2067,7 +2210,7 @@ extension CheckListViewController {
     }
 
     @objc func keyboardWillHide(notification: NSNotification) {
-       let keyboardHeight = (notification.userInfo![UIResponder.keyboardFrameEndUserInfoKey] as! NSValue).cgRectValue.height
+       let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
        print(keyboardHeight)
         self.con_SubmitBottom.constant = 16.0
 
@@ -2123,7 +2266,7 @@ extension CheckListViewController{
         for i in 0..<self.objOrderData.arrProduct.count{
             let  obj = self.objOrderData.arrProduct[i]
             
-            self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading ))
+            self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "", selectCleaningReturn: ""))
             
             
             if obj.objMachine != nil{
@@ -2149,9 +2292,13 @@ extension CheckListViewController{
     func setUpTheEqupmentData(objEquipment : MachineModel?, index : Int){
         var objProduct = self.objOrderData.arrProduct[index]
         objProduct.arrQuestions = objEquipment?.arrAnswerCheckList ?? []
-        
+
+        // Build the optional rows independently, then prepend them in a FIXED priority order:
+        // text → cleaning → fuel (whichever of them are available), followed by the base questions.
+
+        //TEXT (Start/End Hours) — only when hour tracking is on
+        var textItem: CustomerCheckListModel?
         if objEquipment?.hour_tracking == "Yes"{
-            //ADD START HOUR
             let map = Map(mappingType: .fromJSON, JSON: [:])
             var objCheckList = CustomerCheckListModel(map: map)
             objCheckList?.type = "text"
@@ -2160,56 +2307,48 @@ extension CheckListViewController{
             objCheckList?.startHours = objProduct.start_hours
             objCheckList?.endHours = objProduct.end_hours
             objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
-            
-            objProduct.arrQuestions.insert(objCheckList!, at: 0)
-            
-            
-            
-            if objEquipment != nil{
-                if objEquipment?.powerSourceType != ""{
-                    //SET FULE
-                    let map = Map(mappingType: .fromJSON, JSON: [:])
-                    var objCheckListFule = CustomerCheckListModel(map: map)
-                    objCheckListFule?.type = "fuel"
-                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
-                    objCheckListFule?.isDEF = objEquipment?.hasDEF
-                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-                    
-                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-                    
-                    objProduct.arrQuestions.insert(objCheckListFule!, at: 1)
-                }
-            }
-            
+            textItem = objCheckList
         }
-        else{
-            if objEquipment != nil{
-                if objEquipment?.powerSourceType != ""{
-                    //SET FULE
-                    let map = Map(mappingType: .fromJSON, JSON: [:])
-                    var objCheckListFule = CustomerCheckListModel(map: map)
-                    objCheckListFule?.type = "fuel"
-                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
-                    objCheckListFule?.isDEF = objEquipment?.hasDEF
-                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-                    
-                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-                    objProduct.arrQuestions.insert(objCheckListFule!, at: 0)
-                }
+
+        //CLEANING
+        var cleaningItem: CustomerCheckListModel?
+//        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0{
+//            let map = Map(mappingType: .fromJSON, JSON: [:])
+//            var objCheckList = CustomerCheckListModel(map: map)
+//            objCheckList?.type = "cleaning"
+//            objCheckList?.question_delivery_text = "Cleanig"
+//            objCheckList?.question_return_text = "Cleanig"
+//            objCheckList?.startCleaning = objProduct.startCleaning
+//            objCheckList?.endCleaning = objProduct.endCleaning
+//            objCheckList?.cleaningCharge = 0
+//            cleaningItem = objCheckList
+//        }
+
+        //FUEL — only when the equipment has a power source
+        var fuelItem: CustomerCheckListModel?
+        if objEquipment != nil, objEquipment?.powerSourceType != ""{
+            let map = Map(mappingType: .fromJSON, JSON: [:])
+            var objCheckListFule = CustomerCheckListModel(map: map)
+            objCheckListFule?.type = "fuel"
+            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+            objCheckListFule?.fuleType = objEquipment?.powerSourceType
+            objCheckListFule?.isDEF = objEquipment?.hasDEF
+            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+            fuelItem = objCheckListFule
+        }
+
+        // Insert at index 0 in REVERSE priority so the final order is text, cleaning, fuel.
+        for item in [fuelItem, cleaningItem, textItem] {
+            if let item = item {
+                objProduct.arrQuestions.insert(item, at: 0)
             }
         }
-        
-        
+
         self.objOrderData.arrProduct.remove(at: index)
         self.objOrderData.arrProduct.insert(objProduct, at: index)
 
@@ -2219,3 +2358,5 @@ extension CheckListViewController{
     }
     
 }
+
+

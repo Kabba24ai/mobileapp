@@ -55,6 +55,11 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     var strSelectStore : String = str.strSelectStore
     var strStoreID : String = ""
     
+    //OTHER
+    var _loadingView: UIActivityIndicatorView!
+    var bool_Load: Bool = false
+    var pageCount: Int = 1
+    
     override func viewDidLoad() {
         super.viewDidLoad()
 
@@ -67,6 +72,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         self.objRefresh?.addTarget(self, action: #selector(self.refreshList), for: .valueChanged)
         refreshView.addSubview(self.objRefresh!)
         
+        self.setupTableView()
                 
         
         self.txtSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSearchEqupment)
@@ -87,83 +93,76 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         self.lblCurrentlyAssign.configureLable(textColor: .darkGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 15, text: str.strCurrentlyAssigned)
         
         
-        //GET CATEGORY DATA
-        getCategoryList { arr_data in
-            self.arrCategoryList = arr_data
-        }
-        
-
-        //GET STORE LIST DATA FROM LOCAL
-        getStoreList { arr_data in
-            var mappedStores = arr_data.map { obj -> StoreModel in
-                var updatedObj = obj
-                updatedObj.fullAddress = [
-                    obj.address,
-                    obj.city,
-                    obj.state,
-                    obj.zip_code
-                ]
-                    .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                    .joined(separator: ", ")
-                return updatedObj
+        DispatchQueue.main.async {
+            
+            
+            //GET CATEGORY DATA
+            getCategoryList { arr_data in
+                self.arrCategoryList = arr_data
             }
+            
+            //GET STORE LIST DATA FROM LOCAL
+            getStoreList { arr_data in
+                var mappedStores = arr_data.map { obj -> StoreModel in
+                    var updatedObj = obj
+                    updatedObj.fullAddress = [
+                        obj.address,
+                        obj.city,
+                        obj.state,
+                        obj.zip_code
+                    ]
+                        .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: ", ")
+                    return updatedObj
+                }
 
-            // Add "All Stores" option at the top (this page only)
-            if var allStores = StoreModel(JSON: [:]) {
-                allStores.id = 0
-                allStores.name = str.strSelectStore
-                mappedStores.insert(allStores, at: 0)
+                // Add "All Stores" option at the top (this page only)
+                if var allStores = StoreModel(JSON: [:]) {
+                    allStores.id = 0
+                    allStores.name = str.strSelectStore
+                    mappedStores.insert(allStores, at: 0)
+                }
+
+                self.arrStoreList = mappedStores
             }
-
-            self.arrStoreList = mappedStores
+            
+            //GET DATA
+            self.refreshList()
         }
-
-        //GET DATA
-        self.refreshList()
-       
         
         NotificationCenter.default.addObserver(self, selector: #selector(refreshList), name: .refreshMachineProfileList, object: nil)
     }
     
 
     @objc func refreshList(){
+        self.pageCount = 1
         //GET Equipment LIST DATA
-        getEquipmentList { arr_data in
-            self.isLoading = false
-            self.objRefresh?.endRefreshing()
-            self.sortData(arr_machine: arr_data)
+        // Parse the equipment cache OFF the main thread (it maps many heavy MachineModel
+        // objects); update the UI back on main. This stops the screen from freezing while
+        // opening — the isLoading shimmer covers the brief wait.
+        DispatchQueue.global(qos: .userInitiated).async {
+            getEquipmentList(strType: "RentalReady") { arr_data in
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.objRefresh?.endRefreshing()
+                    self.sortData(arr_machine: arr_data)
+                }
+            }
         }
     }
     
     func sortData(arr_machine: [MachineModel]) {
-        var arrData = arr_machine
-        
-        let statusPriority: [String: Int] = [
-            "Damaged": 0,
-            "Maint. Hold": 1,
-            "Maintenance Hold": 1,
-            "Rented": 2,
-            "Available": 3
-        ]
-        
-        arrData.sort { m1, m2 in
-            
-            let s1 = statusPriority[m1.current_status] ?? Int.max
-            let s2 = statusPriority[m2.current_status] ?? Int.max
-
-            // 1️⃣ Sort by status priority
-            if s1 != s2 {
-                return s1 < s2
-            }
-
-            // 2️⃣ If same status → sort alphabetically by equipment name
-            let name1 = m1.equipment_name ?? ""
-            let name2 = m2.equipment_name ?? ""
-            return name1.localizedCaseInsensitiveCompare(name2) == .orderedAscending
+   
+        if self.pageCount == 1{
+            self.arrMachineProfileList = arr_machine
         }
-                
-        self.arrMachineProfileList = arrData
+        else{
+            for obj in arr_machine{
+                self.arrMachineProfileList.append(obj)
+            }
+        }
+       
         self.arrMainMachineProfileList = self.arrMachineProfileList
         
         //SET THE VIEW
@@ -190,7 +189,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
 
 
         //SET DATA
-        self.arrStatues = [FilterTypes(text: "All", value: "0"), FilterTypes(text: "Available", value: "1"), FilterTypes(text: "Damaged", value: "2"), FilterTypes(text: "Maint. Hold", value: "3"), FilterTypes(text: "Rented", value: "4")]
+        self.arrStatues = [FilterTypes(text: "All", value: "0"), FilterTypes(text: "Available", value: "1"), FilterTypes(text: "Damaged", value: "2"), FilterTypes(text: "Maint. Hold", value: "3"), FilterTypes(text: "Rented", value: "4"), FilterTypes(text: "Service Due", value: "5"), FilterTypes(text: "Service OverDue", value: "6")]
         self.arrServices = [FilterTypes(text: "All", value: "0"), FilterTypes(text: "Serv. Due", value: "1")]
     }
 
@@ -285,6 +284,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     
     // MARK: - UITEXTFIELD
     @objc func textFieldDidChangeSearch() {
+        self.pageCount = 1
         self.callAPI()
         
     }
@@ -292,40 +292,29 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     func callAPI (){
         let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
         self.strTxtSearch = strSearch
+        self.objRefresh?.isUserInteractionEnabled = true
         
         //GET Equipment LIST DATA
-        getFilterEquipmentList(str_search: self.strTxtSearch, str_store_id: self.strStoreID, int_assigned: self.int_CurrentlyAssignedTick) { arr_data in
+        getFilterEquipmentList(strType: "RentalReady", str_search: self.strTxtSearch, str_store_id: self.strStoreID, int_assigned: self.int_CurrentlyAssignedTick, str_category: "\(self.selectCategoryID)", str_status: self.selectStatus, pageCount: self.pageCount) { arr_data in
+            if self.pageCount == 1{
+                self.arrMachineProfileList = []
+            }
+            self.stopAnimatingView()
             self.isLoading = false
             self.objRefresh?.endRefreshing()
+            self.objRefresh?.isUserInteractionEnabled = true
             self.sortData(arr_machine: arr_data)
+            
+            // Pagination Control
+            if arr_data.count >= Int(Application.PageOrderLimit) {
+                self.bool_Load = false
+                self.pageCount += 1
+            } else {
+                self.bool_Load = true
+            }
         }
-        
-
     }
     
-    
-//    func callAPI(category_id: Int, status: String, service_status: String, search: String){
-//        self.arrMachineProfileList = []
-//        
-//        //APPLY FILTER
-//        self.arrMachineProfileList = self.arrMainMachineProfileList.filter {
-//            ($0.current_status == status) ||
-//            ($0.objProductCategory?.id == category_id)
-//        }
-//        
-//        
-//        let strSearch = self.txtSearch.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""
-//        
-//        //GET arrSearchPhoneContacts LIST
-//        self.arrMachineProfileList = self.arrMachineProfileList.filter { (Int((($0.equipment_name?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound) || (Int((($0.equipment_id?.lowercased()) as NSString?)?.range(of: strSearch.lowercased()).location ?? 0) != NSNotFound)}
-//        
-//
-//        self.emptyDataView.isHidden = self.arrMachineProfileList.count == 0 ? false : true
-//
-//        //RELOAD TABLE
-//        self.tblView.reloadData()
-//
-//    }
     
     
     // MARK: - Action
@@ -340,11 +329,13 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         }
         
         //GET Equipment LIST DATA
-        getFilterEquipmentList(str_search: self.strTxtSearch, str_store_id: self.strStoreID, int_assigned: self.int_CurrentlyAssignedTick) { arr_data in
-            self.isLoading = false
-            self.objRefresh?.endRefreshing()
-            self.sortData(arr_machine: arr_data)
-        }
+        self.isLoading = true
+        self.tblView.reloadData()
+        self.objRefresh?.isUserInteractionEnabled = false
+        self.pageCount = 1
+        self.callAPI()
+        
+        
     }
     
     
@@ -369,9 +360,12 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
             self.txtSelectStore.text = self.strSelectStore
             
             //CALL API
+            self.isLoading = true
+            self.tblView.reloadData()
+            self.objRefresh?.isUserInteractionEnabled = false
+            self.pageCount = 1
             self.callAPI()
         }
-        
     }
 }
 
@@ -383,7 +377,7 @@ extension MachineProfileViewController : MachineFilterProtocol{
         self.selectCategoryID = 0
         self.selectStatus = "All"
         self.selectService = "All"
-
+        
         if categoryID != 0 {
             self.selectCategoryID = categoryID
         }
@@ -397,56 +391,15 @@ extension MachineProfileViewController : MachineFilterProtocol{
             self.selectService = strService
         }
         
-//        //GET Equipment LIST DATA
-//        getEquipmentList { arr_data in
-//            self.isLoading = false
-//            self.objRefresh?.endRefreshing()
-//            
-//            let arrData = arr_data
-//            
-//            if self.selectCategoryID == 0 {
-//                self.sortData(arr_machine: arrData)
-//            }
-//            else {
-//                let filteredMachines = arrData.filter {
-//                    $0.category_id == self.selectCategoryID
-//                }
-//                self.sortData(arr_machine: filteredMachines)
-//            }
-//        }
+        //GET Equipment LIST DATA
+        self.isLoading = true
+        self.tblView.reloadData()
+        self.objRefresh?.isUserInteractionEnabled = false
+        self.pageCount = 1
+        self.callAPI()
         
-        getEquipmentList { arr_data in
-            self.isLoading = false
-            self.objRefresh?.endRefreshing()
-            
-            let filteredData = arr_data.filter { machine in
-                
-                // ✅ Category filter
-                if self.selectCategoryID != 0,
-                   machine.category_id != self.selectCategoryID {
-                    return false
-                }
-                
-                // ✅ Status filter
-                if self.selectStatus.lowercased() != "all",
-                   machine.current_status.lowercased() != self.selectStatus.lowercased() {
-                    return false
-                }
-                
-                return true
-            }
-            
-            self.sortData(arr_machine: filteredData)
-        }
-
         
         self.setNavigation()
-
-        
-        
-//        //CALL API
-//        self.setNavigation()
-//        self.callAPI(category_id: self.selectCategoryID, status: self.selectStatus, service_status: self.selectService, search: self.txtSearch.text ?? "")
     }
 }
 
@@ -508,6 +461,56 @@ class MachineProfileListCell : UITableViewCell{
 
 extension MachineProfileViewController : UITableViewDelegate, UITableViewDataSource{
    
+    
+    // MARK: - LODING VIEW
+    func setupTableView() {
+        let viewFooter = UIView(frame: CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: 40))
+        
+        _loadingView = UIActivityIndicatorView(style: .medium)
+        _loadingView.color = .primary
+        viewFooter.addSubview(_loadingView)
+        self.tblView.tableFooterView = viewFooter
+        _loadingView.isHidden = true
+        _loadingView.frame = CGRect(x: viewFooter.frame.size.width / 2 - 15 , y: 0, width: 30, height: 30)
+        _loadingView.center = CGPoint(x: viewFooter.frame.size.width / 2, y: _loadingView.center.y)
+    }
+    
+    func startAnimatingView() {
+ 
+        _loadingView.center = CGPoint(x: self.tblView.frame.size.width / 2, y: _loadingView.center.y)
+        _loadingView.startAnimating()
+        _loadingView.isHidden = false
+    }
+    
+    func stopAnimatingView() {
+        _loadingView.stopAnimating()
+        _loadingView.isHidden = true
+    }
+    
+    
+    //MARK: - Scrollview Delegate -
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        self.view.endEditing(true)
+        
+        guard scrollView == tblView else { return }
+        
+        let offsetY = scrollView.contentOffset.y
+        let contentHeight = scrollView.contentSize.height
+        let frameHeight = scrollView.frame.size.height
+        
+        if offsetY > contentHeight - frameHeight - 50, !bool_Load, !isLoading, txtSearch.text?.isEmpty == true {
+            bool_Load = true
+            
+            //START LOADING
+            startAnimatingView()
+            
+            //CALL API
+            self.callAPI()
+        }
+    }
+
+    
+    
     //HEADER SECTION
     func numberOfSections(in tableView: UITableView) -> Int {
         return 1

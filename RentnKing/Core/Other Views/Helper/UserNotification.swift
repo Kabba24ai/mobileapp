@@ -60,8 +60,10 @@ class UserNotification: NSObject{
                     notificationContent.body = body ?? ""
                     notificationContent.sound = .default
                     
-                    if let _url = imageBundlePath {
-                        let attachment = try! UNNotificationAttachment(identifier: "image", url: _url, options: [UNNotificationAttachmentOptionsThumbnailHiddenKey:NSNumber(booleanLiteral: false)])
+                    if let _url = imageBundlePath,
+                       let attachment = try? UNNotificationAttachment(identifier: "image", url: _url, options: [UNNotificationAttachmentOptionsThumbnailHiddenKey:NSNumber(booleanLiteral: false)]) {
+                        // Skip the image attachment if it can't be created (invalid/unsupported URL)
+                        // instead of crashing on server-supplied input.
                         notificationContent.attachments = [attachment]
                     }
                     

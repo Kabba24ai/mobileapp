@@ -105,6 +105,10 @@ final class NoteModel: NSObject {
     var selectFuleDelivery: String = ""
     var selectFuleReturn: String = ""
     
+    var selectCleaningDelivery: String = ""
+    var selectCleaningReturn: String = ""
+
+    
     override init() {
         super.init()
     }
@@ -128,7 +132,9 @@ final class NoteModel: NSObject {
          inTime: String,
          outTime: String,
          selectFuleDelivery: String,
-         selectFuleReturn: String) {
+         selectFuleReturn: String,
+         selectCleaningDelivery: String,
+         selectCleaningReturn: String) {
         
         self.startHours = startHours
         self.endHours = endHours
@@ -150,6 +156,8 @@ final class NoteModel: NSObject {
         self.outTime = outTime
         self.selectFuleDelivery = selectFuleDelivery
         self.selectFuleReturn = selectFuleReturn
+        self.selectCleaningDelivery = selectCleaningDelivery
+        self.selectCleaningReturn = selectCleaningReturn
     }
     
     // MARK: - JSON Safe Dict
@@ -175,7 +183,10 @@ final class NoteModel: NSObject {
             "productID": productID,
             "machine_id": machine_id,
             "selectFuleDelivery": selectFuleDelivery,
-            "selectFuleReturn": selectFuleReturn
+            "selectFuleReturn": selectFuleReturn,
+            "selectCleaningDelivery": selectCleaningDelivery,
+            "selectCleaningReturn": selectCleaningReturn
+
         ]
         
         // Only store base64 if image is real (prevents UIImage() empty)
@@ -227,6 +238,9 @@ final class NoteModel: NSObject {
         note.selectFuleDelivery = dict["selectFuleDelivery"] as? String ?? ""
         note.selectFuleReturn = dict["selectFuleReturn"] as? String ?? ""
         
+        note.selectCleaningDelivery = dict["selectCleaningDelivery"] as? String ?? ""
+        note.selectCleaningReturn = dict["selectCleaningReturn"] as? String ?? ""
+
         if let b64 = dict["dSignature_base64"] as? String {
             note.dSignature = UIImage.fromBase64String(b64)
         }
@@ -291,7 +305,10 @@ struct CustomerCheckListModel: Mappable{
     internal var question_return_text: String?
     internal var sync_texts: Bool?
 
-    
+    internal var startCleaning: String = ""
+    internal var endCleaning: String = ""
+    internal var cleaningCharge: Float = 0.0
+
     internal var startHours: Float = 0.0
     internal var endHours: Float = 0.0
 
@@ -311,6 +328,9 @@ struct CustomerCheckListModel: Mappable{
 
     internal var selectFuleDelivery: String?
     internal var selectFuleReturn: String?
+
+    internal var selectCleaningDelivery: String?
+    internal var selectCleaningReturn: String?
 
     internal var gas_tank_capacity: String?
     internal var def_tank_capacity: String?
@@ -349,6 +369,10 @@ struct CustomerCheckListModel: Mappable{
         
         selectFuleDelivery <- map["selectFuleDelivery"]
         selectFuleReturn <- map["selectFuleReturn"]
+        
+        selectCleaningDelivery <- map["selectCleaningDelivery"]
+        selectCleaningReturn <- map["selectCleaningReturn"]
+
         
         gas_tank_capacity <- map["gas_tank_capacity"]
         def_tank_capacity <- map["def_tank_capacity"]
@@ -471,7 +495,7 @@ extension CheckListViewController :WebServiceHelperDelegate {
                 if let dicData = dic?["order"] as? NSDictionary {
                     
                     //SET DATA
-                    let map = Map(mappingType: .fromJSON, JSON: dicData as! [String : Any])
+                    let map = Map(mappingType: .fromJSON, JSON: (dicData as? [String : Any]) ?? [:])
                     let arr_data = OrdersModel(map: map)
                     
                     //SET DATA IN LOCAL
@@ -500,7 +524,7 @@ extension CheckListViewController :WebServiceHelperDelegate {
             if strRequest == "customerCheckList"{
                 if let arrData = data["customer_checklist_questions"] as? NSArray{
                     
-                    let arrData = Mapper<CustomerCheckListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    let arrData = Mapper<CustomerCheckListModel>().mapArray(JSONArray: (arrData as? [[String : Any]]) ?? [])
 
                     //GET EQUIPMENT
                     let map = Map(mappingType: .fromJSON, JSON: [:])

@@ -144,10 +144,13 @@ func getPriceListAPI( completion: @escaping (Bool) -> Void) {
         if data.getStringForID(key: "success") == "1" {
                         
             if let dicData = data["configurations"] as? NSDictionary{
-                if let arrData = dicData["Price Settings"] as? NSArray{
+                if let arrData = dicData["Price Settings"] as? NSArray, let arrProduct = dicData["Product Settings"] as? NSArray{
                     let arrPriceList = Mapper<PriceListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    let arrProductList = Mapper<PriceListModel>().mapArray(JSONArray: arrProduct as! [[String : Any]])
+                    
                     // Overwrite old data
                     SDKUserDefault.saveMappableArray(arrPriceList, for: kFileStorageName.kPriceList.rawValue)
+                    SDKUserDefault.saveMappableArray(arrProductList, for: kFileStorageName.kProductSettings.rawValue)
                     completion(true)
                 }
             }
@@ -229,6 +232,20 @@ func getPriceList(completion: @escaping ([PriceListModel]) -> Void) {
     }
 }
 
+func getProductSettingList(completion: @escaping ([PriceListModel]) -> Void) {
+    if !getProductSettingData().isEmpty {
+        completion(getProductSettingData())
+    }
+    
+    getPriceListAPI() { isSaved in
+        if isSaved {
+            completion(getProductSettingData())
+        } else {
+            completion([])
+        }
+    }
+}
+
 
 
 
@@ -243,6 +260,16 @@ func getPriceData() -> [PriceListModel] {
     return arrPriceList
 }
 
+func getProductSettingData() -> [PriceListModel] {
+    var arrProductSettingList : [PriceListModel] = []
+
+    //GET DATA FROM MKV
+    if let arr_data = SDKUserDefault.getMappableArray(PriceListModel.self, for: kFileStorageName.kProductSettings.rawValue) {
+        arrProductSettingList = arr_data
+    }
+
+    return arrProductSettingList
+}
 
 
 

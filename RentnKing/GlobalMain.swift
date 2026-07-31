@@ -676,7 +676,11 @@ enum Url {
         let cleanPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
 
         let finalURL = "\(cleanBaseURL)/\(cleanPath)"
-        return NSURL(string: finalURL)!
+        if let url = NSURL(string: finalURL) { return url }
+        // A stray space / unencoded char would make NSURL(string:) nil and crash — encode and
+        // fall back to a benign non-nil URL so the request fails gracefully instead of crashing.
+        let encoded = finalURL.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? finalURL
+        return NSURL(string: encoded) ?? NSURL(string: "about:blank")!
     }
 
     private static func newAPI(_ path: String) -> NSURL {
@@ -797,6 +801,10 @@ enum Url {
 
     static var equipmentList: NSURL {
         return newAPI("equipment")
+    }
+    
+    static var equipmentRentalReadyList: NSURL {
+        return newAPI("equipment-rental-ready")
     }
     
     static var customerCheckList: NSURL {
@@ -1543,7 +1551,7 @@ extension NSNumber {
 //MARK: -- Selected Index --
 func selectedIndex(arr : NSArray, value : String) -> Int{
     for (index, _) in arr.enumerated() {
-        if value == arr[index] as! String {
+        if let str = arr[index] as? String, value == str {
             return index
         }
     }

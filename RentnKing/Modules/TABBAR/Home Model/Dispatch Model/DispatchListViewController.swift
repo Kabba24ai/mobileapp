@@ -218,7 +218,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             self.setTheView()
         }
 
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             self.APICall()
         }
     }
@@ -852,7 +852,10 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             
             cell.viewStatus.backgroundColor = .secondaryText
             cell.viewStatus.viewCorneRadius(radius: 10, isRound: false)
-            
+
+            // Button colour reflects driver progress: amber (pending) until the driver has saved a
+            // Driver Checklist for this item, then green (started). Applies to delivery AND return.
+
             //CHECK STATUS
            
             
@@ -881,8 +884,18 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 
                 cell.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
 
-                //DELIVERY BUTTON — light green, text then logo (not flipped)
-                cell.viewStatus.backgroundColor = UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+                let startedGreen = UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+                var isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
+
+                //PICKUP CASE
+                var ready_to_go_at: String = ""
+                ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
+                if ready_to_go_at != ""{
+                    isDriverStarted = true
+                }
+                
+                //DELIVERY BUTTON — text then logo (not flipped); green only once the driver started
+                cell.viewStatus.backgroundColor = isDriverStarted ? startedGreen : .secondaryText
                 if let stack = cell.lblStatus.superview as? UIStackView,
                    let imgLogo = stack.arrangedSubviews.compactMap({ $0 as? UIImageView }).first {
                     stack.spacing = 8
@@ -931,7 +944,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 
                 cell.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
 
-                //RETURN BUTTON — keep colour, flipped logo first then text
+                //RETURN BUTTON — flipped logo first then text; green only once the driver started
                 cell.viewStatus.backgroundColor = .secondaryText
                 if let stack = cell.lblStatus.superview as? UIStackView,
                    let imgLogo = stack.arrangedSubviews.compactMap({ $0 as? UIImageView }).first {
@@ -1135,6 +1148,23 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         }
 
         
+    }
+    
+    func isLocalStoredValue(_ oederUniqueID: String) -> Bool {
+        
+        let strKey = "driverChecklist_\(oederUniqueID)_delivery"
+        guard let dict = UserDefaults.standard.dictionary(forKey: strKey) else { return false }
+
+        // Any checkbox ticked
+        if let checks = dict["deliveryChecks"] as? [Int], checks.contains(1) { return true }
+
+        // Fuel changed from default ("Not Full")
+        if let fuel = dict["fuel"] as? String, fuel == "Full" { return true }
+
+        // Keys changed from default ("Missing")
+        if let keys = dict["keys"] as? String, keys == "With Machine" { return true }
+        
+        return false
     }
     
     

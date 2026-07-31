@@ -41,7 +41,7 @@ func syncEquipmentWithAPI() {
     let storageKey = "\(kFileStorageName.kEquipmentSubmit.rawValue)"
     let arrEqipmentRentalData: [SubmitEqipmentModel] = SDKUserDefault.getMappableArray(SubmitEqipmentModel.self, for: storageKey) ?? []
     if arrEqipmentRentalData.count != 0 {
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             let firstData = arrEqipmentRentalData[0]
             if firstData.status == kOrderStatusType.kPending.rawValue {
                 callAPIforUpdateRentalReady(dic: firstData)

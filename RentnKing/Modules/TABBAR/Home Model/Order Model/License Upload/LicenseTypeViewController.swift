@@ -235,19 +235,23 @@ extension LicenseTypeViewController {
     
     
     func saveImage(image: UIImage, orderID : String, imgName : String) -> Bool {
-        guard let data = image.jpegData(compressionQuality: 1) ?? image.pngData() else {
+        // Compress (was quality 1 / raw PNG — multi-MB per license side). Matches the other upload paths.
+        guard let data = image.jpegData(compressionQuality: 0.25) ?? image.pngData() else {
             return false
         }
       
         do {
-            try data.write(to: LicenseUploadDirectory.appendingPathComponent("\(orderID)_\(imgName).png"))
+            // Driver's-license images are sensitive PII — encrypt at rest. UntilFirstUserAuthentication
+            // keeps them readable by background uploads after the device's first unlock.
+            try data.write(to: LicenseUploadDirectory.appendingPathComponent("\(orderID)_\(imgName).png"),
+                           options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             return true
         } catch {
             print(error.localizedDescription)
             return false
         }
     }
-    
+
     func setLicenseData() {
         var strExpDate = ""
         let strMonth = self.txtMonth.text ?? ""

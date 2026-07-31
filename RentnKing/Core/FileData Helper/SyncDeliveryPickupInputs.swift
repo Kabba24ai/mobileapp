@@ -20,6 +20,7 @@ struct DeliveryPickupInputsSubmitModel: Mappable {
     internal var video_status: String?
     internal var checklist_status: String?
     internal var status: String?                  // local queue status (pending)
+    internal var attempts: Int?                   // retry counter (dead-letter after kMaxSyncAttempts)
 
     init?(map: Map) {
         mapping(map: map)
@@ -35,6 +36,7 @@ struct DeliveryPickupInputsSubmitModel: Mappable {
         video_status            <- map["video_status"]
         checklist_status        <- map["checklist_status"]
         status                  <- map["status"]
+        attempts                <- map["attempts"]
     }
 }
 
@@ -82,7 +84,7 @@ func syncDeliveryPickupInputsWithAPI() {
 
     guard arr.count != 0 else { return }
 
-    if NetworkReachabilityManager()!.isReachable {
+    if NetworkReachabilityManager()?.isReachable == true {
         let firstData = arr[0]
         if firstData.status == kOrderStatusType.kPending.rawValue {
             callAPIforDeliveryPickupInputs(obj: firstData)
@@ -104,8 +106,9 @@ func deliveryPickupInputsParams(_ obj: DeliveryPickupInputsSubmitModel) -> [Stri
 
 func callAPIforDeliveryPickupInputs(obj: DeliveryPickupInputsSubmitModel) {
     callDeliveryPickupInputsAPI(params: deliveryPickupInputsParams(obj), localID: obj.id ?? 0) { _ in
-        // Drain the rest of the pending queue (e.g. several overrides made while offline)
-        syncDeliveryPickupInputsWithAPI()
+        // Draining is handled inside handleDeliveryPickupInputsResponse and only
+        // advances on success — draining here unconditionally would re-send a kept
+        // (failed) arr[0] in a tight loop.
     }
 }
 
@@ -130,14 +133,15 @@ func submitDeliveryPickupInputsNow(order_product_unique_id: String,
     webHelper.showLogForCallingAPI = true
     webHelper.indicatorShowOrHide = false
     webHelper.callAPIwithCompletation { dic, _, _, _ in
-        // Sent once → remove from local queue
-        var arrLocal: [DeliveryPickupInputsSubmitModel] = SDKUserDefault.getMappableArray(DeliveryPickupInputsSubmitModel.self, for: storageKey) ?? []
-        if let index = arrLocal.firstIndex(where: { $0.id == obj.id }) {
-            arrLocal.remove(at: index)
-            SDKUserDefault.saveMappableArray(arrLocal, for: storageKey)
-        }
         let isSuccess = dic?.getStringForID(key: "status") == "1"
         let message = dic?.getStringForID(key: "message") ?? ""
+        // Remove ONLY on success; on failure keep it so the background sync retries
+        // (previously it was removed unconditionally, losing the submission).
+        if isSuccess {
+            var arrLocal: [DeliveryPickupInputsSubmitModel] = SDKUserDefault.getMappableArray(DeliveryPickupInputsSubmitModel.self, for: storageKey) ?? []
+            arrLocal.removeAll { $0.id == obj.id }
+            SDKUserDefault.saveMappableArray(arrLocal, for: storageKey)
+        }
         DispatchQueue.main.async {
             completion(isSuccess, message)
         }
@@ -157,7 +161,9 @@ func callDeliveryPickupInputsAPI(params: [String: Any], localID: Int, completion
     webHelper.showLogForCallingAPI = true
     webHelper.indicatorShowOrHide = false
     webHelper.callAPIwithCompletation { dic, arr, success, err in
+        #if DEBUG
         print("API URL====>>\(strURL)\n\nParams:===>\(params)\n\nResponse:====>>\(dic)")
+        #endif
         handleDeliveryPickupInputsResponse(data: dic, localID: localID) { is_success in
             completion(is_success)
         }
@@ -165,26 +171,30 @@ func callDeliveryPickupInputsAPI(params: [String: Any], localID: Int, completion
 }
 
 func handleDeliveryPickupInputsResponse(data: NSDictionary?, localID: Int, completion: @escaping (Bool) -> Void) {
-    // Always remove from local queue — success or error, call only once, no retry
     let storageKey = kFileStorageName.kDeliveryPickupInputsSubmit.rawValue
     var arr: [DeliveryPickupInputsSubmitModel] = SDKUserDefault.getMappableArray(DeliveryPickupInputsSubmitModel.self, for: storageKey) ?? []
-    if let index = arr.firstIndex(where: { $0.id == localID }) {
-        arr.remove(at: index)
-        SDKUserDefault.saveMappableArray(arr, for: storageKey)
-    }
 
     if data?.getStringForID(key: "status") == "1" {
+        // Success — remove and drain the next queued item.
+        arr.removeAll { $0.id == localID }
+        SDKUserDefault.saveMappableArray(arr, for: storageKey)
         indicatorHide()
         completion(true)
-    } else {
-        debugPrint("Delivery/Pickup Inputs API Error")
-        if data?.getStringForID(key: "message") != "" {
-            DispatchQueue.main.async {
-                showAlertMessage(strMessage: data?.getStringForID(key: "message") ?? str.somethingWentWrong, isDismiss: true)
-            }
-        } else {
-            showAlertMessage(strMessage: "\(str.somethingWentWrong)")
-        }
-        completion(false)
+        syncDeliveryPickupInputsWithAPI()
+        return
     }
+
+    // Failure / transient error — KEEP for retry (launch / network restore),
+    // capping attempts so a permanently-rejected item can't block the queue.
+    if let index = arr.firstIndex(where: { $0.id == localID }) {
+        let attempts = (arr[index].attempts ?? 0) + 1
+        if attempts >= kMaxSyncAttempts {
+            debugPrint("Delivery/Pickup Inputs: dropping item \(localID) after \(attempts) failed attempts")
+            arr.remove(at: index)                 // dead-letter
+        } else {
+            arr[index].attempts = attempts        // keep for retry
+        }
+        SDKUserDefault.saveMappableArray(arr, for: storageKey)
+    }
+    completion(false)
 }

@@ -54,7 +54,7 @@ func appendChecklistData(_ newItems: [[String: Any]]) {
 }
 
 
-func saveArrayWithImages(_ array: [[String: Any]]) {
+func saveArrayWithImages(_ array: [[String: Any]], triggerUpload: Bool = true) {
     var safeArray = [[String: Any]]()
 
     for var dict in array {
@@ -86,8 +86,12 @@ func saveArrayWithImages(_ array: [[String: Any]]) {
     do {
         let jsonData = try JSONSerialization.data(withJSONObject: safeArray, options: [])
         SDKUserDefault.save(jsonData, for: kFileStorageName.kSaveCheckList.rawValue)
-        
-        GlobalMainConstants.appDelegate?.updateCheckListData()
+
+        // triggerUpload:false is used when we only need to persist the queue (e.g. bumping a
+        // rejected item's attempt counter) without kicking off an immediate re-upload of arr[0].
+        if triggerUpload {
+            GlobalMainConstants.appDelegate?.updateCheckListData()
+        }
 
         print("✅ Saved array in MMKV")
     } catch {

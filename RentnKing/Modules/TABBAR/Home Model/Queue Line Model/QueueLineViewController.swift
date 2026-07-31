@@ -40,6 +40,10 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // Data
     var arrQueueLine: [QueueLineModel] = []
 
+    // Shimmer skeleton shown while the first load is in progress (same Placeholder lib as Dispatch).
+    private let queuePlaceholder = Placeholder()
+    private var isShowingSkeleton = false
+
     // Day filter (single-select)
     private let dayTitles = ["Today", "Tomorrow", "All"]
     private var dayChips: [UIButton] = []
@@ -56,26 +60,42 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         // FIXED HEADER (does not scroll): Pending / Staged / Completed tabs.
         headerStack.addArrangedSubview(buildTabs())
 
+        // Show the first tab (Pending) as selected immediately — before data loads — instead
+        // of leaving all three tabs looking unselected during the shimmer.
+        selectTab(selectedTab)
     }
 
     // MARK: - Data
     private func loadQueueLine() {
-        // Show any cached data immediately.
-        self.arrQueueLine = getQueueLineData()
-        renderLanes()
-
-        // Refresh from the API, then re-read the persisted list.
-        callQueueLineAPI { [weak self] success in
+        // Parse the cached list OFF the main thread, then render on main — but only if it has
+        // content, so an empty cache doesn't replace the shimmer skeleton with an empty state
+        // before the API returns.
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
-            if success {
-                self.arrQueueLine = self.getQueueLineData()
-                self.renderLanes()
+            let cached = self.getQueueLineData()
+            DispatchQueue.main.async {
+                self.arrQueueLine = cached
+                if !cached.isEmpty { self.renderLanes() }
+            }
+        }
+
+        // On API completion (success or failure) render the latest persisted data. This hides
+        // the skeleton and shows the genuine empty state only once we've actually heard back.
+        callQueueLineAPI { [weak self] _ in
+            guard let self = self else { return }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let fresh = self.getQueueLineData()
+                DispatchQueue.main.async {
+                    self.arrQueueLine = fresh
+                    self.renderLanes()
+                }
             }
         }
     }
 
     /// Splits items into the three lanes and rebuilds the scrolling content.
     private func renderLanes() {
+        hideSkeletonLoading()   // stop the shimmer before showing real cards
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         laneContents.removeAll()
 
@@ -93,6 +113,71 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         laneContents = [pending, staged, completed]
         laneContents.forEach { contentStack.addArrangedSubview($0) }
         selectTab(selectedTab)
+    }
+
+    // MARK: - Shimmer skeleton (loading placeholder)
+
+    /// Fills the board with shimmering skeleton cards while the first load runs.
+    private func showSkeletonLoading() {
+        contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        queuePlaceholder.remove()
+
+        var boxes: [UIView] = []
+        for _ in 0..<6 {
+            contentStack.addArrangedSubview(makeSkeletonCard(collecting: &boxes))
+        }
+        isShowingSkeleton = true
+
+        // Register + animate once the boxes have real frames (the shield is sized from bounds).
+        view.layoutIfNeeded()
+        queuePlaceholder.register(boxes)
+        queuePlaceholder.startAnimation()
+    }
+
+    private func hideSkeletonLoading() {
+        guard isShowingSkeleton else { return }
+        isShowingSkeleton = false
+        queuePlaceholder.remove()
+    }
+
+    /// One skeleton card that mirrors the real card layout; collects its shimmer boxes.
+    private func makeSkeletonCard(collecting boxes: inout [UIView]) -> UIView {
+        func box(_ w: CGFloat, _ h: CGFloat) -> UIView {
+            let v = UIView()
+            v.backgroundColor = Palette.card
+            v.layer.cornerRadius = 5
+            v.translatesAutoresizingMaskIntoConstraints = false
+            v.heightAnchor.constraint(equalToConstant: h).isActive = true
+            v.widthAnchor.constraint(equalToConstant: w).isActive = true
+            boxes.append(v)
+            return v
+        }
+
+        // Header: id + customer ........ thumb
+        let header = UIStackView(arrangedSubviews: [box(56, 14), box(130, 18), UIView(), box(24, 24)])
+        header.axis = .horizontal; header.spacing = 8; header.alignment = .center
+
+        // Machine row: image + (name / code / badge)
+        let info = UIStackView(arrangedSubviews: [box(170, 18), box(120, 13), box(90, 22)])
+        info.axis = .vertical; info.spacing = 8; info.alignment = .leading
+        let machineRow = UIStackView(arrangedSubviews: [box(64, 64), info, UIView()])
+        machineRow.axis = .horizontal; machineRow.spacing = 12; machineRow.alignment = .top
+
+        // Footer: store ........ time
+        let footer = UIStackView(arrangedSubviews: [box(150, 14), UIView(), box(120, 14)])
+        footer.axis = .horizontal; footer.spacing = 8; footer.alignment = .center
+
+        let stack = UIStackView(arrangedSubviews: [header, machineRow, footer])
+        stack.axis = .vertical; stack.spacing = 12
+        stack.isLayoutMarginsRelativeArrangement = true
+        stack.layoutMargins = UIEdgeInsets(top: 4, left: 0, bottom: 14, right: 0)
+
+        let line = UIView(); line.backgroundColor = Palette.border
+        line.heightAnchor.constraint(equalToConstant: 1).isActive = true
+
+        let card = UIStackView(arrangedSubviews: [stack, line])
+        card.axis = .vertical
+        return card
     }
 
     private func cards(for items: [QueueLineModel], empty: String) -> [UIView] {
@@ -156,22 +241,32 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         } rightActionHandler: { _, _ in
             // design only
         }
-        
-        loadQueueLine()   // cached → render, then refresh from API
 
-        //GET EMPLOYEE LIST DATA
-        getEmployeeList { arr_data in
-            self.arrEmployesList = arr_data
+        // Show the shimmer skeleton NOW (cheap to build) so it's visible instantly with the
+        // transition — the heavy data parsing still happens off-main in viewDidAppear.
+        if arrQueueLine.isEmpty {
+            showSkeletonLoading()
         }
+    }
 
-        //GET CATEGORY + EQUIPMENT (for Reassign in Mark as Staged)
-        getCategoryList { arr_data in
-            self.arrCategoryList = arr_data
-        }
-        getEquipmentList { arr_data in
-            self.arrEquipmentList = arr_data
-        }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // Heavy cache parsing runs AFTER the push animation so navigation feels instant.
+        loadQueueLine()             // parses cache off-main, then renders + refreshes from API
+        loadSupportingListsOnce()   // employees / categories / equipment (for the Reassign popup)
+    }
 
+    /// Loads the employee / category / equipment lists once per visit, OFF the main thread
+    /// (the equipment cache in particular maps many heavy MachineModel objects).
+    private var didLoadSupportingLists = false
+    private func loadSupportingListsOnce() {
+        guard !didLoadSupportingLists else { return }
+        didLoadSupportingLists = true
+        DispatchQueue.global(qos: .utility).async {
+            getEmployeeList  { arr in DispatchQueue.main.async { self.arrEmployesList  = arr } }
+            getCategoryList  { arr in DispatchQueue.main.async { self.arrCategoryList  = arr } }
+            getEquipmentList { arr in DispatchQueue.main.async { self.arrEquipmentList = arr } }
+        }
     }
 
     // MARK: - Scaffold
@@ -522,7 +617,16 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         if (item.urgency ?? "").lowercased() == "rush" {
             headerViews.append(makeBadge("RUSH", bg: .redText, text: .white, bordered: false))
         }
-        headerViews.append(thumb)
+
+        // Completed cards: no thumbs-up. Show a FAST TRACK tag when flagged.
+        let isCompleted = (item.status ?? "") == "completed" || item.completed == true
+        if isCompleted {
+            if item.is_fast_track == true {
+                headerViews.append(makeBadge("FAST TRACK", bg: Palette.amber, text: Palette.page, bordered: false))
+            }
+        } else {
+            headerViews.append(thumb)
+        }
 
         let header = UIStackView(arrangedSubviews: headerViews)
         header.axis = .horizontal
@@ -578,7 +682,10 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         // 3) Store (left) + date/time (right) on one line — store uses the app store icon.
         let storeName = item.store?.name ?? ""
         let deliveryLabel = (item.delivery?.transport_mode == "Store") ? "In Store : " : "Delivery : "
-        let storeLeft = iconRowAsset("icon_store", Palette.amber, labelValue(deliveryLabel, storeName))
+        // On Completed cards the Delivery / In Store icon + label match the time row (cyan icon, ink text).
+        let storeLabelColor = isCompleted ? Palette.ink : Palette.cyan
+        let storeIconTint = isCompleted ? Palette.cyan : Palette.amber
+        let storeLeft = iconRowAsset("icon_store", storeIconTint, labelValue(deliveryLabel, storeName, labelColor: storeLabelColor))
         let timeText = formatDeliveryDateTime(date: item.delivery?.date, time: item.delivery?.time)
         let timeRight = iconRow("clock", Palette.cyan, attr(timeText, Palette.ink, rFont(medium, 13)))
         let infoLine = UIStackView(arrangedSubviews: [storeLeft, UIView(), timeRight])
@@ -596,8 +703,15 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         guard let eq = item.equipment else { return [] }
         var badges: [UIView] = []
 
+        // Completed cards show Maint. Hold as a plain (non-tappable) badge.
+        let isCompleted = (item.status ?? "") == "completed" || item.completed == true
+
         if eq.status == "maintenance", let label = eq.status_label, !label.isEmpty {
-            badges.append(maintHoldBadge(text: label, item: item))                      // tappable
+            if isCompleted {
+                badges.append(makeBadge(label, bg: .clear, text: Palette.amber, bordered: true))   // non-tappable
+            } else {
+                badges.append(maintHoldBadge(text: label, item: item))                             // tappable
+            }
         } else if let ready = eq.rental_ready, !ready.isEmpty {
             badges.append(makeBadge("Available", bg: Palette.green, text: .white, bordered: false)) // filled green
         }
@@ -690,9 +804,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         NSAttributedString(string: text, attributes: [.foregroundColor: color, .font: font])
     }
 
-    private func labelValue(_ label: String, _ value: String) -> NSAttributedString {
+    private func labelValue(_ label: String, _ value: String, labelColor: UIColor = Palette.cyan) -> NSAttributedString {
         let f = rFont(GlobalMainConstants.APP_FONT_Roboto_Medium, 13)
-        let s = NSMutableAttributedString(string: label, attributes: [.foregroundColor: Palette.cyan, .font: f])
+        let s = NSMutableAttributedString(string: label, attributes: [.foregroundColor: labelColor, .font: f])
         s.append(NSAttributedString(string: value, attributes: [.foregroundColor: Palette.ink, .font: f]))
         return s
     }

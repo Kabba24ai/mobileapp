@@ -90,17 +90,36 @@ extension UserDefaults{
         }
     }
     
+    /// Keychain store for the auth token — encrypted at rest, device-only (not iCloud-backed),
+    /// and readable by background uploads after the device's first unlock.
+    private static let tokenKeychain = Keychain(service: "com.rentnking.auth")
+        .accessibility(.afterFirstUnlockThisDeviceOnly)
+
     var accessToken: String?{
         get {
-            return string(forKey: NSUDKey.accessToken)
+            // One-time migration: move any legacy token from UserDefaults into the Keychain.
+            // Only drop the UserDefaults copy if the Keychain write succeeds, so a Keychain
+            // failure can never log an existing user out.
+            if let legacy = string(forKey: NSUDKey.accessToken), !legacy.isEmpty {
+                do {
+                    try UserDefaults.tokenKeychain.set(legacy, key: NSUDKey.accessToken)
+                    removeObject(forKey: NSUDKey.accessToken)
+                    synchronize()
+                } catch {
+                    // keep the legacy value; migration will be retried on the next read
+                }
+                return legacy
+            }
+            return try? UserDefaults.tokenKeychain.getString(NSUDKey.accessToken)
         }
         set {
-            if newValue == nil {
-                removeObject(forKey: NSUDKey.accessToken)
+            if let value = newValue, !value.isEmpty {
+                try? UserDefaults.tokenKeychain.set(value, key: NSUDKey.accessToken)
+            } else {
+                try? UserDefaults.tokenKeychain.remove(NSUDKey.accessToken)
             }
-            else{
-                set(newValue, forKey: NSUDKey.accessToken)
-            }
+            // Never leave a copy of the token in plaintext UserDefaults.
+            removeObject(forKey: NSUDKey.accessToken)
             synchronize()
         }
     }

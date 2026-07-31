@@ -7,6 +7,7 @@
 
 import UIKit
 import AVFoundation
+import ImageIO
 import AVKit
 
 protocol ImageVideoUploadDelegate : NSObject {
@@ -39,6 +40,12 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     var arrImageVideoList: [String: [ImageVideoModel]] = [:]
     var strType : String = ""
     private var playerVC: AVPlayerViewController?
+    /// Token for the block-based AVPlayerItem observer, so it can be removed (it isn't auto-removed).
+    private var videoFailObserver: NSObjectProtocol?
+
+    deinit {
+        if let obs = videoFailObserver { NotificationCenter.default.removeObserver(obs) }
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -91,13 +98,26 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     
     func loadImage(fileName: String) -> UIImage? {
         let fileURL = ImageVideoUploadDirectory.appendingPathComponent(self.strOrderID).appendingPathComponent(fileName)
-        do {
-            let imageData = try Data(contentsOf: fileURL)
-            return UIImage(data: imageData)
-        } catch {
-            print("Error loading image : \(error)")
-        }
-        return nil
+        // Downsample for the review grid / preview so a full-resolution camera photo
+        // isn't decoded and held in memory for every item (a common OOM cause on orders
+        // with many photos). Uploads read the ORIGINAL file separately in
+        // createFileParts, so upload quality is unaffected by this.
+        return Self.downsampledImage(at: fileURL, maxPixel: 1024)
+    }
+
+    /// Decodes an image from disk downsampled to `maxPixel` on its longest side using ImageIO,
+    /// so the full-size bitmap is never materialized in memory. Returns nil if the file is missing.
+    static func downsampledImage(at fileURL: URL, maxPixel: CGFloat) -> UIImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
     
     func loadAllMediaData() {
@@ -486,6 +506,14 @@ extension ImageUploadViewController {
             semaphore.signal()
         }
         semaphore.wait()
+
+        // The original picked clip has been re-encoded into the upload dir — delete the
+        // source so multi-hundred-MB originals don't linger in the temporary directory.
+        // Guard: NEVER delete a file that lives in the persistent upload directory (that's
+        // the copy we keep and show locally); only the picker's temp source is removed.
+        if success, !videoURL.path.hasPrefix(dataPath.path) {
+            try? FileManager.default.removeItem(at: videoURL)
+        }
         return success
     }
 
@@ -622,7 +650,10 @@ extension ImageUploadViewController: UITableViewDelegate, UITableViewDataSource 
         let asset = AVURLAsset(url: path)
         let item = AVPlayerItem(asset: asset)
 
-        NotificationCenter.default.addObserver(
+        // Remove any previous observer before adding a new one — block-based observers are NOT
+        // auto-removed, so re-adding on every playback would leak the observer + captured item.
+        if let obs = videoFailObserver { NotificationCenter.default.removeObserver(obs) }
+        videoFailObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: item,
             queue: .main
@@ -1045,18 +1076,11 @@ extension ImageUploadViewController: UIImagePickerControllerDelegate, UINavigati
             let strOrderProductID = picker.accessibilityValue ?? ""
             
             if let movieUrl = info[.mediaURL] as? URL {
-                do {
-                    let video = try Data(contentsOf: movieUrl)
-                    print(video)
+                // NOTE: don't read the whole clip into memory here — it can be hundreds of MB.
+                // The video is re-encoded to the upload dir later in saveVideo().
 
-                    
-                } catch {
-                    print("Error")
-                }
-
-                
                 //UPDATE IMAGE DAT
-                let objData = ImageVideoModel(type: "video", image: self.getThumbnailImage(forUrl: movieUrl)!, strVideo: movieUrl, strUrl: "", productId: strOrderProductID, recentSelect: true)
+                let objData = ImageVideoModel(type: "video", image: self.getThumbnailImage(forUrl: movieUrl) ?? UIImage(), strVideo: movieUrl, strUrl: "", productId: strOrderProductID, recentSelect: true)
                 self.arrImageVideoLisr.append(objData)
                 
                 // Make sure productId has an array initialized
@@ -1103,6 +1127,9 @@ extension ImageUploadViewController: UIImagePickerControllerDelegate, UINavigati
     func getThumbnailImage(forUrl url: URL) -> UIImage? {
         let asset: AVAsset = AVAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
+        // Cap the thumbnail so a 1080p/4K video doesn't produce a full-resolution bitmap.
+        imageGenerator.maximumSize = CGSize(width: 1024, height: 1024)
+        imageGenerator.appliesPreferredTrackTransform = true
 
         do {
             let thumbnailImage = try imageGenerator.copyCGImage(at: CMTimeMake(value: 1, timescale: 30), actualTime: nil)

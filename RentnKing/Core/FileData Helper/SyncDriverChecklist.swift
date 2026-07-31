@@ -7,6 +7,10 @@ import UIKit
 import Alamofire
 import ObjectMapper
 
+/// Max times a queued offline submission is retried before it is dropped
+/// (dead-lettered) so a permanently-rejected item can't block the whole queue.
+let kMaxSyncAttempts = 10
+
 struct DriverChecklistSubmitModel: Mappable {
     internal var id: Int?
     internal var order_product_unique_id: String?
@@ -15,6 +19,7 @@ struct DriverChecklistSubmitModel: Mappable {
     internal var equipment_driver_status: String?
     internal var status: String?
     internal var checklist_type: String?
+    internal var attempts: Int?
 
     init?(map: Map) {
         mapping(map: map)
@@ -28,6 +33,7 @@ struct DriverChecklistSubmitModel: Mappable {
         equipment_driver_status  <- map["equipment_driver_status"]
         status                   <- map["status"]
         checklist_type                   <- map["checklist_type"]
+        attempts                 <- map["attempts"]
     }
 }
 
@@ -66,7 +72,7 @@ func syncDriverChecklistWithAPI() {
 
     guard arr.count != 0 else { return }
 
-    if NetworkReachabilityManager()!.isReachable {
+    if NetworkReachabilityManager()?.isReachable == true {
         let firstData = arr[0]
         if firstData.status == kOrderStatusType.kPending.rawValue {
             callAPIforDriverChecklist(obj: firstData)
@@ -84,7 +90,7 @@ func callAPIforDriverChecklist(obj: DriverChecklistSubmitModel) {
     ]
 
     callDriverChecklistAPI(params: dicData, localID: obj.id ?? 0) { _ in
-        //syncDriverChecklistWithAPI()
+        // Drain handled inside handleDriverChecklistResponse (only advances on success).
     }
 }
 
@@ -101,7 +107,9 @@ func callDriverChecklistAPI(params: [String: Any], localID: Int, completion: @es
     webHelper.showLogForCallingAPI = true
     webHelper.indicatorShowOrHide = false
     webHelper.callAPIwithCompletation { dic, arr, success, err in
+        #if DEBUG
         print("API URL====>>\(strURL)\n\nParams:===>\(params)\n\nResponse:====>>\(dic)")
+        #endif
         handleDriverChecklistResponse(data: dic, localID: localID) { is_success in
             completion(is_success)
         }
@@ -109,27 +117,30 @@ func callDriverChecklistAPI(params: [String: Any], localID: Int, completion: @es
 }
 
 func handleDriverChecklistResponse(data: NSDictionary?, localID: Int, completion: @escaping (Bool) -> Void) {
-    // Always remove from local queue — success or error, call only once, no retry
     let storageKey = kFileStorageName.kDriverChecklistSubmit.rawValue
     var arr: [DriverChecklistSubmitModel] = SDKUserDefault.getMappableArray(DriverChecklistSubmitModel.self, for: storageKey) ?? []
-    if let index = arr.firstIndex(where: { $0.id == localID }) {
-        arr.remove(at: index)
-        SDKUserDefault.saveMappableArray(arr, for: storageKey)
-    }
 
     if data?.getStringForID(key: "status") == "1" {
+        // Success — remove the item and drain the next queued one.
+        arr.removeAll { $0.id == localID }
+        SDKUserDefault.saveMappableArray(arr, for: storageKey)
         indicatorHide()
         completion(true)
-    } else {
-        debugPrint("Driver Checklist API Error")
-        if data?.getStringForID(key: "message") != "" {
-            DispatchQueue.main.async {
-                showAlertMessage(strMessage: data?.getStringForID(key: "message") ?? str.somethingWentWrong, isDismiss: true)
-            }
-            
-        } else {
-            showAlertMessage(strMessage: "\(str.somethingWentWrong)")
-        }
-        completion(false)
+        syncDriverChecklistWithAPI()
+        return
     }
+
+    // Failure / transient error — KEEP the item and retry later (launch / network restore),
+    // but cap attempts so a permanently-rejected item can't block the queue forever.
+    if let index = arr.firstIndex(where: { $0.id == localID }) {
+        let attempts = (arr[index].attempts ?? 0) + 1
+        if attempts >= kMaxSyncAttempts {
+            debugPrint("Driver Checklist: dropping item \(localID) after \(attempts) failed attempts")
+            arr.remove(at: index)                 // dead-letter — stop blocking the queue
+        } else {
+            arr[index].attempts = attempts        // keep for the next retry
+        }
+        SDKUserDefault.saveMappableArray(arr, for: storageKey)
+    }
+    completion(false)
 }

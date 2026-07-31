@@ -31,18 +31,6 @@ enum Application {
     static let PageOrderLimit = 10
     static let currency = "$"
 
-    //freevison
-//    static let key = "c0bec2a92d0f9869a3255b9c41a4d0c8"
-//    static let userID = "188"
-
-    //baynounah
-//    static let key = "VBWyGJmApmCgFHV1U2LJ7cDMsrnWKhKZ"
-//    static let userID = "186"
-    
-    
-    static let key = "832f918504051a03051f6106f4a1927c"
-    static let userID = "191"
-
     static let OS = "ios"
     static let DEVICE_TYPE = checkDeviceiPad() ? "tablet " : "mobile"
 
@@ -108,14 +96,8 @@ enum Application {
     //Base URL
     static let BaseURL = "https://rentnking.com/api/v1/"
 
-    //DEV API
-//    static let BaseURL_NEW = "https://api.kabba.ai/api/admin/v1/"
-//    static let token = "45|6ooR9OLqbXvvYEXAenVfPCl1XHXNT1XMeV51vBpH6417a822"
-   
-    //LIVE API
-    //static let BaseURL_NEW = "https://api.rentnking.com/api/admin/v1/"
-//    static let token = "5|rKRPxe0Bq3zxJGgmi4wtjfyoS1w2KzYHmTJ9uHS7229379e6"
-    //static let BaseURL_NEW = UserDefaults.standard.baseURL ?? ""
+    // Base URL is provided at runtime (per-environment) via UserDefaults.
+    // NOTE: hardcoded API bearer tokens were removed from here — rotate them server-side.
     static var BaseURL_NEW: String {
         return UserDefaults.standard.baseURL ?? ""
     }

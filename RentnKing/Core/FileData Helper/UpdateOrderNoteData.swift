@@ -12,7 +12,7 @@ func syncOrderNoteWithAPI() {
     let storageKey = "\(kFileStorageName.kOrderNoteData.rawValue)"
     let arrNoteData: [OrderNoteModel] = SDKUserDefault.getMappableArray(OrderNoteModel.self, for: storageKey) ?? []
     if arrNoteData.count != 0 {
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             let firstData = arrNoteData[0]
             if firstData.status == kOrderStatusType.kPending.rawValue {
                 let strType = firstData.type ?? ""

@@ -174,7 +174,7 @@ class AddNoteView: UIView, UITextFieldDelegate {
             showAlertMessage(strMessage: "Please enter a note.")
         }
         else {
-//            if NetworkReachabilityManager()!.isReachable {
+//            if NetworkReachabilityManager()?.isReachable == true {
 //                //CALL API
 //                if self.objNoteData != nil {
 //                    RentnKing.updateNote(UpdateNoteParameater: UpdateNoteParameater(order_note_unique_id: self.objNoteData?.unique_id ?? "", note: strNote, user_id: self.strUserID), note_id: 0) { is_succss in

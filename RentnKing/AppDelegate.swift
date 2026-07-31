@@ -65,7 +65,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         createFileStorageFolder()
 
         //RECLAIM ALREADY-UPLOADED MEDIA (7-day grace; keeps Pending files)
-        MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
+//        MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
         
         
         //SET FIREBASE AND NOTIFICATION
@@ -160,14 +160,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 self.updateCheckListData()
                 syncDriverChecklistWithAPI()
                 syncDeliveryPickupInputsWithAPI()
+                self.uploadAllData()          // retry pending media now that we're online
             }
         }
-        
+
 
         // 👂 Listen for future internet restoration
         monitor.onNetworkRestored = {
             print("🌐 Internet restored after launch → Sync now")
-            
+
             //GET NOTIFICATION COUNT
             if UserDefaults.standard.user != nil{
                 syncOrderNoteWithAPI()
@@ -176,6 +177,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 self.updateCheckListData()
                 syncDriverChecklistWithAPI()
                 syncDeliveryPickupInputsWithAPI()
+                self.uploadAllData()          // retry pending media when connectivity returns
             }
         }
     }
@@ -197,7 +199,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
 
     @objc func uploadAllData() {
-        if NetworkReachabilityManager()!.isReachable {
+        if NetworkReachabilityManager()?.isReachable == true {
             //GET ORDER DATA
             let arrAllData = CoreDBManager.sharedDatabase.getAllUploadDATA()
 
@@ -237,7 +239,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             }
             else{
                 //QUEUE EMPTY — everything uploaded; reclaim local media (keeps Pending, 7-day grace)
-                MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
+//                MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
                 DispatchQueue.main.asyncAfter(deadline: .now()){
                     NotificationCenter.default.post(name: .stopUploadData, object: nil)
                 }
@@ -400,8 +402,10 @@ extension AppDelegate :WebServiceHelperDelegate {
             ) { result in
                 switch result {
                 case .success((let response, let data)):
+                    #if DEBUG
                     print("✅ Upload finished: \(response.statusCode)")
                     print("Response: \(String(data: data, encoding: .utf8) ?? "")")
+                    #endif
                     
                     if response.statusCode == 200 {
                         
@@ -429,12 +433,19 @@ extension AppDelegate :WebServiceHelperDelegate {
 
             // The temp compressed image copies were already streamed into the multipart
             // body, so delete them now to free temporary storage.
-            let tmpDir = FileManager.default.temporaryDirectory.path
-            for part in fileParts where part.fileURL.path.hasPrefix(tmpDir) {
-                try? FileManager.default.removeItem(at: part.fileURL)
-            }
+            cleanupTempParts(fileParts)
         } catch {
             print("Upload start error: \(error.localizedDescription)")
+            // Also clean up on failure — otherwise the temp JPEGs leak on every failed attempt.
+            cleanupTempParts(fileParts)
+        }
+    }
+
+    /// Deletes any temp-directory file parts (compressed JPEG copies) once they're no longer needed.
+    private func cleanupTempParts(_ fileParts: [BackgroundUploader.FilePart]) {
+        let tmpDir = FileManager.default.temporaryDirectory.path
+        for part in fileParts where part.fileURL.path.hasPrefix(tmpDir) {
+            try? FileManager.default.removeItem(at: part.fileURL)
         }
     }
 
@@ -448,7 +459,7 @@ extension AppDelegate :WebServiceHelperDelegate {
                 var imgUploaded = UIImage()
 
                 if item.type == uploadType.image.rawValue {
-                    imgUploaded = loadImage(fileName: arrData[0].name ?? "") ?? UIImage()
+                    imgUploaded = loadImage(fileName: item.name ?? "") ?? UIImage()
                 }
                 else {
                     imgUploaded = loadImagefromImageVideoDirectory(fileName: "\(item.orderID ?? "")/\(item.name ?? "")") ?? UIImage()
@@ -579,7 +590,9 @@ extension AppDelegate :WebServiceHelperDelegate {
                     
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj
-                    UserDefaults.standard.accessToken = userData.getStringForID(key: "full_name")
+                    // Bearer token must come from the "token" key (matches LoginModel) — it was
+                    // wrongly reading "full_name", which would send a bogus Authorization header.
+                    UserDefaults.standard.accessToken = userData.getStringForID(key: "token")
                 }
             }
             
@@ -607,19 +620,28 @@ extension AppDelegate :WebServiceHelperDelegate {
                 // sends arr[0], so removing the first entry drains the queue one-by-one
                 // without dropping other rows that share the same equipment_unique_id.
                 var arr = getChecklistData() ?? []
+                let justUploaded = arr.first     // the checklist item that was just saved
                 if !arr.isEmpty {
                     arr.removeFirst()
                 }
 
                 // Persist the trimmed queue; saveArrayWithImages also triggers the next upload.
                 saveArrayWithImages(arr)
+
+                // Order fully done (Return checklist saved) → reclaim this order's local
+                // photos/videos/license. purgeMedia is a no-op if any file is still uploading,
+                // so nothing un-sent is ever lost.
+                if (justUploaded?["type"] as? String) == "Return",
+                   let orderUniqueId = justUploaded?["order_unique_id"] as? String, !orderUniqueId.isEmpty {
+                    MediaCleanupManager.shared.purgeMedia(forOrder: orderUniqueId)
+                }
             }
             else if strRequest == "getNotification"{
                 UIApplication.shared.applicationIconBadgeNumber = 0
                 if let arrData = data["notifications"] as? NSArray{
                     
                     arrNotifications = []
-                    arrNotifications = Mapper<NotificationsModel>().mapArray(JSONArray: arrData as! [[String : Any]])
+                    arrNotifications = Mapper<NotificationsModel>().mapArray(JSONArray: (arrData as? [[String : Any]]) ?? [])
                     
                     UIApplication.shared.applicationIconBadgeNumber = arrNotifications.count
                     NotificationCenter.default.post(name: .notificationCount, object: nil)
@@ -633,11 +655,22 @@ extension AppDelegate :WebServiceHelperDelegate {
         else{
             if strRequest == "updateCheckList"{
                 // Server accepted the HTTP call but rejected the checklist (success != "1").
-                // KEEP the item in the queue and just release the lock so it can be retried
-                // (on next launch / network restore). The server message, if any, is already
-                // surfaced by WebServiceHelper (serviceWithAlert). We intentionally don't drop
-                // the item here — losing an accepted-locally checklist is worse than a retry.
+                // Release the lock, then KEEP the item for retry — but cap attempts so a
+                // permanently-rejected checklist can't block the whole queue forever.
                 self.isCheckListUploading = false
+
+                var arr = getChecklistData() ?? []
+                if !arr.isEmpty {
+                    let attempts = ((arr[0]["_attempts"] as? Int) ?? 0) + 1
+                    if attempts >= kMaxSyncAttempts {
+                        print("Checklist: dropping server-rejected item after \(attempts) attempts")
+                        arr.removeFirst()                       // dead-letter → unblock the queue
+                        saveArrayWithImages(arr)                // persist + advance to the next item
+                    } else {
+                        arr[0]["_attempts"] = attempts          // keep; retry on next launch / network restore
+                        saveArrayWithImages(arr, triggerUpload: false)   // persist without an immediate re-upload loop
+                    }
+                }
             }
             else if strRequest == "getNotification"{
                 arrNotifications = []
@@ -662,7 +695,9 @@ extension AppDelegate :WebServiceHelperDelegate {
             return
         }
 
-        self.uploadAllData()
+        // (M8) Previously any unrelated API failure drained the media queue here — surprising
+        // coupling. Media retries now happen via their proper triggers: launch, network
+        // available/restored, and the background uploader's own completion handler.
 
         if strRequest == "getNotification"{
             arrNotifications = []
@@ -699,7 +734,7 @@ extension AppDelegate :WebServiceHelperDelegate {
                 if let dicData = dic?["order"] as? NSDictionary{
                     
                     //SET DATA
-                    let map = Map(mappingType: .fromJSON, JSON: dicData as! [String : Any])
+                    let map = Map(mappingType: .fromJSON, JSON: (dicData as? [String : Any]) ?? [:])
                     let objOrderData = OrdersListModel(map: map)
                     
                     

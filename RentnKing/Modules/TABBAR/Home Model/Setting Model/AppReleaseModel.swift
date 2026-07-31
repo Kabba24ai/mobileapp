@@ -52,15 +52,28 @@ enum AppReleaseInfo {
     /// The newest entry uses the automatic version + build date; add older
     /// releases below it with their historical (hardcoded) version and date.
     static let all: [AppRelease] = [
-        AppRelease(version: version, date: buildDate, notes: [
+        AppRelease(version: "1.0.9", date: "Fri - July 31 - 2026", notes: [
+            "Storage is freed automatically once an order's delivery and return are both complete",
+            "Dispatch: the delivery/return button turns green once the driver completes their checklist",
+            "Updated the driver checklist fuel and key options",
+            "Queue Line shows a loading placeholder while it opens",
+            "Checklist items now appear in a consistent order",
+            "Various fixes and refinements",
+        ]),
+        AppRelease(version: "1.0.8", date: "Wed - July 29 - 2026", notes: [
+            "Queue Line and Equipment screens now open quickly (were slow to load)",
+            "Fixed fuel and hours entry on the checklist",
+            "Fixed an issue on the Equipment screen",
+            "More reliable checklist, driver, and photo/video uploads on poor connections",
+            "Login is now stored securely in the device Keychain",
+        ]),
+        AppRelease(version: "1.0.7", date: "Fri - July 24 - 2026", notes: [
             "New Queue Line module for staging equipment (Pending / Staged / Completed)",
             "Fixed an issue where some checklist submissions did not sync to the server",
             "Checklist reports now upload reliably and retry automatically when back online",
             "Automatic cleanup of uploaded photos & videos to save device storage",
             "Stability improvements and bug fixes",
         ]),
-        // Older releases go here, e.g.:
-        // AppRelease(version: "1.0.6", date: "Wed - July 22 - 2026", notes: [ ... ]),
     ]
 
     /// The current (newest) release.

@@ -143,32 +143,67 @@ final class MediaCleanupManager {
 
     /// - Parameter graceDays: uploaded files are kept this many days before being
     ///   deleted (0 = delete as soon as they're uploaded).
-    func purgeUploadedMedia(graceDays: Int = 7) {
+//    func purgeUploadedMedia(graceDays: Int = 7) {
+//
+//        // 1) Snapshot the still-Pending files on the current (main) thread.
+//        let pending = CoreDBManager.sharedDatabase.getAllUploadDATA(status: "Pending")
+//        var pendingKeys = Set<String>()
+//        for item in pending {
+//            let name = item.name ?? ""
+//            guard !name.isEmpty else { continue }
+//            pendingKeys.insert("\(item.orderID ?? "")/\(name)")   // ImageVideo/<order>/<file>
+//            pendingKeys.insert(name)                               // LicenseUpload/<file>
+//        }
+//
+//        let cutoff = Date().addingTimeInterval(-Double(graceDays) * 86_400)
+//
+//        // 2) Do the file I/O off the main thread.
+//        DispatchQueue.global(qos: .utility).async {
+//            let fm = FileManager.default
+//
+//            self.sweep(ImageVideoUploadDirectory, fm: fm, cutoff: cutoff) { url in
+//                let folder = url.deletingLastPathComponent().lastPathComponent
+//                return pendingKeys.contains("\(folder)/\(url.lastPathComponent)")
+//            }
+//            self.sweep(LicenseUploadDirectory, fm: fm, cutoff: cutoff) { url in
+//                pendingKeys.contains(url.lastPathComponent)
+//            }
+//            self.removeEmptyFolders(in: ImageVideoUploadDirectory, fm: fm)
+//        }
+//    }
 
-        // 1) Snapshot the still-Pending files on the current (main) thread.
-        let pending = CoreDBManager.sharedDatabase.getAllUploadDATA(status: "Pending")
-        var pendingKeys = Set<String>()
-        for item in pending {
-            let name = item.name ?? ""
-            guard !name.isEmpty else { continue }
-            pendingKeys.insert("\(item.orderID ?? "")/\(name)")   // ImageVideo/<order>/<file>
-            pendingKeys.insert(name)                               // LicenseUpload/<file>
+    /// Immediately reclaims a single order's local media once that order is fully done
+    /// (delivery + return). Deletes NOTHING if any file for the order is still Pending
+    /// upload — so nothing un-sent is ever lost. Call on the main thread (Core Data's
+    /// viewContext is main-bound); the file I/O is moved off the main thread.
+    func purgeMedia(forOrder orderId: String) {
+        guard !orderId.isEmpty else { return }
+
+        // 1) Safety gate: never delete while anything for this order is still uploading.
+        let stillPending = CoreDBManager.sharedDatabase.getAllUploadDATA(status: "Pending")
+            .contains { ($0.orderID ?? "") == orderId }
+        guard !stillPending else {
+            print("MediaCleanup: order \(orderId) still has pending uploads — keeping media")
+            return
         }
 
-        let cutoff = Date().addingTimeInterval(-Double(graceDays) * 86_400)
+        // 2) Clear this order's Core Data upload rows (photos/videos + license).
+        CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: orderId, strType: uploadType.video_image.rawValue) { _ in }
+        CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: orderId, strType: uploadType.image.rawValue) { _ in }
 
-        // 2) Do the file I/O off the main thread.
+        // 3) Delete the files off the main thread.
+        let imageVideoFolder = ImageVideoUploadDirectory.appendingPathComponent(orderId)
+        let licenseDir = LicenseUploadDirectory
         DispatchQueue.global(qos: .utility).async {
             let fm = FileManager.default
-
-            self.sweep(ImageVideoUploadDirectory, fm: fm, cutoff: cutoff) { url in
-                let folder = url.deletingLastPathComponent().lastPathComponent
-                return pendingKeys.contains("\(folder)/\(url.lastPathComponent)")
+            try? fm.removeItem(at: imageVideoFolder)                       // ImageVideo/<order>/
+            // LicenseUpload/<order>_front.png, <order>_back.png, …
+            if let files = try? fm.contentsOfDirectory(at: licenseDir, includingPropertiesForKeys: nil) {
+                for url in files where url.lastPathComponent.hasPrefix("\(orderId)_") {
+                    try? fm.removeItem(at: url)
+                }
             }
-            self.sweep(LicenseUploadDirectory, fm: fm, cutoff: cutoff) { url in
-                pendingKeys.contains(url.lastPathComponent)
-            }
-            self.removeEmptyFolders(in: ImageVideoUploadDirectory, fm: fm)
+            print("MediaCleanup: reclaimed local media for completed order \(orderId)")
         }
     }
 

@@ -154,7 +154,7 @@ class WarningViewController: UIViewController, UIGestureRecognizerDelegate {
         }
 
         // Buttons — primary (filled) commit action + secondary (outlined) cancel
-        let btnComplete = makePrimaryButton(title: "Delivery Complete - Next Mission")
+        let btnComplete = makePrimaryButton(title: isReturn ? "Return Complete - Next Mission" : "Delivery Complete - Next Mission")
         btnComplete.addTarget(self, action: #selector(deliveryCompleteTapped), for: .touchUpInside)
 
         let btnBack = makeSecondaryButton(title: "Back to Order")

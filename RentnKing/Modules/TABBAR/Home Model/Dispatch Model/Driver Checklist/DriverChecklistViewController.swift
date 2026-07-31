@@ -79,8 +79,8 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     var checklistType : String = ""
 
     // Side-by-side toggles replacing the fuel/keys dropdowns (delivery only)
-    private let fuelSegment = UISegmentedControl(items: ["Full", "Refill"])
-    private let keysSegment = UISegmentedControl(items: ["Present", "Missing"])
+    private let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
+    private let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
 
     private let callDeliveryCustomerSubItems = [
         "Verify delivery address",
@@ -492,6 +492,7 @@ extension DriverChecklistViewController {
         }
 
         self.setupReadyToGoButtonLayout()
+        self.restoreChecklistState()
     }
 
     /// Arranges the Load Map & Go icon/text like the dispatch buttons, by checklistType.
@@ -530,7 +531,7 @@ extension DriverChecklistViewController {
         self.viewDoubleCheck.backgroundColor = .clear
         self.viewDoubleCheck.layer.borderWidth = 0
 
-        let fuelColumn = makeSegmentColumn(title: "2. Equipment Fuel", segment: fuelSegment)
+        let fuelColumn = makeSegmentColumn(title: "2. Fuel", segment: fuelSegment)
         let keysColumn = makeSegmentColumn(title: "3. Keys", segment: keysSegment)
 
         let row = UIStackView(arrangedSubviews: [fuelColumn, keysColumn])
@@ -547,10 +548,10 @@ extension DriverChecklistViewController {
             row.bottomAnchor.constraint(lessThanOrEqualTo: viewDoubleCheck.bottomAnchor)
         ])
 
-        // Defaults: Refill (index 1) and Missing (index 1)
-        fuelSegment.selectedSegmentIndex = 1
-        keysSegment.selectedSegmentIndex = 1
-        self.strDoubleCheck = "Refill"
+        // Defaults: the LEFT option (index 0) — "Not Full" and "Missing" — to match the staging screen.
+        fuelSegment.selectedSegmentIndex = 0
+        keysSegment.selectedSegmentIndex = 0
+        self.strDoubleCheck = "Not Full"
         self.strKeys = "Missing"
 
         fuelSegment.addTarget(self, action: #selector(fuelSegmentChanged(_:)), for: .valueChanged)
@@ -597,13 +598,15 @@ extension DriverChecklistViewController {
     }
 
     @objc private func fuelSegmentChanged(_ sender: UISegmentedControl) {
-        self.strDoubleCheck = sender.selectedSegmentIndex == 0 ? "Full" : "Refill"
+        self.strDoubleCheck = sender.selectedSegmentIndex == 0 ? "Not Full" : "Full"
         self.updateReadyToGoButton()
+        self.saveChecklistState()
     }
 
     @objc private func keysSegmentChanged(_ sender: UISegmentedControl) {
-        self.strKeys = sender.selectedSegmentIndex == 0 ? "Present" : "Missing"
+        self.strKeys = sender.selectedSegmentIndex == 0 ? "Missing" : "With Machine"
         self.updateReadyToGoButton()
+        self.saveChecklistState()
     }
     
     
@@ -698,10 +701,10 @@ extension DriverChecklistViewController {
             callDeliveryCustomerChecks[sender.tag].toggle()
             sender.isSelected = callDeliveryCustomerChecks[sender.tag]
         }
-        
         updateReadyToGoButton()
+        self.saveChecklistState()
     }
-    
+
     @objc private func callCustomerRowTapped(_ gesture: UITapGestureRecognizer) {
         guard let index = gesture.view?.tag, index < callCustomerCheckboxButtons.count else { return }
         if self.checklistType == "pickup"{
@@ -714,8 +717,8 @@ extension DriverChecklistViewController {
             callDeliveryCustomerChecks[index].toggle()
             checkbox.isSelected = callDeliveryCustomerChecks[index]
         }
-        
         updateReadyToGoButton()
+        self.saveChecklistState()
     }
     
     @IBAction func btnEquimentFuel_Action(_ sender: UIButton) {
@@ -771,6 +774,7 @@ extension DriverChecklistViewController {
         
         if self.objDispatch?.is_delivered == false {
             //DELIVERY CASE
+            UserDefaults.standard.removeObject(forKey: localStateKey)
             self.objDispatch?.delivery_checklist?.ready_to_go_at = strReadytoGoDate
             self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.delivery_checklist)
         }
@@ -824,6 +828,49 @@ extension DriverChecklistViewController {
         self.viewArrivedMain.isHidden = true
     }
     
+    // MARK: - Local State Persistence
+
+    private var localStateKey: String {
+        "driverChecklist_\(self.objDispatch?.order?.unique_id ?? "")_delivery"
+    }
+
+    func saveChecklistState() {
+        let dict: [String: Any] = [
+            "deliveryChecks": callDeliveryCustomerChecks.map { $0 ? 1 : 0 },
+            "fuel":           self.strDoubleCheck,
+            "keys":           self.strKeys
+        ]
+        UserDefaults.standard.set(dict, forKey: localStateKey)
+    }
+
+    func restoreChecklistState() {
+        guard let dict = UserDefaults.standard.dictionary(forKey: localStateKey) else { return }
+
+        if let deliveryRaw = dict["deliveryChecks"] as? [Int] {
+            for (i, val) in deliveryRaw.enumerated() where i < callDeliveryCustomerChecks.count {
+                callDeliveryCustomerChecks[i] = val == 1
+            }
+        }
+
+        let checks = checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks
+        for (i, btn) in callCustomerCheckboxButtons.enumerated() where i < checks.count {
+            btn.isSelected = checks[i]
+        }
+
+        if let fuel = dict["fuel"] as? String, !fuel.isEmpty {
+            self.strDoubleCheck = fuel
+            fuelSegment.selectedSegmentIndex = fuel == "Full" ? 1 : 0
+        }
+
+        // Restore keys
+        if let keys = dict["keys"] as? String, !keys.isEmpty {
+            self.strKeys = keys
+            keysSegment.selectedSegmentIndex = keys == "With Machine" ? 1 : 0
+        }
+
+        self.updateReadyToGoButton()
+    }
+
     @objc private func btnArrivedClicked() {
         //        let alert = UIAlertController(title: "Arrived", message: "Are you sure you've arrived?", preferredStyle: .alert)
         //
