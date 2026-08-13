@@ -330,4 +330,10 @@ extension HomeViewController{
               self.navigationController?.pushViewController(newViewController, animated: true)
           }
       }
+
+    // MANUAL DISPATCH — programmatic sibling module (like Queue Line, not a storyboard scene).
+    @IBAction func btnManualDispatchClicked(_ sender: UIButton) {
+        let newViewController = ManualDispatchViewController()
+        self.navigationController?.pushViewController(newViewController, animated: true)
+    }
 }

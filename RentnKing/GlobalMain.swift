@@ -780,7 +780,19 @@ enum Url {
         return newAPI("orders/schedules/assign-driver")
     }
 
-    
+    // MARK: - MANUAL DISPATCH
+    // Order-free driver tasks (sibling to Queue Line). Self-scoped server-side
+    // to the logged-in driver via the Bearer token — no driver_id is sent.
+
+    static var manualDispatchList: NSURL {
+        return newAPI("dispatch/manual")
+    }
+
+    static var manualDispatchUpdateStatus: NSURL {
+        return newAPI("dispatch/manual/update-status")
+    }
+
+
     // MARK: - STATES
 
     static var getStates: NSURL {
