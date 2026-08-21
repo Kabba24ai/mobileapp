@@ -259,7 +259,8 @@ class CRMListViewController: UIViewController , UIGestureRecognizerDelegate {
 
 extension CRMListViewController : MachineFilterProtocol{
     
-    func SelectFilter(categoryID: Int, strStatus: String, strService: String) {
+    func SelectFilter(categoryID: Int, strStatus: String, strService: String, strStoreID: String, strStoreName: String) {
+        
         var strTag = ""
         self.arr_selectTagID.removeAll()
 

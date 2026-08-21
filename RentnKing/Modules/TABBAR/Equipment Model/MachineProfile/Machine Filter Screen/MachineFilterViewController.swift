@@ -8,7 +8,7 @@
 import UIKit
 
 protocol MachineFilterProtocol : AnyObject {
-    func SelectFilter(categoryID : Int, strStatus : String, strService : String)
+    func SelectFilter(categoryID : Int, strStatus : String, strService : String, strStoreID : String, strStoreName : String)
 }
 
 
@@ -30,13 +30,15 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     //SET OTHER VALUE   Multiple Pick up and for other stores
     @IBOutlet weak var viewItemMenu: UIView!
     
+    @IBOutlet weak var viewStore: UIView!
+    @IBOutlet weak var lblStore: UILabel!
+
     @IBOutlet weak var viewCaregory: UIView!
     @IBOutlet weak var lblCaregory: UILabel!
 
-
     @IBOutlet weak var viewStatus: UIView!
     @IBOutlet weak var lblStatus: UILabel!
-    
+
     @IBOutlet weak var viewService: UIView!
     @IBOutlet weak var lblService: UILabel!
 
@@ -54,16 +56,20 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     var selectCategoryID : Int = 0
     var selectStatus :  String = "All"
     var selectService :  String = "All"
+    var selectStoreID : String = ""
+    var selectStoreName : String = ""
     var isScheduleScreen : Bool = false
-    
+
     var arrCategorys : [CategoryModel] = []
     var arrStatues : [FilterTypes] = []
     var arrServices : [FilterTypes] = []
+    var arrStores : [StoreModel] = []
     var arrCustomerTag : [CustomerTagModel] = []
 
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        selectFilterIndex = 1
         conViewHeader.constant = 200
         
         
@@ -135,38 +141,47 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
     }
     
     func setSelectFilterViews(select : Int){
+        self.viewStore.backgroundColor = .clear
         self.viewCaregory.backgroundColor = .clear
         self.viewStatus.backgroundColor = .clear
         self.viewService.backgroundColor = .clear
-        
+
         if self.screenFromCustomer {
+            self.viewStore.isHidden = true
             self.viewStatus.isHidden = true
             self.viewService.isHidden = true
-            
+
             self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Tags")
             self.lblCaregory.textAlignment = .center
         }
         else {
             self.viewService.isHidden = true
+            self.lblStore.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Store")
+            self.lblStore.textAlignment = .center
+
             self.lblCaregory.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Category")
             self.lblCaregory.textAlignment = .center
-            
+
             self.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Status")
             self.lblStatus.textAlignment = .center
 
             self.lblService.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "Service")
             self.lblService.textAlignment = .center
         }
-        
-        if select == 1{
+
+        if select == 1 {
+            self.viewStore.backgroundColor = .background
+            self.lblStore.textColor = .primary
+        }
+        else if select == 2 {
             self.viewCaregory.backgroundColor = .background
             self.lblCaregory.textColor = .primary
         }
-        else if select == 2{
+        else if select == 3 {
             self.viewStatus.backgroundColor = .background
             self.lblStatus.textColor = .primary
         }
-        else if select == 3{
+        else if select == 4 {
             self.viewService.backgroundColor = .background
             self.lblService.textColor = .primary
         }
@@ -210,7 +225,7 @@ class MachineFilterViewController: UIViewController, UIGestureRecognizerDelegate
             if self.screenFromCustomer {
                 self.selectStatus = self.arrSelectedTag.joined(separator: ",")
             }
-            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus, strService: self.selectService)
+            self.delegate?.SelectFilter(categoryID: self.selectCategoryID, strStatus: self.selectStatus, strService: self.selectService, strStoreID: self.selectStoreID, strStoreName: self.selectStoreName)
             
             DispatchQueue.main.async {
                 self.dismiss(animated: false)
@@ -291,13 +306,16 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
   
         
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        if self.selectFilterIndex == 1{
+        if self.selectFilterIndex == 1 {
+            return self.arrStores.count
+        }
+        else if self.selectFilterIndex == 2 {
             return self.screenFromCustomer ? self.arrCustomerTag.count : self.arrCategorys.count
         }
-        else if self.selectFilterIndex == 2{
+        else if self.selectFilterIndex == 3 {
             return self.arrStatues.count
         }
-        else if self.selectFilterIndex == 3{
+        else if self.selectFilterIndex == 4 {
             return self.arrServices.count
         }
         return 0
@@ -308,76 +326,77 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-     
         if let cell = tableView.dequeueReusableCell(withIdentifier: "FilterCell") as? FilterCell{
-            
-            //SET FONT
             cell.imgTag.image = UIImage(named: "icon_RadioUnSelect")
+
             if self.selectFilterIndex == 1 {
-
+                cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrStores[indexPath.row].name ?? "")
+                
+                if self.selectStoreID == "" {
+                    if "\(self.arrStores[indexPath.row].id ?? 0)" == "0" {
+                        cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                    }
+                }
+                else {
+                    if self.selectStoreID == "\(self.arrStores[indexPath.row].id ?? 0)" {
+                        cell.imgTag.image = UIImage(named: "icon_RadioSelect")
+                    }
+                }
+            }
+            else if self.selectFilterIndex == 2 {
                 if self.screenFromCustomer {
-
                     cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrCustomerTag[indexPath.row].name?.capitalized ?? "")
-
                     let strID = "\(self.arrCustomerTag[indexPath.row].id ?? 0)"
                     if self.arrSelectedTag.contains(strID) {
                         cell.imgTag.image = UIImage(named: "icon_Check")
                     } else {
                         cell.imgTag.image = UIImage(named: "icon_unCheck")
                     }
-
                 }
                 else {
                     cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrCategorys[indexPath.row].name?.capitalized ?? "")
-                    
-                    if self.selectCategoryID == self.arrCategorys[indexPath.row].id ?? 0{
+                    if self.selectCategoryID == self.arrCategorys[indexPath.row].id ?? 0 {
                         cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                     }
                 }
-                
-                
             }
-            else if self.selectFilterIndex == 2{
+            else if self.selectFilterIndex == 3 {
                 cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrStatues[indexPath.row].text?.capitalized ?? "")
-                
-                if self.selectStatus.lowercased() == self.arrStatues[indexPath.row].text?.lowercased(){
+                if self.selectStatus.lowercased() == self.arrStatues[indexPath.row].text?.lowercased() {
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                 }
             }
-            else if self.selectFilterIndex == 3{
+            else if self.selectFilterIndex == 4 {
                 cell.lblName.configureLable(textColor: UIColor.background, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.arrServices[indexPath.row].text?.capitalized ?? "")
-                
-                if self.selectService.lowercased() == self.arrServices[indexPath.row].value?.lowercased(){
+                if self.selectService.lowercased() == self.arrServices[indexPath.row].value?.lowercased() {
                     cell.imgTag.image = UIImage(named: "icon_RadioSelect")
                 }
             }
-            
+
             imgColor(imgColor: cell.imgTag, colorHex: .background)
             return cell
         }
-    
         return UITableViewCell()
-
     }
-    
+
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        
-        //SELECT
-        if self.selectFilterIndex == 1{
+        if self.selectFilterIndex == 1 {
+            let store = self.arrStores[indexPath.row]
+            let storeID = store.id ?? 0
+            self.selectStoreID = "\(storeID)"// storeID == 0 ? "" : "\(storeID)"
+            self.selectStoreName = store.name ?? "" //storeID == 0 ? "" : (store.name ?? "")
+        }
+        else if self.selectFilterIndex == 2 {
             if self.screenFromCustomer {
-                
                 if indexPath.row == 0 {
                     self.arrSelectedTag.removeAll()
-                }
-                else {
+                } else {
                     self.arrSelectedTag.removeAll { $0 == "0" }
                 }
-                
                 let strID = "\(self.arrCustomerTag[indexPath.row].id ?? 0)"
                 if self.arrSelectedTag.contains(strID) {
                     self.arrSelectedTag.removeAll { $0 == strID }
-                }
-                else {
+                } else {
                     self.arrSelectedTag.append(strID)
                 }
             }
@@ -385,13 +404,12 @@ extension MachineFilterViewController : UITableViewDelegate, UITableViewDataSour
                 self.selectCategoryID = self.arrCategorys[indexPath.row].id ?? 0
             }
         }
-        else if self.selectFilterIndex == 2{
+        else if self.selectFilterIndex == 3 {
             self.selectStatus = self.arrStatues[indexPath.row].text ?? ""
         }
-        else if self.selectFilterIndex == 3{
+        else if self.selectFilterIndex == 4 {
             self.selectService = self.arrServices[indexPath.row].value?.lowercased() ?? ""
         }
-        //RELOAD TABLE
         self.tblView.reloadData()
     }
 }

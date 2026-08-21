@@ -85,6 +85,8 @@ struct ProductModel: Mappable{
     internal var objProduct: Product?
     internal var storeAdderss: StoreModel?
     internal var arrQuestions: [CustomerCheckListModel] = []
+//    internal var arrQuestionsDelivery: [CustomerCheckListModel] = []
+//    internal var arrQuestionsReturn: [CustomerCheckListModel] = []
 //    internal var checkList: CheckListModel?
     internal var name: String?
     internal var product_name: String?
@@ -130,8 +132,8 @@ struct ProductModel: Mappable{
     internal var end_hours: Float = 0.0
     internal var total_charge: Float = 0.0
 
-    internal var startCleaning: String = ""
-    internal var endCleaning: String = ""
+    internal var startCleaning: Int?
+    internal var endCleaning: Int?
     internal var cleaningCharge: Float = 0.0
 
     
@@ -164,9 +166,13 @@ struct ProductModel: Mappable{
         hour_rate <- map["hour_rate"]
         allocated_hours <- map["allocated_hours"]
         arrQuestions <- map["customer_checklist_questions"]
+//        arrQuestionsDelivery <- map["customer_checklist_delivery_questions"]
+//        arrQuestionsReturn <- map["customer_checklist_return_questions"]
         unique_id <- map["unique_id"]
         product_id <- map["product_id"]
         machine_id <- map["machine_id"]
+        
+        objCategory <- map["equipment_category"]
         objMachine <- map["equipment_details"]
         objProduct <- map["product"]
         storeAdderss <- map["store"]
@@ -218,8 +224,9 @@ struct ProductModel: Mappable{
         start_hours <- map["start_hours"]
         end_hours <- map["end_hours"]
 
-        startCleaning <- map["startCleaning"]
-        endCleaning <- map["endCleaning"]
+        startCleaning <- map["delivery_clean_id"]
+        endCleaning <- map["return_clean_id"]
+        cleaningCharge <- map["total_clean_charge"]
 
         
         is_delivered <- map["is_delivered"]

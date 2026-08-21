@@ -508,11 +508,6 @@ extension AppDelegate :WebServiceHelperDelegate {
         // Don't start a second upload while one is already in flight.
         if isCheckListUploading { return }
 
-        // If offline, startUploadingMultipleImages() does nothing and fires no
-        // callback — so don't arm the flag here. The queue stays intact and the
-        // network-restore / launch triggers will call this again.
-        guard NetworkReachabilityManager()?.isReachable == true else { return }
-
         let arr = getChecklistData() ?? []
         guard let obj = arr.first else { return }
 

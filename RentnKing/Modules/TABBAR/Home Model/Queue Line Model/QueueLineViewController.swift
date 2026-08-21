@@ -200,26 +200,42 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             vc.categories = self.arrCategoryList
             vc.allEquipment = self.arrEquipmentList
             vc.onChanged = { [weak self] in self?.loadQueueLine() }   // refresh after Mark as Staged
+            // After staging succeeds, open the Delivery Checklist for the same order (prepare flow).
+            vc.onStaged = { [weak self] staged in self?.openDeliveryChecklist(for: staged) }
             present(vc, animated: true)
         }
     }
 
-    // MARK: - Kebab actions menu
+    /// Opens the Delivery Checklist for a just-staged order (prepare-before-arrival flow).
+    /// Uses the same controller/identifiers Orders uses, so the screen stays independently usable.
+    private func openDeliveryChecklist(for item: QueueLineModel) {
+        let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        guard let vc = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return }
+        vc.isQueueLine = true
+        vc.isDeliveryType = true
+        vc.selectIndex = 0
+        vc.strOrderUniqueId = item.order_unique_id ?? ""
+        vc.strOrderID = "\(item.order_number ?? "")"
+        self.navigationController?.pushViewController(vc, animated: true)
+    }
+
+    // MARK: - Kebab action
+    // Only "Change Equipment" is available for now, so tapping the kebab opens that popup
+    // directly instead of a menu of not-yet-supported options.
     @objc private func menuTapped(_ sender: QueueMenuButton) {
         guard let item = sender.item else { return }
+        self.openChangeEquipment(for: item)
+    }
 
-        let sheet = UIAlertController(title: item.order_number, message: item.customer_name, preferredStyle: .actionSheet)
-        sheet.addAction(UIAlertAction(title: "Mark as RUSH", style: .default))
-        sheet.addAction(UIAlertAction(title: "Remove Today", style: .default))
-        sheet.addAction(UIAlertAction(title: "Remove Forever", style: .destructive))
-        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-
-        // iPad popover anchor
-        if let pop = sheet.popoverPresentationController {
-            pop.sourceView = sender
-            pop.sourceRect = sender.bounds
-        }
-        present(sheet, animated: true)
+    /// Opens the "Confirm / Update Equipment" popup (design only).
+    private func openChangeEquipment(for item: QueueLineModel) {
+        let vc = QueueLineChangeEquipmentViewController()
+        vc.item = item
+        vc.employees = self.arrEmployesList
+        vc.categories = self.arrCategoryList
+        vc.allEquipment = self.arrEquipmentList
+        vc.onChanged = { [weak self] in self?.loadQueueLine() }
+        present(vc, animated: true)
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -626,6 +642,18 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             }
         } else {
             headerViews.append(thumb)
+
+            // Kebab menu (Change Equipment, …)
+            let kebab = QueueMenuButton(type: .system)
+            kebab.item = item
+            kebab.setImage(UIImage(systemName: "ellipsis"), for: .normal)
+            kebab.tintColor = Palette.subtle
+            kebab.translatesAutoresizingMaskIntoConstraints = false
+            kebab.widthAnchor.constraint(equalToConstant: 22).isActive = true
+            kebab.heightAnchor.constraint(equalToConstant: 24).isActive = true
+            kebab.setContentHuggingPriority(.required, for: .horizontal)
+            kebab.addTarget(self, action: #selector(menuTapped(_:)), for: .touchUpInside)
+            headerViews.append(kebab)
         }
 
         let header = UIStackView(arrangedSubviews: headerViews)

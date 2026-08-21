@@ -52,6 +52,38 @@ enum AppReleaseInfo {
     /// The newest entry uses the automatic version + build date; add older
     /// releases below it with their historical (hardcoded) version and date.
     static let all: [AppRelease] = [
+        AppRelease(version: "1.0.16", date: "Fri - Aug 21 - 2026", notes: [
+            "Prepare a delivery before the customer arrives: complete the checklist, tap Save, then add delivery photos/video",
+            "Mark as Staged now opens the Delivery Checklist automatically",
+            "Reopening a prepared checklist restores all saved answers, ready for the customer's review and signature",
+            "Clearer message when equipment can't be staged yet (e.g. fuel not full)",
+            "More reliable checklist sync so completed checklists always upload",
+            "Various fixes and refinements",
+        ]),
+
+        AppRelease(version: "1.0.15", date: "Mon - Aug 17 - 2026", notes: [
+            "Driver Checklist: added a Call Customer toggle — the call steps are skipped when the customer already has the equipment",
+            "Checklist now shows the correct questions for delivery and return separately",
+            "Various fixes and refinements",
+        ]),
+
+        AppRelease(version: "1.0.12", date: "Tue - Aug 11 - 2026", notes: [
+            "Queue Line: added “Change Equipment” to switch a unit for an order, with a reason and confirmation",
+            "Automatically selects the default category when changing equipment in the Queue Line and Checklist",
+            "Improved the checklist delivery and return flow",
+            "Updated the Dispatch screen colours to clearly differentiate Delivery and Return",
+            "Added an option to change equipment during the checklist process, with UI corrections",
+            "Driver Checklist: fuel and key options appear only when the equipment has them",
+            "Various fixes and refinements",
+        ]),
+
+        AppRelease(version: "1.0.10", date: "Tue - Aug 4 - 2026", notes: [
+            "Updated the checklist logic to ensure both delivery and return are completed.",
+            "Added the cleaning process and related calculations to the checklist.",
+            "Cleared the default “Add Note” text when the user starts typing.",
+            "Implemented various fixes and refinements.",
+        ]),
+        
         AppRelease(version: "1.0.9", date: "Fri - July 31 - 2026", notes: [
             "Storage is freed automatically once an order's delivery and return are both complete",
             "Dispatch: the delivery/return button turns green once the driver completes their checklist",

@@ -305,6 +305,8 @@ struct CustomerCheckListModel: Mappable{
     internal var question_return_text: String?
     internal var sync_texts: Bool?
 
+    internal var selectCleaningDelivery: String?
+    internal var selectCleaningReturn: String?
     internal var startCleaning: String = ""
     internal var endCleaning: String = ""
     internal var cleaningCharge: Float = 0.0
@@ -329,8 +331,6 @@ struct CustomerCheckListModel: Mappable{
     internal var selectFuleDelivery: String?
     internal var selectFuleReturn: String?
 
-    internal var selectCleaningDelivery: String?
-    internal var selectCleaningReturn: String?
 
     internal var gas_tank_capacity: String?
     internal var def_tank_capacity: String?
@@ -538,6 +538,8 @@ extension CheckListViewController :WebServiceHelperDelegate {
                         var objProduct = self.objOrderData.arrProduct[index]
                         objProduct.arrQuestions = arrData
 
+                        
+                        var textItem: CustomerCheckListModel?
                         if objEquipment?.hour_tracking == "Yes"{
                             //ADD START HOUR
                             let map = Map(mappingType: .fromJSON, JSON: [:])
@@ -549,55 +551,112 @@ extension CheckListViewController :WebServiceHelperDelegate {
                             objCheckList?.endHours = objProduct.end_hours
                             objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
 
-                            objProduct.arrQuestions.insert(objCheckList!, at: 0)
-                            
-
-                            
-                            if objEquipment != nil{
-                                if objEquipment?.powerSourceType != ""{
-                                    //SET FULE
-                                    let map = Map(mappingType: .fromJSON, JSON: [:])
-                                    var objCheckListFule = CustomerCheckListModel(map: map)
-                                    objCheckListFule?.type = "fuel"
-                                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
-                                    objCheckListFule?.isDEF = objEquipment?.hasDEF
-                                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-
-                                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-
-                                    objProduct.arrQuestions.insert(objCheckListFule!, at: 1)
-                                }
-                            }
-                            
+                            textItem = objCheckList
                         }
-                        else{
-                            if objEquipment != nil{
-                                if objEquipment?.powerSourceType != ""{
-                                    //SET FULE
-                                    let map = Map(mappingType: .fromJSON, JSON: [:])
-                                    var objCheckListFule = CustomerCheckListModel(map: map)
-                                    objCheckListFule?.type = "fuel"
-                                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
-                                    objCheckListFule?.isDEF = objEquipment?.hasDEF
-                                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+                        
+                        //CLEANING
+                        var cleaningItem: CustomerCheckListModel?
+                        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0{
+                            let map = Map(mappingType: .fromJSON, JSON: [:])
+                            var objCheckList = CustomerCheckListModel(map: map)
+                            objCheckList?.type = "cleaning"
+                            objCheckList?.question_delivery_text = "Cleaning"
+                            objCheckList?.question_return_text = "Cleaning"
+                            objCheckList?.startCleaning = "\(objProduct.startCleaning ?? 0)"
+                            objCheckList?.endCleaning = "\(objProduct.endCleaning ?? 0)"
+                            objCheckList?.selectCleaningDelivery = "\(objProduct.startCleaning ?? 0)"
+                            objCheckList?.selectCleaningReturn = "\(objProduct.endCleaning ?? 0)"
 
-                                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-                                    objProduct.arrQuestions.insert(objCheckListFule!, at: 0)
-                                }
+                            objCheckList?.cleaningCharge = 0
+                            cleaningItem = objCheckList
+                        }
+                        
+                        //FUEL — only when the equipment has a power source
+                        var fuelItem: CustomerCheckListModel?
+                        if objEquipment != nil, objEquipment?.powerSourceType != ""{
+                            let map = Map(mappingType: .fromJSON, JSON: [:])
+                            var objCheckListFule = CustomerCheckListModel(map: map)
+                            objCheckListFule?.type = "fuel"
+                            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+                            objCheckListFule?.fuleType = objEquipment?.powerSourceType
+                            objCheckListFule?.isDEF = objEquipment?.hasDEF
+                            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+                            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+                            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+
+                            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+                            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+                            fuelItem = objCheckListFule
+
+                        }
+                        
+//                        if objEquipment?.hour_tracking == "Yes"{
+//                            //ADD START HOUR
+//                            let map = Map(mappingType: .fromJSON, JSON: [:])
+//                            var objCheckList = CustomerCheckListModel(map: map)
+//                            objCheckList?.type = "text"
+//                            objCheckList?.question_delivery_text = "Start Hours"
+//                            objCheckList?.question_return_text = "End Hours"
+//                            objCheckList?.startHours = objProduct.start_hours
+//                            objCheckList?.endHours = objProduct.end_hours
+//                            objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
+//
+//                            objProduct.arrQuestions.insert(objCheckList!, at: 0)
+//                            
+//
+//                            
+//                            if objEquipment != nil{
+//                                if objEquipment?.powerSourceType != ""{
+//                                    //SET FULE
+//                                    let map = Map(mappingType: .fromJSON, JSON: [:])
+//                                    var objCheckListFule = CustomerCheckListModel(map: map)
+//                                    objCheckListFule?.type = "fuel"
+//                                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+//                                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+//                                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
+//                                    objCheckListFule?.isDEF = objEquipment?.hasDEF
+//                                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+//                                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+//                                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+//
+//                                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+//                                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+//
+//                                    objProduct.arrQuestions.insert(objCheckListFule!, at: 1)
+//                                }
+//                            }
+//                            
+//                        }
+//                        else{
+//                            if objEquipment != nil{
+//                                if objEquipment?.powerSourceType != ""{
+//                                    //SET FULE
+//                                    let map = Map(mappingType: .fromJSON, JSON: [:])
+//                                    var objCheckListFule = CustomerCheckListModel(map: map)
+//                                    objCheckListFule?.type = "fuel"
+//                                    objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+//                                    objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
+//                                    objCheckListFule?.fuleType = objEquipment?.powerSourceType
+//                                    objCheckListFule?.isDEF = objEquipment?.hasDEF
+//                                    objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
+//                                    objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
+//                                    objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
+//
+//                                    objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
+//                                    objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
+//                                    objProduct.arrQuestions.insert(objCheckListFule!, at: 0)
+//                                }
+//                            }
+//                        }
+                        
+
+                        for item in [fuelItem, cleaningItem, textItem] {
+                            if let item = item {
+                                objProduct.arrQuestions.insert(item, at: 0)
                             }
                         }
                         
-
                         self.objOrderData.arrProduct.remove(at: index)
                         self.objOrderData.arrProduct.insert(objProduct, at: index)
                     }

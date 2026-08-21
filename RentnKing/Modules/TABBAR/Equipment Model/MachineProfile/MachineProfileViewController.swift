@@ -17,9 +17,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     @IBOutlet weak var txtSearch: UITextField!
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
     
-    @IBOutlet weak var imgSelectStore: UIImageView!
-    @IBOutlet weak var viewSelectStore: UIView!
-    @IBOutlet weak var txtSelectStore: UITextField!
+    @IBOutlet weak var lblStoreFilter: UILabel!
     
     @IBOutlet weak var viewCurrentlyAssign: UIControl!
     @IBOutlet weak var imgCurrentlyAssignTick: UIImageView!
@@ -51,9 +49,8 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     var selectCategoryID : Int = 0
     var selectStatus : String = "All"
     var selectService : String = "All"
-
-    var strSelectStore : String = str.strSelectStore
     var strStoreID : String = ""
+    var strStoreName : String = ""
     
     //OTHER
     var _loadingView: UIActivityIndicatorView!
@@ -75,20 +72,21 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         self.setupTableView()
                 
         
+        //RESTORE SAVED STORE FILTER
+        if let savedID = UserDefaults.standard.string(forKey: "savedMachineStoreID"), !savedID.isEmpty {
+            self.strStoreID = savedID
+            self.strStoreName = UserDefaults.standard.string(forKey: "savedMachineStoreName") ?? ""
+        }
+
         self.txtSearch.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSearchEqupment)
         self.txtSearch.clearButtonMode = .whileEditing
         self.txtSearch.text = ""
         if let clearButton = txtSearch.value(forKey: "_clearButton") as? UIButton{
             let templateImage =  clearButton.imageView?.image?.withRenderingMode(.alwaysTemplate)
-            // Set the template image copy as the button image
             clearButton.setImage(templateImage, for: .normal)
-            // Finally, set the image color
             clearButton.tintColor = .gray
         }
 
-        
-        self.txtSelectStore.configureText(bgColour: UIColor.clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.strSelectStore, placeholder: str.strSelectStore)
-        
         self.imgCurrentlyAssignTick.image = .iconCheck
         self.lblCurrentlyAssign.configureLable(textColor: .darkGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 15, text: str.strCurrentlyAssigned)
         
@@ -142,7 +140,7 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         // objects); update the UI back on main. This stops the screen from freezing while
         // opening — the isLoading shimmer covers the brief wait.
         DispatchQueue.global(qos: .userInitiated).async {
-            getEquipmentList(strType: "RentalReady") { arr_data in
+            getEquipmentList(strType: "RentalReady", strstoreid: self.strStoreID) { arr_data in
                 DispatchQueue.main.async {
                     self.isLoading = false
                     self.objRefresh?.endRefreshing()
@@ -195,23 +193,22 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
 
     
     func setNavigation(){
+        self.updateStoreLabel()
         //SET NAVIGATION BAR
         setNavigationBarForButtons(controller: self, title: str.strMachineProfile, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: ["icon_Filter"], isFilter: self.checkFilter()) {
             setupKeyboard(true)
-
-            //BACK SCREE
             self.navigationController?.popViewController(animated: true)
-
-            
         } rightActionHandler: {sender, SelectTag  in
-        
             //FILTER
             let storyboard = UIStoryboard(name: GlobalMainConstants.EQUIPMENT_MODEL, bundle: nil)
             let view = storyboard.instantiateViewController(withIdentifier: "MachineFilterViewController") as! MachineFilterViewController
             view.delegate = self
+            view.arrStores = self.arrStoreList
             view.arrCategorys = self.arrCategoryList
             view.arrStatues = self.arrStatues
             view.arrServices = self.arrServices
+            view.selectStoreID = self.strStoreID
+            view.selectStoreName = self.strStoreName
             view.selectCategoryID = self.selectCategoryID
             view.selectStatus = self.selectStatus
             view.selectService = self.selectService
@@ -235,13 +232,10 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         imgColor(imgColor: self.imgSearch, colorHex: .secondary)
         
         
-        //SET THE VIEW
-        self.viewSelectStore.backgroundColor = .clear
-        self.viewSelectStore.viewBorderCorneRadius(borderColour: .secondary)
-        self.viewSelectStore.viewCorneRadius(radius: 10.0, isRound: false)
-        imgColor(imgColor: self.imgSelectStore, colorHex: .secondary)
-        
-        
+        //STORE FILTER LABEL
+        self.lblStoreFilter.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "")
+        self.updateStoreLabel()
+
         //SET SEARCH TEXT
         self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingDidEndOnExit)
 
@@ -271,14 +265,23 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
         }
     }
     
+    func updateStoreLabel() {
+        if !strStoreID.isEmpty && !strStoreName.isEmpty {
+            lblStoreFilter.text = "Store: \(strStoreName)"
+            lblStoreFilter.isHidden = false
+        } else {
+            lblStoreFilter.isHidden = true
+        }
+    }
+
     func checkFilter() -> Bool{
-        //CEHCK FILTER
-        if self.selectCategoryID != 0 ||  (self.selectStatus != "" && self.selectStatus != "All") || (self.selectService != "" && self.selectService != "All"){
+        if self.selectCategoryID != 0 ||
+            (self.selectStatus != "" && self.selectStatus != "All") ||
+            (self.selectService != "" && self.selectService != "All") ||
+            (self.strStoreID != "" && self.strStoreID != "0") {
             return true
         }
-        else{
-            return false
-        }
+        return false
     }
     
     
@@ -339,66 +342,49 @@ class MachineProfileViewController: UIViewController, UIGestureRecognizerDelegat
     }
     
     
-    @IBAction func btnSelctLocationClicked(_ sender: UIButton) {
-        self.view.endEditing(true)
-        
-        if self.arrStoreList.count == 0{
-            return
-        }
-        
-        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.strSelectStore) { index, selectValue in
-           
-            //UPDATE DATA
-            self.strSelectStore = selectValue
-            if selectValue == str.strSelectStore{
-                self.strStoreID = ""
-            }
-            else{
-                self.strStoreID = "\(self.arrStoreList[index].id ?? 0)"
-            }
-            
-            self.txtSelectStore.text = self.strSelectStore
-            
-            //CALL API
-            self.isLoading = true
-            self.tblView.reloadData()
-            self.objRefresh?.isUserInteractionEnabled = false
-            self.pageCount = 1
-            self.callAPI()
-        }
-    }
 }
 
 
 
 extension MachineProfileViewController : MachineFilterProtocol{
-    
-    func SelectFilter(categoryID: Int, strStatus: String, strService: String) {
+
+    func SelectFilter(categoryID: Int, strStatus: String, strService: String, strStoreID: String, strStoreName: String) {
         self.selectCategoryID = 0
         self.selectStatus = "All"
         self.selectService = "All"
-        
+        self.strStoreID = strStoreID
+        self.strStoreName = strStoreName
+
         if categoryID != 0 {
             self.selectCategoryID = categoryID
         }
-        
-        
-        if strStatus != "" && strStatus.lowercased() != "all"{
+        if strStatus != "" && strStatus.lowercased() != "all" {
             self.selectStatus = strStatus
         }
-        
-        if strService != "" && strService.lowercased() != "all"{
+        if strService != "" && strService.lowercased() != "all" {
             self.selectService = strService
         }
-        
-        //GET Equipment LIST DATA
+
+        // Save store to UserDefaults
+        if !strStoreID.isEmpty {
+            if strStoreID == "0" {
+                UserDefaults.standard.removeObject(forKey: "savedMachineStoreID")
+                UserDefaults.standard.removeObject(forKey: "savedMachineStoreName")
+            }
+            else {
+                UserDefaults.standard.set(strStoreID, forKey: "savedMachineStoreID")
+                UserDefaults.standard.set(strStoreName, forKey: "savedMachineStoreName")
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: "savedMachineStoreID")
+            UserDefaults.standard.removeObject(forKey: "savedMachineStoreName")
+        }
+
         self.isLoading = true
         self.tblView.reloadData()
         self.objRefresh?.isUserInteractionEnabled = false
         self.pageCount = 1
         self.callAPI()
-        
-        
         self.setNavigation()
     }
 }

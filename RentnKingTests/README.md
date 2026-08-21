@@ -24,6 +24,11 @@ don't affect the app build until you add the target below.
   empty-payload safety, completed-item detection.
 - `OfflineQueueModelTests` — driver-checklist & delivery/pickup queue models,
   including the `attempts` retry counter and the `kMaxSyncAttempts` dead-letter cap.
+- `PendingCheckListTests` — the Pending (prepare-before-arrival) Delivery Checklist
+  store: save persists order + other data, Save does NOT set the completed marker,
+  repeated Save updates in place (no duplicates), Delivery/Return isolation,
+  empty/nil-input guards, and clear-on-finalization. Runs against the app test host
+  (uses `SDKUserDefault`).
 
 ## Next tests to add (once the target compiles)
 - `Url` endpoint building (set `UserDefaults.standard.baseURL`, assert `absoluteString`).

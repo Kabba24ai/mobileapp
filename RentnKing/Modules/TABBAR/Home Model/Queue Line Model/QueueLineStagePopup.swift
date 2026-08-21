@@ -253,6 +253,7 @@ final class QueueLineStageViewController: QueueLinePopupBase {
     var categories: [CategoryModel] = []          // for Reassign → Category
     var allEquipment: [MachineModel] = []         // for Reassign → Equipment (filtered by category)
     var onChanged: (() -> Void)?                  // called after a successful stage
+    var onStaged: ((QueueLineModel) -> Void)?     // called AFTER a successful stage → open Delivery Checklist
 
     private var selectedEmployeeId = ""           // id to send to the mark-staged API
     private var selectedCategoryId: Int?
@@ -627,7 +628,22 @@ final class QueueLineStageViewController: QueueLinePopupBase {
             indicatorHide()
             guard let self = self else { return }
             let ok = (error == nil) && (data?.getStringForID(key: "success") == "1")
-            if ok { self.dismiss(animated: true) { self.onChanged?() } }
+            // Navigate to the Delivery Checklist ONLY after staging succeeds.
+            if ok {
+                let staged = self.item
+                self.dismiss(animated: true) {
+                    self.onChanged?()
+                    if let staged = staged { self.onStaged?(staged) }
+                }
+            }
+            else {
+                // Staging rejected (e.g. QUEUE_FUEL_NOT_FULL) — keep the popup open and surface the
+                // server's message plus its corrective action so the employee knows what to fix.
+                let message = data?.getStringForID(key: "message")
+                if message != ""{
+                    showAlertMessage(strMessage: message ?? "")
+                }
+            }
         }
     }
 
@@ -845,6 +861,457 @@ final class QueueLineStagedInfoViewController: QueueLinePopupBase {
         row.axis = .horizontal; row.alignment = .center
         return row
     }
+}
+
+// MARK: - Change Equipment (design only)
+
+/// "Confirm / Update Equipment" popup opened from a Queue Line card's menu.
+/// DESIGN ONLY — the Select button just dismisses (no change-equipment API is wired yet).
+/// The equipment picker shows ONLY Available + Maint. Hold machines.
+final class QueueLineChangeEquipmentViewController: QueueLinePopupBase {
+
+    var item: QueueLineModel?
+    var employees: [EmployeesModel] = []
+    var categories: [CategoryModel] = []
+    var allEquipment: [MachineModel] = []
+    var onChanged: (() -> Void)?
+
+    private var selectedEmployeeId = ""
+    private var selectedReason = ""
+    private var selectedCategoryId: Int?
+    private var selectedEquipmentId = ""
+    private var filteredEquipment: [MachineModel] = []
+
+    private let performedByButton = UIButton(type: .system)
+    private let reasonButton = UIButton(type: .system)
+    private let categoryButton = UIButton(type: .system)
+    private let equipmentButton = UIButton(type: .system)
+
+    /// Non-direct assignment reasons.
+    private let reasons = ["Reserved unit unavailable",
+                           "Original unit down for maintenance or damage",
+                           "Better-suited unit available",
+                           "Correcting a mis-assignment",
+                           "Customer request",
+                           "Other…"]
+
+    /// The pool of units the user can switch to. Populated from the AVAILABLE equipment
+    /// (currently_assigned = 0), restricted to Available + Maint. Hold. If that fetch yields
+    /// nothing (e.g. offline), it falls back to whatever list the parent handed us.
+    private var equipmentPool: [MachineModel] = []
+    private var loadedAvailablePool = false
+
+    /// Available + Maint. Hold only.
+    private func availableOnly(_ list: [MachineModel]) -> [MachineModel] {
+        list.filter { ($0.status == "Available") || ($0.status == "Maint. Hold") }
+    }
+
+    // Sectioned equipment picker infra (mirrors CheckListViewController.openPicker)
+    private let eqHiddenField = UITextField(frame: .zero)
+    private let eqPicker = UIPickerView()
+    private var eqSelectedIndex = 0
+    private var eqPickerData: [String] = []
+    private var eqPickerList: [MachineModel] = []
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupEquipmentPicker()
+
+        let eq = item?.equipment
+        let orderNo = item?.order_number ?? ""
+        let productName = item?.product?.name ?? ""
+        let currentName = eq?.name ?? ""
+        let currentId = eq?.display_id.map { " · \($0)" } ?? ""
+        // order_number may already include a leading "#" — avoid showing "##".
+        let orderLabel = orderNo.hasPrefix("#") ? orderNo : "#\(orderNo)"
+
+        // "currently …" goes on its own second line.
+        contentStack.addArrangedSubview(header(title: "Confirm / Update Equipment",
+                                               subtitle: "Order \(orderLabel) — \(productName)\ncurrently \(currentName)\(currentId)"))
+
+        // Row 1: Performed By (required) + Reason
+        styleDropdownButton(performedByButton, placeholder: "Select yourself…", action: #selector(performedByTapped(_:)))
+        styleDropdownButton(reasonButton, placeholder: "Select a reason…", action: #selector(reasonTapped(_:)))
+        let row1 = UIStackView(arrangedSubviews: [
+            labeledField("Performed By", required: true, control: performedByButton),
+            labeledField("Reason", required: false, control: reasonButton),
+        ])
+        row1.axis = .horizontal; row1.spacing = 12; row1.distribution = .fillEqually; row1.alignment = .top
+        contentStack.addArrangedSubview(row1)
+
+        // Row 2: Category + Equipment (sectioned picker, filtered to Available + Maint. Hold)
+        styleDropdownButton(categoryButton, placeholder: "Select category…", action: #selector(categoryTapped(_:)))
+        styleDropdownButton(equipmentButton, placeholder: "Search Equipment ID", action: #selector(equipmentTapped(_:)))
+        contentStack.addArrangedSubview(labeledField("Category", required: false, control: categoryButton))
+        contentStack.addArrangedSubview(labeledField("Equipment", required: true, control: equipmentButton))
+
+        // Seed the pool from whatever the parent passed (immediate), then refresh from the
+        // AVAILABLE-equipment endpoint so the picker shows units that can actually be assigned.
+        equipmentPool = availableOnly(allEquipment)
+        preselectCurrentCategory()
+        loadAvailableEquipment()
+
+        // Buttons
+        let cancel = outlineButton("Cancel", color: ChangeEqPalette.subtle)
+        cancel.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
+        let select = filledButton("Select", bg: ChangeEqPalette.cyan, fg: ChangeEqPalette.page)
+        select.addTarget(self, action: #selector(selectTapped), for: .touchUpInside)
+        let buttons = UIStackView(arrangedSubviews: [cancel, select])
+        buttons.axis = .horizontal; buttons.spacing = 12; buttons.distribution = .fillEqually
+        contentStack.addArrangedSubview(buttons)
+    }
+
+    @objc private func selectTapped() {
+        guard let id = item?.order_product_unique_id, !id.isEmpty else {
+            showAlertMessage(strMessage: "Missing order reference.")
+            return
+        }
+        // Performed By and Equipment are required; Reason is optional.
+        guard !selectedEmployeeId.isEmpty else {
+            showAlertMessage(strMessage: "Please select who performed this change.")
+            return
+        }
+        guard !selectedEquipmentId.isEmpty else {
+            showAlertMessage(strMessage: "Please select the equipment to switch to.")
+            return
+        }
+
+        var params: [String: Any] = [
+            "equipment_unique_id": selectedEquipmentId,
+            "performed_by": selectedEmployeeId,
+            // Guards against a duplicate switch if the request is retried.
+            "idempotency_token": UUID().uuidString
+        ]
+        if !selectedReason.isEmpty {
+            params["reason"] = selectedReason
+        }
+
+        let strURL = "\(Url.queueLineSwitchEquipment(id).absoluteString ?? "")"
+        let webHelper = WebServiceHelper()
+        webHelper.strMethodName = "switchEquipment"
+        webHelper.methodType = "post"
+        webHelper.strURL = strURL
+        webHelper.dictType = params
+        webHelper.dictHeader = NSDictionary()
+        webHelper.showLogForCallingAPI = true
+        webHelper.serviceWithAlert = true
+        webHelper.indicatorShowOrHide = true
+        webHelper.callAPIwithCompletation { [weak self] data, _, _, error in
+            indicatorHide()
+            guard let self = self else { return }
+            let ok = (error == nil) && (data?.getStringForID(key: "success") == "1")
+            if ok { self.dismiss(animated: true) { self.onChanged?() } }
+        }
+    }
+
+    /// Pre-select the Category to the order's current equipment category and pre-filter the
+    /// Equipment picker to that category.
+    private func preselectCurrentCategory() {
+        guard let catId = item?.equipment_collection?.category_id,
+              let match = categories.first(where: { $0.id == catId }) else {
+            refreshEquipmentField()   // Unknown category → leave equipment unfiltered.
+            return
+        }
+        selectedCategoryId = match.id
+        categoryButton.setTitle(match.name, for: .normal)
+        categoryButton.setTitleColor(ChangeEqPalette.ink, for: .normal)
+        refreshEquipmentField()
+    }
+
+    /// Fetches the AVAILABLE equipment pool (currently_assigned = 0) so units that can be
+    /// switched to actually appear. Uses the search endpoint, which does NOT overwrite the
+    /// shared equipment cache. Falls back to the parent list if the fetch is empty (offline).
+    private func loadAvailableEquipment() {
+        equipmentButton.setTitle("Loading available equipment…", for: .normal)
+        equipmentButton.setTitleColor(ChangeEqPalette.subtle, for: .normal)
+
+        getFilterEquipmentList(strType: "Checklist", int_assigned: 0) { [weak self] arr in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.loadedAvailablePool = true
+                if !arr.isEmpty {
+                    self.equipmentPool = self.availableOnly(arr)
+                } else if self.equipmentPool.isEmpty {
+                    // Offline / empty response → let the user pick from the passed list.
+                    self.equipmentPool = self.allEquipment
+                }
+                self.selectedEquipmentId = ""
+                self.refreshEquipmentField()
+            }
+        }
+    }
+
+    /// Recomputes the filtered equipment for the current category and updates the field state.
+    private func refreshEquipmentField() {
+        if let catId = selectedCategoryId {
+            filteredEquipment = equipmentPool.filter { $0.category_id == catId }
+        } else {
+            filteredEquipment = equipmentPool
+        }
+        let list = (selectedCategoryId != nil) ? filteredEquipment : equipmentPool
+        let stillLoading = !loadedAvailablePool && equipmentPool.isEmpty
+        if stillLoading {
+            equipmentButton.setTitle("Loading available equipment…", for: .normal)
+        } else {
+            equipmentButton.setTitle(list.isEmpty ? "No equipment available" : "Search Equipment ID", for: .normal)
+        }
+        equipmentButton.setTitleColor(ChangeEqPalette.subtle, for: .normal)
+    }
+
+    // MARK: Dropdown pickers
+
+    @objc private func performedByTapped(_ sender: UIButton) {
+        guard !employees.isEmpty else { return }
+        let names = employees.compactMap { $0.name }
+        let current = performedByButton.title(for: .normal) ?? ""
+        actionPicker(sender, strTitle: "Select Employee", arrData: names, selectValue: current) { [weak self] index, value in
+            guard let self = self, index < self.employees.count else { return }
+            self.selectedEmployeeId = self.employees[index].unique_id ?? ""
+            self.performedByButton.setTitle(value, for: .normal)
+            self.performedByButton.setTitleColor(ChangeEqPalette.ink, for: .normal)
+        }
+    }
+
+    @objc private func reasonTapped(_ sender: UIButton) {
+        let current = reasonButton.title(for: .normal) ?? ""
+        actionPicker(sender, strTitle: "Select Reason", arrData: reasons, selectValue: current) { [weak self] index, value in
+            guard let self = self, index < self.reasons.count else { return }
+            self.selectedReason = self.reasons[index]
+            self.reasonButton.setTitle(value, for: .normal)
+            self.reasonButton.setTitleColor(ChangeEqPalette.ink, for: .normal)
+        }
+    }
+
+    @objc private func categoryTapped(_ sender: UIButton) {
+        guard !categories.isEmpty else { return }
+        let names = categories.compactMap { $0.name }
+        let current = categoryButton.title(for: .normal) ?? ""
+        actionPicker(sender, strTitle: "Select Category", arrData: names, selectValue: current) { [weak self] index, value in
+            guard let self = self, index < self.categories.count else { return }
+            let cat = self.categories[index]
+            self.selectedCategoryId = (value == "All") ? nil : cat.id
+            self.categoryButton.setTitle(value, for: .normal)
+            self.categoryButton.setTitleColor(ChangeEqPalette.ink, for: .normal)
+
+            self.selectedEquipmentId = ""
+            self.refreshEquipmentField()
+        }
+    }
+
+    @objc private func equipmentTapped(_ sender: UIButton) {
+        // Available + Maint. Hold, optionally filtered by the chosen category.
+        let list = (selectedCategoryId != nil) ? filteredEquipment : equipmentPool
+        guard !list.isEmpty else { return }
+        eqPickerList = list
+        setEqPickerData(from: list)
+        eqSelectedIndex = eqPickerData.firstIndex(where: { !$0.hasPrefix("Section:") }) ?? 0
+        eqOpenPicker()
+    }
+
+    private func styleDropdownButton(_ button: UIButton, placeholder: String, action: Selector) {
+        button.contentHorizontalAlignment = .left
+        button.setTitle(placeholder, for: .normal)
+        button.setTitleColor(ChangeEqPalette.subtle, for: .normal)
+        button.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 13)
+        button.titleLabel?.lineBreakMode = .byTruncatingTail
+        button.backgroundColor = ChangeEqPalette.box
+        button.layer.cornerRadius = 10
+        button.layer.borderWidth = 1
+        button.layer.borderColor = ChangeEqPalette.border.cgColor
+        button.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 36)
+        button.addTarget(self, action: action, for: .touchUpInside)
+
+        let chevron = UIImageView(image: UIImage(named: "icon_Down")?.withRenderingMode(.alwaysTemplate))
+        chevron.tintColor = ChangeEqPalette.cyan
+        chevron.contentMode = .scaleAspectFit
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        button.addSubview(chevron)
+        NSLayoutConstraint.activate([
+            chevron.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -12),
+            chevron.centerYAnchor.constraint(equalTo: button.centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 14),
+            chevron.heightAnchor.constraint(equalToConstant: 14),
+        ])
+    }
+
+    private func labeledField(_ title: String, required: Bool, control: UIView) -> UIStackView {
+        let s = UIStackView(arrangedSubviews: [fieldTitle(title, required: required), control])
+        s.axis = .vertical; s.spacing = 8
+        return s
+    }
+
+    // MARK: Sectioned equipment picker (mirrors CheckListViewController.openPicker)
+
+    private func setupEquipmentPicker() {
+        eqPicker.dataSource = self
+        eqPicker.delegate = self
+        eqPicker.backgroundColor = .white
+
+        eqHiddenField.translatesAutoresizingMaskIntoConstraints = false
+        eqHiddenField.isHidden = true
+        view.addSubview(eqHiddenField)
+
+        let pickerHeight: CGFloat = 260
+        let headerHeight: CGFloat = 56
+        let host = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: headerHeight + pickerHeight))
+        host.backgroundColor = .black
+        host.isOpaque = true
+
+        let head = buildEqPickerHeader(title: "Select Equipment ID")
+        head.frame.origin = .zero
+
+        eqPicker.frame = CGRect(x: 0, y: headerHeight, width: host.bounds.width, height: pickerHeight)
+        eqPicker.autoresizingMask = [.flexibleWidth]
+        eqPicker.backgroundColor = .white
+        eqPicker.roundCornersView(onTopLeft: true, topRight: true, bottomLeft: false, bottomRight: false, radius: 15)
+
+        host.addSubview(head)
+        host.addSubview(eqPicker)
+
+        eqHiddenField.inputAccessoryView = nil
+        eqHiddenField.inputView = host
+    }
+
+    private func buildEqPickerHeader(title: String) -> UIView {
+        let h: CGFloat = 56
+        let header = UIView(frame: CGRect(x: 0, y: 0, width: UIScreen.main.bounds.width, height: h))
+        header.backgroundColor = .clear
+        header.autoresizingMask = [.flexibleWidth]
+
+        let pillH: CGFloat = 38
+        let y = (h - pillH) / 2
+
+        let cancel = UIButton(type: .system)
+        cancel.setTitle("Cancel", for: .normal)
+        cancel.setTitleColor(.white, for: .normal)
+        cancel.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
+        cancel.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
+        cancel.layer.cornerRadius = pillH / 2
+        cancel.contentEdgeInsets = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        cancel.frame = CGRect(x: 14, y: y, width: 88, height: pillH)
+        cancel.addTarget(self, action: #selector(eqCancelTapped), for: .touchUpInside)
+
+        let select = UIButton(type: .system)
+        select.setTitle("Select", for: .normal)
+        select.setTitleColor(.white, for: .normal)
+        select.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        select.backgroundColor = UIColor.systemBlue
+        select.layer.cornerRadius = pillH / 2
+        select.contentEdgeInsets = UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
+        select.frame = CGRect(x: header.bounds.width - 14 - 92, y: y, width: 92, height: pillH)
+        select.autoresizingMask = [.flexibleLeftMargin]
+        select.addTarget(self, action: #selector(eqDoneTapped), for: .touchUpInside)
+
+        let titleBtn = UIButton(type: .system)
+        titleBtn.setTitle(title, for: .normal)
+        titleBtn.setTitleColor(UIColor(white: 0.65, alpha: 1.0), for: .normal)
+        titleBtn.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        titleBtn.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
+        titleBtn.layer.cornerRadius = pillH / 2
+        titleBtn.isUserInteractionEnabled = false
+
+        let leftMaxX = cancel.frame.maxX + 12
+        let rightMinX = select.frame.minX - 12
+        let midW = max(0, rightMinX - leftMaxX)
+        titleBtn.frame = CGRect(x: leftMaxX, y: y, width: midW, height: pillH)
+        titleBtn.autoresizingMask = [.flexibleWidth]
+
+        header.addSubview(cancel)
+        header.addSubview(titleBtn)
+        header.addSubview(select)
+        return header
+    }
+
+    private func setEqPickerData(from list: [MachineModel]) {
+        eqPickerData.removeAll()
+        let grouped = Dictionary(grouping: list, by: { $0.status ?? "" })
+        let sortedGroups = grouped.sorted { $0.key < $1.key }
+        for (section, items) in sortedGroups {
+            eqPickerData.append("Section: \(section)")
+            for obj in items {
+                eqPickerData.append("\(obj.equipment_name ?? "")    ||    \(obj.equipment_id ?? "")")
+            }
+        }
+    }
+
+    private func eqOpenPicker() {
+        eqPicker.reloadAllComponents()
+        if eqPickerData.indices.contains(eqSelectedIndex) {
+            eqPicker.selectRow(eqSelectedIndex, inComponent: 0, animated: false)
+        }
+        eqHiddenField.becomeFirstResponder()
+    }
+
+    @objc private func eqCancelTapped() {
+        eqHiddenField.resignFirstResponder()
+    }
+
+    @objc private func eqDoneTapped() {
+        eqSelectedIndex = eqPicker.selectedRow(inComponent: 0)
+        eqHiddenField.resignFirstResponder()
+
+        guard eqPickerData.indices.contains(eqSelectedIndex) else { return }
+        let input = eqPickerData[eqSelectedIndex]
+        guard !input.hasPrefix("Section:") else { return }
+
+        if let code = input.components(separatedBy: "||").last?.trimmingCharacters(in: .whitespaces) {
+            let ids = eqPickerList.map { $0.equipment_id }
+            if let index = ids.firstIndex(of: code) {
+                let obj = eqPickerList[index]
+                self.selectedEquipmentId = obj.unique_id ?? ""
+                self.equipmentButton.setTitle("\(obj.equipment_name ?? "")   ·   \(obj.equipment_id ?? "")", for: .normal)
+                self.equipmentButton.setTitleColor(ChangeEqPalette.ink, for: .normal)
+            }
+        }
+    }
+}
+
+extension QueueLineChangeEquipmentViewController: UIPickerViewDataSource, UIPickerViewDelegate {
+
+    func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
+    func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat { 44 }
+    func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int { eqPickerData.count }
+
+    func pickerView(_ pickerView: UIPickerView, attributedTitleForRow row: Int, forComponent component: Int) -> NSAttributedString? {
+        guard row >= 0, row < eqPickerData.count else { return nil }
+        let text = eqPickerData[row]
+        if text.hasPrefix("Section:") {
+            return NSAttributedString(string: text.replacingOccurrences(of: "Section:", with: ""), attributes: [
+                .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Light, size: 8),
+                .foregroundColor: UIColor.gray.withAlphaComponent(0.5)
+            ])
+        }
+        return NSAttributedString(string: text, attributes: [
+            .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 14),
+            .foregroundColor: UIColor.background
+        ])
+    }
+
+    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+        guard eqPickerData.indices.contains(row) else { return }
+        guard eqPickerData[row].hasPrefix("Section:") else { return }
+        var nextRow = row + 1
+        while eqPickerData.indices.contains(nextRow), eqPickerData[nextRow].hasPrefix("Section:") { nextRow += 1 }
+        if eqPickerData.indices.contains(nextRow) {
+            pickerView.selectRow(nextRow, inComponent: component, animated: true)
+        } else {
+            var previousRow = row - 1
+            while eqPickerData.indices.contains(previousRow), eqPickerData[previousRow].hasPrefix("Section:") { previousRow -= 1 }
+            if eqPickerData.indices.contains(previousRow) {
+                pickerView.selectRow(previousRow, inComponent: component, animated: true)
+            }
+        }
+    }
+}
+
+/// File-local palette alias so the Change Equipment popup matches the app dark theme.
+private enum ChangeEqPalette {
+    static let page   = UIColor.background
+    static let box    = UIColor.white.withAlphaComponent(0.05)
+    static let border = UIColor.secondary.withAlphaComponent(0.35)
+    static let ink    = UIColor.primary
+    static let subtle = UIColor(red: 199/255, green: 206/255, blue: 216/255, alpha: 1)
+    static let cyan   = UIColor.secondary
 }
 
 // MARK: - Small controls

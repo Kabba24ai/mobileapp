@@ -10,24 +10,23 @@ import UIKit
 final class AppUpdateManager {
 
     static let shared = AppUpdateManager()
+    private let appStoreID = "6751110122"
 
     private init() {}
 
     // MARK: - Check App Update
 
     func checkForUpdate() {
-
-        guard let bundleID = Bundle.main.bundleIdentifier else {
-            return
-        }
-
-        let urlString = "https://itunes.apple.com/lookup?bundleId=\(bundleID)" //FOR TESTING ONLY// &country=sa
+        let urlString = "https://itunes.apple.com/lookup?id=\(appStoreID)&country=us"
 
         guard let url = URL(string: urlString) else {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
 
             guard let data = data else {
                 return

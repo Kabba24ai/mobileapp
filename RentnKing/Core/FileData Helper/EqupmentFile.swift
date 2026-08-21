@@ -21,13 +21,13 @@ struct EquipmentParameater: Codable {
 }
 
 // MARK: - Get Equipment List
-func getEquipmentList(strType : String = "Checklist", int_assigned: Int = 1, completion: @escaping ([MachineModel]) -> Void) {
+func getEquipmentList(strType : String = "Checklist", int_assigned: Int = 1, strstoreid: String = "", completion: @escaping ([MachineModel]) -> Void) {
     
     if !getEquipmentData(strType: strType).isEmpty {
         completion(getEquipmentData(strType: strType))
     }
     
-    CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType, search: "", store_id: "", currently_assigned: int_assigned)) { isSaved in
+    CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType, search: "", store_id: strstoreid, currently_assigned: int_assigned)) { isSaved in
         if isSaved {
             completion(getEquipmentData(strType: strType))
         } else {
@@ -125,6 +125,11 @@ func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParamea
         parameater.removeValue(forKey: "category")
     }
     
+    let strStoreID = parameater["store_id"] as? String ?? ""
+    if strStoreID == "0" {
+        parameater["store_id"] = ""
+    }
+    
     print("API URL====>>\(strURL)\n\nParams:=====>>\(parameater)")
 
     //Create object for webservicehelper and start to call method
@@ -148,6 +153,15 @@ func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParamea
                     arrData = arrData.sorted(by: { $0.equipment_name ?? "" < $1.equipment_name ?? "" })
                 }
 
+                
+                //SAVE ARRAY ONLY STORE SELECTED CASE ONLY//
+                if (EquipmentParameater.store_id ?? "") != "" {
+                    
+                    //SAVE ARRAY
+                    SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue)
+                    
+                }
+                        
                 completion(arrData)
             }
         }

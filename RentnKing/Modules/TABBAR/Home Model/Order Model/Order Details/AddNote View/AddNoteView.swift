@@ -123,7 +123,12 @@ class AddNoteView: UIView, UITextFieldDelegate {
 
         
         self.txtNotePlaceholder.configureText(bgColour: .clear, textColor: .lightGray , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: str.strAddNote)
-        if self.strNote != ""{
+        // The placeholder is a decorative overlay only — taps/typing must go to txtNote, so it
+        // isn't editable/selectable. (Previously typing landed here → "Add Note" + your text.)
+        self.txtNotePlaceholder.isEditable = false
+        self.txtNotePlaceholder.isSelectable = false
+        self.txtNotePlaceholder.isUserInteractionEnabled = false
+        if self.strNote != "" && self.strNote != "Add Note"{
             self.txtNote.text = self.strNote
             self.txtNotePlaceholder.text = ""
         }

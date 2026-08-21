@@ -656,7 +656,7 @@ extension DispatchListViewController{
 
 //MARK: -- TABLE CELL --
 class DispatchListCell : UITableViewCell{
-//    @IBOutlet weak var lblOrderNumber: UILabel!
+    @IBOutlet weak var lblOrderNumber: UILabel!
     @IBOutlet weak var lblName: UILabel!
     @IBOutlet weak var lblPhone: UILabel!
     @IBOutlet weak var viewLine: UIView!
@@ -682,12 +682,12 @@ class DispatchListCell : UITableViewCell{
 
     /// Sets the customer name and, when overdue, prepends an inline red warning icon
     /// INSIDE the name label so the layout/spacing doesn't move.
-    func setName(_ name: String, overdue: Bool) {
-        let font = lblName.font ?? UIFont.systemFont(ofSize: 16)
-        let color = lblName.textColor ?? .label
+    func setName(_ number: String, overdue: Bool) {
+        let font = lblOrderNumber.font ?? UIFont.systemFont(ofSize: 14)
+        let color = lblOrderNumber.textColor ?? .label
 
         guard overdue else {
-            lblName.text = name
+            lblOrderNumber.text = number
             return
         }
 
@@ -697,9 +697,9 @@ class DispatchListCell : UITableViewCell{
             .withTintColor(.systemRed, renderingMode: .alwaysOriginal)
 
         let result = NSMutableAttributedString(attachment: attachment)
-        result.append(NSAttributedString(string: "  " + name,
+        result.append(NSAttributedString(string: "  " + number,
                                          attributes: [.font: font, .foregroundColor: color]))
-        lblName.attributedText = result
+        lblOrderNumber.attributedText = result
     }
 
     func getAnimableSubviews() -> [UIView] {
@@ -824,8 +824,11 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             let isRowOverdue = (objData.is_delivered == false) ? (objData.is_delivery_overdue ?? false) : (objData.is_pickup_overdue ?? false)
 
             //SET FONT
-            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.id ?? 0) \(objData.order?.customer_name ?? "")")
-            cell.setName("\(objData.order?.customer_name ?? "")", overdue: isRowOverdue)
+            cell.lblOrderNumber.configureLable(textAlignment: .right, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14, text: "#\(objData.order?.id ?? 0)")
+            cell.setName("#\(objData.order?.id ?? 0)", overdue: isRowOverdue)
+
+            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.order?.customer_name ?? "")")
+            
 //            #if DEBUG
 //            cell.lblName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "\(objData.id ?? 0) : \(objData.name ?? "")")
 //            #endif
@@ -882,24 +885,25 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 //                }
 //                
                 
-                cell.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
+                //DELIVERY CASE
+                let isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
+                let ready_to_go_at: String = objData.delivery_checklist?.ready_to_go_at ?? ""
 
-                let startedGreen = UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
-                var isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
-
-                //PICKUP CASE
-                var ready_to_go_at: String = ""
-                ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
-                if ready_to_go_at != ""{
-                    isDriverStarted = true
-                }
                 
                 //DELIVERY BUTTON — text then logo (not flipped); green only once the driver started
-                cell.viewStatus.backgroundColor = isDriverStarted ? startedGreen : .secondaryText
+//                cell.viewStatus.backgroundColor = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
+                cell.viewStatus.backgroundColor = hexStringToUIColor(hex: "4DA3FF")
+                cell.viewStatus.viewBorderCorneRadius(borderColour: ready_to_go_at != "" ? .redText : (isDriverStarted ? .redText : .clear), size: 4)
+                cell.lblStatus.configureLable(textColor:  .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
+
                 if let stack = cell.lblStatus.superview as? UIStackView,
                    let imgLogo = stack.arrangedSubviews.compactMap({ $0 as? UIImageView }).first {
                     stack.spacing = 8
                     imgLogo.transform = .identity
+                    // Match the icon colour to the label (dark once ready to go). Reload the asset
+                    // fresh as a template so the tint reliably applies.
+                    imgLogo.image = UIImage(named: "icon_delivery_pending")?.withRenderingMode(.alwaysTemplate)
+                    imgLogo.tintColor = ready_to_go_at != "" ? .primary : .background
                     stack.insertArrangedSubview(cell.lblStatus, at: 0)
                     stack.insertArrangedSubview(imgLogo, at: 1)
                 }
@@ -942,15 +946,29 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 //                    stringStatus = "Arrived Return"
 //                }
                 
+
+
+                //DELIVERY CASE
+                let isDriverStarted = isLocalStoredPickupValue(objData.order?.unique_id ?? "")
+                let ready_to_go_at: String = objData.pickup_checklist?.ready_to_go_at ?? ""
+                               
+                
+                //DELIVERY BUTTON — text then logo (not flipped); green only once the driver started
+//                cell.viewStatus.backgroundColor = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
+                cell.viewStatus.backgroundColor = .secondaryText
+                cell.viewStatus.viewBorderCorneRadius(borderColour: ready_to_go_at != "" ? .redText : (isDriverStarted ? .redText : .clear), size: 4)
                 cell.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
 
                 //RETURN BUTTON — flipped logo first then text; green only once the driver started
-                cell.viewStatus.backgroundColor = .secondaryText
                 if let stack = cell.lblStatus.superview as? UIStackView,
                    let imgLogo = stack.arrangedSubviews.compactMap({ $0 as? UIImageView }).first {
                     // Smaller gap: the flipped truck's speed-lines sit next to the text and add visual space
                     stack.spacing = 2
                     imgLogo.transform = CGAffineTransform(scaleX: -1, y: 1)
+                    // Match the icon colour to the label (dark once ready to go). Reload the asset
+                    // fresh as a template so the tint reliably applies.
+                    imgLogo.image = UIImage(named: "icon_delivery_pending")?.withRenderingMode(.alwaysTemplate)
+                    imgLogo.tintColor = ready_to_go_at != "" ? .primary : .background
                     stack.insertArrangedSubview(imgLogo, at: 0)
                     stack.insertArrangedSubview(cell.lblStatus, at: 1)
                 }
@@ -1068,7 +1086,6 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         }
         let objData = self.arrDispatchList[sender.tag]
         var isDriverAssign : Bool = false
-        
         var checklistType : String = ""
         if objData.is_delivered == false {
             checklistType = "delivery"
@@ -1085,6 +1102,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             if let objTransport = objData.pickup_employee, let _ = objTransport.name{
                 isDriverAssign = true
             }
+            
+            
         }
 
         
@@ -1094,17 +1113,27 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         else {
             var is_arrived: Bool = false
             var ready_to_go_at: String = ""
-            
+            var buttonColour : UIColor = .secondaryText
+
             if objData.is_delivered == false {
                 //DELIVERY CASE
                 is_arrived = objData.delivery_checklist?.is_arrived ?? false
                 ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
+                
+                let isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
+                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
+
             }
             else{
                 //PICKUP CASE
                 is_arrived = objData.pickup_checklist?.is_arrived ?? false
                 ready_to_go_at = objData.pickup_checklist?.ready_to_go_at ?? ""
                 
+                
+                //DELIVERY CASE
+                let isDriverStarted = isLocalStoredPickupValue(objData.order?.unique_id ?? "")
+                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
+
             }
             
             if is_arrived {
@@ -1136,6 +1165,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
                 if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
                     newViewController.delegate_Data = self
+                    newViewController.buttonColour = buttonColour
                     newViewController.objDispatch = objData
                     newViewController.selectIndex = sender.tag
                     newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
@@ -1165,6 +1195,17 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         if let keys = dict["keys"] as? String, keys == "With Machine" { return true }
         
         return false
+    }
+    
+    func isLocalStoredPickupValue(_ oederUniqueID: String) -> Bool {
+        let strKey = "driverChecklist_\(oederUniqueID)_pickup"
+        guard let dict = UserDefaults.standard.dictionary(forKey: strKey) else { return false }
+
+        // Any checkbox ticked
+        if let checks = dict["deliveryChecks"] as? [Int], checks.contains(1) { return true }
+
+        return false
+
     }
     
     

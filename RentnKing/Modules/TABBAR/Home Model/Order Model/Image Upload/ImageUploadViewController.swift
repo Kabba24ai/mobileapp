@@ -28,7 +28,8 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     let imageVideoPlaceholderMarker = Placeholder()
     var isLoading : Bool = false
     var strOrderID : String = ""
-
+    var isQueueLine : Bool = false
+    
     //OTHER
     var selectIndex : Int = -1
     var isSelectdelete : Bool = false
@@ -343,24 +344,29 @@ extension ImageUploadViewController {
             showAlertMessage(strMessage: "Please select an image or video.")
 
         }
-        if self.isNewImageVideoAdd() == false{
+        else if self.isNewImageVideoAdd() == false{
             showAlertMessage(strMessage: "Please select a new image or video.")
         }
         else{
             indicatorShow()
-//            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.video_image.rawValue, strVideoType: self.strType)
-//            if arrData.count != 0{
-//                CoreDBManager.sharedDatabase.deleteUploadData(strOrderID: self.strOrderID, strType: uploadType.video_image.rawValue) { isSave in
-//                    if isSave{
-                        //SAVE IN TABLE
-                        self.saveTheVideoandImageLocal()
-//                    }
-//                }
-//            }
-//            else{
-//                //SAVE IN TABLE
-//                self.saveTheVideoandImageLocal()
-//            }
+            
+            //SAVE IN TABLE
+            self.saveTheVideoandImageLocal()
+
+            if self.isQueueLine {
+                
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+                else {
+                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController {
+                        newViewController.is_going_main = true
+                        self.navigationController?.pushViewController(newViewController, animated: true)
+                    }
+                }
+            }
+            
         }
     }
     
@@ -457,10 +463,13 @@ extension ImageUploadViewController {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
                 GlobalMainConstants.appDelegate?.uploadAllData()
             }
+            
+            
+            if self.isQueueLine == false {
 
-           
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                self.navigationController?.popViewController(animated: true)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                    self.navigationController?.popViewController(animated: true)
+                }
             }
 
         }

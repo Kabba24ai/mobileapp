@@ -52,7 +52,10 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     @IBOutlet weak var viewDoubleCheck: UIView!
     @IBOutlet weak var con_DoubleCheck: NSLayoutConstraint!
     var strDoubleCheck : String = ""
+    var strCallCustomer : String = "confirmed"
     var strKeys : String = ""
+    var buttonColour : UIColor = .secondaryText
+
 //    @IBOutlet weak var lblKeysTitle: UILabel!
 //    @IBOutlet weak var txtKeys: UITextField!
 //    @IBOutlet weak var viewkeys: UIView!
@@ -81,6 +84,15 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     // Side-by-side toggles replacing the fuel/keys dropdowns (delivery only)
     private let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
     private let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
+
+    // Call Customer confirmation toggle, shown next to the "1. Call Customer" title.
+    // Right option ("With Machine") is the confirmed state required before Ready to Go.
+    private let callCustomerSegment = UISegmentedControl(items: ["Confirmed", "No Answer"])
+
+    // Whether each toggle is shown — driven by the equipment's is_fuel / is_key flags.
+    // Shown when the flag is true (or missing); hidden only when explicitly false.
+    private var showFuelSegment = true
+    private var showKeysSegment = true
 
     private let callDeliveryCustomerSubItems = [
         "Verify delivery address",
@@ -461,6 +473,7 @@ extension DriverChecklistViewController {
         
         self.lblCallCustomerTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: str.strCallCustomer)
         setupCallCustomerSubChecklist()
+        setupCallCustomerSegment()
         
 //        self.lblDoubleCheckTitle.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: str.strDoubleCheck)
 //        
@@ -525,16 +538,50 @@ extension DriverChecklistViewController {
 //        self.viewkeys.isHidden = true
 //        self.con_keys.constant = 0
 
-        // Host both labelled segments side-by-side; transparent container, no border
+        // Only show a toggle when the equipment actually has fuel / keys.
+        // Hidden only when the flag is explicitly false; shown when true or missing.
+        self.showFuelSegment = (self.objDispatch?.objEquipment?.is_fuel != false)
+        self.showKeysSegment = (self.objDispatch?.objEquipment?.is_key != false)
+
+        // If the equipment has neither fuel nor keys, hide the whole container.
+        if !showFuelSegment && !showKeysSegment {
+            self.con_DoubleCheck.constant = 0
+            self.viewDoubleCheck.isHidden = true
+            self.strDoubleCheck = ""
+            self.strKeys = ""
+            self.updateReadyToGoButton()
+            return
+        }
+
+        // Host the labelled segments side-by-side; transparent container, no border
         self.con_DoubleCheck.constant = 84
         self.viewDoubleCheck.isHidden = false
         self.viewDoubleCheck.backgroundColor = .clear
         self.viewDoubleCheck.layer.borderWidth = 0
 
-        let fuelColumn = makeSegmentColumn(title: "2. Fuel", segment: fuelSegment)
-        let keysColumn = makeSegmentColumn(title: "3. Keys", segment: keysSegment)
+        // Build only the columns that apply. Defaults: the LEFT option (index 0) —
+        // "Not Full" / "Missing" — to match the staging screen.
+        var columns: [UIView] = []
 
-        let row = UIStackView(arrangedSubviews: [fuelColumn, keysColumn])
+        if showFuelSegment {
+            columns.append(makeSegmentColumn(title: "2. Fuel", segment: fuelSegment))
+            fuelSegment.selectedSegmentIndex = 0
+            self.strDoubleCheck = "Not Full"
+            fuelSegment.addTarget(self, action: #selector(fuelSegmentChanged(_:)), for: .valueChanged)
+        } else {
+            self.strDoubleCheck = ""   // no fuel on this equipment
+        }
+
+        if showKeysSegment {
+            columns.append(makeSegmentColumn(title: "3. Keys", segment: keysSegment))
+            keysSegment.selectedSegmentIndex = 0
+            self.strKeys = "Missing"
+            keysSegment.addTarget(self, action: #selector(keysSegmentChanged(_:)), for: .valueChanged)
+        } else {
+            self.strKeys = ""          // no keys on this equipment
+        }
+
+        let row = UIStackView(arrangedSubviews: columns)
         row.axis = .horizontal
         row.distribution = .fillEqually
         row.alignment = .fill
@@ -547,15 +594,6 @@ extension DriverChecklistViewController {
             row.topAnchor.constraint(equalTo: viewDoubleCheck.topAnchor, constant: 8),
             row.bottomAnchor.constraint(lessThanOrEqualTo: viewDoubleCheck.bottomAnchor)
         ])
-
-        // Defaults: the LEFT option (index 0) — "Not Full" and "Missing" — to match the staging screen.
-        fuelSegment.selectedSegmentIndex = 0
-        keysSegment.selectedSegmentIndex = 0
-        self.strDoubleCheck = "Not Full"
-        self.strKeys = "Missing"
-
-        fuelSegment.addTarget(self, action: #selector(fuelSegmentChanged(_:)), for: .valueChanged)
-        keysSegment.addTarget(self, action: #selector(keysSegmentChanged(_:)), for: .valueChanged)
 
 //        // Re-anchor the Ready-to-Go button a proper distance below the fuel container
 //        if let sv = viewReadytoGo.superview {
@@ -577,17 +615,7 @@ extension DriverChecklistViewController {
         lbl.minimumScaleFactor = 0.7
         lbl.numberOfLines = 1
 
-        segment.selectedSegmentTintColor = .secondary
-        segment.backgroundColor = .clear
-        segment.layer.borderWidth = 1
-        segment.layer.borderColor = UIColor.secondary.cgColor
-        segment.layer.cornerRadius = 8
-        segment.layer.masksToBounds = true
-        segment.setTitleTextAttributes([.foregroundColor: UIColor.secondary as Any,
-                                        .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12)], for: .normal)
-        segment.setTitleTextAttributes([.foregroundColor: UIColor.black,
-                                        .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 12)], for: .selected)
-        segment.translatesAutoresizingMaskIntoConstraints = false
+        styleChecklistSegment(segment)
         segment.heightAnchor.constraint(equalToConstant: 32).isActive = true
 
         let column = UIStackView(arrangedSubviews: [lbl, segment])
@@ -595,6 +623,65 @@ extension DriverChecklistViewController {
         column.spacing = 16
         column.alignment = .fill
         return column
+    }
+
+    /// Applies the shared Fuel/Keys/Call-Customer segmented-control styling.
+    private func styleChecklistSegment(_ segment: UISegmentedControl) {
+        segment.selectedSegmentTintColor = .secondary
+        segment.backgroundColor = .clear
+        segment.layer.borderWidth = 1
+        segment.layer.borderColor = UIColor.secondary.cgColor
+        segment.layer.cornerRadius = 8
+        segment.layer.masksToBounds = true
+        segment.apportionsSegmentWidthsByContent = false
+        segment.setTitleTextAttributes([.foregroundColor: UIColor.secondary as Any,
+                                        .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12)], for: .normal)
+        segment.setTitleTextAttributes([.foregroundColor: UIColor.black,
+                                        .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 12)], for: .selected)
+        segment.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    /// Places the Call Customer confirmation toggle at the right of the "1. Call Customer" title.
+    private func setupCallCustomerSegment() {
+        guard callCustomerSegment.superview == nil, let container = lblCallCustomerTitle.superview else { return }
+        styleChecklistSegment(callCustomerSegment)
+        container.addSubview(callCustomerSegment)
+        NSLayoutConstraint.activate([
+            callCustomerSegment.centerYAnchor.constraint(equalTo: lblCallCustomerTitle.centerYAnchor),
+            callCustomerSegment.trailingAnchor.constraint(equalTo: lblCallCustomerTitle.trailingAnchor),
+            callCustomerSegment.heightAnchor.constraint(equalToConstant: 32),
+            callCustomerSegment.widthAnchor.constraint(equalToConstant: 190),
+            callCustomerSegment.leadingAnchor.constraint(greaterThanOrEqualTo: lblCallCustomerTitle.leadingAnchor, constant: 8)
+        ])
+
+        callCustomerSegment.selectedSegmentIndex = 0     // default LEFT ("Missing")
+        self.strCallCustomer = "confirmed"
+        callCustomerSegment.addTarget(self, action: #selector(callCustomerSegmentChanged(_:)), for: .valueChanged)
+        // Default "Missing" → checklist active and required.
+        self.setCallCustomerChecklistEnabled(true)
+    }
+
+    /// "With Machine" (right) means the customer already has the unit — no call-customer checklist needed.
+    private var isCallWithMachine: Bool { callCustomerSegment.selectedSegmentIndex == 1 }
+
+    @objc private func callCustomerSegmentChanged(_ sender: UISegmentedControl) {
+        self.strCallCustomer = sender.selectedSegmentIndex == 1 ? "no_answer" : "confirmed"
+        // "With Machine" → the call-customer checklist is inactive and not required.
+        // "Missing" → the checklist is active and every item must be checked.
+        self.setCallCustomerChecklistEnabled(sender.selectedSegmentIndex != 1)
+        self.updateReadyToGoButton()
+        self.saveChecklistState()
+    }
+
+    /// Enables/disables the Call Customer sub-checklist rows (checkbox + row tap) and dims them.
+    private func setCallCustomerChecklistEnabled(_ enabled: Bool) {
+        for row in viewCallCustomerStackChecklist.arrangedSubviews {
+            row.isUserInteractionEnabled = enabled
+            row.alpha = enabled ? 1.0 : 0.4
+        }
+        for btn in callCustomerCheckboxButtons {
+            btn.isEnabled = enabled
+        }
     }
 
     @objc private func fuelSegmentChanged(_ sender: UISegmentedControl) {
@@ -612,17 +699,21 @@ extension DriverChecklistViewController {
     
     private func updateReadyToGoButton() {
         let allChecked = self.checklistType == "pickup" ? !callReturnCustomerChecks.contains(false) : !callDeliveryCustomerChecks.contains(false)
-        let fuelFilled = !(self.strDoubleCheck).trimmingCharacters(in: .whitespaces).isEmpty
-        let keysFilled = !(self.strKeys).trimmingCharacters(in: .whitespaces).isEmpty
-        
-        var isEnabled = allChecked && fuelFilled && keysFilled
+        // A toggle that isn't shown (equipment has no fuel / no keys) is not required.
+        let fuelFilled = !self.showFuelSegment || !(self.strDoubleCheck).trimmingCharacters(in: .whitespaces).isEmpty
+        let keysFilled = !self.showKeysSegment || !(self.strKeys).trimmingCharacters(in: .whitespaces).isEmpty
+        // "With Machine" skips the Call Customer checklist; "Missing" requires every item checked.
+        let callChecklistOK = isCallWithMachine || allChecked
+
+        var isEnabled = callChecklistOK && fuelFilled && keysFilled
         if self.checklistType == "pickup"{
-            isEnabled = allChecked
+            isEnabled = callChecklistOK
         }
         btnReadytoGo.isEnabled = isEnabled
         // Delivery → light green, Return/pickup → amber
-        let enabledColor: UIColor = (self.checklistType == "pickup") ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
-        viewReadytoGo.backgroundColor = isEnabled ? enabledColor : .darkGray
+//        let enabledColor: UIColor = (self.checklistType == "pickup") ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+//        viewReadytoGo.backgroundColor = isEnabled ? enabledColor : .darkGray
+        viewReadytoGo.backgroundColor = isEnabled ? hexStringToUIColor(hex: "3DDC6E") : .darkGray
     }
     
     private func setupCallCustomerSubChecklist() {
@@ -754,7 +845,7 @@ extension DriverChecklistViewController {
         })
         
         
-        saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType)
+        saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType)
         syncDriverChecklistWithAPI()
         
         
@@ -818,11 +909,13 @@ extension DriverChecklistViewController {
         self.lbl_Arrived_dateTime.text = "Date | Time"
         
         // Arrived button — same style as Ready to Go
-        self.lblArrived.configureLable(textAlignment: .center, textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: "Arrived")
+        self.lblArrived.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 16, text: "Arrived")
         
         self.btnArrivedView.viewCorneRadius(radius: 12, isRound: false)
         // Same colour as the Ready-to-Go button: delivery → green, return → amber
-        self.btnArrivedView.backgroundColor = (self.checklistType == "pickup") ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+        
+//        self.btnArrivedView.backgroundColor = (self.checklistType == "pickup") ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+        self.btnArrivedView.backgroundColor = hexStringToUIColor(hex: "128A4C")
         self.btnArrived.addTarget(self, action: #selector(btnArrivedClicked), for: .touchUpInside)
         
         self.viewArrivedMain.isHidden = true
@@ -834,13 +927,33 @@ extension DriverChecklistViewController {
         "driverChecklist_\(self.objDispatch?.order?.unique_id ?? "")_delivery"
     }
 
+    private var localPickupStateKey: String {
+        "driverChecklist_\(self.objDispatch?.order?.unique_id ?? "")_pickup"
+    }
     func saveChecklistState() {
-        let dict: [String: Any] = [
-            "deliveryChecks": callDeliveryCustomerChecks.map { $0 ? 1 : 0 },
-            "fuel":           self.strDoubleCheck,
-            "keys":           self.strKeys
-        ]
-        UserDefaults.standard.set(dict, forKey: localStateKey)
+        if checklistType == "delivery"{
+            
+            let dict: [String: Any] = [
+                "deliveryChecks": callDeliveryCustomerChecks.map { $0 ? 1 : 0 },
+                "fuel":           self.strDoubleCheck,
+                "keys":           self.strKeys,
+                "call_customer":  self.strCallCustomer
+            ]
+
+            UserDefaults.standard.set(dict, forKey: localStateKey)
+
+        }
+        else{
+
+            let dict: [String: Any] = [
+                "deliveryChecks": callReturnCustomerChecks.map { $0 ? 1 : 0 },
+                "call_customer":  self.strCallCustomer
+            ]
+
+            UserDefaults.standard.set(dict, forKey: localPickupStateKey)
+            
+        }
+        
     }
 
     func restoreChecklistState() {
@@ -857,15 +970,23 @@ extension DriverChecklistViewController {
             btn.isSelected = checks[i]
         }
 
-        if let fuel = dict["fuel"] as? String, !fuel.isEmpty {
+        if showFuelSegment, let fuel = dict["fuel"] as? String, !fuel.isEmpty {
             self.strDoubleCheck = fuel
             fuelSegment.selectedSegmentIndex = fuel == "Full" ? 1 : 0
         }
 
         // Restore keys
-        if let keys = dict["keys"] as? String, !keys.isEmpty {
+        if showKeysSegment, let keys = dict["keys"] as? String, !keys.isEmpty {
             self.strKeys = keys
             keysSegment.selectedSegmentIndex = keys == "With Machine" ? 1 : 0
+        }
+
+        // Restore Call Customer state ("no_answer" == With Machine → checklist inactive)
+        if let call = dict["call_customer"] as? String, !call.isEmpty {
+            self.strCallCustomer = call
+            let withMachine = (call == "no_answer")
+            callCustomerSegment.selectedSegmentIndex = withMachine ? 1 : 0
+            setCallCustomerChecklistEnabled(!withMachine)
         }
 
         self.updateReadyToGoButton()
@@ -886,7 +1007,7 @@ extension DriverChecklistViewController {
                 
         saveDriverChecklistLocally(
             order_product_unique_id: self.productUniqueId,
-            equipment_fuel:          self.strDoubleCheck,
+            equipment_fuel:          self.strDoubleCheck, call_customer: self.strCallCustomer,
             equipment_key_location:  self.strKeys,
             equipment_driver_status: kDriverCheckListStatus.kArrived.rawValue,
             checklist_type: self.checklistType

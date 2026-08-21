@@ -31,6 +31,12 @@ enum kFileStorageName: String {
     //CHECK LIST
     case kSaveCheckList = "CheckList"
 
+    // Local-only "Pending / prepared" delivery checklist (staged before the customer arrives).
+    // Deliberately separate from kCheckListOrderDetailsData/kCheckListOtherData (which mean
+    // "completed") and from kSaveCheckList (the final-upload queue).
+    case kPendingCheckList = "kPendingCheckList"
+    case kPendingCheckListOther = "kPendingCheckListOther"
+
     case kPriceList = "kPriceList"
     case kProductSettings = "kProductSettings"
     case kDriverChecklistSubmit = "kDriverChecklistSubmit"

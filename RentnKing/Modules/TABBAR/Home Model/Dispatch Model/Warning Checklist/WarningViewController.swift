@@ -239,14 +239,15 @@ class WarningViewController: UIViewController, UIGestureRecognizerDelegate {
 
     /// CTA colour: delivery → green, return → amber (same logic as the dispatch buttons).
     private var ctaColor: UIColor {
-        return isReturn ? (UIColor.secondaryText ?? UIColor(red: 0.96, green: 0.78, blue: 0.30, alpha: 1.0))
-                        : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+        return hexStringToUIColor(hex: "128A4C")
+//        return isReturn ? (UIColor.secondaryText ?? UIColor(red: 0.96, green: 0.78, blue: 0.30, alpha: 1.0))
+//                        : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
     }
 
     private func makePrimaryButton(title: String) -> UIButton {
         let button = UIButton(type: .custom)
         button.configureLable(bgColour: ctaColor,
-                              textColor: .black,
+                              textColor: .primary,
                               fontName: GlobalMainConstants.APP_FONT_Roboto_Bold,
                               fontSize: 16.0,
                               text: title)

@@ -9,12 +9,13 @@ import ObjectMapper
 
 /// Max times a queued offline submission is retried before it is dropped
 /// (dead-lettered) so a permanently-rejected item can't block the whole queue.
-let kMaxSyncAttempts = 10
+let kMaxSyncAttempts = 5
 
 struct DriverChecklistSubmitModel: Mappable {
     internal var id: Int?
     internal var order_product_unique_id: String?
     internal var equipment_fuel: String?
+    internal var call_customer: String?
     internal var equipment_key_location: String?
     internal var equipment_driver_status: String?
     internal var status: String?
@@ -29,6 +30,7 @@ struct DriverChecklistSubmitModel: Mappable {
         id                       <- map["id"]
         order_product_unique_id  <- map["order_product_unique_id"]
         equipment_fuel           <- map["equipment_fuel"]
+        call_customer           <- map["call_customer"]
         equipment_key_location   <- map["equipment_key_location"]
         equipment_driver_status  <- map["equipment_driver_status"]
         status                   <- map["status"]
@@ -41,6 +43,7 @@ struct DriverChecklistSubmitModel: Mappable {
 
 func saveDriverChecklistLocally(order_product_unique_id: String,
                                 equipment_fuel: String,
+                                call_customer: String,
                                 equipment_key_location: String,
                                 equipment_driver_status: String,
                                 checklist_type: String) {
@@ -53,6 +56,7 @@ func saveDriverChecklistLocally(order_product_unique_id: String,
     if var obj = DriverChecklistSubmitModel(JSON: [:]) {
         obj.id                      = Int(Date().timeIntervalSince1970)
         obj.order_product_unique_id = order_product_unique_id
+        obj.call_customer          = call_customer
         obj.equipment_fuel          = equipment_fuel
         obj.equipment_key_location  = equipment_key_location
         obj.equipment_driver_status = equipment_driver_status
@@ -84,6 +88,7 @@ func callAPIforDriverChecklist(obj: DriverChecklistSubmitModel) {
     let dicData: [String: Any] = [
         "order_product_unique_id": obj.order_product_unique_id ?? "",
         "equipment_fuel":          obj.equipment_fuel ?? "",
+        "call_customer":          obj.call_customer ?? "",
         "equipment_key_location":  obj.equipment_key_location ?? "",
         "equipment_driver_status": obj.equipment_driver_status ?? "",
         "checklist_type": obj.checklist_type ?? ""

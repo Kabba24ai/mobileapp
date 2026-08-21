@@ -123,7 +123,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var strOrderUniqueId : String = ""
     var isPresent : Bool = false
     
-    
+    var buttonColour : UIColor = .secondaryText
+
     var selectIndex : Int = -1
     var objOrderData : OrdersListModel!
     var strProductID : String = ""
@@ -489,7 +490,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
             self.lblPhotVideoDeli.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoDeli)
             self.lblPhotVideoRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPhotoAndVideoRec)
-            self.lblComplateDeliver.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: self.strComplateDelivery)
+            self.lblComplateDeliver.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: self.strComplateDelivery)
 
             //CHECK AND SET VIEW
             self.viewLicense.backgroundColor = .clear
@@ -564,6 +565,11 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
                 imgColor(imgColor: self.imgCheckListDeliv, colorHex: .background)
                 self.viewCheckListDeliv.backgroundColor = .secondary
             }
+            else if (getPendingCheckList(orderUniqueId: self.objOrderData.unique_id ?? "", isDelivery: true) != nil) {
+                self.lblCheckListDeliv.textColor = .background
+                imgColor(imgColor: self.imgCheckListDeliv, colorHex: .background)
+                self.viewCheckListDeliv.backgroundColor = .secondatyBtn
+            }
       
             //CHECK RETURN CHECKLIST
             if self.checkCheckListStatus(isDelivery: false){
@@ -582,7 +588,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             
             //CHECKLIST — delivery → green, return → amber (same as dispatch buttons)
             let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
-            self.viewComplateDeliver.backgroundColor = isReturn ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+//            self.viewComplateDeliver.backgroundColor = isReturn ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
+            self.viewComplateDeliver.backgroundColor = hexStringToUIColor(hex: "128A4C")
             self.viewComplateDeliver.viewCorneRadius(radius: 10, isRound: false)
         
             //SET HEADER

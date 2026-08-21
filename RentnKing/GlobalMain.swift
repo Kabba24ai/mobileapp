@@ -770,6 +770,10 @@ enum Url {
         return newAPI("queue-line/\(orderProductUniqueId)/mark-staged")
     }
 
+    static func queueLineSwitchEquipment(_ orderProductUniqueId: String) -> NSURL {
+        return newAPI("queue-line/\(orderProductUniqueId)/switch-equipment")
+    }
+
     // MARK: - DISPATCH
 
     static var dispatchList: NSURL {

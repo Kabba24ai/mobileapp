@@ -7,6 +7,8 @@
 
 import UIKit
 import ObjectMapper
+import IQKeyboardManagerSwift
+import IQKeyboardCore
 
 protocol  CheckListDelegate : NSObject {
     func UpdateCheckListProduct(selectIndex: Int, arrUpdateCheckList : [NoteModel])
@@ -18,26 +20,27 @@ struct FuleTypes {
 }
 
 let arrFlueDelivery : [FuleTypes] = [
-                                     FuleTypes(id: 9, name: "Full"),
-                                     FuleTypes(id: 8, name: "7/8"),
-                                     FuleTypes(id: 7, name: "3/4"),
-                                     FuleTypes(id: 6, name: "5/8"),
-                                     FuleTypes(id: 5, name: "1/2"),
-                                     FuleTypes(id: 4, name: "3/8"),
-                                     FuleTypes(id: 3, name: "1/4"),
-                                     FuleTypes(id: 2, name: "1/8"),
-                                     FuleTypes(id: 1, name: "Empty")]
+    FuleTypes(id: 9, name: "Full"),
+    FuleTypes(id: 8, name: "7/8"),
+    FuleTypes(id: 7, name: "3/4"),
+    FuleTypes(id: 6, name: "5/8"),
+    FuleTypes(id: 5, name: "1/2"),
+    FuleTypes(id: 4, name: "3/8"),
+    FuleTypes(id: 3, name: "1/4"),
+    FuleTypes(id: 2, name: "1/8"),
+    FuleTypes(id: 1, name: "Empty")]
 
 let arrCleaningDelivery : [FuleTypes] = [
-                                     FuleTypes(id: 1, name: "Pre-Paid"),
-                                     FuleTypes(id: 2, name: "Clean")]
+    FuleTypes(id: 2, name: "Clean"),
+    FuleTypes(id: 1, name: "Pre-Paid")
+]
 
 let arrCleaningReturn : [FuleTypes] = [
-                                    FuleTypes(id: 5, name: "Extreme Clean"),
-                                    FuleTypes(id: 4, name: "Moderate Clean"),
-                                    FuleTypes(id: 3, name: "Std Clean"),
-                                    FuleTypes(id: 2, name: "Clean"),
-                                    FuleTypes(id: 1, name: "Pre-Paid")]
+    FuleTypes(id: 5, name: "Extreme Clean"),
+    FuleTypes(id: 4, name: "Moderate Clean"),
+    FuleTypes(id: 3, name: "Std Clean"),
+    FuleTypes(id: 2, name: "Clean"),
+    FuleTypes(id: 1, name: "Pre-Paid")]
 
 
 func getFlueName(strId : String) -> String{
@@ -58,7 +61,7 @@ func FuelCalulateTotalCharge(total : Float, dSelect : Float , rSelect : Float) -
             return 0
         }
     }
-   
+    
     return 0
 }
 
@@ -75,33 +78,36 @@ func getCleaning(strId : String, isReturn : Bool) -> String{
 
 class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UIPickerViewDataSource, UIPickerViewDelegate{
     weak var delegate: CheckListDelegate?
-
+    
     @IBOutlet weak var tblView: UITableView!
     @IBOutlet weak var con_tableView: NSLayoutConstraint!
     @IBOutlet weak var con_Submit: NSLayoutConstraint!
     @IBOutlet weak var viewSubmit: UIView!
     @IBOutlet weak var lblSubmit: UILabel!
-    @IBOutlet weak var con_SubmitBottom : NSLayoutConstraint!
+    @IBOutlet weak var viewSave: UIView!
+    @IBOutlet weak var lblSave: UILabel!
 
+    @IBOutlet weak var con_SubmitBottom : NSLayoutConstraint!
+    
     @IBOutlet weak var lblTotalChargeTitle: UILabel!
     @IBOutlet weak var lblTotalCharge: UILabel!
     @IBOutlet weak var lblCombine: UILabel!
     @IBOutlet weak var objCombineSwitch: UISwitch!
     @IBOutlet weak var con_table: NSLayoutConstraint!
-
+    
     var isCombineChecklist: Bool = true
-
-   
-
+    
+    
+    
     //LOADING
     let machinePlaceholderMarker = Placeholder()
-
+    
     //OTHER
     var isLoading : Bool = true
     var isMachineUpdate : Bool = false
     
     var objOrderData : OrdersModel!
-//    var arrProductList : [ProductModel] = []
+    //    var arrProductList : [ProductModel] = []
     var arrEmployesList : [EmployeesModel] = []
     var arrOtherData : [NoteModel] = []
     var arrMachineList : [MachineModel] = []
@@ -111,15 +117,15 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     var sortedMachineList : [String : [MachineModel]] = [:]
     var arrPriceList : [PriceListModel] = []
     var arrProductSettingList : [PriceListModel] = []
-
-//    var objCheckListPrice : CheckListPriceModel!
+    
+    //    var objCheckListPrice : CheckListPriceModel!
     
     
     var selectIndex : Int = -1
     var strOrderID : String = ""
     var strOrderUniqueId : String = ""
     var strProductID : String = ""
-
+    
     var strTotalCharge : Float = 0.0
     var isDeliveryType : Bool = false
     var selectEmployessID : String = ""
@@ -127,29 +133,34 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     var isOrderDetailsView : Bool = false
     var isUpdateMachineId : Bool = false
     var isUpdateMachineIdFirstTime : Bool = true
-
+    var isQueueLine : Bool = false
     var strSelectCategoty : String = ""
     var strSelectEquipment : String = ""
     var fromCheckListScreen: Bool = false
-
+    
     //PICKER VIEW
     private let hiddenField = UITextField(frame: .zero)     // host for inputView/accessory
     private let picker = UIPickerView()
     private var selectedIndex: Int = 1
-//    let data = [
-//          ("Section: Cutting", ["Brush cutting"]),
-//          ("Section: Boom", ["Boom - Skid", "Boom-2"])
-//      ]
+    //    let data = [
+    //          ("Section: Cutting", ["Brush cutting"]),
+    //          ("Section: Boom", ["Boom - Skid", "Boom-2"])
+    //      ]
     
     
-   
+    
     
     var pickerData: [String] = []
     var selectProductIndex : Int = 0
-    
+    /// Table scroll position captured when an equipment pick is applied, so the reloads that
+    /// follow don't jump the screen up. Only set during the picker flow (nil for the keyboard).
+    private var pickerSavedOffset: CGPoint?
+    /// Guards one-time installation of the delivery-only "Save" (prepare) button.
+    private var didInstallSaveButton = false
+
     override func viewDidLoad() {
         super.viewDidLoad()
-//        setupCutomeKeyboard()
+        //        setupCutomeKeyboard()
         // Do any additional setup after loading the view.
         setupKeyboard(false)
         
@@ -158,23 +169,23 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         self.viewSubmit.isHidden = true
         //TEMP COMMENT//self.getEmployeesListAPI(CatrgoryParameater: CatrgoryParameater())
         //TEMP COMMENT//self.getEquipmentListAPI(EquipmentParameater: EquipmentParameater())
-//        self.getCategorys(CatrgoryParameater: CatrgoryParameater())
+        //        self.getCategorys(CatrgoryParameater: CatrgoryParameater())
         //TEMP COMMENT//self.getStoreAddress()
-//
+        //
         //KEYBOARD METHOD
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(notification:)), name: UIResponder.keyboardWillShowNotification , object:nil)
         
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(notification:)), name: UIResponder.keyboardWillHideNotification , object:nil)
-
+        
         //GET Equipment LIST DATA
         getEquipmentList { arr_data in
             self.arrMachineList = arr_data
             self.arrAllMachineList = self.arrMachineList
-
+            
             //SET DATA
             self.setPickerData()
             self.getLocalOrderDetailData()
-
+            
         }
         
         //GET CATEGORY DATA
@@ -187,11 +198,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         getEmployeeList { arr_data in
             self.arrEmployesList = arr_data
             self.getLocalOrderDetailData()
-           //self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId, product_id: self.strProductID))
+            //self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId, product_id: self.strProductID))
         }
         
         //CALL API FOR Equipment LIST AND CHEKC LOCAL
-      
+        
         
         
         //GET STORE LIST DATA FROM LOCAL
@@ -218,7 +229,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         
         getProductSettingList(completion: { arr_data in
             self.arrProductSettingList = arr_data
-
+            
         })
     }
     
@@ -226,28 +237,29 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     func getLocalOrderDetailData() {
         
         // Always show existing local data immediately
-//        if let localData = self.getOrderDetailData() {
-//            self.objOrderData = localData
-//            
-//            var arrProduct : [ProductModel] = []
-//            for obj in self.objOrderData.arrProduct{
-//                if obj.objProductData?.product_type != "Retail"{
-//                    arrProduct.append(obj)
-//                }
-//            }
-//            
-//            //UPDATE DATA
-//            self.objOrderData.arrProduct = arrProduct
-//            self.setupStaticData()
-//            self.setTheView()
-//        }
+        //        if let localData = self.getOrderDetailData() {
+        //            self.objOrderData = localData
+        //            
+        //            var arrProduct : [ProductModel] = []
+        //            for obj in self.objOrderData.arrProduct{
+        //                if obj.objProductData?.product_type != "Retail"{
+        //                    arrProduct.append(obj)
+        //                }
+        //            }
+        //            
+        //            //UPDATE DATA
+        //            self.objOrderData.arrProduct = arrProduct
+        //            self.setupStaticData()
+        //            self.setTheView()
+        //        }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId)) { dicData in
                 if dicData != nil{
+                    
                     self.objOrderData = dicData
                     self.isLoading = false
-
+                    
                     var arrProduct : [ProductModel] = []
                     for obj in self.objOrderData.arrProduct{
                         if obj.objProductData?.product_type != "Retail"{
@@ -255,15 +267,37 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                         }
                     }
                     
+//                    var arrProduct : [ProductModel] = []
+//                    for obj in self.objOrderData.arrProduct{
+//                        if obj.objProductData?.product_type != "Retail"{
+//                            var product = obj
+//                            // Feed the UI's arrQuestions from the delivery or return set based on the flow.
+//                            product.arrQuestions = self.isDeliveryType ? product.arrQuestionsDelivery : product.arrQuestionsReturn
+//                            arrProduct.append(product)
+//                        }
+//                    }
+                    
                     //UPDATE DATA
                     self.objOrderData.arrProduct = arrProduct
                     self.setupStaticData()
                     self.setTheView()
+                    self.prefillPendingCheckListIfNeeded()
 
                 }
                 
             }
         }
+    }
+
+    // MARK: - Prefill from pending draft
+    private func prefillPendingCheckListIfNeeded() {
+        guard isDeliveryType,
+              let pending = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: true) else { return }
+        self.objOrderData.arrProduct = pending.order.arrProduct
+        self.arrOtherData = pending.other
+        self.viewSave.isHidden = !self.isQueueLine
+        self.CalculatTotalCharge()
+        self.tblView.reloadData()
     }
     
     
@@ -273,7 +307,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         
         //SET PORTRAIT MODE
         AppUtility.PortraitMode()
-
+        
         DispatchQueue.main.async {
             self.setupPickerHost()
         }
@@ -309,17 +343,20 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     
     
     func setTheView(){
-
+        
         
         indicatorHide()
         self.stopLoading()
-
+        
         //SET SUBMIT
         self.viewSubmit.isHidden = false
         self.con_Submit.constant = manageWidth(size: 45.0)
         self.viewSubmit.backgroundColor = .secondaryTextView
         self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strNext)
         
+        self.viewSave.isHidden = !isQueueLine
+        self.viewSave.backgroundColor = .secondatyBtn
+        self.lblSave.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Save")
 
         self.lblTotalChargeTitle.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 18.0, text: str.strTotalCheckList)
         self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(self.strTotalCharge)")
@@ -330,12 +367,12 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
             self.lblTotalChargeTitle.isHidden = true
             self.lblTotalCharge.isHidden = true
         }
-
+        
         
         //COMBINE SWITCH EVENT
         self.objCombineSwitch.removeTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
         self.objCombineSwitch.addTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
-
+        
         
         self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "Combine Delivery Checklist")
         self.objCombineSwitch.isHidden = false
@@ -348,7 +385,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
             self.isCombineChecklist = false
         }
     }
-
+    
     @objc func combineSwitchChanged(_ sender: UISwitch) {
         self.isCombineChecklist = sender.isOn
         self.tblView.reloadData()
@@ -369,21 +406,25 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         picker.dataSource = self
         picker.delegate = self
         picker.backgroundColor = .white
-
+        
         hiddenField.translatesAutoresizingMaskIntoConstraints = false
         hiddenField.isHidden = true
+        // This field only hosts the equipment picker (inputView). It must NOT trigger
+        // IQKeyboardManager's keyboard-avoidance, otherwise the view slides up when the
+        // picker opens (most visible on the 2nd+ selection). Exclude it explicitly.
+        hiddenField.iq.enableMode = .disabled
         view.addSubview(hiddenField)
-
+        
         let pickerHeight: CGFloat = 260
         let headerHeight: CGFloat = 56
-
+        
         let host = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: headerHeight + pickerHeight))
         host.backgroundColor = .black
         host.isOpaque = true
-
+        
         let header = buildPickerHeader(title: "Select Equipment ID")
         header.frame.origin = .zero
-
+        
         picker.frame = CGRect(x: 0, y: headerHeight, width: host.bounds.width, height: pickerHeight)
         picker.autoresizingMask = [.flexibleWidth]
         picker.backgroundColor = .white
@@ -391,21 +432,21 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         
         host.addSubview(header)
         host.addSubview(picker)
-
+        
         hiddenField.inputAccessoryView = nil
         hiddenField.inputView = host
     }
-
+    
     
     private func buildPickerHeader(title: String) -> UIView {
         let h: CGFloat = 56
         let header = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: h))
         header.backgroundColor = .clear
         header.autoresizingMask = [.flexibleWidth]
-
+        
         let pillH: CGFloat = 38
         let y = (h - pillH) / 2
-
+        
         // Left: Cancel pill
         let cancel = UIButton(type: .system)
         cancel.setTitle("Cancel", for: .normal)
@@ -416,7 +457,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         cancel.contentEdgeInsets = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         cancel.frame = CGRect(x: 14, y: y, width: 88, height: pillH)
         cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-
+        
         // Right: Select pill
         let select = UIButton(type: .system)
         select.setTitle("Select", for: .normal)
@@ -428,7 +469,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         select.frame = CGRect(x: header.bounds.width - 14 - 92, y: y, width: 92, height: pillH)
         select.autoresizingMask = [.flexibleLeftMargin]
         select.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
-
+        
         // Middle: Title pill (disabled look)
         let titleBtn = UIButton(type: .system)
         titleBtn.setTitle(title, for: .normal)
@@ -437,39 +478,46 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         titleBtn.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
         titleBtn.layer.cornerRadius = pillH / 2
         titleBtn.isUserInteractionEnabled = false
-
+        
         let leftMaxX = cancel.frame.maxX + 12
         let rightMinX = select.frame.minX - 12
         let midW = max(0, rightMinX - leftMaxX)
         titleBtn.frame = CGRect(x: leftMaxX, y: y, width: midW, height: pillH)
         titleBtn.autoresizingMask = [.flexibleWidth]
-
+        
         header.addSubview(cancel)
         header.addSubview(titleBtn)
         header.addSubview(select)
-
+        
         return header
     }
-
-   
+    
+    
     
     // MARK: - Actions
     func openPicker() {
-        // Preselect current value when reopening
-        picker.selectRow(selectedIndex, inComponent: 0, animated: false)
+        picker.reloadAllComponents()
+        // Preselect current value when reopening (clamp so it can never be out of range).
+        if !pickerData.isEmpty {
+            let safeIndex = min(max(selectedIndex, 0), pickerData.count - 1)
+            selectedIndex = safeIndex
+            picker.selectRow(safeIndex, inComponent: 0, animated: false)
+        }
         hiddenField.becomeFirstResponder()  // shows picker + toolbar
     }
-
+    
     @objc private func cancelTapped() {
         hiddenField.resignFirstResponder()  // dismiss without applying
     }
-
+    
     @objc private func doneTapped() {
         selectedIndex = picker.selectedRow(inComponent: 0)
         hiddenField.resignFirstResponder()  // apply & dismiss
 
-        if self.pickerData.count != 0{
+        if self.pickerData.indices.contains(selectedIndex){
             let input = self.pickerData[selectedIndex]
+            // Ignore section headers ("Section: Available") — they aren't selectable equipment.
+            if input.hasPrefix("Section:") { return }
             if let code = input.components(separatedBy: "||").last?.trimmingCharacters(in: .whitespaces) {
                 print(code) // ATMQ-1234
                 
@@ -478,7 +526,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                     
                     let objMachineList = self.arrMachineList[index]
                     if objMachineList.status == "Damaged" || objMachineList.status == "Maint. Hold"{
-//                        {Maint. Hold}
+                        //                        {Maint. Hold}
                         let alert = UIAlertController(title: Application.appName, message: "This equipment is currently marked as \(objMachineList.status ?? ""). Do you want to automatically change its status to Available and assign it to this order?", preferredStyle: .alert)
                         alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                             self.cancelTapped()
@@ -508,17 +556,21 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     func callCheckListAPI(index : Int){
         self.cancelTapped()
 
+        // Applying a pick changes the rows below — remember the scroll position so the
+        // follow-up reloads don't push the screen up.
+        self.pickerSavedOffset = self.tblView.contentOffset
+
         var objProductDetails = self.objOrderData.arrProduct[self.selectProductIndex]
         objProductDetails.objMachine = self.arrMachineList[index]
         
-//        self.powerSourceType = self.arrMachineList[index].powerSourceType
-//        self.hasDEF = self.arrMachineList[index].hasDEF
+        //        self.powerSourceType = self.arrMachineList[index].powerSourceType
+        //        self.hasDEF = self.arrMachineList[index].hasDEF
         
         //UPDATE ARRAY
         self.objOrderData.arrProduct.remove(at: self.selectProductIndex)
         self.objOrderData.arrProduct.insert(objProductDetails, at: self.selectProductIndex)
-
-    
+        
+        
         //UPDATE DATA
         let obj = self.arrOtherData[self.selectProductIndex]
         obj.machine_id = self.arrMachineList[index].id ?? 0
@@ -529,7 +581,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         
         self.setUpTheEqupmentData(objEquipment: self.arrMachineList[index], index: self.selectProductIndex)
         
-//        self.getCheckListPriceAPI(CheckListParameater: CheckListParameater(equipment_unique_id: self.arrMachineList[index].unique_id ?? "", type: self.isDeliveryType ? "delivery" : "return", order_product_unique_id: self.objOrderData.arrProduct[self.selectProductIndex].unique_id ?? ""), index: self.selectProductIndex)
+        //        self.getCheckListPriceAPI(CheckListParameater: CheckListParameater(equipment_unique_id: self.arrMachineList[index].unique_id ?? "", type: self.isDeliveryType ? "delivery" : "return", order_product_unique_id: self.objOrderData.arrProduct[self.selectProductIndex].unique_id ?? ""), index: self.selectProductIndex)
     }
     
     // MARK: - UIPickerViewDataSource/Delegate
@@ -564,13 +616,13 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     }
     
     // Prevent selecting section rows
-//    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-//        
-//        if pickerData[row].hasPrefix("Section:") {
-//            // Jump to next selectable row
-//            pickerView.selectRow(row + 1, inComponent: component, animated: true)
-//        }
-//    }
+    //    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+    //        
+    //        if pickerData[row].hasPrefix("Section:") {
+    //            // Jump to next selectable row
+    //            pickerView.selectRow(row + 1, inComponent: component, animated: true)
+    //        }
+    //    }
     
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
         
@@ -615,15 +667,15 @@ extension CheckListViewController{
     /// If EVERY product is blank, the first product is kept.
     func removeBlankProducts(objOrderData: inout OrdersModel?, arrOtherData: inout [NoteModel]) {
         guard let products = objOrderData?.arrProduct, !products.isEmpty else { return }
-
+        
         // Indexes of products whose questions are all blank
         var blankIndexes = products.indices.filter { checkQuestionsIsBlank(objProduct: products[$0]) }
-
+        
         // If every product is blank, keep the first one
         if blankIndexes.count == products.count {
             blankIndexes.removeAll { $0 == 0 }
         }
-
+        
         // Remove from the highest index down so earlier indexes stay valid
         for index in blankIndexes.sorted(by: >) {
             objOrderData?.arrProduct.remove(at: index)
@@ -632,11 +684,18 @@ extension CheckListViewController{
             }
         }
     }
+    
 
-    @IBAction func btnSubmitClicked(_ sender: UIButton) {
+
+    /// Saves the current checklist as a PENDING draft (local only) — no signature, no upload, no
+    /// completion — then opens Delivery Image/Video Upload. Stays put if the save fail
+    /// s.
+    @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
+        guard isDeliveryType else { return }
         self.view.endEditing(true)
-        
-        //CEHCK DATA
+
+        // SAME data prep + validation as Preview (btnSubmitClicked). Instead of moving to
+        // CheckListUpdateViewController, we SAVE this prepared data as a PENDING draft (local only).
         var objTempOrderData = self.objOrderData
         var arrTempOtherData = self.arrOtherData
         for i in 0..<self.objOrderData.arrProduct.count{
@@ -652,7 +711,76 @@ extension CheckListViewController{
             self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
         }
 
+        let errors = checkQuestions(objOrderData: objTempOrderData!)
+        if self.checkMachineData(objOrderData: objTempOrderData!) == false{
+            return
+        }
+        else if let first = errors.first {
+            scrollToCell(indexPath: first, isError: true)
+            return
+        }
+        else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
+            return
+        }
+        else{
+            // Persist the SAME prepared data that Preview would pass onward — as a PENDING draft.
+            // No signature, no upload queue, no completion side effects. No forward navigation.
+            let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: true,
+                                             objOrderData: objTempOrderData, arrOtherData: arrTempOtherData)
+            guard saved else {
+                showAlertMessage(strMessage: "Could not save the checklist. Please try again.")
+                return
+            }
+            self.openDeliveryMediaUpload()
+        }
+    }
 
+    /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;
+    /// prefer the local cache, else build one from the loaded order data so we always navigate
+    /// (and never crash its force-unwrapped datasource with a nil).
+    private func openDeliveryMediaUpload() {
+        var listModel = SDKUserDefault.getMappableObject(
+            OrdersListModel.self,
+            for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
+        if listModel == nil, let obj = self.objOrderData {
+            var built = OrdersListModel(JSON: [:])
+            built?.id = obj.id
+            built?.arrProduct = obj.arrProduct   // same ProductModel type; drives the upload table
+            listModel = built
+        }
+        guard let listModel = listModel else { return }
+
+        let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        if let vc = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
+            vc.isQueueLine = self.isQueueLine
+            vc.strType = "delivery"
+            vc.selectIndex = self.selectIndex
+            vc.objOrderDetail = listModel
+            vc.strOrderID = self.strOrderUniqueId
+            self.navigationController?.pushViewController(vc, animated: true)
+        }
+    }
+
+    @IBAction func btnSubmitClicked(_ sender: UIButton) {
+        self.view.endEditing(true)
+
+        //CEHCK DATA
+        var objTempOrderData = self.objOrderData
+        var arrTempOtherData = self.arrOtherData
+        for i in 0..<self.objOrderData.arrProduct.count{
+            let obj = self.objOrderData.arrProduct[i]
+            if obj.objMachine == nil{
+                objTempOrderData?.arrProduct.remove(at: i)
+                arrTempOtherData.remove(at: i)
+            }
+        }
+        
+        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
+        if self.isCombineChecklist == false{
+            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        }
+        
+        
         let errors = checkQuestions(objOrderData: objTempOrderData!)
         if self.checkMachineData(objOrderData: objTempOrderData!) == false{
             return
@@ -670,6 +798,7 @@ extension CheckListViewController{
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.arrPriceList = self.arrPriceList
+                newViewController.arrProductSettingList = self.arrProductSettingList
                 newViewController.isDeliveryType = self.isDeliveryType
                 newViewController.objOrderData = objTempOrderData
                 newViewController.arrOtherData = arrTempOtherData
@@ -683,26 +812,26 @@ extension CheckListViewController{
         }
     }
     
-//    func checkQustions() -> Bool{
-//        for (section,obj) in self.objOrderData.arrProduct.enumerated(){
-//            for (row,objQuestion) in obj.arrQuestions.enumerated(){
-//                if self.isDeliveryType{
-//                    if objQuestion.deliverAnswer == nil{
-//                        self.scrollToCell(indexPath: IndexPath(row: row, column: section), isError: true)
-//                        return false
-//                    }
-//                }
-//                else{
-//                    if objQuestion.returnAnswer == nil{
-//                        self.scrollToCell(indexPath: IndexPath(row: row, column: section), isError: true)
-//                        return false
-//                    }
-//                }
-//            }
-//        }
-//        
-//        return true
-//    }
+    //    func checkQustions() -> Bool{
+    //        for (section,obj) in self.objOrderData.arrProduct.enumerated(){
+    //            for (row,objQuestion) in obj.arrQuestions.enumerated(){
+    //                if self.isDeliveryType{
+    //                    if objQuestion.deliverAnswer == nil{
+    //                        self.scrollToCell(indexPath: IndexPath(row: row, column: section), isError: true)
+    //                        return false
+    //                    }
+    //                }
+    //                else{
+    //                    if objQuestion.returnAnswer == nil{
+    //                        self.scrollToCell(indexPath: IndexPath(row: row, column: section), isError: true)
+    //                        return false
+    //                    }
+    //                }
+    //            }
+    //        }
+    //        
+    //        return true
+    //    }
     
     func checkQuestions(objOrderData : OrdersModel) -> [IndexPath] {
         var errorIndexPaths: [IndexPath] = []
@@ -722,7 +851,7 @@ extension CheckListViewController{
                             errorIndexPaths.append(indexPath)
                         }
                     }
-
+                    
                     else if objQuestion.type == "fuel"{
                         if objQuestion.selectFuleDelivery == ""{
                             errorIndexPaths.append(indexPath)
@@ -733,7 +862,7 @@ extension CheckListViewController{
                             errorIndexPaths.append(indexPath)
                         }
                     }
-                   
+                    
                 } else {
                     if objQuestion.type == "text" {
                         if objQuestion.endHours == 0.0 {
@@ -766,7 +895,7 @@ extension CheckListViewController{
         // Returns true only when EVERY question is blank; false if any is filled.
         for objQuestion in objProduct?.arrQuestions ?? [] {
             var isBlank = false
-
+            
             if isDeliveryType {
                 if objQuestion.type == "text" {
                     isBlank = objQuestion.startHours == 0.0
@@ -777,7 +906,7 @@ extension CheckListViewController{
                 else if objQuestion.type == "fuel"{
                     isBlank = objQuestion.selectFuleDelivery == ""
                 }
-               
+                
                 else{
                     isBlank = objQuestion.deliverAnswer == nil
                 }
@@ -795,13 +924,13 @@ extension CheckListViewController{
                     isBlank = objQuestion.returnAnswer == nil
                 }
             }
-
+            
             // Any filled question → not all blank
             if !isBlank {
                 return false
             }
         }
-
+        
         // All questions were blank
         return true
     }
@@ -845,10 +974,10 @@ extension CheckListViewController{
                     return false
                 }
                 
-//                if obj.dSignature == UIImage() && obj.dSignatureUrl == ""{
-//                    showAlertMessage(strMessage: "Customer signature is required")
-//                    return false
-//                }
+                //                if obj.dSignature == UIImage() && obj.dSignatureUrl == ""{
+                //                    showAlertMessage(strMessage: "Customer signature is required")
+                //                    return false
+                //                }
             }
             else{
                 if obj.rEmplayessId == "" ||  obj.rEmplayessId == "0"{
@@ -860,10 +989,10 @@ extension CheckListViewController{
                     return false
                 }
                 
-//                if obj.rSignature == UIImage() && obj.rSignatureUrl == ""{
-//                    showAlertMessage(strMessage: "Customer signature is required")
-//                    return false
-//                }
+                //                if obj.rSignature == UIImage() && obj.rSignatureUrl == ""{
+                //                    showAlertMessage(strMessage: "Customer signature is required")
+                //                    return false
+                //                }
             }
         }
         
@@ -874,10 +1003,10 @@ extension CheckListViewController{
 
 
 extension CheckListViewController:  UITextViewDelegate{
-   
+    
     
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
- 
+        
         let newText = (textView.text as NSString).replacingCharacters(in: range, with: text)
         
         let obj = self.arrOtherData[textView.tag]
@@ -898,9 +1027,9 @@ extension CheckListViewController:  UITextViewDelegate{
     
     
     func textViewShouldReturn(_ textView: UITextView) -> Bool {
-          textView.resignFirstResponder() // Dismiss the keyboard
-          return true
-      }
+        textView.resignFirstResponder() // Dismiss the keyboard
+        return true
+    }
 }
 
 //MARK: -- UITEXTFIELD DELEGATE
@@ -914,7 +1043,7 @@ extension CheckListViewController : UITextFieldDelegate{
         return true
     }
     
-
+    
     func textField(_ textField: UITextField, shouldChangeCharactersIn range: NSRange, replacementString string: String) -> Bool {
         if textField.tag == 100 || textField.tag == 101{
             let inverseSet = NSCharacterSet(charactersIn:"0123456789.").inverted
@@ -926,16 +1055,16 @@ extension CheckListViewController : UITextFieldDelegate{
                 var newString = (text as NSString).replacingCharacters(in: range, with: string)
                 newString = newString.replacingOccurrences(of: "\(Application.currency)", with: "")
                 
-
+                
                 let countdots = newString.components(separatedBy: ".").count - 1
                 if countdots <= 1
                 {
                     let section : Int = Int(textField.accessibilityValue ?? "") ?? 0
                     let index : Int = Int(textField.accessibilityLanguage ?? "") ?? 0
-
+                    
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[index]
-
+                    
                     let obj = self.arrOtherData[section]
                     if textField.tag == 100{
                         obj.startHours = Float(newString) ?? 0.0
@@ -945,10 +1074,10 @@ extension CheckListViewController : UITextFieldDelegate{
                         obj.endHours = Float(newString) ?? 0.0
                         objdata.endHours = Float(newString) ?? 0.0
                     }
-
+                    
                     self.arrOtherData.remove(at: section)
                     self.arrOtherData.insert(obj, at: section)
-
+                    
                     //UPDATE
                     objProduct.arrQuestions.remove(at: index)
                     objProduct.arrQuestions.insert(objdata, at: index)
@@ -983,7 +1112,7 @@ extension CheckListViewController : UITextFieldDelegate{
     func CalculatTotalCharge(){
         self.strTotalCharge = 0.0
         if self.objOrderData == nil { return }
-
+        
         for i in 0..<self.objOrderData.arrProduct.count{
             var objProduct = self.objOrderData.arrProduct[i]
             
@@ -994,7 +1123,7 @@ extension CheckListViewController : UITextFieldDelegate{
                     if objProduct.is_delivered == true && objQuestion.startHours == 0.0{
                         hours = 0
                     }
-
+                    
                     let totalHours = Int(hours.rounded(.up))
                     objQuestion.total = 0
                     if totalHours > 0{
@@ -1030,10 +1159,25 @@ extension CheckListViewController : UITextFieldDelegate{
                 }
                 else if objQuestion.type == "cleaning"{
                     //JIGAR
+                    if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0 && Int(objQuestion.selectCleaningReturn ?? "") ?? 0 != 0{
                         
+                        var price = self.getCleanigPrice(selectID: Int(objQuestion.selectCleaningReturn ?? "") ?? 0)
+                        
+                        let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
+                        if selectedOptions.contains("rental_prepaid_cleaning") {
+                            if Int(objQuestion.selectCleaningReturn ?? "") != 5{
+                                price = 0
+                            }
+                        }
+                        
+                        let strCleaningCharge = (objProduct.rental_prepaid_cleaning ?? 0) * price
+                        
+                        self.strTotalCharge = self.strTotalCharge + strCleaningCharge
+                        
+                    }
                 }
                 else if objQuestion.type == "fuel"{
-
+                    
                     let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
                     var totalPrice  : Float = 0.0
                     if objQuestion.isDEF == "Yes"{
@@ -1053,7 +1197,7 @@ extension CheckListViewController : UITextFieldDelegate{
                     }
                     
                     var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
-                  
+                    
                     //CHECK PREPAID FULE
                     let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
                     if selectedOptions.contains("rental_prepaid_fuel") {
@@ -1065,9 +1209,9 @@ extension CheckListViewController : UITextFieldDelegate{
                     
                     self.strTotalCharge = self.strTotalCharge + strFuleTotalCharge
                     
-                  
+                    
                 }
-               
+                
                 else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
                     
                     let strPrice = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
@@ -1087,7 +1231,7 @@ extension CheckListViewController : UITextFieldDelegate{
         self.lblTotalCharge.text = "\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))"
     }
     
-
+    
     func getPrice(strFuleType : String, isDef : String) -> Float{
         if isDef == "Yes"{
             let MenuID = self.arrPriceList.map{$0.setting_name}
@@ -1117,78 +1261,110 @@ extension CheckListViewController : UITextFieldDelegate{
         return 0
     }
     
-
     
-//    func calculateHours(index : Int){
-//        var objdata = self.objOrderData.arrMachineHours[index]
-//
-//        //SET TOTLA HOURS
-//        let hours = Float(objdata.end ?? 0) - Float(objdata.start ?? 0)
-//        let totalHours = Int(hours.rounded(.up))
-//        objdata.total = 0
-//        if totalHours > 0{
-//            //SET TOTAL HOURS
-//            objdata.total = Float(totalHours)
-//        }
-//        
-//        
-//        //SET ADDITION HOURS
-//        var additionslHours = totalHours - (objdata.allocated ?? 0)
-//        objdata.additinal = 0
-//        if additionslHours > 0{
-//            //SET TOTAL HOURS
-//            objdata.additinal = Int(Float(additionslHours))
-//        }
-//        else{
-//            additionslHours = 0
-//        }
-//        
-//        
-//        //SET TOTAL CHARGE
-//        let totalCharge = Float(additionslHours) * Float(objdata.price ?? 0)
-//        objdata.total_cost = totalCharge
-//
-//        
-//        //UPDATE ARRAY
-//        self.objOrderData.arrMachineHours.remove(at: index)
-//        self.objOrderData.arrMachineHours.insert(objdata, at: index)
-//            
-//        
-//        //RELAOD ABLE
-////        self.tblView.reloadData()
-//    }
+    func getCleanigPrice(selectID : Int) -> Float{
+        let MenuID = self.arrProductSettingList.map{$0.setting_name}
+        
+        if selectID == 5{
+            if let index = MenuID.firstIndex(of: "extreme_clean_req"){
+                if let price = Float(self.arrProductSettingList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        else if selectID == 4{
+            if let index = MenuID.firstIndex(of: "moderate_clean_req"){
+                if let price = Float(self.arrProductSettingList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        else if selectID == 3{
+            if let index = MenuID.firstIndex(of: "std_clean_req"){
+                if let price = Float(self.arrProductSettingList[index].setting_value ?? "0") {
+                    return price
+                }
+            }
+        }
+        
+        return 0
+    }
+    
+    
+    //    func calculateHours(index : Int){
+    //        var objdata = self.objOrderData.arrMachineHours[index]
+    //
+    //        //SET TOTLA HOURS
+    //        let hours = Float(objdata.end ?? 0) - Float(objdata.start ?? 0)
+    //        let totalHours = Int(hours.rounded(.up))
+    //        objdata.total = 0
+    //        if totalHours > 0{
+    //            //SET TOTAL HOURS
+    //            objdata.total = Float(totalHours)
+    //        }
+    //        
+    //        
+    //        //SET ADDITION HOURS
+    //        var additionslHours = totalHours - (objdata.allocated ?? 0)
+    //        objdata.additinal = 0
+    //        if additionslHours > 0{
+    //            //SET TOTAL HOURS
+    //            objdata.additinal = Int(Float(additionslHours))
+    //        }
+    //        else{
+    //            additionslHours = 0
+    //        }
+    //        
+    //        
+    //        //SET TOTAL CHARGE
+    //        let totalCharge = Float(additionslHours) * Float(objdata.price ?? 0)
+    //        objdata.total_cost = totalCharge
+    //
+    //        
+    //        //UPDATE ARRAY
+    //        self.objOrderData.arrMachineHours.remove(at: index)
+    //        self.objOrderData.arrMachineHours.insert(objdata, at: index)
+    //            
+    //        
+    //        //RELAOD ABLE
+    ////        self.tblView.reloadData()
+    //    }
 }
 
 
 //MARK: -- UITABEL CELL --
 class ProductCheckListCell : UITableViewCell{
-
+    
     @IBOutlet weak var con_imgHeight: NSLayoutConstraint!
     @IBOutlet weak var imgProduct: UIImageView!
-
+    
     @IBOutlet weak var lblProduct: UILabel!
     @IBOutlet weak var lblDateDelivery: UILabel!
     @IBOutlet weak var lblDateReturn: UILabel!
-
+    
     @IBOutlet weak var lblDelivered: UILabel!
     @IBOutlet weak var lblReturned: UILabel!
-
-
+    
+    
+    @IBOutlet weak var viewCategoryMain: UIView!
     @IBOutlet weak var lblTitleCategoryId: UILabel!
     @IBOutlet weak var lblCategoryId: UILabel!
     @IBOutlet weak var viewCategoryId: UIView!
     @IBOutlet weak var btnCategoryId: UIButton!
     @IBOutlet weak var imgCategoryId: UIImageView!
-
     
+    
+    @IBOutlet weak var viewMachineMain: UIView!
     @IBOutlet weak var lblTitleMachineId: UILabel!
     @IBOutlet weak var lblMachineId: UILabel!
     @IBOutlet weak var btnMachineUpdate: UIButton!
     @IBOutlet weak var viewMachineId: UIView!
     @IBOutlet weak var btnMachineId: UIButton!
     @IBOutlet weak var imgMachineId: UIImageView!
+    
+    @IBOutlet weak var lblMachineChange: UILabel!
+    @IBOutlet weak var btnMachineChange: UIButton!
 
-   
     func getAnimableSubviews() -> [UIView] {
         return [UIView](getAllSubviews())
     }
@@ -1205,29 +1381,29 @@ class ProductCheckListCell : UITableViewCell{
 }
 
 class FooterCheckListCell : UITableViewCell{
-
+    
     @IBOutlet weak var lblNote: UILabel!
     @IBOutlet weak var lblNoteDetails: UILabel!
     @IBOutlet weak var viewNote: UIView!
     @IBOutlet weak var txtNote: UITextView!
     @IBOutlet weak var con_Note : NSLayoutConstraint!
     @IBOutlet weak var con_NoteTop : NSLayoutConstraint!
-
+    
     @IBOutlet weak var lblEmployee: UILabel!
     @IBOutlet weak var viewEmployee: UIView!
     @IBOutlet weak var txtSelctEmployee: UITextField!
     @IBOutlet weak var btnSelctEmployee: UIButton!
-//    @IBOutlet weak var btnComplate: UIButton!
-
+    //    @IBOutlet weak var btnComplate: UIButton!
+    
     @IBOutlet weak var viewReturnEmployee: UIView!
     @IBOutlet weak var lblReturnEmployee: UILabel!
     @IBOutlet weak var txtSelctReturnEmployee: UITextField!
-
+    
     @IBOutlet weak var lblLocation: UILabel!
     @IBOutlet weak var viewLocation: UIView!
     @IBOutlet weak var txtSelctLocation: UITextField!
     @IBOutlet weak var btnSelctLocation: UIButton!
-
+    
     
     @IBOutlet weak var con_Bottom : NSLayoutConstraint!
     @IBOutlet weak var viewSignature: UIView!
@@ -1235,14 +1411,14 @@ class FooterCheckListCell : UITableViewCell{
     @IBOutlet weak var imgSignature: UIImageView!
     @IBOutlet weak var con_imgSignature : NSLayoutConstraint!
     @IBOutlet weak var btnSignature: UIButton!
-
-
+    
+    
 }
 
 class CheckListCell : UITableViewCell{
-
     
-
+    
+    
     @IBOutlet weak var lblTitle: UILabel!
     @IBOutlet weak var lblTitleReturn: UILabel!
     @IBOutlet weak var viewTitleReturn: UIView!
@@ -1253,29 +1429,29 @@ class CheckListCell : UITableViewCell{
     @IBOutlet weak var lblPrepaidReturn: UILabel!
     
     @IBOutlet weak var txtDelivered: UITextField!
-//    
+    //    
     @IBOutlet weak var txtReturned: UITextField!
     @IBOutlet weak var viewDeliveredMain: UIView!
     @IBOutlet weak var viewReturnedMain: UIView!
-
-//    @IBOutlet weak var lblDelivered: UILabel!
+    
+    //    @IBOutlet weak var lblDelivered: UILabel!
     @IBOutlet weak var viewDeliverySelect: UIView!
     @IBOutlet weak var lblDeliverySelect: UILabel!
     @IBOutlet weak var imgDeliverySelect: UIImageView!
     @IBOutlet weak var btnDeliverySelect: UIButton!
     
-//    @IBOutlet weak var lblReturned: UILabel!
+    //    @IBOutlet weak var lblReturned: UILabel!
     @IBOutlet weak var viewReturnSelect: UIView!
     @IBOutlet weak var lblReturnSelect: UILabel!
     @IBOutlet weak var imgReturnSelect: UIImageView!
     @IBOutlet weak var btnReturnSelect: UIButton!
-
     
     
-
-
+    
+    
+    
     @IBOutlet weak var viewLine: UIView!
-
+    
     
     func getAnimableSubviews() -> [UIView] {
         return [UIView](getAllSubviews())
@@ -1285,16 +1461,16 @@ class CheckListCell : UITableViewCell{
         return [
             lblTitle,
             lblTitleReturn,
-//            lblDelivered,
+            //            lblDelivered,
             viewDeliveredMain,
-//            lblReturned,
+            //            lblReturned,
             viewReturnedMain,
-//            lblBalance,
-//            txtBalance,
-//            lblValue,
-//            txtValue,
-//            lblCustomerOwes,
-//            txtCustomerOwes
+            //            lblBalance,
+            //            txtBalance,
+            //            lblValue,
+            //            txtValue,
+            //            lblCustomerOwes,
+            //            txtCustomerOwes
             
         ]
     }
@@ -1331,7 +1507,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             }
             
             let  objProductDetails = self.objOrderData.arrProduct[section]
-
+            
             //SET PRODUCT IMAGE
             cell.con_imgHeight.constant = manageWidth(size: 70)
             cell.imgProduct.viewCorneRadius(radius: 5, isRound: false)
@@ -1339,7 +1515,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             if let strImg = objProductDetails.objProductData?.product_image_url{
                 cell.imgProduct.setImage(strImg: strImg)
             }
-
+            
             
             //SET FONT
             cell.lblProduct.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "\(objProductDetails.product_name ?? "") * \(objProductDetails.qty )")
@@ -1379,52 +1555,61 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblDateReturn.attributedText = strDateReturn
             
             cell.lblTitleCategoryId.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: "Category ID")
+            cell.lblMachineChange.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 12.0, text: "Change")
             cell.lblTitleMachineId.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: self.isDeliveryType ? "Equipment ID *" : "Equipment ID")
             cell.btnMachineUpdate.configureLable(bgColour: .clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: "")
             
             
             cell.lblDelivered.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: str.strDelivered)
             cell.lblReturned.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: str.strReturned)
-
+            
             cell.lblCategoryId.configureLable(textAlignment: .center, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             cell.lblMachineId.configureLable(textAlignment: .center, textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             imgColor(imgColor: cell.imgCategoryId, colorHex: .primary)
             imgColor(imgColor: cell.imgMachineId, colorHex: .primary)
-
+            
             if objProductDetails.objCategory != nil{
                 cell.lblCategoryId.text = objProductDetails.objCategory?.name ?? ""
             }
             
-          
+            
             
             cell.viewCategoryId.backgroundColor = .clear
             cell.viewCategoryId.viewBorderCorneRadius(borderColour: .secondaryText)
             
             cell.viewMachineId.backgroundColor = .clear
             cell.viewMachineId.viewBorderCorneRadius(borderColour: .secondaryText)
-
-         
+            
+            
             cell.lblDelivered.isEnabled = !self.isDeliveryType
             cell.lblReturned.isEnabled = !self.isDeliveryType
-
+            
             cell.viewCategoryId.isHidden = false
             self.isUpdateMachineId = false
             cell.lblTitleCategoryId.isHidden = false
             cell.lblTitleMachineId.isHidden = false
             cell.imgMachineId.isHidden = false
             cell.btnMachineUpdate.isHidden = true
+            cell.viewMachineMain.isHidden = false
+            cell.viewCategoryMain.isHidden = false
+            cell.lblMachineChange.isHidden = true
+            cell.btnMachineChange.isHidden = true
+
             if objProductDetails.objMachine != nil && self.isMachineUpdate == false{
                 if objProductDetails.objMachine?.unique_id != ""{
                     self.isUpdateMachineId = true
+                    cell.viewCategoryMain.isHidden = true
                     cell.lblMachineId.text = "\(objProductDetails.objMachine?.equipment_name ?? "")    ||    \(objProductDetails.objMachine?.equipment_id ?? "")"
-
+                    
+                    cell.lblMachineChange.isHidden = false
+                    cell.btnMachineChange.isHidden = false
                     cell.btnMachineUpdate.isHidden = false
                     cell.lblTitleCategoryId.isHidden = true
                     cell.viewCategoryId.isHidden = true
                     cell.imgMachineId.isHidden = true
                 }
             }
-          
+            
             
             //SET MACHINE NAME
             if objProductDetails.objMachine != nil{
@@ -1439,22 +1624,25 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             }
             
             // BUTTON ACTION
+            cell.btnMachineChange.tag = section
+            cell.btnMachineChange.addTarget(self, action: #selector(self.btnMachineUpdateClicked(_:)), for: .touchUpInside)
+
             cell.btnMachineUpdate.tag = section
             cell.btnMachineUpdate.addTarget(self, action: #selector(self.btnMachineUpdateClicked(_:)), for: .touchUpInside)
-
+            
             cell.btnCategoryId.tag = section
             cell.btnCategoryId.addTarget(self, action: #selector(self.btnCategoryIdClicked(_:)), for: .touchUpInside)
-
+            
             cell.btnMachineId.tag = section
             cell.btnMachineId.addTarget(self, action: #selector(self.btnMachineIdClicked(_:)), for: .touchUpInside)
-
+            
             return cell
         }
         
         return UIView()
     }
     
-  
+    
     
     func getMachineName(id : Int) -> String{
         let MenuID = self.arrMachineList.map{$0.id}
@@ -1469,6 +1657,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         self.view.endEditing(true)
         self.isMachineUpdate = true
         
+        //UPDATE
+        if let obj = self.objOrderData.arrProduct[sender.tag].objCategory{
+            self.updateEqupmentData(selectValue: "", categoryId: obj.id ?? 0)
+        }
+        
         //RELOAD TABLE
         self.tblView.reloadData()
     }
@@ -1479,10 +1672,14 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         if self.arrCategoryList.count == 0 {
             return
         }
-        
-        actionPicker(sender, strTitle: "Select Category ID", arrData: self.arrCategoryList.compactMap { $0.name}, selectValue: self.strSelectCategoty) { index, selectValue in
-            indicatorShow()
-            
+
+        guard sender.tag < self.objOrderData.arrProduct.count else { return }
+
+        // Preselect THIS row's own category (each product tracks its own), not a shared value.
+        let currentCategory = self.objOrderData.arrProduct[sender.tag].objCategory?.name ?? self.strSelectCategoty
+
+        actionPicker(sender, strTitle: "Select Category ID", arrData: self.arrCategoryList.compactMap { $0.name}, selectValue: currentCategory) { index, selectValue in
+
             self.selectedIndex = 1
             self.strSelectCategoty = selectValue
             var objProductDetails = self.objOrderData.arrProduct[sender.tag]
@@ -1493,24 +1690,33 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             //UPDATE ARRAY
             self.objOrderData.arrProduct.remove(at: sender.tag)
             self.objOrderData.arrProduct.insert(objProductDetails, at: sender.tag)
-
-            self.arrMachineList = []
-            if selectValue == "All"{
-                self.arrMachineList = self.arrAllMachineList
-            }
-            else{
-                self.arrMachineList = self.arrAllMachineList
-                    .filter { $0.category_id == self.arrCategoryList[index].id }
-            }
             
-            //RELAD
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
-                indicatorHide()
-                self.setPickerData()
-                self.tblView.reloadData()
-            })
+            //UPDATE
+            self.updateEqupmentData(selectValue: selectValue, categoryId: self.arrCategoryList[index].id ?? 0)
+          
         }
+    }
+    
+    /// Returns the equipment scoped to a category. `nil` category id (or "All") → the full list.
+    func machineList(forCategoryId categoryId: Int?, selectValue: String = "") -> [MachineModel] {
+        guard let categoryId = categoryId, selectValue != "All" else {
+            return self.arrAllMachineList
+        }
+        return self.arrAllMachineList.filter { $0.category_id == categoryId }
+    }
+
+    func updateEqupmentData(selectValue: String, categoryId : Int){
+        indicatorShow()
+
+        self.arrMachineList = self.machineList(forCategoryId: categoryId, selectValue: selectValue)
+
+        //RELAD
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
+            indicatorHide()
+            self.setPickerData()
+            self.tblView.reloadData()
+        })
+
     }
     
     func setPickerData(){
@@ -1533,25 +1739,34 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         if self.isDeliveryType == false{
             return
         }
-        
+
         self.isUpdateMachineIdFirstTime = false
-        
-        if self.arrMachineList.count == 0{
+
+        guard sender.tag < self.objOrderData.arrProduct.count else { return }
+
+        // Equipment list still loading — nothing to show yet.
+        if self.arrAllMachineList.isEmpty {
             return
         }
-        
-        if self.pickerData.count == 0{
+
+        // Scope the equipment to THIS row's selected category so the picker shows the right units.
+        // Passing the category name lets "All" fall through to the full list.
+        let objCategory = self.objOrderData.arrProduct[sender.tag].objCategory
+        self.arrMachineList = self.machineList(forCategoryId: objCategory?.id, selectValue: objCategory?.name ?? "")
+        self.setPickerData()
+
+        if self.arrMachineList.isEmpty || self.pickerData.isEmpty {
+            showAlertMessage(strMessage: "No equipment found for the selected category.")
             return
         }
-      
-     
-        print(pickerData)
-        if sender.tag != self.selectProductIndex{
-            self.selectedIndex = 1
+
+        // Land on the first real row (skip the section header). Reset when switching products
+        // or when the previous selection no longer fits the freshly-built list.
+        if sender.tag != self.selectProductIndex || self.selectedIndex >= self.pickerData.count {
+            self.selectedIndex = self.pickerData.firstIndex(where: { !$0.hasPrefix("Section:") }) ?? 0
         }
         self.selectProductIndex = sender.tag
         self.openPicker()
-        
     }
     
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
@@ -1559,7 +1774,14 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return 0
         }
         else{
-            return manageWidth(size: 230)
+            
+            let  objProductDetails = self.objOrderData.arrProduct[section]
+            if objProductDetails.objMachine == nil || self.isMachineUpdate == true{
+                return manageWidth(size: 320)
+            }
+            else{
+                return manageWidth(size: 250)
+            }
         }
     }
     
@@ -1577,26 +1799,26 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             }
             
             let  objDetails = self.arrOtherData[section]
-
+            
             cell.lblNote.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType == true ? str.strDelivredNote : str.strReturnedNote, numberOfLines: 1)
             cell.lblEmployee.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType == true ? str.strDelivredEmployess : str.strReturnedEmployess, numberOfLines: 1)
             cell.lblLocation.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType ? "" : str.strReturnedLocation, numberOfLines: 1)
-
+            
             
             cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rEmplayess, placeholder: str.strSelectEmployess)
             cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rStore, placeholder: str.strSelectLocation)
-
-//            cell.con_Bottom.constant = manageWidth(size: 45.0)
+            
+            //            cell.con_Bottom.constant = manageWidth(size: 45.0)
             cell.txtNote.configureText(bgColour: .clear, textColor: .primary , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dNote :  objDetails.rNote)
             cell.txtNote.tag = section
             cell.txtNote.delegate = self
-
+            
             //SET BUTTON
             let toolbar = UIToolbar()
             toolbar.sizeToFit()
             
             // Create the "Done" button (you can replace it with any action)
-//            let doneButton = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(doneButtonTapped))
+            //            let doneButton = UIBarButtonItem(title: "Done", style: .done, target: self, action: #selector(doneButtonTapped))
             
             // Create the "Flexible Space" to push the button to the right side
             let flexibleSpace = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
@@ -1606,21 +1828,21 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             
             // Add the flexible space and right button to the toolbar
             toolbar.items = [flexibleSpace, rightButton]
-
+            
             cell.txtNote.inputAccessoryView = toolbar
-
+            
             
             cell.viewNote.setTheTextView(bgColor: .secondary )
             cell.viewEmployee.setTheTextView(bgColor: .secondary )
             cell.viewLocation.setTheTextView(bgColor: .secondary )
             cell.con_Note.constant = manageWidth(size: checkDeviceiPad() ? 150 : 100)
-
+            
             cell.btnSelctEmployee.tag = section
             cell.btnSelctEmployee.addTarget(self, action: #selector(self.btnSelectEmployessClicked(_:)), for: .touchUpInside)
-
+            
             cell.btnSelctLocation.tag = section
             cell.btnSelctLocation.addTarget(self, action: #selector(self.btnSelctLocationClicked(_:)), for: .touchUpInside)
-
+            
             cell.viewLocation.isHidden = false
             if self.isDeliveryType{
                 cell.viewLocation.isHidden = true
@@ -1633,22 +1855,22 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 let lastSection = (self.objOrderData?.arrProduct.count ?? 0) - 1
                 cell.viewEmployee.isHidden = (section != lastSection)
             }
-
+            
             // Hide the employee title label when the selector is showing → only the name is shown.
             cell.lblEmployee.isHidden = cell.viewEmployee.isHidden
-
+            
             return cell
         }
         
         return UIView()
     }
     
-  
-     @objc func rightButtonTapped() {
-         // Action for the right button (you can customize this)
-         self.view.endEditing(true)
-         self.tblView.reloadData()
-     }
+    
+    @objc func rightButtonTapped() {
+        // Action for the right button (you can customize this)
+        self.view.endEditing(true)
+        self.tblView.reloadData()
+    }
     
     
     func tableView(_ tableView: UITableView, heightForFooterInSection section: Int) -> CGFloat {
@@ -1656,15 +1878,15 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return 0
         }
         else{
-//            let objDetails = self.arrOtherData[section]
-//            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
-//                return manageWidth(size: 630)
-//            }
-//            else{
-//            }
+            //            let objDetails = self.arrOtherData[section]
+            //            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
+            //                return manageWidth(size: 630)
+            //            }
+            //            else{
+            //            }
             var size: CGFloat = self.isDeliveryType ? (checkDeviceiPad() ? 360 : 310)
-                                                    : (checkDeviceiPad() ? 430 : 380)
-
+            : (checkDeviceiPad() ? 430 : 380)
+            
             // When combined, the employee view is hidden on all but the last product → reduce height by that row.
             if self.isCombineChecklist {
                 let lastSection = (self.objOrderData?.arrProduct.count ?? 0) - 1
@@ -1672,15 +1894,15 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     size -= 70   // employee row height (matches the location-row delta)
                 }
             }
-
+            
             return manageWidth(size: size)
         }
     }
     
-
+    
     
     @objc func btnSelectEmployessClicked(_ sender: UIButton) {
-       // self.view.endEditing(true)
+        // self.view.endEditing(true)
         if self.fromCheckListScreen == true{
             return
         }
@@ -1690,9 +1912,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         }
         
         actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
-
+            
             let empId = "\(self.arrEmployesList[index].id ?? 0)"
-
+            
             //UPDATE DATA — when combined, apply the same employee to every product
             let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
             for obj in targets {
@@ -1705,7 +1927,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     obj.rEmplayessId = empId
                 }
             }
-
+            
             //RELAD
             self.tblView.reloadData()
         }
@@ -1724,26 +1946,26 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         }
         
         actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.arrOtherData[sender.tag].rStore) { index, selectValue in
-           
+            
             //UPDATE DATA — when combined, apply the same employee to every product
             let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
             for obj in targets {
                 obj.rStore = selectValue
                 obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
             }
-
+            
             //RELAD
             self.tblView.reloadData()
             
             
-//            //UPDATE DATA
-//            let obj = self.arrOtherData[sender.tag]
-//
-//            self.arrOtherData.remove(at: sender.tag)
-//            self.arrOtherData.insert(obj, at: sender.tag)
-//            
-//            //RELAD
-//            self.tblView.reloadData()
+            //            //UPDATE DATA
+            //            let obj = self.arrOtherData[sender.tag]
+            //
+            //            self.arrOtherData.remove(at: sender.tag)
+            //            self.arrOtherData.insert(obj, at: sender.tag)
+            //            
+            //            //RELAD
+            //            self.tblView.reloadData()
         }
         
     }
@@ -1763,7 +1985,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
     }
     
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-      
+        
         return UITableView.automaticDimension
     }
     
@@ -1779,7 +2001,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.viewPrepaidReturn.isHidden = true
             cell.lblPrepaid.configureLable(textAlignment: .right, textColor: .green, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: "Prepaid")
             cell.lblPrepaid.configureLable(textAlignment: .right, textColor: .green, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: "Prepaid")
-
+            
             if isLoading {
                 cell.viewLine.isHidden = true
                 self.machinePlaceholderMarker.register(cell.getAnimableSubviews())
@@ -1796,7 +2018,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             }
             
             let  objDetails = self.objOrderData.arrProduct[indexPath.section].arrQuestions[indexPath.row]
-                        
+            
             cell.imgDeliverySelect.isHidden = !self.isDeliveryType
             cell.lblTitle.configureLable(textColor: self.isDeliveryType ? .primary : .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: objDetails.question_delivery_text ?? "")
             cell.lblTitleReturn.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: objDetails.question_return_text ?? "")
@@ -1810,22 +2032,24 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 cell.lblTitleReturn.isHidden = false
                 cell.viewTitleReturn.isHidden = true
             }
-
+            
             cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
-
+            
             var strDeliveredHours : String = objDetails.startHours == 0.0 ? "" : "\(objDetails.startHours)"
             var strDeliveredFule : String = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
+            var strDeliveredCleaning : String = getCleaning(strId: objDetails.selectCleaningDelivery ?? "", isReturn: false)
             if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
                 strDeliveredHours = objDetails.startHours == 0.0 ? "Admin Override" : "\(objDetails.startHours)"
                 strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
+                strDeliveredCleaning = strDeliveredCleaning == "Select" ? "Admin Override" : strDeliveredCleaning
                 cell.lblDeliverySelect.text = "Admin Override"
             }
-
+            
             if self.objOrderData.arrProduct[indexPath.section].is_returned == true{
                 cell.lblReturnSelect.text = "Admin Override"
             }
-
+            
             
             //SET BUTTON
             let toolbar = UIToolbar()
@@ -1833,18 +2057,18 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             let flexibleSpace = UIBarButtonItem(barButtonSystemItem: .flexibleSpace, target: nil, action: nil)
             let rightButton = UIBarButtonItem(title: "Done", style: .plain, target: self, action: #selector(rightButtonTapped))
             toolbar.items = [flexibleSpace, rightButton]
-
+            
             cell.txtReturned.inputAccessoryView = toolbar
             cell.txtDelivered.inputAccessoryView = toolbar
-
-
+            
+            
             cell.txtDelivered.configureText(textAlignment: .center, keyboardTye: .decimalPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: strDeliveredHours , placeholder: "0.0")
             cell.txtDelivered.accessibilityValue = "\(indexPath.section)"
             cell.txtDelivered.tag = 100
             cell.txtDelivered.accessibilityLanguage = "\(indexPath.row)"
             cell.txtDelivered.delegate = self
             cell.txtDelivered.isUserInteractionEnabled = self.isDeliveryType
-//            cell.viewDeliveredMain.isHidden = !self.isDeliveryType
+            //            cell.viewDeliveredMain.isHidden = !self.isDeliveryType
             
             cell.txtReturned.configureText(textAlignment: .center, keyboardTye: .decimalPad, bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18.0, text: objDetails.endHours == 0.0 ? "" : "\(objDetails.endHours)", placeholder: "0.0")
             cell.txtReturned.accessibilityValue = "\(indexPath.section)"
@@ -1862,7 +2086,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     .arrProduct[indexPath.section]
                     .objProductData?
                     .arrProductSelectdOptions ?? []
-
+                
                 cell.viewPrepaid.isHidden = true
                 cell.viewPrepaidReturn.isHidden = true
                 if selectedOptions.contains("rental_prepaid_fuel") {
@@ -1878,27 +2102,27 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
             else if objDetails.type == "cleaning"{
-                cell.lblDeliverySelect.text = getCleaning(strId: objDetails.selectCleaningDelivery ?? "", isReturn: !self.isDeliveryType)
-                cell.lblReturnSelect.text = getCleaning(strId: objDetails.selectCleaningReturn ?? "", isReturn: !self.isDeliveryType)
+                cell.lblDeliverySelect.text = strDeliveredCleaning
+                cell.lblReturnSelect.text = getCleaning(strId: objDetails.selectCleaningReturn ?? "", isReturn: true)
                 
-//                let selectedOptions = self.objOrderData
-//                    .arrProduct[indexPath.section]
-//                    .objProductData?
-//                    .arrProductSelectdOptions ?? []
-//
-//                cell.viewPrepaid.isHidden = true
-//                cell.viewPrepaidReturn.isHidden = true
-//                if selectedOptions.contains("rental_prepaid_fuel") {
-//                    // Option exists
-//                    if self.isDeliveryType{
-//                        cell.viewPrepaid.isHidden = false
-//                        cell.viewPrepaidReturn.isHidden = true
-//                    }
-//                    else{
-//                        cell.viewPrepaid.isHidden = false
-//                        cell.viewPrepaidReturn.isHidden = false
-//                    }
-//                }
+                let selectedOptions = self.objOrderData
+                    .arrProduct[indexPath.section]
+                    .objProductData?
+                    .arrProductSelectdOptions ?? []
+                
+                cell.viewPrepaid.isHidden = true
+                cell.viewPrepaidReturn.isHidden = true
+                if selectedOptions.contains("rental_prepaid_cleaning") {
+                    // Option exists
+                    if self.isDeliveryType{
+                        cell.viewPrepaid.isHidden = false
+                        cell.viewPrepaidReturn.isHidden = true
+                    }
+                    else{
+                        cell.viewPrepaid.isHidden = false
+                        cell.viewPrepaidReturn.isHidden = false
+                    }
+                }
             }
             else{
                 if objDetails.deliverAnswer != nil{
@@ -1910,7 +2134,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
             
-           
+            
             //SET TYPE
             imgColor(imgColor: cell.imgDeliverySelect, colorHex: .primary)
             imgColor(imgColor: cell.imgReturnSelect, colorHex: .primary)
@@ -1918,55 +2142,55 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.viewReturnSelect.isHidden = true
             cell.txtDelivered.isHidden = false
             cell.txtReturned.isHidden = false
-
+            
             if objDetails.type != "text" {
                 cell.viewDeliverySelect.isHidden = false
                 cell.viewReturnSelect.isHidden = false
                 cell.txtDelivered.isHidden = true
                 cell.txtReturned.isHidden = true
             }
-
+            
             
             //BUTTON ACTION
             cell.btnDeliverySelect.tag = indexPath.row
             cell.btnDeliverySelect.accessibilityValue = "\(indexPath.section)"
             cell.btnDeliverySelect.addTarget(self, action: #selector(self.btnDeliverySelectClicked(_:)), for: .touchUpInside)
-
+            
             cell.btnReturnSelect.tag = indexPath.row
             cell.btnReturnSelect.accessibilityValue = "\(indexPath.section)"
             cell.btnReturnSelect.addTarget(self, action: #selector(self.btnReturnSelectClicked(_:)), for: .touchUpInside)
-
+            
             
             //
-//            cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .clear)
-//            cell.viewTotalChargeLine.isHidden = false
-//            cell.txtTotalCharge.textColor = .primary
-//            if objDetails.total_cost ?? 0 > 0{
-//                cell.viewTotalChargeLine.isHidden = true
-//                cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .redText)
-//                cell.txtTotalCharge.textColor = .redText
-//            }
-//            else{
-//                cell.viewTotalChargeLine.isHidden = false
-//                cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .clear)
-//                cell.txtTotalCharge.text = "\(Application.currency)0"
-//                cell.txtTotalCharge.textColor = .primary
-//            }
+            //            cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .clear)
+            //            cell.viewTotalChargeLine.isHidden = false
+            //            cell.txtTotalCharge.textColor = .primary
+            //            if objDetails.total_cost ?? 0 > 0{
+            //                cell.viewTotalChargeLine.isHidden = true
+            //                cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .redText)
+            //                cell.txtTotalCharge.textColor = .redText
+            //            }
+            //            else{
+            //                cell.viewTotalChargeLine.isHidden = false
+            //                cell.viewTotalCharge.viewBorderCorneRadius(borderColour: .clear)
+            //                cell.txtTotalCharge.text = "\(Application.currency)0"
+            //                cell.txtTotalCharge.textColor = .primary
+            //            }
             return cell
         }
-
+        
         return UITableViewCell()
         
     }
     
-
+    
     @objc func btnDeliverySelectClicked(_ sender: UIButton) {
         if !self.isDeliveryType{
             return
         }
-            
+        
         let section : Int = Int(sender.accessibilityValue ?? "") ?? 0
-
+        
         if self.objOrderData.arrProduct.count == 0 {
             return
         }
@@ -1976,7 +2200,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         }
         
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
-                 
+        
         if objDetails.type == "fuel"{
             actionPicker(sender, strTitle: "", arrData: arrFlueDelivery.compactMap { $0.name}, selectValue: "") { index, selectValue in
                 
@@ -1984,17 +2208,17 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
-
+                
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
                 self.arrOtherData.insert(objDate, at: section)
-
+                
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
                 objdata.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
                 
-        
+                
                 
                 //UPDATE
                 objProduct.arrQuestions.remove(at: sender.tag)
@@ -2006,7 +2230,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 //RELOAD TABLE
                 self.tblView.reloadData()
-   
+                
             }
         }
         else if objDetails.type == "cleaning"{
@@ -2016,16 +2240,16 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
-
+                
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
                 self.arrOtherData.insert(objDate, at: section)
-
+                
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
+                objdata.startCleaning = "\(arrCleaningDelivery[index].name)"
                 objdata.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
-                
                 
                 //UPDATE
                 objProduct.arrQuestions.remove(at: sender.tag)
@@ -2037,7 +2261,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 //RELOAD TABLE
                 self.tblView.reloadData()
-   
+                
             }
         }
         else{
@@ -2048,7 +2272,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.deliverAnswer = objdata.arrAnswer[index]
-
+                    
                     
                     //UPDATE
                     objProduct.arrQuestions.remove(at: sender.tag)
@@ -2061,22 +2285,22 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     //RELOAD TABLE
                     self.tblView.reloadData()
                     
-
+                    
                 }
             }
         }
     }
-
-
+    
+    
     
     
     @objc func btnReturnSelectClicked(_ sender: UIButton) {
         if self.isDeliveryType{
             return
         }
-            
+        
         let section : Int = Int(sender.accessibilityValue ?? "") ?? 0
-
+        
         if self.objOrderData.arrProduct.count == 0 {
             return
         }
@@ -2086,7 +2310,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         }
         
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
-                 
+        
         if objDetails.type == "fuel"{
             let arrFuleReturn : [FuleTypes] = arrFlueDelivery.reversed()
             actionPicker(sender, strTitle: "", arrData: arrFuleReturn.compactMap { $0.name}, selectValue: "") { index, selectValue in
@@ -2094,17 +2318,17 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectFuleReturn = "\(arrFuleReturn[index].id)"
-
+                
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
                 self.arrOtherData.insert(objDate, at: section)
-
+                
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
                 objdata.selectFuleReturn = "\(arrFuleReturn[index].id)"
                 
-        
+                
                 
                 //UPDATE
                 objProduct.arrQuestions.remove(at: sender.tag)
@@ -2116,7 +2340,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 //RELOAD TABLE
                 self.tblView.reloadData()
-
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
                     self.CalculatTotalCharge()
                 }
@@ -2128,17 +2352,18 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
-
+                
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
                 self.arrOtherData.insert(objDate, at: section)
-
+                
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
+                objdata.endCleaning = "\(arrCleaningReturn[index].name)"
                 objdata.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
                 
-        
+                
                 
                 //UPDATE
                 objProduct.arrQuestions.remove(at: sender.tag)
@@ -2150,7 +2375,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 //RELOAD TABLE
                 self.tblView.reloadData()
-
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2){
                     self.CalculatTotalCharge()
                 }
@@ -2160,13 +2385,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             
             if  objDetails.arrAnswer.count != 0{
                 actionPicker(sender, strTitle: "Select", arrData: objDetails.arrAnswer.compactMap { $0.answer_return_text}, selectValue: "") { index, selectValue in
-
+                    
                     
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.returnAnswer = objdata.arrAnswer[index]
-
-
+                    
+                    
                     
                     //UPDATE
                     objProduct.arrQuestions.remove(at: sender.tag)
@@ -2186,11 +2411,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 }
             }
         }
-
+        
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-      
+        
     }
 }
 
@@ -2202,22 +2427,27 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
 extension CheckListViewController {
     
     @objc func keyboardWillShow(notification: NSNotification) {
-       let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
-       print(keyboardHeight)
-//        self.con_SubmitBottom.constant = (keyboardHeight - GetBottomSafeAreaHeight()) + 16
+        let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
+        print(keyboardHeight)
+        //        self.con_SubmitBottom.constant = (keyboardHeight - GetBottomSafeAreaHeight()) + 16
         self.con_SubmitBottom.constant = 16.0
-
+        
     }
-
+    
     @objc func keyboardWillHide(notification: NSNotification) {
-       let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
-       print(keyboardHeight)
+        let keyboardHeight = (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue.height ?? 0
+        print(keyboardHeight)
         self.con_SubmitBottom.constant = 16.0
 
         //RELOAD TABLE
         self.CalculatTotalCharge()
         self.tblView.reloadData()
 
+        // If this hide is from applying an equipment pick, keep the table where it was.
+        if let off = self.pickerSavedOffset {
+            self.tblView.layoutIfNeeded()
+            self.tblView.setContentOffset(off, animated: false)
+        }
     }
 }
 
@@ -2234,7 +2464,7 @@ extension UITableView {
                   indexPath.section < self.numberOfSections,
                   indexPath.row >= 0,
                   indexPath.row < self.numberOfRows(inSection: indexPath.section) else { return }
-
+            
             // Make sure layout/contentSize are ready
             self.layoutIfNeeded()
             self.scrollToRow(at: indexPath, at: position, animated: animated)
@@ -2266,24 +2496,27 @@ extension CheckListViewController{
         for i in 0..<self.objOrderData.arrProduct.count{
             let  obj = self.objOrderData.arrProduct[i]
             
-            self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "", selectCleaningReturn: ""))
+            self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "\(obj.startCleaning ?? 0)", selectCleaningReturn: "\(obj.endCleaning ?? 0)"))
             
             
             if obj.objMachine != nil{
-                var objEquipment : MachineModel?
+                self.setUpTheEqupmentData(objEquipment: obj.objMachine, index: i)
+
                 
-                //GET EQUPMENT DATA
-                if self.arrMachineList.count != 0{
-                    let MenuID = self.arrMachineList.compactMap { $0.unique_id }
-                    if let index = MenuID.firstIndex(of: obj.objMachine?.unique_id ?? ""){
-                        objEquipment = self.arrMachineList[index]
-                        
-                        //SET DATA
-                        if objEquipment != nil{
-                            self.setUpTheEqupmentData(objEquipment: objEquipment, index: i)
-                        }
-                    }
-                }
+//                var objEquipment : MachineModel?
+//                
+//                //GET EQUPMENT DATA
+//                if self.arrMachineList.count != 0{
+//                    let MenuID = self.arrMachineList.compactMap { $0.unique_id }
+//                    if let index = MenuID.firstIndex(of: obj.objMachine?.unique_id ?? ""){
+//                        objEquipment = self.arrMachineList[index]
+//                        
+//                        //SET DATA
+//                        if objEquipment != nil{
+//                            self.setUpTheEqupmentData(objEquipment: objEquipment, index: i)
+//                        }
+//                    }
+//                }
             }
         }
     }
@@ -2291,11 +2524,11 @@ extension CheckListViewController{
     
     func setUpTheEqupmentData(objEquipment : MachineModel?, index : Int){
         var objProduct = self.objOrderData.arrProduct[index]
-        objProduct.arrQuestions = objEquipment?.arrAnswerCheckList ?? []
-
+//        objProduct.arrQuestions = objEquipment?.arrAnswerCheckList ?? []
+        
         // Build the optional rows independently, then prepend them in a FIXED priority order:
         // text → cleaning → fuel (whichever of them are available), followed by the base questions.
-
+        
         //TEXT (Start/End Hours) — only when hour tracking is on
         var textItem: CustomerCheckListModel?
         if objEquipment?.hour_tracking == "Yes"{
@@ -2309,21 +2542,23 @@ extension CheckListViewController{
             objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
             textItem = objCheckList
         }
-
+        
         //CLEANING
         var cleaningItem: CustomerCheckListModel?
-//        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0{
-//            let map = Map(mappingType: .fromJSON, JSON: [:])
-//            var objCheckList = CustomerCheckListModel(map: map)
-//            objCheckList?.type = "cleaning"
-//            objCheckList?.question_delivery_text = "Cleanig"
-//            objCheckList?.question_return_text = "Cleanig"
-//            objCheckList?.startCleaning = objProduct.startCleaning
-//            objCheckList?.endCleaning = objProduct.endCleaning
-//            objCheckList?.cleaningCharge = 0
-//            cleaningItem = objCheckList
-//        }
-
+        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0{
+            let map = Map(mappingType: .fromJSON, JSON: [:])
+            var objCheckList = CustomerCheckListModel(map: map)
+            objCheckList?.type = "cleaning"
+            objCheckList?.question_delivery_text = "Cleaning"
+            objCheckList?.question_return_text = "Cleaning"
+            objCheckList?.selectCleaningDelivery = "\(objProduct.startCleaning ?? 0)"
+            objCheckList?.selectCleaningReturn = "\(objProduct.endCleaning ?? 0)"
+            objCheckList?.startCleaning = "\(objProduct.startCleaning ?? 0)"
+            objCheckList?.endCleaning = "\(objProduct.endCleaning ?? 0)"
+            objCheckList?.cleaningCharge = 0
+            cleaningItem = objCheckList
+        }
+        
         //FUEL — only when the equipment has a power source
         var fuelItem: CustomerCheckListModel?
         if objEquipment != nil, objEquipment?.powerSourceType != ""{
@@ -2341,22 +2576,28 @@ extension CheckListViewController{
             objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
             fuelItem = objCheckListFule
         }
-
+        
         // Insert at index 0 in REVERSE priority so the final order is text, cleaning, fuel.
         for item in [fuelItem, cleaningItem, textItem] {
             if let item = item {
                 objProduct.arrQuestions.insert(item, at: 0)
             }
         }
-
+        
         self.objOrderData.arrProduct.remove(at: index)
         self.objOrderData.arrProduct.insert(objProduct, at: index)
-
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
             self.tblView.reloadData()
+            // Restore the scroll position captured when the pick was applied, then clear it.
+            if let off = self.pickerSavedOffset {
+                self.tblView.layoutIfNeeded()
+                self.tblView.setContentOffset(off, animated: false)
+                self.pickerSavedOffset = nil
+            }
         })
     }
-    
+
 }
 
 

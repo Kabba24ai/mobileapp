@@ -22,13 +22,18 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     @IBOutlet weak var txtOrderIDSearch: UITextField!
 
     @IBOutlet weak var objSearchIndicator: UIActivityIndicatorView!
-    @IBOutlet weak var con_Upload: NSLayoutConstraint!  
+    @IBOutlet weak var con_Upload: NSLayoutConstraint!
+    
+    @IBOutlet weak var lblCategoryName: UILabel!
+    
     @IBOutlet var emptyDataView : EmptyDataView!{
         didSet{
             emptyDataView.noDataFound()
             emptyDataView.isHidden = true
         }
     }
+    
+    var is_going_main: Bool = false
     
     //LOADING
     let orderPlaceholderMarker = Placeholder()
@@ -46,12 +51,15 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     var deliveryType : String = "Delivery"
 
     var selectCategoryID : String = ""
+    var selectCategoryName : String = ""
     var selectStatus : String = "All"
     var selectPaymentType : String = "All"
     var selectNotificationType :  String = "All"
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.lblCategoryName.isHidden = true
+        
 //        NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
 //        NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
 //
@@ -67,6 +75,12 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.objRefresh?.addTarget(self, action: #selector(self.refreshList), for: .valueChanged)
         refreshView.addSubview(self.objRefresh!)
         
+        //RESTORE SAVED CATEGORY FILTER
+        if let savedID = UserDefaults.standard.string(forKey: "savedCategoryID"), !savedID.isEmpty {
+            self.selectCategoryID = savedID
+            self.selectCategoryName = UserDefaults.standard.string(forKey: "savedCategoryName") ?? ""
+        }
+
         //GET DATA
         self.refreshList()
         
@@ -147,11 +161,23 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     }
     
     func setNavigation(){
+        self.updateCategoryLabel()
         //SET NAVIGATION BAR
         setNavigationBarForButtons(controller: self, title: str.strOderTitle, isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: ["icon_Filter", "icon_notification"], isFilter: self.checkFilter()) {
             
-            //BACK SCREE
-            self.navigationController?.popViewController(animated: true)
+            
+            if self.is_going_main {
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is HomeViewController }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+            else {
+                //BACK SCREE
+                self.navigationController?.popViewController(animated: true)
+            }
+            
+            
+            
 
             
         } rightActionHandler: {sender, SelectTag  in
@@ -230,6 +256,12 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.txtSearch.addTarget(self, action: #selector(textFieldDidChangeSearch), for: .editingDidEndOnExit)
         self.txtOrderIDSearch.addTarget(self, action: #selector(textOrderIDFieldDidChangeSearch), for: .editingDidEndOnExit)
 
+        //CATEGORY NAME LABEL
+        self.lblCategoryName.isHidden = true
+        self.lblCategoryName.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: "")
+            
+        self.updateCategoryLabel()
+
 
         //STOP LOADING
         self.stopLoading()
@@ -249,6 +281,15 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         //RELOAD DATA
         self.tblView.reloadData()
     }
+    func updateCategoryLabel(){
+        if selectCategoryID != "" && !selectCategoryName.isEmpty {
+            self.lblCategoryName.text = "Category: \(selectCategoryName)"
+            self.lblCategoryName.isHidden = false
+        } else {
+            self.lblCategoryName.isHidden = true
+        }
+    }
+
     func checkFilter() -> Bool{
         //CEHCK FILTER
         if self.selectCategoryID != "" || self.selectStatus != "All" ||  self.selectPaymentType != "All" || self.selectNotificationType != "All"{
@@ -344,12 +385,19 @@ extension OrderListViewController : FilterProtocol{
     func SelectFilter(categoryID: Int, strStatus: String, strPaymentType: String, strDeliveryType: String, strNotificationType: String) {
   
         self.selectCategoryID = ""
+        self.selectCategoryName = ""
         self.selectStatus = strStatus
         self.selectPaymentType = strPaymentType
         self.selectNotificationType = strNotificationType
-        
+
         if categoryID != 0{
             self.selectCategoryID = "\(categoryID)"
+            self.selectCategoryName = self.arrCategoryList.first(where: { $0.id == categoryID })?.name ?? ""
+            UserDefaults.standard.set(self.selectCategoryID, forKey: "savedCategoryID")
+            UserDefaults.standard.set(self.selectCategoryName, forKey: "savedCategoryName")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "savedCategoryID")
+            UserDefaults.standard.removeObject(forKey: "savedCategoryName")
         }
         
         //GET NOTIFICATION DATA
@@ -375,6 +423,8 @@ extension OrderListViewController : FilterProtocol{
         self.setNavigation()
         if self.selectCategoryID != "" || self.selectStatus != "All" ||  self.selectPaymentType != "All"  {
             self.callAPI(search: self.txtSearch.text ?? "", orderIDSearch: self.txtOrderIDSearch.text ?? "", category_id: self.selectCategoryID, selectStatus: self.selectStatus, selectPaymentType: self.selectPaymentType)
+        } else {
+            self.refreshList()
         }
     }
 }
@@ -549,6 +599,7 @@ class OrderListCell : UITableViewCell{
     
     private func getAllSubviews() -> [UIView] {
         return [
+            lblOrderNumber,
             lblDate,
             lblName,
             lblPhone,
@@ -565,7 +616,6 @@ class OrderListCell : UITableViewCell{
             viewDeliveryStatus,
             viewPickupStatus,
             viewPaymentType
-
         ]
     }
 }
@@ -659,6 +709,13 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             
             if isLoading {
                 cell.viewLine.isHidden = true
+                cell.lblOrderNumber.text = ""
+                cell.viewLicense.layer.borderWidth = 0
+                cell.viewTermsAndCondition.layer.borderWidth = 0
+                cell.viewCheckListDeliv.layer.borderWidth = 0
+                cell.viewCheckListRet.layer.borderWidth = 0
+                cell.viewPhotVideoDeli.layer.borderWidth = 0
+                cell.viewPhotVideoRet.layer.borderWidth = 0
                 self.orderPlaceholderMarker.register(cell.getAnimableSubviews())
                 self.orderPlaceholderMarker.startAnimation()
                 return cell
@@ -793,6 +850,12 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
                 cell.lblCheckListDeliv.textColor = .background
                 imgColor(imgColor: cell.imgCheckListDeliv, colorHex: .background)
                 cell.viewCheckListDeliv.backgroundColor = .secondary
+            }
+            
+            else if (getPendingCheckList(orderUniqueId: self.arrOrderList[indexPath.row].unique_id ?? "", isDelivery: true) != nil) {
+                cell.lblCheckListDeliv.textColor = .background
+                imgColor(imgColor: cell.imgCheckListDeliv, colorHex: .background)
+                cell.viewCheckListDeliv.backgroundColor = .secondatyBtn
             }
       
             //CHECK RETURN CHECKLIST
