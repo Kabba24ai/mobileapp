@@ -13,7 +13,7 @@ import UIKit
 
 private enum PopupPalette {
     static let page    = UIColor.background
-    static let card    = UIColor.background                          // match the app background
+    static let card    = UIColor(hex: 0x162232)                      // raised slate surface — stands out from the page
     static let box     = UIColor.white.withAlphaComponent(0.05)      // faint elevated fill
     static let border  = UIColor.secondary.withAlphaComponent(0.35)  // cyan-tinted outline
     static let ink     = UIColor.primary
@@ -45,7 +45,7 @@ class QueueLinePopupBase: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        view.backgroundColor = UIColor.black.withAlphaComponent(0.75)
 
         // Tap outside to dismiss
         let tap = UITapGestureRecognizer(target: self, action: #selector(dismissTapped))

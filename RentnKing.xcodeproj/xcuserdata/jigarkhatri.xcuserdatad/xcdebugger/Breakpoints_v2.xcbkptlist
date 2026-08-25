@@ -8,7 +8,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "E39D4A8D-5FA5-4508-89AB-BE5AD6A328DD"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift"
@@ -24,7 +24,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "21D20626-60C4-4D3F-833D-3B07C6C75FA8"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift"
@@ -40,7 +40,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "EA1ACD02-C767-4794-B395-6C02749819A0"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
@@ -56,7 +56,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "C82FFCEC-E9A9-4623-89C9-2BA7A2BD48E0"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateModel.swift"
@@ -190,9 +190,9 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1384"
-            endingLineNumber = "1384"
-            landmarkName = "FooterCheckListCell"
+            startingLineNumber = "1371"
+            endingLineNumber = "1371"
+            landmarkName = "ProductCheckListCell"
             landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
@@ -206,10 +206,10 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1483"
-            endingLineNumber = "1483"
-            landmarkName = "CheckListViewController"
-            landmarkType = "21">
+            startingLineNumber = "1470"
+            endingLineNumber = "1470"
+            landmarkName = "CheckListCell"
+            landmarkType = "3">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -274,36 +274,6 @@
             endingLineNumber = "725"
             landmarkName = "setupCallCustomerSubChecklist()"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "8E71EF67-398A-404B-B2E9-125C650404B2 - 74ef712161fec271"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "RentnKing.DriverChecklistViewController.setupCallCustomerSubChecklist() -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Modules/TABBAR/Home%20Model/Dispatch%20Model/Driver%20Checklist/DriverChecklistViewController.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "725"
-                  endingLineNumber = "725">
-               </Location>
-               <Location
-                  uuid = "8E71EF67-398A-404B-B2E9-125C650404B2 - 13ac2f158b99b82d"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (__C.NSLayoutConstraint) -&gt; Swift.Bool in RentnKing.DriverChecklistViewController.setupCallCustomerSubChecklist() -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Modules/TABBAR/Home%20Model/Dispatch%20Model/Driver%20Checklist/DriverChecklistViewController.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "725"
-                  endingLineNumber = "725">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -357,38 +327,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "56BD915A-72D4-44B7-BFD2-236672E33691"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Dispatch Model/DispatchModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "134"
-            endingLineNumber = "134"
-            landmarkName = "callAPIforGetDispatchList(DispatchParameater:completion:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "1856BFF1-14E2-4357-BA71-324059E4732E"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Dispatch Model/DispatchModel.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "136"
-            endingLineNumber = "136"
-            landmarkName = "callAPIforGetDispatchList(DispatchParameater:completion:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "9790C1B3-40A2-41DE-9B9B-278BC3B2EAD7"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
@@ -416,36 +354,6 @@
             endingLineNumber = "383"
             landmarkName = "btnSubmitClicked(_:)"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "9B6F1B75-A671-43F2-98C3-17862401CEA6 - d28d67bfa8220e2f"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "RentnKing.CheckListUpdateViewController.btnSubmitClicked(__C.UIButton) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Modules/TABBAR/Home%20Model/Order%20Model/Check%20List/CheckListUpdateViewController.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "383"
-                  endingLineNumber = "383">
-               </Location>
-               <Location
-                  uuid = "9B6F1B75-A671-43F2-98C3-17862401CEA6 - 41a399aabcfb9ea6"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "function signature specialization &lt;Arg[1] = Value Promoted from Box&gt; of closure #3 (__C.UIAlertAction) -&gt; () in RentnKing.CheckListUpdateViewController.btnSubmitClicked(__C.UIButton) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Modules/TABBAR/Home%20Model/Order%20Model/Check%20List/CheckListUpdateViewController.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "386"
-                  endingLineNumber = "386">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -558,36 +466,6 @@
             endingLineNumber = "97"
             landmarkName = "callAPIforDriverChecklist(obj:)"
             landmarkType = "9">
-            <Locations>
-               <Location
-                  uuid = "713F0043-7317-4EF7-9BE4-3B66C862CF82 - b14ab05677a471ef"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "RentnKing.callAPIforDriverChecklist(obj: RentnKing.DriverChecklistSubmitModel) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Core/FileData%20Helper/SyncDriverChecklist.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "97"
-                  endingLineNumber = "97">
-               </Location>
-               <Location
-                  uuid = "713F0043-7317-4EF7-9BE4-3B66C862CF82 - 69e6a68370ae7042"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (Swift.Bool) -&gt; () in RentnKing.callAPIforDriverChecklist(obj: RentnKing.DriverChecklistSubmitModel) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Core/FileData%20Helper/SyncDriverChecklist.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "99"
-                  endingLineNumber = "99">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -636,36 +514,6 @@
             endingLineNumber = "117"
             landmarkName = "callDriverChecklistAPI(params:localID:completion:)"
             landmarkType = "9">
-            <Locations>
-               <Location
-                  uuid = "0C99DD58-1B7F-453B-B470-22443A06470F - f5d160e6a6f76a1a"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (Swift.Optional&lt;__C.NSDictionary&gt;, Swift.Optional&lt;__C.NSArray&gt;, Swift.Bool, Swift.Optional&lt;Swift.Error&gt;) -&gt; () in RentnKing.callDriverChecklistAPI(params: Swift.Dictionary&lt;Swift.String, Any&gt;, localID: Swift.Int, completion: (Swift.Bool) -&gt; ()) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Core/FileData%20Helper/SyncDriverChecklist.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "118"
-                  endingLineNumber = "118">
-               </Location>
-               <Location
-                  uuid = "0C99DD58-1B7F-453B-B470-22443A06470F - ba470095732b2e24"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "closure #1 (Swift.Bool) -&gt; () in closure #1 (Swift.Optional&lt;__C.NSDictionary&gt;, Swift.Optional&lt;__C.NSArray&gt;, Swift.Bool, Swift.Optional&lt;Swift.Error&gt;) -&gt; () in RentnKing.callDriverChecklistAPI(params: Swift.Dictionary&lt;Swift.String, Any&gt;, localID: Swift.Int, completion: (Swift.Bool) -&gt; ()) -&gt; ()"
-                  moduleName = "RentnKing.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Applications/Development/UpWork/Gary/New%20Kabba%20App/RentnKing/RentnKing/Core/FileData%20Helper/SyncDriverChecklist.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "119"
-                  endingLineNumber = "119">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -682,54 +530,6 @@
             endingLineNumber = "116"
             landmarkName = "callDriverChecklistAPI(params:localID:completion:)"
             landmarkType = "9">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "8CA20C3D-B88A-417C-92D1-6F9DB91EEAB6"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "551"
-            endingLineNumber = "551"
-            landmarkName = "CalculatTotalCharge()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "8E416A87-CCC7-444A-B8B3-4967ED258FDF"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "556"
-            endingLineNumber = "556"
-            landmarkName = "CalculatTotalCharge()"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "221A8823-9B60-4BA9-8B79-B96A8B3685F7"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "565"
-            endingLineNumber = "565"
-            landmarkName = "CalculatTotalCharge()"
-            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -831,38 +631,6 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "6AB938C6-AEBD-4957-9BE1-D03F764BBACD"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "716"
-            endingLineNumber = "716"
-            landmarkName = "btnSavePendingClicked(_:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "CF84E621-A412-486D-BA6F-FC865E035E8E"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "730"
-            endingLineNumber = "730"
-            landmarkName = "btnSavePendingClicked(_:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
             uuid = "2FB5E4B0-51F5-464C-8DB8-7DEBC7E7A7CE"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
@@ -870,24 +638,8 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "736"
-            endingLineNumber = "736"
-            landmarkName = "btnSavePendingClicked(_:)"
-            landmarkType = "7">
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "35F00072-3015-4B7C-B15D-670F5B5AA751"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "733"
-            endingLineNumber = "733"
+            startingLineNumber = "723"
+            endingLineNumber = "723"
             landmarkName = "btnSavePendingClicked(_:)"
             landmarkType = "7">
          </BreakpointContent>
@@ -902,25 +654,265 @@
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "741"
-            endingLineNumber = "741"
-            landmarkName = "openDeliveryMediaUpload()"
+            startingLineNumber = "728"
+            endingLineNumber = "728"
+            landmarkName = "btnSavePendingClicked(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "C070F59A-1A5F-43D1-85BC-D0DE3B1A142E"
+            uuid = "3634DD94-3CC7-44EB-A10A-1FADDBB2DCCA"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "157"
+            endingLineNumber = "157"
+            landmarkName = "callDeliveryPickupInputsAPI(params:localID:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "88D0BDEF-4375-4E68-AEA7-79BC2323B744"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "127"
+            endingLineNumber = "127"
+            landmarkName = "submitDeliveryPickupInputsNow(order_product_unique_id:type:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "9DF31FAD-6CFC-4EA5-A02F-62EE755507B8"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Dispatch Model/Warning Checklist/WarningViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "389"
+            endingLineNumber = "389"
+            landmarkName = "submitOverrideToServer()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F7710BC9-2C72-4A72-A8BD-6AE26813E74A"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Dispatch Model/Warning Checklist/WarningViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "390"
+            endingLineNumber = "390"
+            landmarkName = "submitOverrideToServer()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "65C54041-FEE1-4E75-8A31-551F128C4958"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "130"
+            endingLineNumber = "130"
+            landmarkName = "submitDeliveryPickupInputsNow(order_product_unique_id:type:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "809D8CCD-A909-4491-B784-3DE1B259B4B6"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "131"
+            endingLineNumber = "131"
+            landmarkName = "submitDeliveryPickupInputsNow(order_product_unique_id:type:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "777CCB5D-DFC8-4E50-B606-7F56BF439421"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "136"
+            endingLineNumber = "136"
+            landmarkName = "submitDeliveryPickupInputsNow(order_product_unique_id:type:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "5DADA8DF-B573-4EA1-8DB8-6329439795A1"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/FileData Helper/SyncDeliveryPickupInputs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "137"
+            endingLineNumber = "137"
+            landmarkName = "submitDeliveryPickupInputsNow(order_product_unique_id:type:completion:)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "F2C12917-DA07-4F6D-AD86-E099E24A4E9D"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "326"
+            endingLineNumber = "326"
+            landmarkName = "btnSubmitClicked(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "D3C39ABA-EBF3-447A-B396-C1F37C21042C"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "328"
+            endingLineNumber = "328"
+            landmarkName = "btnSubmitClicked(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "DD129D2E-3C79-4C1F-98E0-8D72240E85F1"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "320"
+            endingLineNumber = "320"
+            landmarkName = "btnSubmitClicked(_:)"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "8A1DED07-6914-4B9C-972C-278CA4DE057B"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "478"
+            endingLineNumber = "478"
+            landmarkName = "checkCustomerSignature()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "6DA6A9CC-09D8-4A65-BE40-BDF4A1CEFD4A"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "484"
+            endingLineNumber = "484"
+            landmarkName = "checkCustomerSignature()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B690AE07-674B-4DF4-984C-383475463560"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "1658"
-            endingLineNumber = "1658"
-            landmarkName = "btnMachineUpdateClicked(_:)"
+            startingLineNumber = "759"
+            endingLineNumber = "759"
+            landmarkName = "isDeliveryMediaUploaded()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "E65A3D5F-AD2F-4E40-BE52-DD4409D573B1"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "766"
+            endingLineNumber = "766"
+            landmarkName = "isDeliveryMediaUploaded()"
+            landmarkType = "7">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "18F47527-FFFE-42CB-B689-A4B192D9040E"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RentnKing/Core/CoreData/CoreDatabaseManager.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "150"
+            endingLineNumber = "150"
+            landmarkName = "getUploadListData(strOrderID:productID:strType:image_side:strVideoType:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

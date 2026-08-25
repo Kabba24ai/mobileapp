@@ -864,6 +864,12 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
                 imgColor(imgColor: cell.imgCheckListRet, colorHex: .background)
                 cell.viewCheckListRet.backgroundColor = .secondary
             }
+            else if (getPendingCheckList(orderUniqueId: self.arrOrderList[indexPath.row].unique_id ?? "", isDelivery: false) != nil) {
+                cell.lblCheckListRet.textColor = .background
+                imgColor(imgColor: cell.imgCheckListRet, colorHex: .background)
+                cell.viewCheckListRet.backgroundColor = .secondatyBtn
+            }
+
             
             if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: true) == false{
                 cell.lblCheckListRet.textColor = .lightGray

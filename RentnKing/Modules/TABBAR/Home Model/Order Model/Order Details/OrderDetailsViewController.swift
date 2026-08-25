@@ -577,6 +577,12 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
                 imgColor(imgColor: self.imgCheckListRet, colorHex: .background)
                 self.viewCheckListRet.backgroundColor = .secondary
             }
+            else if (getPendingCheckList(orderUniqueId: self.objOrderData.unique_id ?? "", isDelivery: false) != nil) {
+                self.lblCheckListRet.textColor = .background
+                imgColor(imgColor: self.imgCheckListRet, colorHex: .background)
+                self.viewCheckListRet.backgroundColor = .secondatyBtn
+            }
+      
             
             if self.checkCheckListStatus(isDelivery: true) == false{
                 self.lblCheckListRet.textColor = .lightGray

@@ -291,14 +291,14 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
 
     // MARK: - Prefill from pending draft
     private func prefillPendingCheckListIfNeeded() {
-        guard isDeliveryType,
-              let pending = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: true) else { return }
-        self.objOrderData.arrProduct = pending.order.arrProduct
-        self.arrOtherData = pending.other
-        self.viewSave.isHidden = !self.isQueueLine
+        let pending = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
+        if pending == nil { return }
+        self.objOrderData.arrProduct = pending?.order.arrProduct ?? []
+        self.arrOtherData = pending?.other ?? []
         self.CalculatTotalCharge()
         self.tblView.reloadData()
     }
+    
     
     
     
@@ -354,7 +354,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         self.viewSubmit.backgroundColor = .secondaryTextView
         self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: str.strNext)
         
-        self.viewSave.isHidden = !isQueueLine
+        self.viewSave.isHidden = false //!isQueueLine
         self.viewSave.backgroundColor = .secondatyBtn
         self.lblSave.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Save")
 
@@ -691,7 +691,7 @@ extension CheckListViewController{
     /// completion — then opens Delivery Image/Video Upload. Stays put if the save fail
     /// s.
     @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
-        guard isDeliveryType else { return }
+//        guard isDeliveryType else { return }
         self.view.endEditing(true)
 
         // SAME data prep + validation as Preview (btnSubmitClicked). Instead of moving to
@@ -725,14 +725,45 @@ extension CheckListViewController{
         else{
             // Persist the SAME prepared data that Preview would pass onward — as a PENDING draft.
             // No signature, no upload queue, no completion side effects. No forward navigation.
-            let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: true,
+            let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
                                              objOrderData: objTempOrderData, arrOtherData: arrTempOtherData)
             guard saved else {
                 showAlertMessage(strMessage: "Could not save the checklist. Please try again.")
                 return
             }
-            self.openDeliveryMediaUpload()
+
+            if self.isDeliveryMediaUploaded() {
+                if self.isQueueLine {
+                    if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                        self.navigationController?.popToViewController(targetViewController, animated: true)
+                    } else {
+                        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+                        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController {
+                            newViewController.is_going_main = true
+                            self.navigationController?.pushViewController(newViewController, animated: true)
+                        }
+                    }
+                } else {
+                    self.navigationController?.popViewController(animated: true)
+                }
+            } else {
+                self.openDeliveryMediaUpload()
+            }
         }
+    }
+
+    /// True if delivery image/video media already exists for this order — either saved locally
+    /// (pending upload) or already uploaded per the API — so Save can skip straight past
+    /// ImageUploadViewController instead of re-prompting for media.
+    private func isDeliveryMediaUploaded() -> Bool {
+        let localCount = CoreDBManager.sharedDatabase.getUploadListData(
+            strOrderID: self.strOrderUniqueId,
+            strType: uploadType.video_image.rawValue,
+            strVideoType: self.isDeliveryType ? "delivery" : "pickup"
+        ).count
+        if localCount > 0 { return true }
+
+        return self.isDeliveryType ? self.objOrderData.arrProduct.contains { !$0.arrDeliveryMedia.isEmpty } : self.objOrderData.arrProduct.contains { !$0.arrPickupMedia.isEmpty }
     }
 
     /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;
@@ -753,7 +784,7 @@ extension CheckListViewController{
         let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let vc = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
             vc.isQueueLine = self.isQueueLine
-            vc.strType = "delivery"
+            vc.strType = self.isDeliveryType ? "delivery" : "pickup"
             vc.selectIndex = self.selectIndex
             vc.objOrderDetail = listModel
             vc.strOrderID = self.strOrderUniqueId

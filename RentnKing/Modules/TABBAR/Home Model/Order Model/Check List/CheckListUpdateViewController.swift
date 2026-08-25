@@ -475,13 +475,13 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             let obj = self.arrOtherData.last
             
             if self.isDeliveryType{
-                if obj?.dSignature == UIImage() && obj?.dSignatureUrl == ""{
+                if (obj?.dSignature == UIImage() && obj?.dSignatureUrl == "") || obj?.dSignature == nil{
                     showAlertMessage(strMessage: "Customer signature is required")
                     return false
                 }
             }
             else{
-                if obj?.rSignature == UIImage() && obj?.rSignatureUrl == ""{
+                if (obj?.rSignature == UIImage() && obj?.rSignatureUrl == "") || obj?.rSignature == nil{
                     showAlertMessage(strMessage: "Customer signature is required")
                     return false
                 }
@@ -960,7 +960,7 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             cell.viewSignature.backgroundColor = .secondaryTextView?.withAlphaComponent(0.7)
             cell.lblSignature.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Customer Signature")
             
-            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
+            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != nil && ((self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""){
                 if self.isUpdateData{
                     cell.con_Bottom.constant = manageWidth(size: 0)
                 }

@@ -52,7 +52,7 @@ enum AppReleaseInfo {
     /// The newest entry uses the automatic version + build date; add older
     /// releases below it with their historical (hardcoded) version and date.
     static let all: [AppRelease] = [
-        AppRelease(version: "1.0.16", date: "Fri - Aug 21 - 2026", notes: [
+        AppRelease(version: "1.0.17", date: "Tue - Aug 25 - 2026", notes: [
             "Prepare a delivery before the customer arrives: complete the checklist, tap Save, then add delivery photos/video",
             "Mark as Staged now opens the Delivery Checklist automatically",
             "Reopening a prepared checklist restores all saved answers, ready for the customer's review and signature",
