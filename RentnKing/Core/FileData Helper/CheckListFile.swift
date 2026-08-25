@@ -61,6 +61,52 @@ func clearPendingCheckList(orderUniqueId: String, isDelivery: Bool) {
 
 
 
+// MARK: - Phase 3: migrate the legacy customer-checklist queue into the Sync Engine
+//
+// The pre-Phase-3 queue (`kSaveCheckList`) retried five times and then DELETED the employee's
+// signed checklist. Every item still in it is converted into a durable
+// `legacy_customer_checklist.submit` operation (payload verbatim, signature → protected asset)
+// and the queue is cleared. Items that cannot be converted are moved to a quarantine key —
+// never deleted — and surfaced in the Sync Status screen's log.
+let kLegacyChecklistQuarantineKey = kFileStorageName.kSaveCheckList.rawValue + "_quarantine"
+
+func migrateLegacyCustomerChecklistQueueIntoSyncEngine() {
+    guard let engine = KabbaSync.engine else { return }
+    guard let jsonData = SDKUserDefault.getData(for: kFileStorageName.kSaveCheckList.rawValue),
+          let items = (try? JSONSerialization.jsonObject(with: jsonData)) as? [[String: Any]], !items.isEmpty else { return }
+
+    var quarantined: [[String: Any]] = []
+    var migrated = 0
+    for item in items {
+        switch LegacyChecklistQueueMigration.convert(item) {
+        case .success(let converted):
+            do {
+                _ = try LegacyChecklistQueueMigration.enqueue(converted, into: engine)
+                migrated += 1
+            } catch {
+                quarantined.append(item)
+            }
+        case .failure:
+            quarantined.append(item)
+        }
+    }
+
+    if !quarantined.isEmpty, JSONSerialization.isValidJSONObject(quarantined),
+       let data = try? JSONSerialization.data(withJSONObject: quarantined) {
+        var existing: [[String: Any]] = []
+        if let old = SDKUserDefault.getData(for: kLegacyChecklistQuarantineKey),
+           let parsed = (try? JSONSerialization.jsonObject(with: old)) as? [[String: Any]] { existing = parsed }
+        if let merged = try? JSONSerialization.data(withJSONObject: existing + quarantined) {
+            SDKUserDefault.save(merged, for: kLegacyChecklistQuarantineKey)
+        } else {
+            SDKUserDefault.save(data, for: kLegacyChecklistQuarantineKey)
+        }
+    }
+
+    SDKUserDefault.remove(for: kFileStorageName.kSaveCheckList.rawValue)
+    debugPrint("Customer checklist queue: migrated \(migrated) item(s) into the Sync Engine, quarantined \(quarantined.count)")
+}
+
 // MARK: - Get Checklist
 func getChecklistData() -> [[String: Any]]? {
     guard let jsonData = SDKUserDefault.getData(for: kFileStorageName.kSaveCheckList.rawValue) else { return nil }

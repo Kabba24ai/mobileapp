@@ -72,7 +72,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             baseURL: { URL(string: Application.BaseURL_NEW) },
             accessToken: { UserDefaults.standard.accessToken },
             language: { UserDefaults.standard.language },
-            legacyMigrations: [migrateLegacyDriverChecklistQueueIntoSyncEngine],
+            legacyMigrations: [
+                migrateLegacyDriverChecklistQueueIntoSyncEngine,
+                migrateLegacyCustomerChecklistQueueIntoSyncEngine,      // Phase 3: retires the 5-retry dead-letter
+                migrateLegacyDeliveryPickupInputsQueueIntoSyncEngine,   // Phase 3: retires the last legacy queue
+            ],
             onSessionExpired: { [weak self] in self?.handleExpiredSession() }
         )
 
@@ -543,6 +547,14 @@ extension AppDelegate :WebServiceHelperDelegate {
     
    
     func updateCheckListData(){
+        // Phase 3: with the Sync Engine up, anything still in the legacy queue is migrated into it
+        // and the engine drains; the legacy uploader below runs only if the engine is unavailable.
+        if KabbaSync.isReady {
+            migrateLegacyCustomerChecklistQueueIntoSyncEngine()
+            KabbaSync.kick("customer checklist", ignoreBackoff: true)
+            return
+        }
+
         // Don't start a second upload while one is already in flight.
         if isCheckListUploading { return }
 

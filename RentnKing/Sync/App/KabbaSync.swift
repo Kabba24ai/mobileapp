@@ -29,6 +29,8 @@ enum KabbaSync {
     private(set) static var engine: SyncEngine?
     private(set) static var client: KabbaAPIClient?
     private(set) static var installation: InstallationIdentity?
+    private(set) static var contextStore: ChecklistContextStore?
+    private(set) static var checklistContexts: ChecklistContextClient?
 
     private static var observers: [NSObjectProtocol] = []
     private static var sessionExpiredHandler: (() -> Void)?
@@ -58,9 +60,23 @@ enum KabbaSync {
             let client = KabbaAPIClient.configure(configuration)
 
             let hasSession: () -> Bool = { accessToken().map { !$0.isEmpty } ?? false && baseURL() != nil }
+            client.assetsDirectory = store.assetsDirectory
             let engine = SyncEngine(store: store,
                                     httpClient: client,
-                                    handlers: [DriverChecklistSyncHandler(hasSession: hasSession)])
+                                    handlers: [
+                                        DriverChecklistSyncHandler(hasSession: hasSession),
+                                        // Phase 3 — canonical checklist contract
+                                        ChecklistCompleteSyncHandler(leg: .delivery, hasSession: hasSession),
+                                        ChecklistCompleteSyncHandler(leg: .return, hasSession: hasSession),
+                                        ChecklistPrepareSyncHandler(leg: .delivery, hasSession: hasSession),
+                                        ChecklistPrepareSyncHandler(leg: .return, hasSession: hasSession),
+                                        LegacyChecklistSubmitSyncHandler(hasSession: hasSession),
+                                        FulfillmentInputsSyncHandler(hasSession: hasSession),
+                                    ])
+
+            let contextStore = try ChecklistContextStore(rootDirectory: root)
+            KabbaSync.contextStore = contextStore
+            KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
 
             engine.logger = { line in
                 #if DEBUG

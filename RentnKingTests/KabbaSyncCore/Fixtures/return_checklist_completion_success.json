@@ -1,0 +1,20 @@
+{
+    "success": true,
+    "message": "Checklist saved successfully",
+    "data": {
+        "checklist_execution_id": "ORD-CHK-SHNR-3M5T",
+        "order_product_unique_id": "ORD-SCH-XOYZ-SD66",
+        "leg": "return",
+        "status": "completed",
+        "cycle": 1,
+        "already_completed": false,
+        "equipment_unique_id": "EQP-T0LF-QLI9",
+        "signature_media_id": 18,
+        "signature_client_media_id": null,
+        "captured_at": "2026-08-25T17:40:01+00:00",
+        "completed_at": "2026-08-25T17:40:01+00:00",
+        "server_received_at": "2026-08-25T17:40:01+00:00",
+        "damaged": false
+    },
+    "request_id": "93852545-00ac-4a2d-a93a-1e223188fb51"
+}

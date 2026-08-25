@@ -378,6 +378,17 @@ class WarningViewController: UIViewController, UIGestureRecognizerDelegate {
     private func submitOverrideToServer() {
         let type = isReturn ? "pickup" : "delivery"
 
+        // Phase 3: the override REASONS are recorded (durable Sync Engine, complete_leg=false);
+        // the leg itself is completed only through the canonical checklist. This screen no
+        // longer manufactures "completed" state on its own (audit P0-3).
+        if KabbaSync.isReady {
+            KabbaSync.kick("driver override inputs", ignoreBackoff: true)
+            self.popToDispatchList(autoDismissMessage: isReturn
+                ? "Override reasons saved · complete the Return checklist to finish."
+                : "Override reasons saved · complete the Delivery checklist to finish.")
+            return
+        }
+
         let successMessage = isReturn ? "Return completed successfully." : "Delivery completed successfully."
 
         // Offline → it's already saved locally and will sync when back online.
@@ -447,6 +458,26 @@ class WarningViewController: UIViewController, UIGestureRecognizerDelegate {
         let inputsDate = formatter.string(from: Date())
 
         print("=============WAR==============>>>> \(self.productUniqueId)")
+
+        // Durable, idempotent, recording-only (complete_leg=false) when the Sync Engine is up.
+        if let engine = KabbaSync.engine {
+            do {
+                _ = try FulfillmentInputsSyncHandler.enqueue(
+                    into: engine,
+                    orderProductUniqueId: productUniqueId,
+                    type: isReturn ? "pickup" : "delivery",
+                    inputsDate: inputsDate,
+                    tncStatus: statusValue(for: .termsAndConditions, completed: "accepted"),
+                    driversLicenseStatus: statusValue(for: .driverLicense, completed: "verified"),
+                    videoStatus: statusValue(for: .photosVideo, completed: "completed"),
+                    checklistStatus: statusValue(for: .checklist, completed: "completed"),
+                    completeLeg: false
+                )
+                return
+            } catch {
+                debugPrint("Override inputs: engine enqueue failed (\(error)) — falling back to legacy queue")
+            }
+        }
 
         saveDeliveryPickupInputsLocally(
             order_product_unique_id: productUniqueId,

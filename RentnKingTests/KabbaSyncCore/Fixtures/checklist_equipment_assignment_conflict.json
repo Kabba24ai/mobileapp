@@ -1,0 +1,16 @@
+{
+    "success": false,
+    "message": "The equipment assigned to this rental changed before this checklist synchronized. Refresh the order and complete the checklist for the currently assigned unit.",
+    "error": {
+        "code": "EQUIPMENT_ASSIGNMENT_CONFLICT",
+        "message": "The equipment assigned to this rental changed before this checklist synchronized. Refresh the order and complete the checklist for the currently assigned unit.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "EQUIPMENT_ASSIGNMENT_CONFLICT",
+    "data": {
+        "assigned_equipment_unique_id": "EQP-FNP2-TEHC",
+        "submitted_equipment_unique_id": "EQP-PDIQ-4SC7"
+    },
+    "request_id": "8b642c4c-d97f-4579-9099-64cf98f51b26"
+}

@@ -57,6 +57,9 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var isOrderDetailsView : Bool = false
     var isUpdateData : Bool = false
     var isDeleteChecklist : Bool = false
+
+    /// Phase 3 — canonical contexts handed over by CheckListViewController (order_product_unique_id → context).
+    var checklistContexts: [String: ChecklistContext] = [:]
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -322,71 +325,56 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             }
             
             
-            var dicData : [String : Any] = [:]
-            var arrCheckListData: [[String: Any]] = []
-            for obj in self.objOrderData.arrProduct{
-                var arrData : [[String : Any]] = []
-                for objChecklist in obj.arrQuestions{
-                    if objChecklist.type != "text" && objChecklist.type != "fuel" && objChecklist.type != "cleaning"{
-                        let dic : [String : Any] = ["question_unique_id" : objChecklist.unique_id ?? "",
-                                                    "answer_unique_id" : self.isDeliveryType ? objChecklist.deliverAnswer.unique_id ?? "" : objChecklist.returnAnswer.unique_id ?? ""]
-                        arrData.append(dic)
-                    }
-                }
-                
-                
-                //CONVERT CHECKLIST DATA IN STRING
-                var strCheckList : String = ""
-                do {
-                    let jsonData = try JSONSerialization.data(withJSONObject: arrData, options: [])
-                    if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        strCheckList = jsonString
-                    }
-                } catch {
-                    print("Error serializing JSON:", error)
-                }
-                                
-                //OTHER DATA
-                for objOther in self.arrOtherData{
-                    dicData = [
-                        "order_product_unique_id": obj.unique_id ?? "",
-                        "order_unique_id": self.strOrderUniqueId,   // carried so we can clean up this order's media after the Return save
-                        "equipment_unique_id": obj.objMachine?.unique_id ?? "",
-                        "checklist[]": strCheckList,
-                        "delivery_clean_option" : self.isDeliveryType ? getCleaning(strId: objOther.selectCleaningDelivery, isReturn: false) : "",
-                        "delivery_clean_id" : self.isDeliveryType ? objOther.selectCleaningDelivery : "",
+            // Phase 3 — ONE submission per order product. arrOtherData is built index-aligned with
+            // arrProduct (CheckListViewController.setupStaticData); the pre-Phase-3 nested loop
+            // (for product { for otherData { … } }) produced product × otherData submissions and
+            // handed Product B Product A's signature and employee. A misaligned pair is a bug, so
+            // it is refused instead of guessed.
+            guard self.arrOtherData.count == self.objOrderData.arrProduct.count else {
+                showAlertMessage(strMessage: "The checklist data is out of sync. Please go back and open the checklist again.")
+                return
+            }
 
-                        "return_clean_option" : self.isDeliveryType ? "" : getCleaning(strId: objOther.selectCleaningReturn, isReturn: true),
-                        "return_clean_id" : self.isDeliveryType ? "" : objOther.selectCleaningReturn,
-                        "total_clean_charge" : self.isDeliveryType ? "" : "\(self.strCleaningCharge)",
-                        
-                        "start_hours": self.isDeliveryType ? "\(objOther.startHours)" : "",
-                        "end_hours": self.isDeliveryType ? "" : "\(objOther.endHours)",
-                        "user_id": self.isDeliveryType ? objOther.dEmplayessId : objOther.rEmplayessId,
-                        "note": self.isDeliveryType ? objOther.dNote : objOther.rNote,
-                        "total_charge": self.isDeliveryType ? "" : "\(self.strTotalCharge)",
-                        "store_id": self.isDeliveryType ? "" : objOther.rStoreId,
-                        "fuel_initial_reading": objOther.selectFuleDelivery,
-                        "fuel_final_reading": objOther.selectFuleReturn,
-                        "fuel_total_charge": self.isDeliveryType ? "" : "\(self.strFuleTotalCharge)",
-                        "dSignature": self.isDeliveryType ? (objOther.dSignature ?? UIImage()) : UIImage(),
-                        "rSignature":  self.isDeliveryType ? UIImage() : (objOther.rSignature ?? UIImage()),
-                        "type": self.isDeliveryType ? "Delivery" : "Return",
-                        "version" : AppReleaseInfo.versionDisplay]
-                    arrCheckListData.append(dicData)
+            var submissions: [ChecklistSubmissionPlan] = []
+            for (index, obj) in self.objOrderData.arrProduct.enumerated() {
+                let objOther = self.arrOtherData[index]
+                guard let productUid = obj.unique_id, !productUid.isEmpty else { continue }
+
+                if let context = self.checklistContexts[productUid] {
+                    // Canonical: template ids, execution identity, signature as a durable asset.
+                    let capture = ChecklistCaptureFactory.make(context: context, product: obj, other: objOther,
+                                                               isDelivery: self.isDeliveryType,
+                                                               totalCharge: self.strTotalCharge,
+                                                               fuelTotalCharge: self.strFuleTotalCharge,
+                                                               cleaningCharge: self.strCleaningCharge)
+                    let signature = (self.isDeliveryType ? objOther.dSignature : objOther.rSignature)?.jpegData(compressionQuality: 0.7)
+                    submissions.append(.canonical(capture, signature: signature))
+                } else {
+                    // No context (never loaded while connected): the legacy shape for THIS product
+                    // only, carried by the durable engine (no dead-letter) to the legacy endpoint.
+                    submissions.append(.legacy(ChecklistCaptureFactory.legacyItem(product: obj, other: objOther,
+                                                                                  isDelivery: self.isDeliveryType,
+                                                                                  orderUniqueId: self.strOrderUniqueId,
+                                                                                  totalCharge: self.strTotalCharge,
+                                                                                  fuelTotalCharge: self.strFuleTotalCharge,
+                                                                                  cleaningCharge: self.strCleaningCharge)))
                 }
             }
-           
 
             //CALL API
             let alert = UIAlertController(title: Application.appName, message: "Are you sure you're ready to submit this report?", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                 
-//                self.updateCheckList(dicCheckList: dicData)
                 indicatorShow()
-                
-                //UPDATE CHECK LIST — APPEND to the queue so a submission in flight isn't overwritten
-                appendChecklistData(arrCheckListData)
+
+                // Durable, idempotent, one operation per product — persisted BEFORE the UI moves on.
+                let queued = ChecklistSubmissionPlan.enqueueAll(submissions)
+                if queued.failed > 0 {
+                    indicatorHide()
+                    showAlertMessage(strMessage: "The checklist could not be saved on this phone (\(queued.failed) of \(submissions.count)). Nothing was sent. Please try again.")
+                    return
+                }
+                KabbaSync.showStatusToast(for: queued.firstOperationId)
                 
                 //SET DATA IN LOCAL
                 let checklistType = self.isDeliveryType ? "Delivery" : "Return"
@@ -416,7 +404,8 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1){
                         indicatorHide()
-                        showAlertMessage(strMessage: "Checklist updated successfully.", isDismiss: true)
+                        // Honest wording: the work is safely on the phone; Kabba confirms it on sync.
+                        showAlertMessage(strMessage: queued.usedEngine ? "Checklist saved on this phone · Pending Sync" : "Checklist updated successfully.", isDismiss: true)
                     }
                 })
                                 

@@ -10,6 +10,14 @@ interpretation, the durable file store (save/relaunch/quarantine), operation-id
 stability across retries, retry vs needs-attention dispositions, the 401 pause,
 FIFO ordering, discard/prune, diagnostics sanitisation, and the installation id.
 
+Phase 3 adds the canonical checklist contract: `ChecklistContractTests` decodes
+the SHARED fixtures (`Fixtures/*.json`, copied from the Laravel repo by
+`Scripts/sync-contract-fixtures.sh` — the same files Laravel's
+`MobileContractFixturesTest` asserts the API produces); `ChecklistOperationTests`
+covers one-operation-per-product, signature assets, multipart bracket fields,
+prepare, replay convergence and assignment conflicts; `LegacyChecklistMigrationTests`
+covers the legacy-queue conversion, quarantine reporting and the context cache.
+
 Run them from the repo root:
 
 ```sh

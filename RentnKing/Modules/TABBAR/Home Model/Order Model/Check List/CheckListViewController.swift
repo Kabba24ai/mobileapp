@@ -152,6 +152,15 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     
     var pickerData: [String] = []
     var selectProductIndex : Int = 0
+
+    // Phase 3 — canonical checklist contexts (execution identity + questions in ONE id space),
+    // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
+    // durable cache when offline). A product without a context falls back to the legacy shape.
+    var checklistContexts: [String: ChecklistContext] = [:]
+    /// Order products whose equipment is assigned by the office (hard/soft) — the picker is locked
+    /// for them; swapping a unit is the Queue Line / Order "Change Equipment" workflow, not a
+    /// checklist side effect.
+    private var contextLockedProducts: Set<String> = []
     /// Table scroll position captured when an equipment pick is applied, so the reloads that
     /// follow don't jump the screen up. Only set during the picker flow (nil for the keyboard).
     private var pickerSavedOffset: CGPoint?
@@ -282,6 +291,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                     self.setupStaticData()
                     self.setTheView()
                     self.prefillPendingCheckListIfNeeded()
+                    self.loadChecklistContexts()
 
                 }
                 
@@ -496,6 +506,10 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     
     // MARK: - Actions
     func openPicker() {
+        if let uid = self.objOrderData?.arrProduct[safe: self.selectProductIndex]?.unique_id, self.contextLockedProducts.contains(uid) {
+            showAlertMessage(strMessage: "This equipment was assigned by the office. To use a different unit, change the assignment in Queue Line or on the order — the checklist cannot swap it.")
+            return
+        }
         picker.reloadAllComponents()
         // Preselect current value when reopening (clamp so it can never be out of range).
         if !pickerData.isEmpty {
@@ -732,6 +746,22 @@ extension CheckListViewController{
                 return
             }
 
+            // Phase 3: the prepared state is also a canonical server operation (durable, idempotent)
+            // so another device / the web can see the checklist was prepared. Partial answers allowed.
+            if let engine = KabbaSync.engine, let tempOrder = objTempOrderData {
+                for (index, product) in tempOrder.arrProduct.enumerated() where index < arrTempOtherData.count {
+                    guard let uid = product.unique_id, let context = self.checklistContexts[uid] else { continue }
+                    let capture = ChecklistCaptureFactory.make(context: context, product: product, other: arrTempOtherData[index],
+                                                               isDelivery: self.isDeliveryType,
+                                                               totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                    do {
+                        _ = try ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)
+                    } catch {
+                        debugPrint("Checklist prepare: could not enqueue for \(uid): \(error)")
+                    }
+                }
+            }
+
             if self.isDeliveryMediaUploaded() {
                 if self.isQueueLine {
                     if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
@@ -837,6 +867,7 @@ extension CheckListViewController{
                 newViewController.strOrderID = self.strOrderID
                 newViewController.strOrderUniqueId = self.strOrderUniqueId
                 newViewController.isOrderDetailsView = self.isOrderDetailsView
+                newViewController.checklistContexts = self.checklistContexts
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
             
@@ -2632,3 +2663,80 @@ extension CheckListViewController{
 }
 
 
+
+
+// MARK: - Phase 3: canonical checklist context
+extension CheckListViewController {
+
+    /// Loads the canonical context for every product (server-first, cache when offline) and
+    /// re-points the product's questions at the ONE stable id space. Products that cannot get a
+    /// context (never loaded while connected) keep the legacy questions from orders/details.
+    func loadChecklistContexts() {
+        guard let client = KabbaSync.checklistContexts, let order = self.objOrderData else { return }
+        let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
+
+        for (index, product) in order.arrProduct.enumerated() {
+            guard let uid = product.unique_id, !uid.isEmpty else { continue }
+            let chosenUnit = product.objMachine?.unique_id
+            client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: chosenUnit) { [weak self] result, fromCache in
+                DispatchQueue.main.async {
+                    guard let self = self, case .success(let context) = result else { return }
+                    self.checklistContexts[uid] = context
+                    self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                    if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
+                }
+            }
+        }
+    }
+
+    /// Replaces the product's template questions with the context's (same visual model, canonical
+    /// ids), keeps the synthesized hours/fuel/cleaning rows, and locks the office-assigned unit.
+    func applyChecklistContext(_ context: ChecklistContext, toProductWith uid: String, fallbackIndex: Int) {
+        guard let order = self.objOrderData else { return }
+        guard let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }) ?? (fallbackIndex < order.arrProduct.count ? fallbackIndex : nil) else { return }
+        var product = order.arrProduct[index]
+
+        // Assigned unit → shown and locked. No unit → the picker stays available; the context is
+        // re-requested for the chosen unit when the employee picks one (callCheckListAPI).
+        if context.equipment.hasUnit, let unitId = context.equipment.equipmentUniqueId {
+            if product.objMachine?.unique_id != unitId {
+                if let known = self.arrAllMachineList.first(where: { $0.unique_id == unitId }) {
+                    product.objMachine = known
+                } else {
+                    product.objMachine = ChecklistCaptureFactory.machine(from: context)
+                }
+                if index < self.arrOtherData.count { self.arrOtherData[index].machine_id = product.objMachine?.id ?? 0 }
+            }
+            if context.equipment.isAssigned { self.contextLockedProducts.insert(uid) } else { self.contextLockedProducts.remove(uid) }
+        }
+
+        // Keep synthesized operational rows; replace the checklist questions with the canonical ones.
+        let synthesized = product.arrQuestions.filter { $0.type == "text" || $0.type == "fuel" || $0.type == "cleaning" }
+        let existingSelections = Dictionary(uniqueKeysWithValues: product.arrQuestions
+            .filter { $0.type != "text" && $0.type != "fuel" && $0.type != "cleaning" }
+            .compactMap { q -> (String, CustomerCheckListModel)? in q.unique_id.map { ($0, q) } })
+        let canonical = ChecklistCaptureFactory.questionModels(from: context, isDelivery: self.isDeliveryType, preserving: existingSelections)
+
+        product.arrQuestions = synthesized + canonical
+        if synthesized.isEmpty, product.objMachine != nil {
+            // First time this product got a unit: add the hours/fuel/cleaning rows the same way the
+            // legacy path does, then re-append the canonical questions behind them.
+            self.objOrderData.arrProduct[index] = product
+            self.setUpTheEqupmentData(objEquipment: product.objMachine, index: index)
+            var refreshed = self.objOrderData.arrProduct[index]
+            let rows = refreshed.arrQuestions.filter { $0.type == "text" || $0.type == "fuel" || $0.type == "cleaning" }
+            refreshed.arrQuestions = rows + canonical
+            self.objOrderData.arrProduct[index] = refreshed
+        } else {
+            self.objOrderData.arrProduct[index] = product
+        }
+
+        self.tblView.reloadData()
+    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}

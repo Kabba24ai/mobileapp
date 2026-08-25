@@ -145,16 +145,86 @@ final class KabbaAPIClient: SyncHTTPClient {
     // MARK: - SyncHTTPClient
 
     func perform(_ request: SyncHTTPRequest, completion: @escaping (SyncHTTPResult) -> Void) {
-        send(method: request.method,
-             path: request.path,
-             jsonBody: request.jsonBody,
-             extraHeaders: request.headers,
-             operationId: request.operationId) { result in
+        let forward: (Result<SyncHTTPResponse, APIError>) -> Void = { result in
             switch result {
             case .success(let response): completion(.response(response))
             case .failure(let error):    completion(.failure(error))
             }
         }
+
+        if request.attachments.isEmpty {
+            send(method: request.method, path: request.path, jsonBody: request.jsonBody,
+                 extraHeaders: request.headers, operationId: request.operationId, completion: forward)
+        } else {
+            sendMultipart(method: request.method, path: request.path, fields: request.jsonBody, attachments: request.attachments,
+                          extraHeaders: request.headers, operationId: request.operationId, completion: forward)
+        }
+    }
+
+    /// Where attachment relativePaths resolve. Set by the bootstrap to the Sync Engine store's assets directory.
+    var assetsDirectory: URL?
+
+    // MARK: - Multipart (fields + files), file-backed body
+
+    func sendMultipart(method: String,
+                       path: String,
+                       fields: JSONValue?,
+                       attachments: [SyncAsset],
+                       extraHeaders: [String: String] = [:],
+                       operationId: String? = nil,
+                       completion: @escaping (Result<SyncHTTPResponse, APIError>) -> Void) {
+        guard let base = configuration.baseURL(), let url = KabbaAPIClient.resolve(path: path, against: base),
+              let token = configuration.accessToken(), !token.isEmpty else {
+            completion(.failure(APIError(kind: .http, statusCode: 401, code: "NO_SESSION",
+                                         message: "Not signed in.", serverRetryable: false)))
+            return
+        }
+        guard let assetsDirectory = assetsDirectory else {
+            completion(.failure(APIError.invalidRequest("Assets directory is not configured")))
+            return
+        }
+
+        let body: SyncMultipartBody
+        do {
+            body = try SyncMultipartBuilder.build(fields: fields, assets: attachments, assetsDirectory: assetsDirectory)
+        } catch SyncMultipartError.assetMissing(let relativePath) {
+            completion(.failure(APIError.invalidRequest("A file for this operation is missing on the phone (\(relativePath)).")))
+            return
+        } catch {
+            completion(.failure(APIError.invalidRequest("Could not build the upload: \(error.localizedDescription)")))
+            return
+        }
+
+        let requestId = KabbaAPIClient.newRequestId()
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method.uppercased()
+        urlRequest.timeoutInterval = configuration.timeout * 4
+        var headers = standardHeaders(requestId: requestId, operationId: operationId)
+        for (key, value) in extraHeaders { headers[key] = value }
+        for (key, value) in headers { urlRequest.setValue(value, forHTTPHeaderField: key) }
+        urlRequest.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
+
+        let task = session.uploadTask(with: urlRequest, fromFile: body.fileURL) { [weak self] data, response, error in
+            try? FileManager.default.removeItem(at: body.fileURL)
+            if let error = error {
+                completion(.failure(APIErrorClassifier.transportError(from: error)))
+                return
+            }
+            guard let http = response as? HTTPURLResponse else {
+                completion(.failure(APIError.transport(.other, description: "No HTTP response")))
+                return
+            }
+            var headerMap: [String: String] = [:]
+            for (key, value) in http.allHeaderFields {
+                if let k = key as? String, let v = value as? String { headerMap[k] = v }
+            }
+            if headerMap["X-Request-Id"] == nil { headerMap["X-Request-Id"] = requestId }
+            if http.statusCode == 401 {
+                self?.handleUnauthorized(path: path, requestId: requestId)
+            }
+            completion(.success(SyncHTTPResponse(statusCode: http.statusCode, headers: headerMap, body: data)))
+        }
+        task.resume()
     }
 
     // MARK: - Generic JSON request

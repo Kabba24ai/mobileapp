@@ -78,7 +78,58 @@ func saveDeliveryPickupInputsLocally(order_product_unique_id: String,
 
 // MARK: - Sync
 
+/// Phase 3: with the Sync Engine bootstrapped the legacy queue is migrated (below) and this
+/// trigger just asks the engine to drain. The legacy MMKV drain runs only if the engine is unavailable.
 func syncDeliveryPickupInputsWithAPI() {
+    if KabbaSync.isReady {
+        KabbaSync.kick("delivery/pickup inputs", ignoreBackoff: true)
+        return
+    }
+    legacySyncDeliveryPickupInputsWithAPI()
+}
+
+/// Moves every pending legacy inputs item into the Sync Engine. Legacy items were captured under
+/// the old contract where the submission COMPLETED the leg, so their intent is preserved
+/// (complete_leg=true); only NEW captures are recording-only. Runs once per launch.
+func migrateLegacyDeliveryPickupInputsQueueIntoSyncEngine() {
+    guard let engine = KabbaSync.engine else { return }
+    let storageKey = kFileStorageName.kDeliveryPickupInputsSubmit.rawValue
+    let arr: [DeliveryPickupInputsSubmitModel] = SDKUserDefault.getMappableArray(DeliveryPickupInputsSubmitModel.self, for: storageKey) ?? []
+    guard !arr.isEmpty else { return }
+
+    var remaining: [DeliveryPickupInputsSubmitModel] = []
+    for item in arr {
+        guard let productId = item.order_product_unique_id, !productId.isEmpty, let type = item.type, !type.isEmpty else { continue }
+        let epoch = item.id ?? 0
+        let captured = epoch > 1_600_000_000 ? Date(timeIntervalSince1970: TimeInterval(epoch)) : Date()
+        do {
+            _ = try FulfillmentInputsSyncHandler.enqueue(
+                into: engine,
+                orderProductUniqueId: productId,
+                type: type,
+                inputsDate: item.inputs_date ?? "",
+                tncStatus: item.tnc_status ?? "",
+                driversLicenseStatus: item.drivers_license_status ?? "",
+                videoStatus: item.video_status ?? "",
+                checklistStatus: item.checklist_status ?? "",
+                completeLeg: true,
+                capturedAt: captured
+            )
+        } catch {
+            remaining.append(item)
+        }
+    }
+
+    if remaining.isEmpty {
+        SDKUserDefault.remove(for: storageKey)
+    } else {
+        SDKUserDefault.saveMappableArray(remaining, for: storageKey)
+    }
+    debugPrint("Delivery/Pickup Inputs: migrated \(arr.count - remaining.count) legacy item(s) into the Sync Engine")
+}
+
+/// LEGACY drain (engine unavailable only).
+func legacySyncDeliveryPickupInputsWithAPI() {
     let storageKey = kFileStorageName.kDeliveryPickupInputsSubmit.rawValue
     let arr: [DeliveryPickupInputsSubmitModel] = SDKUserDefault.getMappableArray(DeliveryPickupInputsSubmitModel.self, for: storageKey) ?? []
 
@@ -180,7 +231,7 @@ func handleDeliveryPickupInputsResponse(data: NSDictionary?, localID: Int, compl
         SDKUserDefault.saveMappableArray(arr, for: storageKey)
         indicatorHide()
         completion(true)
-        syncDeliveryPickupInputsWithAPI()
+        legacySyncDeliveryPickupInputsWithAPI()
         return
     }
 

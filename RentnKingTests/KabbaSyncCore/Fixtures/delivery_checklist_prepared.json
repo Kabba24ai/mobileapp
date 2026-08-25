@@ -1,0 +1,15 @@
+{
+    "success": true,
+    "message": "Checklist prepared.",
+    "data": {
+        "checklist_execution_id": "ORD-CHK-Y3CZ-JOK1",
+        "order_product_unique_id": "ORD-SCH-XOYZ-SD66",
+        "leg": "delivery",
+        "status": "prepared",
+        "prepared_at": "2026-08-25T17:40:01+00:00",
+        "captured_at": "2026-08-25T17:40:01+00:00",
+        "server_received_at": "2026-08-25T17:40:01+00:00",
+        "answer_count": 1
+    },
+    "request_id": "1541e9ef-3992-47d1-96f5-1146f3a7b5d4"
+}

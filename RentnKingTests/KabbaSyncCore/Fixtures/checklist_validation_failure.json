@@ -1,0 +1,16 @@
+{
+    "success": false,
+    "message": "The customer signature is required to complete this checklist.",
+    "error": {
+        "code": "SIGNATURE_REQUIRED",
+        "message": "The customer signature is required to complete this checklist.",
+        "retryable": false
+    },
+    "errors": {
+        "signature_media": [
+            "The customer signature is required to complete this checklist."
+        ]
+    },
+    "error_code": "SIGNATURE_REQUIRED",
+    "request_id": "e5721fd7-2423-49bf-a8e7-822de6038721"
+}

@@ -1,0 +1,171 @@
+{
+    "success": true,
+    "message": "Checklist context.",
+    "data": {
+        "identity": {
+            "checklist_execution_id": "ORD-CHK-Y3CZ-JOK1",
+            "cycle": 1,
+            "status": "open",
+            "leg": "delivery",
+            "order_unique_id": "ORD-TU2B-DXS4",
+            "order_number": "7731",
+            "order_product_unique_id": "ORD-SCH-XOYZ-SD66",
+            "product_name": "Skid Steer Rental"
+        },
+        "equipment": {
+            "assignment": "soft",
+            "equipment_unique_id": "EQP-T0LF-QLI9",
+            "equipment_code": "EQP-P3-6A8DD3711ECC3",
+            "equipment_name": "Skid Steer 6a8dd3711ecc2",
+            "current_status": "available",
+            "power_source_type": "diesel",
+            "has_def": "No",
+            "hour_tracking": "",
+            "overage_rate": "",
+            "diesel_tank_capacity": "",
+            "gas_tank_capacity": "",
+            "def_tank_capacity": "",
+            "equipment_hours": ""
+        },
+        "template": {
+            "template_id": "CATQS-LR7U-MCJ3",
+            "template_name": "Skid Steer Checklist",
+            "revision": "ed3cb05753d33277",
+            "question_source": "equipment_template"
+        },
+        "requirements": {
+            "signature_required": true,
+            "employee_required": true,
+            "store_required": false,
+            "equipment_required": true,
+            "required_question_ids": [
+                "CAQST-WKAK-QJPW"
+            ]
+        },
+        "questions": [
+            {
+                "question_id": "CAQST-WKAK-QJPW",
+                "question_name": "Body damage",
+                "text": "Any body damage at delivery?",
+                "delivery_text": "Any body damage at delivery?",
+                "return_text": "Any body damage at return?",
+                "category": {
+                    "category_id": "CACAT-INVN-YYXE",
+                    "category_name": "Condition"
+                },
+                "required": true,
+                "answer_type": "single_choice",
+                "index": 1,
+                "answers": [
+                    {
+                        "answer_id": "CAANS-JHY0-QUP0",
+                        "text": "No damage",
+                        "delivery_text": "No damage",
+                        "return_text": "No damage",
+                        "amount": 0,
+                        "delivery_amount": 0,
+                        "return_amount": 0,
+                        "is_damaged": false,
+                        "sync_texts": true,
+                        "index": 1
+                    },
+                    {
+                        "answer_id": "CAANS-J4UH-CZNA",
+                        "text": "Damaged",
+                        "delivery_text": "Damaged",
+                        "return_text": "Damaged",
+                        "amount": 0,
+                        "delivery_amount": 0,
+                        "return_amount": 150,
+                        "is_damaged": true,
+                        "sync_texts": true,
+                        "index": 2
+                    }
+                ],
+                "previous_answer_id": null,
+                "previous_return_answer_id": null,
+                "prepared_answer_id": null
+            },
+            {
+                "question_id": "CAQST-6LSZ-SR8F",
+                "question_name": "Keys present",
+                "text": "Keys handed over?",
+                "delivery_text": "Keys handed over?",
+                "return_text": "Keys returned?",
+                "category": {
+                    "category_id": "CACAT-INVN-YYXE",
+                    "category_name": "Condition"
+                },
+                "required": false,
+                "answer_type": "single_choice",
+                "index": 2,
+                "answers": [
+                    {
+                        "answer_id": "CAANS-4ZBP-IKQJ",
+                        "text": "Yes",
+                        "delivery_text": "Yes",
+                        "return_text": "Yes",
+                        "amount": 0,
+                        "delivery_amount": 0,
+                        "return_amount": 0,
+                        "is_damaged": false,
+                        "sync_texts": true,
+                        "index": 1
+                    },
+                    {
+                        "answer_id": "CAANS-KKPM-PDQF",
+                        "text": "No",
+                        "delivery_text": "No",
+                        "return_text": "No",
+                        "amount": 0,
+                        "delivery_amount": 0,
+                        "return_amount": 0,
+                        "is_damaged": false,
+                        "sync_texts": true,
+                        "index": 2
+                    }
+                ],
+                "previous_answer_id": null,
+                "previous_return_answer_id": null,
+                "prepared_answer_id": null
+            }
+        ],
+        "operational": {
+            "hour_tracking": true,
+            "is_product_clean": false,
+            "rental_prepaid_cleaning": 0,
+            "start_hours": 0,
+            "end_hours": 0,
+            "fuel_initial_reading": "",
+            "fuel_final_reading": "",
+            "delivery_clean_id": "",
+            "return_clean_id": "",
+            "delivery_notes": "",
+            "pickup_notes": "",
+            "delivery_by": null,
+            "pickup_by": null,
+            "pickup_store_id": 29
+        },
+        "server_state": {
+            "is_delivered": false,
+            "is_returned": false,
+            "delivery_status": "Pending",
+            "pickup_status": "Pending",
+            "delivery_signature_present": false,
+            "return_signature_present": false,
+            "execution_status": "open",
+            "prepared_at": null,
+            "completed_at": null,
+            "captured_at": null,
+            "can_complete": true,
+            "blocked_reason": null
+        },
+        "employee": {
+            "user_id": 29,
+            "unique_id": "PER-YL0X-TVHX",
+            "full_name": "Field Employee"
+        },
+        "server_time": "2026-08-25T17:40:01+00:00"
+    },
+    "request_id": "52eff636-f2d5-467b-9059-d6751d6410c2"
+}
