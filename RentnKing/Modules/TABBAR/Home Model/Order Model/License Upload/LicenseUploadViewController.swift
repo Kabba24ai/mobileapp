@@ -136,6 +136,21 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         
         //SET IMAGE
         let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
+
+        // Phase 4: a licence still waiting on this phone (Sync Engine) previews here only — this
+        // capture screen is the one place the image is ever shown; Sync Status never renders it.
+        if arrData.isEmpty {
+            if let data = KabbaMediaSync.pendingLicenseData(orderUniqueId: self.strOrderID, side: "front"), let img = UIImage(data: data) {
+                self.viewEditFront.isHidden = false
+                self.imgFront.image = img
+                self.imgFront.backgroundColor = .white
+            }
+            if let data = KabbaMediaSync.pendingLicenseData(orderUniqueId: self.strOrderID, side: "back"), let img = UIImage(data: data) {
+                self.viewEditBack.isHidden = false
+                self.imgBack.image = img
+                self.imgBack.backgroundColor = .white
+            }
+        }
         
         if arrData.count != 0 {
             
@@ -244,6 +259,28 @@ extension LicenseUploadViewController {
         }
         else if self.imgBack.image == nil{
             showAlertMessage(strMessage: "Please upload the back of your license.")
+        }
+        else if KabbaSync.isReady {
+            // Phase 4: both sides go straight into the Sync Engine's protected storage as two durable
+            // license_media.upload operations (stable client ids, replayed by Kabba, removed from the
+            // phone only after acceptance). Nothing is written to the legacy LicenseUpload folder.
+            guard let front = (self.imgFront.image ?? UIImage()).jpegData(compressionQuality: 0.25),
+                  let back = (self.imgBack.image ?? UIImage()).jpegData(compressionQuality: 0.25) else {
+                showAlertMessage(strMessage: "The license images could not be saved. Please retake them.")
+                return
+            }
+            do {
+                _ = try KabbaMediaSync.enqueueLicense(jpeg: front, side: "front", orderUniqueId: self.strOrderID)
+                _ = try KabbaMediaSync.enqueueLicense(jpeg: back, side: "back", orderUniqueId: self.strOrderID)
+            } catch {
+                showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
+                return
+            }
+            showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
+            self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                self.navigationController?.popViewController(animated: true)
+            }
         }
         else{
             //CALL API

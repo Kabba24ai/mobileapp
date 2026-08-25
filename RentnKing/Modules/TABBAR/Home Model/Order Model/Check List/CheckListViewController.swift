@@ -134,6 +134,12 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     var isUpdateMachineId : Bool = false
     var isUpdateMachineIdFirstTime : Bool = true
     var isQueueLine : Bool = false
+    // Phase 4 — the EXACT Queue Line item this screen was opened for (multi-line orders): the
+    // product to focus, the unit the yard staged, and the delivery checklist execution if the
+    // board already knew it. Empty when opened from Orders.
+    var focusOrderProductUniqueId : String = ""
+    var queueLineEquipmentUniqueId : String = ""
+    var queueLineChecklistExecutionId : String = ""
     var strSelectCategoty : String = ""
     var strSelectEquipment : String = ""
     var fromCheckListScreen: Bool = false
@@ -291,11 +297,24 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                     self.setupStaticData()
                     self.setTheView()
                     self.prefillPendingCheckListIfNeeded()
+                    self.focusQueueLineItemIfNeeded()
                     self.loadChecklistContexts()
 
                 }
                 
             }
+        }
+    }
+
+    /// Queue Line hand-off (Phase 4): select and scroll to the order product the staged item IS,
+    /// instead of defaulting to the first line of the order.
+    private func focusQueueLineItemIfNeeded() {
+        guard !focusOrderProductUniqueId.isEmpty, let order = self.objOrderData,
+              let index = order.arrProduct.firstIndex(where: { $0.unique_id == focusOrderProductUniqueId }) else { return }
+        self.selectProductIndex = index
+        DispatchQueue.main.async {
+            guard self.tblView.numberOfSections > index, self.tblView.numberOfRows(inSection: index) > 0 else { return }
+            self.tblView.scrollToRow(at: IndexPath(row: 0, section: index), at: .top, animated: false)
         }
     }
 
@@ -792,6 +811,8 @@ extension CheckListViewController{
             strVideoType: self.isDeliveryType ? "delivery" : "pickup"
         ).count
         if localCount > 0 { return true }
+        // Phase 4: media captured into the Sync Engine counts as present too.
+        if KabbaMediaSync.hasPendingMedia(orderUniqueId: self.strOrderUniqueId, kind: self.isDeliveryType ? .delivery : .pickup) { return true }
 
         return self.isDeliveryType ? self.objOrderData.arrProduct.contains { !$0.arrDeliveryMedia.isEmpty } : self.objOrderData.arrProduct.contains { !$0.arrPickupMedia.isEmpty }
     }
@@ -818,6 +839,11 @@ extension CheckListViewController{
             vc.selectIndex = self.selectIndex
             vc.objOrderDetail = listModel
             vc.strOrderID = self.strOrderUniqueId
+            // Phase 4: every photo/video is anchored to its product's checklist execution.
+            vc.checklistExecutionIds = self.checklistContexts.mapValues { $0.executionId }
+            if !self.queueLineChecklistExecutionId.isEmpty, !self.focusOrderProductUniqueId.isEmpty, vc.checklistExecutionIds[self.focusOrderProductUniqueId] == nil {
+                vc.checklistExecutionIds[self.focusOrderProductUniqueId] = self.queueLineChecklistExecutionId
+            }
             self.navigationController?.pushViewController(vc, animated: true)
         }
     }
@@ -2677,7 +2703,10 @@ extension CheckListViewController {
 
         for (index, product) in order.arrProduct.enumerated() {
             guard let uid = product.unique_id, !uid.isEmpty else { continue }
-            let chosenUnit = product.objMachine?.unique_id
+            // The unit the Queue Line staged travels with the hand-off; the server still decides
+            // (a different current assignment answers EQUIPMENT_ASSIGNMENT_CONFLICT, never a swap).
+            let queueUnit = (uid == self.focusOrderProductUniqueId && !self.queueLineEquipmentUniqueId.isEmpty) ? self.queueLineEquipmentUniqueId : nil
+            let chosenUnit = product.objMachine?.unique_id ?? queueUnit
             client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: chosenUnit) { [weak self] result, fromCache in
                 DispatchQueue.main.async {
                     guard let self = self, case .success(let context) = result else { return }

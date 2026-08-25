@@ -157,7 +157,8 @@ final class KabbaAPIClient: SyncHTTPClient {
                  extraHeaders: request.headers, operationId: request.operationId, completion: forward)
         } else {
             sendMultipart(method: request.method, path: request.path, fields: request.jsonBody, attachments: request.attachments,
-                          extraHeaders: request.headers, operationId: request.operationId, completion: forward)
+                          extraHeaders: request.headers, operationId: request.operationId,
+                          background: request.prefersBackgroundTransfer, completion: forward)
         }
     }
 
@@ -172,6 +173,7 @@ final class KabbaAPIClient: SyncHTTPClient {
                        attachments: [SyncAsset],
                        extraHeaders: [String: String] = [:],
                        operationId: String? = nil,
+                       background: Bool = false,
                        completion: @escaping (Result<SyncHTTPResponse, APIError>) -> Void) {
         guard let base = configuration.baseURL(), let url = KabbaAPIClient.resolve(path: path, against: base),
               let token = configuration.accessToken(), !token.isEmpty else {
@@ -184,9 +186,16 @@ final class KabbaAPIClient: SyncHTTPClient {
             return
         }
 
+        // Phase 4: media operations ask for a background transfer. The body is built in the
+        // protected uploads directory (it must outlive this process) and handed to the
+        // background URLSession; the Sync Engine keeps owning the operation.
+        let uploader = SyncBackgroundUploader.shared
+        let useBackground = background && uploader.isConfigured && operationId != nil
+        let bodyDirectory = useBackground ? (uploader.uploadsDirectory ?? FileManager.default.temporaryDirectory) : FileManager.default.temporaryDirectory
+
         let body: SyncMultipartBody
         do {
-            body = try SyncMultipartBuilder.build(fields: fields, assets: attachments, assetsDirectory: assetsDirectory)
+            body = try SyncMultipartBuilder.build(fields: fields, assets: attachments, assetsDirectory: assetsDirectory, directory: bodyDirectory)
         } catch SyncMultipartError.assetMissing(let relativePath) {
             completion(.failure(APIError.invalidRequest("A file for this operation is missing on the phone (\(relativePath)).")))
             return
@@ -203,6 +212,16 @@ final class KabbaAPIClient: SyncHTTPClient {
         for (key, value) in extraHeaders { headers[key] = value }
         for (key, value) in headers { urlRequest.setValue(value, forHTTPHeaderField: key) }
         urlRequest.setValue(body.contentType, forHTTPHeaderField: "Content-Type")
+
+        if useBackground, let operationId = operationId {
+            uploader.upload(urlRequest, bodyFileURL: body.fileURL, operationId: operationId, requestId: requestId) { result in
+                switch result {
+                case .response(let response): completion(.success(response))
+                case .failure(let error):     completion(.failure(error))
+                }
+            }
+            return
+        }
 
         let task = session.uploadTask(with: urlRequest, fromFile: body.fileURL) { [weak self] data, response, error in
             try? FileManager.default.removeItem(at: body.fileURL)

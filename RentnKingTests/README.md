@@ -18,6 +18,21 @@ covers one-operation-per-product, signature assets, multipart bracket fields,
 prepare, replay convergence and assignment conflicts; `LegacyChecklistMigrationTests`
 covers the legacy-queue conversion, quarantine reporting and the context cache.
 
+Phase 4 adds Queue Line item-level orchestration and media / driver's-license
+offline sync: `QueueLineOperationTests` (the durable `queue_line.mark_staged`
+command — payload/identity, request, offline → relaunch → reconnect, replay,
+409 conflict → Needs Attention, multi-line isolation, board overlay + freshness
+line), `MediaOperationTests` (protected file import with a stable
+`client_media_id`, multipart background-transfer request, offline/relaunch,
+lost-response replay, rejection keeps the file, cleanup ONLY after
+acknowledgment, discard), `ExternalTransferTests` (engine ↔ background
+URLSession hand-off: hold, complete, release), `LegacyMediaMigrationTests`
+(pure conversion of the legacy Core Data upload queue) and
+`Phase4ContractTests` (decodes the six Phase 4 shared fixtures:
+`queue_line_board_item`, `queue_line_mark_staged_success`,
+`queue_line_mark_staged_conflict`, `media_upload_success`,
+`media_upload_idempotent_replay`, `media_client_id_conflict`).
+
 Run them from the repo root:
 
 ```sh

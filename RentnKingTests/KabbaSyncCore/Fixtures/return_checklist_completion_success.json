@@ -2,19 +2,19 @@
     "success": true,
     "message": "Checklist saved successfully",
     "data": {
-        "checklist_execution_id": "ORD-CHK-SHNR-3M5T",
-        "order_product_unique_id": "ORD-SCH-XOYZ-SD66",
+        "checklist_execution_id": "ORD-CHK-SB7U-VUTT",
+        "order_product_unique_id": "ORD-SCH-0VIQ-DMUS",
         "leg": "return",
         "status": "completed",
         "cycle": 1,
         "already_completed": false,
-        "equipment_unique_id": "EQP-T0LF-QLI9",
-        "signature_media_id": 18,
+        "equipment_unique_id": "EQP-HGLA-3VZW",
+        "signature_media_id": 21,
         "signature_client_media_id": null,
-        "captured_at": "2026-08-25T17:40:01+00:00",
-        "completed_at": "2026-08-25T17:40:01+00:00",
-        "server_received_at": "2026-08-25T17:40:01+00:00",
+        "captured_at": "2026-08-25T20:27:12+00:00",
+        "completed_at": "2026-08-25T20:27:12+00:00",
+        "server_received_at": "2026-08-25T20:27:12+00:00",
         "damaged": false
     },
-    "request_id": "93852545-00ac-4a2d-a93a-1e223188fb51"
+    "request_id": "ce1bc044-991d-40dc-9dfa-67c0a67e4ca4"
 }

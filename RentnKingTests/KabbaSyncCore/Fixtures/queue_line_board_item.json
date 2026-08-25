@@ -1,0 +1,244 @@
+{
+    "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+    "order_unique_id": "ORD-9AXH-0BVD",
+    "order_number": "7719",
+    "customer_name": "Check Customer",
+    "identity": {
+        "queue_line_item_id": "ORD-SCH-7NDW-3GD2",
+        "order_unique_id": "ORD-9AXH-0BVD",
+        "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+        "equipment_unique_id": "EQP-1LPU-HAPV",
+        "store_unique_id": "STO-QG2Y-INE0",
+        "fulfillment_leg": "delivery",
+        "checklist_execution_id": null
+    },
+    "fulfillment_leg": "delivery",
+    "checklist": {
+        "delivery": {
+            "leg": "delivery",
+            "checklist_execution_id": null,
+            "status": "not_prepared",
+            "prepared_at": null,
+            "completed_at": null
+        }
+    },
+    "store": {
+        "unique_id": "STO-QG2Y-INE0",
+        "name": "Yard Store"
+    },
+    "product": {
+        "unique_id": "PRO-ZYHC-765D",
+        "name": "Skid Steer Rental",
+        "image_url": "http://api.kabba.local/storage/admin/images/error/No_Image_Available.jpg"
+    },
+    "delivery": {
+        "type_label": "Delivery Truck",
+        "transport_mode": "Truck",
+        "date": "2026-08-25",
+        "dispatch_date": null,
+        "time": null
+    },
+    "urgency": "today",
+    "assignment_state": "assignment_product_unknown",
+    "equipment": {
+        "unique_id": "EQP-1LPU-HAPV",
+        "display_id": "EQP-P3-6A8DFAA105DE4",
+        "name": "Skid Steer 6a8dfaa105de3",
+        "assigned_product_name": null,
+        "status": "available",
+        "status_label": "Available",
+        "power_source_type": "diesel",
+        "is_fuel": true,
+        "key_starting_mechanism": null,
+        "is_key": false,
+        "rental_ready": "Not Inspected"
+    },
+    "equipment_collection": {
+        "id": 20,
+        "unique_id": "EQP-1LPU-HAPV",
+        "equipment_name": "Skid Steer 6a8dfaa105de3",
+        "product_category_id": 0,
+        "equipment_id": "EQP-P3-6A8DFAA105DE4",
+        "equipment_hours": 0,
+        "is_tracked": "",
+        "overage_rate": 0,
+        "brand": "Bobcat",
+        "model": "",
+        "model_year": "",
+        "date_acquired": "",
+        "purchase_cost": 0,
+        "ownership_type": "",
+        "finance_company": "",
+        "term_in_months": 0,
+        "interest_rate": 0,
+        "monthly_payment": 0,
+        "vehicle_identification_number": "",
+        "serial_number": "",
+        "license_plate": "",
+        "imei": "",
+        "power_source_type": "diesel",
+        "key_starting_mechanism": "",
+        "is_fuel": true,
+        "is_key": false,
+        "has_def": "No",
+        "diesel_tank_capacity": 0,
+        "def_tank_capacity": 0,
+        "gas_tank_capacity": 0,
+        "standard_battery_count": 0,
+        "expanded_battery_count": 0,
+        "checklist_master_id": 8,
+        "equipment_notes": "",
+        "current_status": "Available",
+        "current_status_updated_by": "",
+        "current_status_changed_at": "",
+        "current_order_id": 0,
+        "current_order_product_id": 0,
+        "current_order_number": "",
+        "order_product": null,
+        "checklist_qas": [
+            {
+                "id": 33,
+                "unique_id": "CAQST-RMXB-5XOE",
+                "question_name": "Body damage",
+                "category_id": 17,
+                "question_delivery_text": "Any body damage at delivery?",
+                "question_return_text": "Any body damage at return?",
+                "required_question": 1,
+                "category": {
+                    "id": 17,
+                    "unique_id": "CACAT-FPKD-UKR2",
+                    "category_name": "Condition",
+                    "description": ""
+                },
+                "answers": [
+                    {
+                        "id": 65,
+                        "unique_id": "CAANS-9DPS-OAQG",
+                        "answer_delivery_text": "No damage",
+                        "answer_return_text": "No damage",
+                        "delivery_amt": 0,
+                        "return_amt": 0,
+                        "sync_texts": 1,
+                        "question_id": 33,
+                        "index_number": 1,
+                        "user_delivery_amount": 0,
+                        "user_return_amount": 0,
+                        "is_delivery_answer": false,
+                        "is_return_answer": false
+                    },
+                    {
+                        "id": 66,
+                        "unique_id": "CAANS-USJS-FDPB",
+                        "answer_delivery_text": "Damaged",
+                        "answer_return_text": "Damaged",
+                        "delivery_amt": 0,
+                        "return_amt": 150,
+                        "sync_texts": 1,
+                        "question_id": 33,
+                        "index_number": 2,
+                        "user_delivery_amount": 0,
+                        "user_return_amount": 0,
+                        "is_delivery_answer": false,
+                        "is_return_answer": false
+                    }
+                ]
+            },
+            {
+                "id": 34,
+                "unique_id": "CAQST-XRU0-H0WT",
+                "question_name": "Keys present",
+                "category_id": 17,
+                "question_delivery_text": "Keys handed over?",
+                "question_return_text": "Keys returned?",
+                "required_question": 0,
+                "category": {
+                    "id": 17,
+                    "unique_id": "CACAT-FPKD-UKR2",
+                    "category_name": "Condition",
+                    "description": ""
+                },
+                "answers": [
+                    {
+                        "id": 67,
+                        "unique_id": "CAANS-9P9G-BOVY",
+                        "answer_delivery_text": "Yes",
+                        "answer_return_text": "Yes",
+                        "delivery_amt": 0,
+                        "return_amt": 0,
+                        "sync_texts": 1,
+                        "question_id": 34,
+                        "index_number": 1,
+                        "user_delivery_amount": 0,
+                        "user_return_amount": 0,
+                        "is_delivery_answer": false,
+                        "is_return_answer": false
+                    },
+                    {
+                        "id": 68,
+                        "unique_id": "CAANS-ADB5-HYMO",
+                        "answer_delivery_text": "No",
+                        "answer_return_text": "No",
+                        "delivery_amt": 0,
+                        "return_amt": 0,
+                        "sync_texts": 1,
+                        "question_id": 34,
+                        "index_number": 2,
+                        "user_delivery_amount": 0,
+                        "user_return_amount": 0,
+                        "is_delivery_answer": false,
+                        "is_return_answer": false
+                    }
+                ]
+            }
+        ],
+        "rental_ready_checklist_questions": [],
+        "equipment_location": "-",
+        "equipment_location_detail": {
+            "state": "unanchored",
+            "state_label": "No Location",
+            "label": "-",
+            "place_name": null,
+            "physical_store_id": null,
+            "anchor_store_id": null,
+            "anchor_store_name": null,
+            "anchor_store_unique_id": null,
+            "external_location": null,
+            "order_id": null,
+            "order_number": null,
+            "order_unique_id": null,
+            "customer_name": null,
+            "customer_unique_id": null
+        },
+        "equipment_store": null
+    },
+    "options_count": 0,
+    "fuel": {
+        "state": "not_verified",
+        "verified_by": null,
+        "verified_at": null
+    },
+    "key": {
+        "state": "not_applicable",
+        "confirmed_by": null,
+        "confirmed_at": null
+    },
+    "payment_label": "No Payment Recorded",
+    "status": "pending",
+    "staged": false,
+    "staged_by": null,
+    "staged_at": null,
+    "performed_by": null,
+    "performed_at": null,
+    "fully_staged": false,
+    "completed": false,
+    "completed_at": null,
+    "is_fast_track": false,
+    "readiness": "staging_required",
+    "available_actions": {
+        "assign_equipment": false,
+        "switch_equipment": true,
+        "mark_staged": true,
+        "return_to_pending": false,
+        "view_history": true
+    }
+}

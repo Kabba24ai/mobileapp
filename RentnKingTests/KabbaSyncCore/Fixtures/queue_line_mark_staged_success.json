@@ -1,0 +1,44 @@
+{
+    "success": true,
+    "message": "Skid Steer 6a8dfaa105de3 marked as staged \u2014 ready for handoff.",
+    "data": {
+        "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+        "current_equipment": {
+            "unique_id": "EQP-1LPU-HAPV",
+            "display_id": "EQP-P3-6A8DFAA105DE4",
+            "name": "Skid Steer 6a8dfaa105de3",
+            "power_source_type": "diesel",
+            "key_starting_mechanism": null,
+            "is_fuel": true,
+            "is_key": false
+        },
+        "fully_staged": true,
+        "staged_by": "Field Employee",
+        "replayed": false,
+        "order_unique_id": "ORD-9AXH-0BVD",
+        "identity": {
+            "queue_line_item_id": "ORD-SCH-7NDW-3GD2",
+            "order_unique_id": "ORD-9AXH-0BVD",
+            "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+            "equipment_unique_id": "EQP-1LPU-HAPV",
+            "store_unique_id": "STO-QG2Y-INE0",
+            "fulfillment_leg": "delivery",
+            "checklist_execution_id": null
+        },
+        "checklist": {
+            "delivery": {
+                "leg": "delivery",
+                "checklist_execution_id": null,
+                "status": "not_prepared",
+                "prepared_at": null,
+                "completed_at": null
+            }
+        },
+        "status": "staged",
+        "staged_at": "2026-08-25T20:27:13+00:00",
+        "performed_by_unique_id": "PER-5DTA-TCFK",
+        "captured_at": "2026-08-25T14:15:00+00:00",
+        "server_received_at": "2026-08-25T20:27:13+00:00"
+    },
+    "request_id": "2847b7d8-0213-480d-bbab-1173d2bc63ac"
+}

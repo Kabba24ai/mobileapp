@@ -1,0 +1,19 @@
+{
+    "success": false,
+    "message": "This file was already uploaded for a different order item. It was not attached again.",
+    "error": {
+        "code": "MEDIA_CLIENT_ID_CONFLICT",
+        "message": "This file was already uploaded for a different order item. It was not attached again.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "MEDIA_CLIENT_ID_CONFLICT",
+    "data": {
+        "client_media_id": "fixture-client-media-0001",
+        "existing_order_unique_id": "ORD-9AXH-0BVD",
+        "existing_order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+        "existing_type": "delivery",
+        "existing_side": null
+    },
+    "request_id": "cb408669-f532-4e43-998a-6aa21f046316"
+}

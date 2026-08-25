@@ -614,6 +614,39 @@ final class QueueLineStageViewController: QueueLinePopupBase {
             params["key_with_machine"] = (keySegment.selectedSegmentIndex == 1)    // "With Machine"
         }
 
+        // Phase 4 — offline Mark as Staged for the CURRENTLY ASSIGNED unit: the command is saved
+        // durably on this phone first (one operation id, replayed by Kabba), the Delivery
+        // Checklist opens from the cached context, and the board shows Pending Sync until Kabba
+        // confirms. Reassign + stage stays an online call (the switch is not idempotent yet).
+        if !isReassign, KabbaSync.isReady, let item = self.item {
+            let command = QueueLineStageCommand(orderProductUniqueId: item.itemOrderProductUniqueId,
+                                                orderUniqueId: item.itemOrderUniqueId,
+                                                orderNumber: item.order_number ?? "",
+                                                productName: item.product?.name ?? "",
+                                                equipmentUniqueId: equipmentUniqueId,
+                                                equipmentName: item.equipment?.name ?? "",
+                                                performedByUniqueId: selectedEmployeeId,
+                                                performedByName: stagedByButton.title(for: .normal) ?? "",
+                                                fuelFull: item.equipment?.is_fuel == true ? (fuelSegment.selectedSegmentIndex == 1) : nil,
+                                                keyWithMachine: item.equipment?.is_key == true ? (keySegment.selectedSegmentIndex == 1) : nil)
+            let problems = command.localValidationProblems()
+            if let first = problems.first {
+                showAlertMessage(strMessage: first + ".")   // same rule Kabba enforces; never queue a doomed command
+                return
+            }
+            do {
+                _ = try KabbaQueueLineSync.enqueueMarkStaged(command)
+            } catch {
+                showAlertMessage(strMessage: "Could not save the staging on this phone. Please try again.")
+                return
+            }
+            self.dismiss(animated: true) {
+                self.onChanged?()
+                self.onStaged?(item)
+            }
+            return
+        }
+
         let strURL = "\(Url.queueLineMarkStaged(id).absoluteString ?? "")"
         let webHelper = WebServiceHelper()
         webHelper.strMethodName = "markStaged"

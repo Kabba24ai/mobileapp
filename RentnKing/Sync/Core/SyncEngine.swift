@@ -149,13 +149,63 @@ final class SyncEngine {
         }
     }
 
-    /// Explicit, person-initiated removal. The ONLY path that deletes an un-synced operation.
+    /// Explicit, person-initiated removal. The ONLY path that deletes an un-synced operation —
+    /// and, with it, the files it carried (a discarded photo is not evidence anyone wants kept).
     func discard(operationId: String) throws {
         try onQueueSync {
-            guard operations[operationId] != nil else { throw SyncEngineError.unknownOperation(operationId) }
+            guard let op = operations[operationId] else { throw SyncEngineError.unknownOperation(operationId) }
+            for asset in op.assets { SyncAssetWriter.remove(asset, in: store.assetsDirectory) }
             try store.delete(id: operationId)
             operations[operationId] = nil
             log("discarded \(short(operationId))")
+        }
+    }
+
+    // MARK: - External (background URLSession) transfers
+
+    /// The app's background uploader found THIS operation's request still in flight at
+    /// launch. Keep it out of the drain loop (state `.syncing`) until the transfer reports
+    /// back through completeExternalTransfer — re-sending now would race the live task.
+    func holdForExternalTransfer(operationId: String) {
+        queue.async { [weak self] in
+            guard let self = self, var op = self.operations[operationId], op.state == .pending else { return }
+            op.state = .syncing
+            self.operations[op.id] = op
+            self.persistQuietly(op)
+            self.emit(.operationChanged(op))
+            self.log("held for background transfer \(self.short(op.id))")
+        }
+    }
+
+    /// A background transfer that outlived the process (or the hold above) finished.
+    /// Records the result exactly like an in-process response would.
+    func completeExternalTransfer(operationId: String, result: SyncHTTPResult) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            guard let op = self.operations[operationId] else { return }
+            guard let handler = self.handlers[op.type] else {
+                var failed = op
+                self.applyFailure(&failed, APIError.invalidRequest("No handler for operation type \(op.type)"), now: self.clock())
+                self.operations[failed.id] = failed
+                self.persistQuietly(failed)
+                self.emit(.operationChanged(failed))
+                return
+            }
+            self.handle(result, operationId: operationId, handler: handler, fromDrain: false)
+        }
+    }
+
+    /// The background uploader lost track of a held operation (task gone, no result).
+    /// Back to pending so the drain loop re-sends it — idempotency makes that safe.
+    func releaseExternalHold(operationId: String) {
+        queue.async { [weak self] in
+            guard let self = self, var op = self.operations[operationId], op.state == .syncing else { return }
+            op.state = .pending
+            op.attempts.nextAttemptAt = nil
+            self.operations[op.id] = op
+            self.persistQuietly(op)
+            self.emit(.operationChanged(op))
+            self.drain()
         }
     }
 
@@ -289,14 +339,16 @@ final class SyncEngine {
         httpClient.perform(request) { [weak self] result in
             guard let self = self else { return }
             self.queue.async {
-                self.handle(result, operationId: operationId, handler: handler)
+                self.handle(result, operationId: operationId, handler: handler, fromDrain: true)
             }
         }
     }
 
-    private func handle(_ result: SyncHTTPResult, operationId: String, handler: SyncOperationHandler) {
+    /// `fromDrain` = this result belongs to the request the drain loop is waiting on; an
+    /// external (background-session) completion must never clear the drain flag.
+    private func handle(_ result: SyncHTTPResult, operationId: String, handler: SyncOperationHandler, fromDrain: Bool) {
         defer {
-            draining = false
+            if fromDrain { draining = false }
         }
 
         guard var op = operations[operationId] else {
@@ -325,7 +377,14 @@ final class SyncEngine {
                 op.attempts.lastErrorMessage = nil
                 op.attempts.lastTransportFailure = nil
                 op.attempts.lastDisposition = nil
-                log("synced \(op.type) \(short(op.id))\(ack.replayed ? " (replayed)" : "")")
+                // Local evidence is eligible for cleanup ONLY now — the server confirmed it.
+                for index in op.assets.indices {
+                    op.assets[index].acknowledgedAt = now
+                    if handler.removesAssetsAfterAcknowledgment {
+                        SyncAssetWriter.remove(op.assets[index], in: store.assetsDirectory)
+                    }
+                }
+                log("synced \(op.type) \(short(op.id))\(ack.replayed ? " (replayed)" : "")\(handler.removesAssetsAfterAcknowledgment && !op.assets.isEmpty ? " · local file removed" : "")")
             case .failed(let error):
                 continueDraining = applyFailure(&op, error, now: now)
             }

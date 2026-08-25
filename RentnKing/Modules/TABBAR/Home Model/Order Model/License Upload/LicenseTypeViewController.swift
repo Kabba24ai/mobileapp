@@ -211,6 +211,34 @@ extension LicenseTypeViewController {
         else if strYear == "" {
             showAlertMessage(strMessage: "Please select year.")
         }
+        else if KabbaSync.isReady {
+            // Phase 4: two durable license_media.upload operations carrying the expiry date and the
+            // auto-inject attribution — protected storage, stable client ids, offline-safe.
+            var strExpDate = ""
+            if let result = formattedDate(month: strMonth, year: strYear) { strExpDate = result }
+            guard let front = self.imgFront.jpegData(compressionQuality: 0.25),
+                  let back = self.imgBack.jpegData(compressionQuality: 0.25) else {
+                showAlertMessage(strMessage: "The license images could not be saved. Please retake them.")
+                return
+            }
+            do {
+                _ = try KabbaMediaSync.enqueueLicense(jpeg: front, side: "front", orderUniqueId: self.strOrderID,
+                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID)
+                _ = try KabbaMediaSync.enqueueLicense(jpeg: back, side: "back", orderUniqueId: self.strOrderID,
+                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID)
+            } catch {
+                showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
+                return
+            }
+            showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController || $0 is OrderDetailsViewController  }) {
+                    (targetViewController as? OrderListViewController)?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+                    (targetViewController as? OrderDetailsViewController)?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+        }
         else {
             //CALL API
             if self.saveImage(image: self.imgFront, orderID: self.strOrderID, imgName: "front") {

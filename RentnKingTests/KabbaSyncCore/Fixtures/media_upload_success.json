@@ -1,0 +1,26 @@
+{
+    "success": true,
+    "message": "Media uploaded successfully",
+    "data": {
+        "order_media_unique_id": "ORD-MED-CHOI-Y0QR",
+        "client_media_id": "fixture-client-media-0001",
+        "type": "delivery",
+        "leg": "delivery",
+        "side": null,
+        "order_unique_id": "ORD-9AXH-0BVD",
+        "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
+        "checklist_execution_id": "ORD-CHK-JZDU-BQDE",
+        "media": {
+            "url": "/storage/2026/08/orders/deliveries/Ma5JJX-media-photo.jpg",
+            "name": "Ma5JJX-media-photo.jpg",
+            "file_type": "image",
+            "mime_type": "image/jpeg",
+            "byte_size": 5491
+        },
+        "captured_at": "2026-08-25T15:00:00+00:00",
+        "created_at": "2026-08-25T20:27:13+00:00",
+        "server_received_at": "2026-08-25T20:27:13+00:00",
+        "already_uploaded": false
+    },
+    "request_id": "46c1d493-d1e2-4611-852d-e8b7f1d1080d"
+}

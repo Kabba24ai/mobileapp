@@ -18,21 +18,27 @@ struct SyncHTTPRequest: Equatable {
     var jsonBody: JSONValue?
     /// The operation's idempotency key; the client sends it as X-Operation-Id.
     var operationId: String
-    /// Files to attach as multipart parts (future media operations). Empty → JSON body.
+    /// Files to attach as multipart parts (media operations). Empty → JSON body.
     var attachments: [SyncAsset]
+    /// Large-file hint (Phase 4): the app's HTTP client may hand the transfer to a
+    /// background URLSession that survives suspension; the Sync Engine still owns the
+    /// operation, its state and the acknowledgment.
+    var prefersBackgroundTransfer: Bool
 
     init(method: String = "POST",
          path: String,
          headers: [String: String] = [:],
          jsonBody: JSONValue? = nil,
          operationId: String,
-         attachments: [SyncAsset] = []) {
+         attachments: [SyncAsset] = [],
+         prefersBackgroundTransfer: Bool = false) {
         self.method = method
         self.path = path
         self.headers = headers
         self.jsonBody = jsonBody
         self.operationId = operationId
         self.attachments = attachments
+        self.prefersBackgroundTransfer = prefersBackgroundTransfer
     }
 }
 
@@ -86,6 +92,9 @@ protocol SyncOperationHandler {
     var operationType: String { get }
     func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest
     func interpret(_ response: SyncHTTPResponse, for operation: SyncOperation, now: Date) -> SyncOutcome
+    /// Media handlers return true: the engine deletes the operation's local files the
+    /// moment Laravel acknowledges it (MediaCleanupPolicy). Everything else keeps them.
+    var removesAssetsAfterAcknowledgment: Bool { get }
 }
 
 extension SyncOperationHandler {
@@ -93,6 +102,8 @@ extension SyncOperationHandler {
     func interpret(_ response: SyncHTTPResponse, for operation: SyncOperation, now: Date) -> SyncOutcome {
         SyncResponseInterpreter.interpret(response, now: now)
     }
+
+    var removesAssetsAfterAcknowledgment: Bool { false }
 }
 
 enum SyncResponseInterpreter {

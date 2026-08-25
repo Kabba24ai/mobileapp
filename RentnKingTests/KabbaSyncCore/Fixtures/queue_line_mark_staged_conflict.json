@@ -1,0 +1,20 @@
+{
+    "success": false,
+    "message": "The assignment changed \u2014 this item is now Skid Steer 6a8dfaa110967, not Skid Steer 6a8dfaa10ff67. Refresh and verify the machine actually staged.",
+    "error": {
+        "code": "QUEUE_ASSIGNMENT_CHANGED",
+        "message": "The assignment changed \u2014 this item is now Skid Steer 6a8dfaa110967, not Skid Steer 6a8dfaa10ff67. Refresh and verify the machine actually staged.",
+        "retryable": false,
+        "corrective_action": "Refresh the item and act on the machine currently assigned.",
+        "current_equipment": {
+            "unique_id": "EQP-IDVK-5YAI",
+            "display_id": "EQP-P3-6A8DFAA110968",
+            "name": "Skid Steer 6a8dfaa110967",
+            "power_source_type": "diesel",
+            "key_starting_mechanism": null,
+            "is_fuel": true,
+            "is_key": false
+        }
+    },
+    "request_id": "5e67b7b2-87ba-444e-a85a-620c90103031"
+}

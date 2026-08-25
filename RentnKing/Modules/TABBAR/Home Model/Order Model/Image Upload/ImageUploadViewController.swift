@@ -40,6 +40,9 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     var arrImageVideoLisr : [ImageVideoModel] = []
     var arrImageVideoList: [String: [ImageVideoModel]] = [:]
     var strType : String = ""
+    /// Phase 4 — order product unique_id → Phase 3 checklist execution id, so each photo/video
+    /// is anchored to the exact checklist it documents (set by CheckListViewController).
+    var checklistExecutionIds: [String: String] = [:]
     private var playerVC: AVPlayerViewController?
     /// Token for the block-based AVPlayerItem observer, so it can be removed (it isn't auto-removed).
     private var videoFailObserver: NSObjectProtocol?
@@ -228,6 +231,27 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
                 }
             }
             
+            // 🔹 Step 3b (Phase 4): files still held by the Sync Engine for this order/leg — the
+            // employee sees what they captured while it is Pending Sync or Needs Attention.
+            let engineKind: MediaKind = (self.strType == "pickup") ? .pickup : .delivery
+            for pending in KabbaMediaSync.pendingItems(orderUniqueId: self.strOrderID, kind: engineKind) {
+                let strOrderProductID = pending.orderProductUniqueId ?? ""
+                if mergedArrImageVideoList[strOrderProductID] == nil {
+                    mergedArrImageVideoList[strOrderProductID] = []
+                }
+                if pending.isVideo {
+                    if let thumb = self.getThumbnailImage(forUrl: pending.fileURL) {
+                        let objData = ImageVideoModel(type: "video", image: thumb, strVideo: pending.fileURL, strUrl: "", productId: strOrderProductID)
+                        mergedArrImageVideoLisr.append(objData)
+                        mergedArrImageVideoList[strOrderProductID]?.append(objData)
+                    }
+                } else if let img = Self.downsampledImage(at: pending.fileURL, maxPixel: 1024) {
+                    let objData = ImageVideoModel(type: "img", image: img, strVideo: URL(fileURLWithPath: ""), strUrl: "", productId: strOrderProductID)
+                    mergedArrImageVideoLisr.append(objData)
+                    mergedArrImageVideoList[strOrderProductID]?.append(objData)
+                }
+            }
+
             // 🔹 Step 4: Update UI
             DispatchQueue.main.async {
                 self.arrImageVideoLisr = mergedArrImageVideoLisr
@@ -440,6 +464,28 @@ extension ImageUploadViewController {
                             return
                         }
 
+                        // Phase 4: the compressed file is MOVED into the Sync Engine's protected
+                        // storage and ONE durable upload operation is recorded for it — explicit
+                        // order product + checklist execution, stable client_media_id, retried
+                        // until Kabba acknowledges it, never deleted on failure.
+                        if KabbaSync.isReady {
+                            let productName = self.objOrderDetail?.arrProduct.first(where: { $0.unique_id == obj.productId })?.product_name ?? ""
+                            do {
+                                _ = try KabbaMediaSync.enqueueFile(at: uploadPath.appendingPathComponent(fileName),
+                                                                   kind: self.strType == "pickup" ? .pickup : .delivery,
+                                                                   orderUniqueId: self.strOrderID,
+                                                                   orderProductUniqueId: obj.productId,
+                                                                   checklistExecutionId: self.checklistExecutionIds[obj.productId],
+                                                                   mimeType: isImage ? "image/jpeg" : "video/quicktime",
+                                                                   label: productName)
+                                arrData.remove(at: 0)
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                                return
+                            } catch {
+                                debugPrint("Media: could not enqueue into the Sync Engine (\(error)) — falling back to the legacy queue")
+                            }
+                        }
+
                         let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: isImage, name: fileName, videoType: self.strType, productID: obj.productId)
 
                         CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: saveParams) { isSave in
@@ -455,9 +501,9 @@ extension ImageUploadViewController {
             }
         }
         else{
-            //SUCCESS
+            //SUCCESS — saved durably on this phone; the Sync Engine uploads it (Pending Sync until Kabba confirms).
             indicatorHide()
-            showAlertMessage(strMessage: "Uploaded Successfully", isDismiss: true)
+            showAlertMessage(strMessage: KabbaSync.isReady ? "Saved on this phone · Pending Sync" : "Uploaded Successfully", isDismiss: true)
            
             //UPLOAD LOCAL DATA
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){

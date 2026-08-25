@@ -72,6 +72,11 @@ enum KabbaSync {
                                         ChecklistPrepareSyncHandler(leg: .return, hasSession: hasSession),
                                         LegacyChecklistSubmitSyncHandler(hasSession: hasSession),
                                         FulfillmentInputsSyncHandler(hasSession: hasSession),
+                                        // Phase 4 — Queue Line item-level orchestration + media / licence offline sync
+                                        QueueLineStageSyncHandler(hasSession: hasSession),
+                                        MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),
+                                        MediaUploadSyncHandler(kind: .pickup, hasSession: hasSession),
+                                        MediaUploadSyncHandler(kind: .license, hasSession: hasSession),
                                     ])
 
             let contextStore = try ChecklistContextStore(rootDirectory: root)
@@ -98,7 +103,20 @@ enum KabbaSync {
             registerBackgroundRefresh()
             observeLifecycle()
             engine.pruneSynced()
-            engine.kick(reason: "launch")
+
+            // Phase 4 — background transfers. Results that arrive after a relaunch go straight to
+            // the engine; operations whose upload task is STILL alive are held so the launch kick
+            // cannot re-send them. The first drain waits for that answer (a few ms) — a missed
+            // hold would only cost a duplicate request the server converges anyway.
+            let uploader = SyncBackgroundUploader.shared
+            uploader.configure(rootDirectory: root)
+            uploader.externalCompletion = { operationId, result in
+                engine.completeExternalTransfer(operationId: operationId, result: result)
+            }
+            uploader.restore { inFlight in
+                inFlight.forEach { engine.holdForExternalTransfer(operationId: $0) }
+                engine.kick(reason: "launch")
+            }
         } catch {
             // The engine stays nil; legacy code paths keep working exactly as before.
             #if DEBUG

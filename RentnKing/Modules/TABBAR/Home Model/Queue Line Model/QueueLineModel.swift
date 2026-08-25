@@ -39,6 +39,11 @@ struct QueueLineModel: Mappable {
     internal var staged_at: String?     // timestamp it was staged
     internal var is_fast_track: Bool?   // FAST TRACK tag (shown on Completed cards)
 
+    // Phase 4 — canonical item identity + delivery-checklist state (additive server fields).
+    internal var identity: QueueLineIdentity?
+    internal var checklist: QueueLineChecklist?
+    internal var fulfillment_leg: String?
+
     init?(map: Map) { mapping(map: map) }
 
     mutating func mapping(map: Map) {
@@ -68,6 +73,63 @@ struct QueueLineModel: Mappable {
         staged_by        <- map["staged_by"]
         staged_at        <- map["staged_at"]
         is_fast_track    <- map["is_fast_track"]
+        identity         <- map["identity"]
+        checklist        <- map["checklist"]
+        fulfillment_leg  <- map["fulfillment_leg"]
+    }
+
+    /// The Queue Line item IS the order product. Prefer the explicit identity block; fall back
+    /// to the top-level field for boards served before Phase 4.
+    var itemOrderProductUniqueId: String { identity?.order_product_unique_id ?? order_product_unique_id ?? "" }
+    var itemOrderUniqueId: String { identity?.order_unique_id ?? order_unique_id ?? "" }
+    var itemEquipmentUniqueId: String? { identity?.equipment_unique_id ?? equipment?.unique_id }
+    var deliveryChecklistExecutionId: String? { checklist?.delivery?.checklist_execution_id ?? identity?.checklist_execution_id }
+    var deliveryChecklistStatus: String { checklist?.delivery?.status ?? "not_prepared" }
+}
+
+// MARK: - Phase 4 identity / checklist blocks
+
+struct QueueLineIdentity: Mappable {
+    internal var queue_line_item_id: String?
+    internal var order_unique_id: String?
+    internal var order_product_unique_id: String?
+    internal var equipment_unique_id: String?
+    internal var store_unique_id: String?
+    internal var fulfillment_leg: String?
+    internal var checklist_execution_id: String?
+    init?(map: Map) { mapping(map: map) }
+    mutating func mapping(map: Map) {
+        queue_line_item_id      <- map["queue_line_item_id"]
+        order_unique_id         <- map["order_unique_id"]
+        order_product_unique_id <- map["order_product_unique_id"]
+        equipment_unique_id     <- map["equipment_unique_id"]
+        store_unique_id         <- map["store_unique_id"]
+        fulfillment_leg         <- map["fulfillment_leg"]
+        checklist_execution_id  <- map["checklist_execution_id"]
+    }
+}
+
+struct QueueLineChecklist: Mappable {
+    internal var delivery: QueueLineChecklistLegState?
+    init?(map: Map) { mapping(map: map) }
+    mutating func mapping(map: Map) {
+        delivery <- map["delivery"]
+    }
+}
+
+struct QueueLineChecklistLegState: Mappable {
+    internal var leg: String?
+    internal var checklist_execution_id: String?
+    internal var status: String?          // not_prepared | prepared | completed
+    internal var prepared_at: String?
+    internal var completed_at: String?
+    init?(map: Map) { mapping(map: map) }
+    mutating func mapping(map: Map) {
+        leg                    <- map["leg"]
+        checklist_execution_id <- map["checklist_execution_id"]
+        status                 <- map["status"]
+        prepared_at            <- map["prepared_at"]
+        completed_at           <- map["completed_at"]
     }
 }
 
@@ -208,9 +270,12 @@ extension QueueLineViewController {
                   data.getStringForID(key: "success") == "1",
                   let dataDic = data["data"] as? NSDictionary,
                   let itemsDic = dataDic["items"] as? NSDictionary else {
+                // Phase 4: remember that the cached list is now STALE — the board says so.
+                KabbaQueueLineSync.recordServerRefresh(succeeded: false)
                 completion(false)
                 return
             }
+            KabbaQueueLineSync.recordServerRefresh(succeeded: true)
 
             // "items" is now grouped: { pending: [...], staged: [...], completed: [...] }
             func mapGroup(_ key: String) -> [QueueLineModel] {

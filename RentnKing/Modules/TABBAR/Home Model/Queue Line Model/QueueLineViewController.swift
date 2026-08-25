@@ -40,6 +40,12 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // Data
     var arrQueueLine: [QueueLineModel] = []
 
+    // Phase 4 — local sync state overlaid on the server/cached items (Pending Sync / Sync Issue),
+    // plus the freshness line that tells server-confirmed data from a saved list.
+    private var syncOverlay = QueueLineLocalOverlay()
+    private let freshnessLabel = UILabel()
+    private var syncObserver: NSObjectProtocol?
+
     // Shimmer skeleton shown while the first load is in progress (same Placeholder lib as Dispatch).
     private let queuePlaceholder = Placeholder()
     private var isShowingSkeleton = false
@@ -60,9 +66,33 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         // FIXED HEADER (does not scroll): Pending / Staged / Completed tabs.
         headerStack.addArrangedSubview(buildTabs())
 
+        // Freshness line (Phase 4): "Updated just now" / "Offline · showing the list saved at 10:42 AM".
+        freshnessLabel.font = .systemFont(ofSize: 12, weight: .medium)
+        freshnessLabel.textColor = Palette.subtle
+        freshnessLabel.numberOfLines = 1
+        freshnessLabel.textAlignment = .center
+        headerStack.addArrangedSubview(freshnessLabel)
+        headerStack.setCustomSpacing(6, after: freshnessLabel)
+        updateFreshnessLine()
+
+        // Re-render when a queued staging command changes state (synced, needs attention…).
+        syncObserver = NotificationCenter.default.addObserver(forName: .kabbaSyncQueueChanged, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self, !self.arrQueueLine.isEmpty else { return }
+            self.renderLanes()
+        }
+
         // Show the first tab (Pending) as selected immediately — before data loads — instead
         // of leaving all three tabs looking unselected during the shimmer.
         selectTab(selectedTab)
+    }
+
+    deinit {
+        if let observer = syncObserver { NotificationCenter.default.removeObserver(observer) }
+    }
+
+    private func updateFreshnessLine() {
+        freshnessLabel.text = KabbaQueueLineSync.freshnessLine(pendingCount: syncOverlay.pendingStage.count)
+        freshnessLabel.textColor = KabbaQueueLineSync.lastRefreshFailed ? Palette.amber : Palette.subtle
     }
 
     // MARK: - Data
@@ -99,9 +129,20 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         laneContents.removeAll()
 
-        let pendingItems   = arrQueueLine.filter { ($0.status ?? "") == "pending" }
-        let stagedItems    = arrQueueLine.filter { ($0.status ?? "") == "staged" }
-        let completedItems = arrQueueLine.filter { ($0.status ?? "") == "completed" || $0.completed == true }
+        // Phase 4 overlay: an item with a staging command still on this phone shows in the
+        // Staged lane with a Pending Sync tag; a rejected command stays where the server has
+        // it, tagged Sync Issue. Server truth is never overwritten in the cache.
+        syncOverlay = KabbaQueueLineSync.overlay()
+        updateFreshnessLine()
+        func lane(_ item: QueueLineModel) -> String {
+            let server = (item.status ?? "") == "completed" || item.completed == true ? "completed" : (item.status ?? "pending")
+            if server == "pending", syncOverlay.isPendingStage(item.itemOrderProductUniqueId) { return "staged" }
+            return server
+        }
+
+        let pendingItems   = arrQueueLine.filter { lane($0) == "pending" }
+        let stagedItems    = arrQueueLine.filter { lane($0) == "staged" }
+        let completedItems = arrQueueLine.filter { lane($0) == "completed" }
 
         let pending = makeLaneContent(cards(for: pendingItems,
             empty: "Nothing pending — every order has a machine assigned, fueled, and staged."))
@@ -188,6 +229,11 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // MARK: - Thumbs-up → stage / staged-info popup
     @objc private func thumbTapped(_ sender: QueueMenuButton) {
         guard let item = sender.item else { return }
+        if syncOverlay.isPendingStage(item.itemOrderProductUniqueId) {
+            // Staged on this phone, not yet confirmed by Kabba — nothing to undo server-side yet.
+            showAlertMessage(strMessage: "This machine was marked as staged on this phone and is waiting to sync with Kabba. It will appear as staged for everyone once the connection returns.")
+            return
+        }
         if item.staged == true {
             let vc = QueueLineStagedInfoViewController()
             vc.item = item
@@ -206,16 +252,23 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         }
     }
 
-    /// Opens the Delivery Checklist for a just-staged order (prepare-before-arrival flow).
+    /// Opens the Delivery Checklist for a just-staged item (prepare-before-arrival flow).
     /// Uses the same controller/identifiers Orders uses, so the screen stays independently usable.
+    ///
+    /// Phase 4: the EXACT Queue Line item identity travels with the navigation — order product,
+    /// assigned equipment, fulfillment leg and (when known) the checklist execution — so a
+    /// multi-line order can never open on the wrong product.
     private func openDeliveryChecklist(for item: QueueLineModel) {
         let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         guard let vc = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return }
         vc.isQueueLine = true
         vc.isDeliveryType = true
         vc.selectIndex = 0
-        vc.strOrderUniqueId = item.order_unique_id ?? ""
+        vc.strOrderUniqueId = item.itemOrderUniqueId
         vc.strOrderID = "\(item.order_number ?? "")"
+        vc.focusOrderProductUniqueId = item.itemOrderProductUniqueId
+        vc.queueLineEquipmentUniqueId = item.itemEquipmentUniqueId ?? ""
+        vc.queueLineChecklistExecutionId = item.deliveryChecklistExecutionId ?? ""
         self.navigationController?.pushViewController(vc, animated: true)
     }
 
@@ -633,6 +686,13 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         if (item.urgency ?? "").lowercased() == "rush" {
             headerViews.append(makeBadge("RUSH", bg: .redText, text: .white, bordered: false))
         }
+        // Phase 4 — local sync state (never implies the server confirmed anything).
+        let productKey = item.itemOrderProductUniqueId
+        if syncOverlay.isPendingStage(productKey) {
+            headerViews.append(makeBadge("Pending Sync", bg: .clear, text: Palette.amber, bordered: true))
+        } else if syncOverlay.attentionReason(productKey) != nil {
+            headerViews.append(makeBadge("Sync Issue", bg: .clear, text: .redText, bordered: true))
+        }
 
         // Completed cards: no thumbs-up. Show a FAST TRACK tag when flagged.
         let isCompleted = (item.status ?? "") == "completed" || item.completed == true
@@ -695,6 +755,10 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
 
         var machineViews: [UIView] = [name, code]
         for badge in statusBadges(for: item) { machineViews.append(leftAlign(badge)) }
+        // Phase 4 — delivery checklist prepared on a phone (Phase 3 execution state from the server).
+        if !isCompleted, item.deliveryChecklistStatus == "prepared" {
+            machineViews.append(leftAlign(makeBadge("Checklist Prepared", bg: .clear, text: Palette.cyan, bordered: true)))
+        }
         let info = UIStackView(arrangedSubviews: machineViews)
         info.axis = .vertical
         info.spacing = 6

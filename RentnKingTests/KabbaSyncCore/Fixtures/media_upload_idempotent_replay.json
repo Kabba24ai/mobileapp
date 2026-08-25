@@ -1,0 +1,28 @@
+{
+    "data": {
+        "leg": "delivery",
+        "side": null,
+        "type": "delivery",
+        "media": {
+            "url": "/storage/2026/08/orders/deliveries/Ma5JJX-media-photo.jpg",
+            "name": "Ma5JJX-media-photo.jpg",
+            "byte_size": 5491,
+            "file_type": "image",
+            "mime_type": "image/jpeg"
+        },
+        "created_at": "2026-08-25T20:27:13+00:00",
+        "captured_at": "2026-08-25T15:00:00+00:00",
+        "client_media_id": "fixture-client-media-0001",
+        "order_unique_id": "ORD-9AXH-0BVD",
+        "already_uploaded": false,
+        "server_received_at": "2026-08-25T20:27:13+00:00",
+        "order_media_unique_id": "ORD-MED-CHOI-Y0QR",
+        "checklist_execution_id": "ORD-CHK-JZDU-BQDE",
+        "order_product_unique_id": "ORD-SCH-7NDW-3GD2"
+    },
+    "message": "Media uploaded successfully",
+    "success": true,
+    "request_id": "5c2e339a-6fb8-4f31-b480-55771da4f6cc",
+    "replayed": true,
+    "original_request_id": "46c1d493-d1e2-4611-852d-e8b7f1d1080d"
+}

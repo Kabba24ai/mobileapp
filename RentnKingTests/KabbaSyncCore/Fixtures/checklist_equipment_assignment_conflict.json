@@ -9,8 +9,8 @@
     "errors": [],
     "error_code": "EQUIPMENT_ASSIGNMENT_CONFLICT",
     "data": {
-        "assigned_equipment_unique_id": "EQP-FNP2-TEHC",
-        "submitted_equipment_unique_id": "EQP-PDIQ-4SC7"
+        "assigned_equipment_unique_id": "EQP-EGRO-FQ1D",
+        "submitted_equipment_unique_id": "EQP-VJB1-VQTS"
     },
-    "request_id": "8b642c4c-d97f-4579-9099-64cf98f51b26"
+    "request_id": "9a55ade5-39d0-445e-af5c-9e5ab32262ed"
 }

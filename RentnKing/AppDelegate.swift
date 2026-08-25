@@ -228,6 +228,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String, completionHandler: @escaping () -> Void) {
+        // Phase 4: the Sync Engine's media transfers have their own background session.
+        if identifier == SyncBackgroundUploader.sessionIdentifier {
+            SyncBackgroundUploader.shared.handleEvents(completionHandler: completionHandler)
+            return
+        }
         BackgroundUploader.shared.setSystemCompletionHandler(completionHandler)
       }
 
@@ -241,6 +246,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     
 
     @objc func uploadAllData() {
+        // Phase 4: with the Sync Engine up, anything still in the legacy Core Data upload queue is
+        // migrated into per-file operations (files moved into protected storage, rows stamped
+        // MIGRATED / QUARANTINED — never deleted) and the engine drains. This entry point is only
+        // reached once the legacy BackgroundUploader reported no in-flight tasks, so a legacy
+        // upload that is about to finish is never uploaded twice. The legacy uploader below runs
+        // only if the engine is unavailable.
+        if KabbaSync.isReady {
+            migrateLegacyMediaQueueIntoSyncEngine()
+            KabbaSync.kick("media", ignoreBackoff: true)
+            return
+        }
+
         if NetworkReachabilityManager()?.isReachable == true {
             //GET ORDER DATA
             let arrAllData = CoreDBManager.sharedDatabase.getAllUploadDATA()
