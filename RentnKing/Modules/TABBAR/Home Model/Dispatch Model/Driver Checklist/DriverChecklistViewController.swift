@@ -845,8 +845,10 @@ extension DriverChecklistViewController {
         })
         
         
-        saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType)
+        // Durably queued (Sync Engine) before the UI moves on; the toast reports Pending Sync → Synced.
+        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType)
         syncDriverChecklistWithAPI()
+        KabbaSync.showStatusToast(for: readyToGoOperationId)
         
         
         // Show On My Way status view, hide checklist
@@ -1005,7 +1007,7 @@ extension DriverChecklistViewController {
         
         
                 
-        saveDriverChecklistLocally(
+        let arrivedOperationId = saveDriverChecklistLocally(
             order_product_unique_id: self.productUniqueId,
             equipment_fuel:          self.strDoubleCheck, call_customer: self.strCallCustomer,
             equipment_key_location:  self.strKeys,
@@ -1013,6 +1015,7 @@ extension DriverChecklistViewController {
             checklist_type: self.checklistType
         )
         syncDriverChecklistWithAPI()
+        KabbaSync.showStatusToast(for: arrivedOperationId)
         
         // Set current date & time
         let formatter = DateFormatter()

@@ -7,6 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5C00000000000000000002 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000001 /* JSONValue.swift */; };
+		5A5C00000000000000000004 /* KabbaDateFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000003 /* KabbaDateFormats.swift */; };
+		5A5C00000000000000000006 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000005 /* APIError.swift */; };
+		5A5C00000000000000000008 /* APIEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000007 /* APIEnvelope.swift */; };
+		5A5C0000000000000000000A /* SyncOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000009 /* SyncOperation.swift */; };
+		5A5C0000000000000000000C /* SyncOperationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000B /* SyncOperationStore.swift */; };
+		5A5C0000000000000000000E /* SyncHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000D /* SyncHTTP.swift */; };
+		5A5C00000000000000000010 /* SyncRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000F /* SyncRetryPolicy.swift */; };
+		5A5C00000000000000000012 /* SyncDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000011 /* SyncDiagnostics.swift */; };
+		5A5C00000000000000000014 /* InstallationIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000013 /* InstallationIdentity.swift */; };
+		5A5C00000000000000000016 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000015 /* SyncEngine.swift */; };
+		5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000017 /* KabbaAPIClient.swift */; };
+		5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */; };
+		5A5C0000000000000000001C /* KabbaSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001B /* KabbaSync.swift */; };
+		5A5C0000000000000000001E /* SyncStatusUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001D /* SyncStatusUI.swift */; };
+		5A5C00000000000000000020 /* KabbaSyncAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001F /* KabbaSyncAppearance.swift */; };
 		001D08292E8FFE33004F4B13 /* CategoryListFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D08282E8FFE25004F4B13 /* CategoryListFile.swift */; };
 		001D082B2E900062004F4B13 /* kEnum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001D082A2E90005E004F4B13 /* kEnum.swift */; };
 		004DC9262F06660D00E70DCF /* SyncEquipment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004DC9252F0665F600E70DCF /* SyncEquipment.swift */; };
@@ -291,6 +307,22 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5C00000000000000000001 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000003 /* KabbaDateFormats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaDateFormats.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000005 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000007 /* APIEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEnvelope.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000009 /* SyncOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncOperation.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000000B /* SyncOperationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncOperationStore.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000000D /* SyncHTTP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncHTTP.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000000F /* SyncRetryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRetryPolicy.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000011 /* SyncDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDiagnostics.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000013 /* InstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentity.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000015 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000017 /* KabbaAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaAPIClient.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistSyncHandler.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000001B /* KabbaSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSync.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000001D /* SyncStatusUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusUI.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000001F /* KabbaSyncAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSyncAppearance.swift; sourceTree = "<group>"; };
 		001D08282E8FFE25004F4B13 /* CategoryListFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryListFile.swift; sourceTree = "<group>"; };
 		001D082A2E90005E004F4B13 /* kEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kEnum.swift; sourceTree = "<group>"; };
 		004DC9252F0665F600E70DCF /* SyncEquipment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEquipment.swift; sourceTree = "<group>"; };
@@ -699,6 +731,7 @@
 				C521CB492E52F04700EB19FD /* BackgroundUploadManager.swift */,
 				C5BEC26D2B92C37300532C54 /* EventCalender.swift */,
 				C5FACF6D2E45C6AB00D933A7 /* UserModel.swift */,
+				5A5C00000000000000000384 /* Sync */,
 				C51AF5342AD178130042589E /* Storyboard */,
 				C51AF52A2AD178130042589E /* Modules */,
 				C51AF5242AD177DF0042589E /* Info.plist */,
@@ -1602,6 +1635,45 @@
 			path = "Warning Checklist";
 			sourceTree = "<group>";
 		};
+		5A5C00000000000000000384 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000385 /* Core */,
+				5A5C00000000000000000386 /* App */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
+		5A5C00000000000000000385 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000001 /* JSONValue.swift */,
+				5A5C00000000000000000003 /* KabbaDateFormats.swift */,
+				5A5C00000000000000000005 /* APIError.swift */,
+				5A5C00000000000000000007 /* APIEnvelope.swift */,
+				5A5C00000000000000000009 /* SyncOperation.swift */,
+				5A5C0000000000000000000B /* SyncOperationStore.swift */,
+				5A5C0000000000000000000D /* SyncHTTP.swift */,
+				5A5C0000000000000000000F /* SyncRetryPolicy.swift */,
+				5A5C00000000000000000011 /* SyncDiagnostics.swift */,
+				5A5C00000000000000000013 /* InstallationIdentity.swift */,
+				5A5C00000000000000000015 /* SyncEngine.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		5A5C00000000000000000386 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000017 /* KabbaAPIClient.swift */,
+				5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */,
+				5A5C0000000000000000001B /* KabbaSync.swift */,
+				5A5C0000000000000000001D /* SyncStatusUI.swift */,
+				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1778,6 +1850,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A5C00000000000000000002 /* JSONValue.swift in Sources */,
+				5A5C00000000000000000004 /* KabbaDateFormats.swift in Sources */,
+				5A5C00000000000000000006 /* APIError.swift in Sources */,
+				5A5C00000000000000000008 /* APIEnvelope.swift in Sources */,
+				5A5C0000000000000000000A /* SyncOperation.swift in Sources */,
+				5A5C0000000000000000000C /* SyncOperationStore.swift in Sources */,
+				5A5C0000000000000000000E /* SyncHTTP.swift in Sources */,
+				5A5C00000000000000000010 /* SyncRetryPolicy.swift in Sources */,
+				5A5C00000000000000000012 /* SyncDiagnostics.swift in Sources */,
+				5A5C00000000000000000014 /* InstallationIdentity.swift in Sources */,
+				5A5C00000000000000000016 /* SyncEngine.swift in Sources */,
+				5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */,
+				5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */,
+				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
+				5A5C0000000000000000001E /* SyncStatusUI.swift in Sources */,
+				5A5C00000000000000000020 /* KabbaSyncAppearance.swift in Sources */,
 				C52610622EFACCFE00501352 /* EqupmentFile.swift in Sources */,
 				C51AF5F92AD178220042589E /* BlinkAnimatorConfigurable.swift in Sources */,
 				C5474AA52D8A9993004277AC /* NotesVC.swift in Sources */,

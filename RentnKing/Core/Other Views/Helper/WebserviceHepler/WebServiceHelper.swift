@@ -115,6 +115,10 @@ class WebServiceHelper: NSObject {
                     request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                 }
                 request.addValue(UserDefaults.standard.language, forHTTPHeaderField: "lang")
+                // Phase 1 contract: X-Request-Id + mobile build metadata on every request (Authorization already set above).
+                for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
+                    request.setValue(headerValue, forHTTPHeaderField: headerName)
+                }
 
                 //Pass paramater with value data
                 //if methodType == "post" || methodType == "put"{
@@ -130,6 +134,9 @@ class WebServiceHelper: NSObject {
                 let manager = AF
                 manager.request(request).responseData{
                     (response) in
+                        // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
+                        let httpStatusCode = response.response?.statusCode
+                        if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
                     
                     switch response.result {
                     case .success(let data):
@@ -148,7 +155,7 @@ class WebServiceHelper: NSObject {
                                         self.delegateWeb?.appDataDidSuccess(dict, request: self.strMethodName, index: self.selectIndex, orderid: self.strOrderID, strChecklistType: self.strChecklistType)
                                     }else{
                                         webservice_Nool_Load = false
-                                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                        let err = KabbaAPIClient.legacyDeclaredFailure(dict, statusCode: httpStatusCode)
                                         self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
                                     }
                                 }
@@ -159,21 +166,21 @@ class WebServiceHelper: NSObject {
                             }
                             else{
                                 webservice_Nool_Load = false
-                                let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                                 self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
 
                             }
                         }
                         catch {
                             webservice_Nool_Load = false
-                            let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                            let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                             self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
 
                         }
                         
-                    case .failure(_):
+                    case .failure(let transportError):
                         webservice_Nool_Load = false
-                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                        let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: nil, error: transportError)
                         self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
                     }
                  }
@@ -252,6 +259,10 @@ class WebServiceHelper: NSObject {
                     request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
                 }
                 request.addValue(UserDefaults.standard.language, forHTTPHeaderField: "lang")
+                // Phase 1 contract: X-Request-Id + mobile build metadata on every request (Authorization already set above).
+                for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
+                    request.setValue(headerValue, forHTTPHeaderField: headerName)
+                }
 
                 //Pass paramater with value data
                 //if methodType == "post" || methodType == "put"{
@@ -267,6 +278,9 @@ class WebServiceHelper: NSObject {
                 let manager = AF
                 manager.request(request).responseData{
                     (response) in
+                        // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
+                        let httpStatusCode = response.response?.statusCode
+                        if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
                     
                     switch response.result {
                     case .success(let data):
@@ -285,7 +299,7 @@ class WebServiceHelper: NSObject {
                                         completion(dict, nil, true, nil)
                                     }else{
                                         webservice_Nool_Load = false
-                                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                        let err = KabbaAPIClient.legacyDeclaredFailure(dict, statusCode: httpStatusCode)
                                         completion(nil, nil, false, err)
                                     }
                                 }
@@ -296,19 +310,19 @@ class WebServiceHelper: NSObject {
                             }
                             else{
                                 webservice_Nool_Load = false
-                                let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                                 completion(nil, nil, false, err)
                             }
                         }
                         catch {
                             webservice_Nool_Load = false
-                            let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                            let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                             completion(nil, nil, false, err)
                         }
                         
-                    case .failure(_):
+                    case .failure(let transportError):
                         webservice_Nool_Load = false
-                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                        let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: nil, error: transportError)
                         DispatchQueue.main.async {
                             completion(nil, nil, false, err)
                         }
@@ -385,13 +399,16 @@ class WebServiceHelper: NSObject {
                             }
                         }
                     }
-                }, to: strURL, method: methodType == "patch" ? .patch : .post, headers: [
-                    "Authorization": "Bearer \(str_accessToken)"
-                ])
+                }, to: strURL, method: methodType == "patch" ? .patch : .post, headers: HTTPHeaders(
+                    KabbaAPIClient.legacyStandardHeaders().merging(["Authorization": "Bearer \(str_accessToken)"], uniquingKeysWith: { _, authorization in authorization })
+                ))
                 .uploadProgress { progress in
                     print("Upload Progress: \(progress.fractionCompleted * 100)%")
                 }
                 .responseData { response in
+                    // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
+                    let httpStatusCode = response.response?.statusCode
+                    if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
                     switch response.result {
                     case .success(let data):
                         do {
@@ -404,22 +421,22 @@ class WebServiceHelper: NSObject {
                                     self.delegateWeb?.appDataDidSuccess(dict, request: self.strMethodName, index: self.selectIndex, orderid: self.strOrderID, strChecklistType: self.strChecklistType)
                                 }else{
                                     webservice_Nool_Load = false
-                                    let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                    let err = KabbaAPIClient.legacyDeclaredFailure(dict, statusCode: httpStatusCode)
                                     self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
                                 }
                             }
                         }
                         catch {
                             webservice_Nool_Load = false
-                            let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                            let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                             self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
 
                             
                         }
                         
-                    case .failure(_):
+                    case .failure(let transportError):
                         webservice_Nool_Load = false
-                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                        let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: nil, error: transportError)
                         self.delegateWeb?.appDataDidFail(err, request: self.strMethodName, strUrl: self.strURL)
                     }
                 }
@@ -663,6 +680,10 @@ class WebServiceHelper: NSObject {
             if let accessToken = UserDefaults.standard.accessToken {
                 headers["Authorization"] = "Bearer \(accessToken)"
             }
+            // Phase 1 contract headers (X-Request-Id, mobile build metadata).
+            for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
+                headers.add(name: headerName, value: headerValue)
+            }
             
             AF.upload(multipartFormData: { multipartFormData in
 
@@ -686,6 +707,9 @@ class WebServiceHelper: NSObject {
                 
             }, to: strUrl, method: .post, headers: headers)
             .responseData { response in
+                // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
+                let httpStatusCode = response.response?.statusCode
+                if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
                 webservice_Nool_Load = false
                 switch response.result {
                 case .success(let data):
@@ -698,20 +722,20 @@ class WebServiceHelper: NSObject {
                                                                     index: self.selectIndex,
                                                                     orderid: self.strOrderID, strChecklistType: self.strChecklistType)
                             } else {
-                                let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                                let err = KabbaAPIClient.legacyDeclaredFailure(dict, statusCode: httpStatusCode)
                                 self.delegateWeb?.appDataDidFail(err,
                                                                  request: self.strMethodName,
                                                                  strUrl: self.strURL)
                             }
                         }
                     } catch {
-                        let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                        let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: data, error: nil)
                         self.delegateWeb?.appDataDidFail(err,
                                                          request: self.strMethodName,
                                                          strUrl: self.strURL)
                     }
-                case .failure(_):
-                    let err = NSError(domain: "data not found", code: 401, userInfo: nil)
+                case .failure(let transportError):
+                    let err = KabbaAPIClient.legacyError(statusCode: httpStatusCode, data: nil, error: transportError)
                     self.delegateWeb?.appDataDidFail(err,
                                                      request: self.strMethodName,
                                                      strUrl: self.strURL)
@@ -731,6 +755,8 @@ class WebServiceHelper: NSObject {
 }
 
 
+/// Historical no-op (it never logged anyone out). Session expiry is now driven by a REAL
+/// HTTP 401 → KabbaAPIClient posts .kabbaAuthenticationExpired → AppDelegate.handleExpiredSession().
 func LogOutUser(){
     
     

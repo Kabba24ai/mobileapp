@@ -1,0 +1,3 @@
+# SwiftPM / test-runner build products (Scripts/test-sync-core.sh, swift test)
+.build/
+.swiftpm/

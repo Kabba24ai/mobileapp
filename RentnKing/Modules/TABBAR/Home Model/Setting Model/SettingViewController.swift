@@ -144,6 +144,15 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
 
         aboutStack.addArrangedSubview(versionLabel)
         aboutStack.addArrangedSubview(releaseDateLabel)
+
+        // Sync status (Phase 2): what is still on this phone waiting for Kabba, and the
+        // diagnostics screen (Retry / Discard / Sync Now, ids for support).
+        let syncSummary = SyncStatusSummaryView(theme: .kabba)
+        syncSummary.onTap = { [weak self] in
+            self?.navigationController?.pushViewController(SyncStatusViewController(theme: .kabba), animated: true)
+        }
+        aboutStack.addArrangedSubview(syncSummary)
+
         aboutStack.addArrangedSubview(notesHeader)
         aboutStack.addArrangedSubview(notesLabel)
 //        aboutStack.addArrangedSubview(fullArchive)
@@ -213,6 +222,9 @@ extension SettingViewController{
     }
     
     func RemoveAllDataLogout() {
+        // Sync Engine: stop sending; stored operations stay on the phone for the next session.
+        KabbaSync.sessionDidEnd()
+
         //REMOVE ALL DATA
         UserDefaults.standard.user = nil
         UserDefaults.standard.accessToken = nil

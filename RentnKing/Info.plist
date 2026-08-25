@@ -20,6 +20,10 @@
 		<string>Roboto-Black.ttf</string>
 		<string>HelveticaNeue.ttc</string>
 	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.RentnKingNew.app.sync.refresh</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>

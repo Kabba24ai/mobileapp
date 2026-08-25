@@ -64,6 +64,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         createImageVideoUploadFolder()
         createFileStorageFolder()
 
+        // Offline Sync Engine (Phase 2): the durable, idempotent queue for field operations.
+        // Bootstrapped BEFORE any legacy sync trigger so the old driver-checklist queue is
+        // migrated into it first. Registers its BGAppRefreshTask (must happen before launch
+        // completes) and listens for app-active / session-expired itself.
+        KabbaSync.bootstrap(
+            baseURL: { URL(string: Application.BaseURL_NEW) },
+            accessToken: { UserDefaults.standard.accessToken },
+            language: { UserDefaults.standard.language },
+            legacyMigrations: [migrateLegacyDriverChecklistQueueIntoSyncEngine],
+            onSessionExpired: { [weak self] in self?.handleExpiredSession() }
+        )
+
         //RECLAIM ALREADY-UPLOADED MEDIA (7-day grace; keeps Pending files)
 //        MediaCleanupManager.shared.purgeUploadedMedia(graceDays: 7)
         
@@ -161,6 +173,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 syncDriverChecklistWithAPI()
                 syncDeliveryPickupInputsWithAPI()
                 self.uploadAllData()          // retry pending media now that we're online
+                KabbaSync.kick("network available at launch", ignoreBackoff: true)
             }
         }
 
@@ -178,8 +191,33 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 syncDriverChecklistWithAPI()
                 syncDeliveryPickupInputsWithAPI()
                 self.uploadAllData()          // retry pending media when connectivity returns
+                KabbaSync.kick("network restored", ignoreBackoff: true)
             }
         }
+    }
+
+    /// A genuine HTTP 401 reached the canonical network layer (KabbaAPIClient / the legacy
+    /// WebServiceHelper): the token is dead. End the session the way Settings › Log Out does —
+    /// WITHOUT touching the Sync Engine's stored operations, which stay on the phone and resume
+    /// after the employee signs back in. Before Phase 1 a 401 never logged anyone out.
+    func handleExpiredSession() {
+        guard UserDefaults.standard.user != nil || UserDefaults.standard.accessToken != nil else { return }
+
+        UserDefaults.standard.user = nil
+        UserDefaults.standard.accessToken = nil
+        UserDefaults.standard.baseURL = ""
+        defaultsToExtension?.set("", forKey: "api_url")
+        defaultsToExtension?.set("", forKey: "auth_token")
+        defaultsToExtension?.synchronize()
+
+        let storyBoard = UIStoryboard(name: GlobalMainConstants.LOGIN_MODEL, bundle: nil)
+        if let login = storyBoard.instantiateViewController(withIdentifier: "LoginViewController") as? LoginViewController {
+            let navigationController = UINavigationController()
+            navigationController.viewControllers = [login]
+            self.window?.rootViewController = navigationController
+            self.window?.makeKeyAndVisible()
+        }
+        showAlertMessage(strMessage: "Your session has expired. Please sign in again.")
     }
     
     

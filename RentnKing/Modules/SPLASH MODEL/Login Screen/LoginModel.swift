@@ -94,6 +94,9 @@ extension LoginViewController : WebServiceHelperDelegate{
                     //SET DATA TO EXTENSION
                     defaultsToExtension?.set(Application.BaseURL_NEW, forKey: "api_url")                    
                     defaultsToExtension?.set(UserDefaults.standard.accessToken, forKey: "auth_token")
+
+                    // Sync Engine: lift any authentication pause and drain what was captured while signed out.
+                    KabbaSync.sessionDidStart()
                     defaultsToExtension?.synchronize()
                     
                     if UserDefaults.standard.user != nil{

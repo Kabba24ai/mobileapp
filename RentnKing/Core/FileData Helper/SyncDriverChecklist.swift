@@ -41,12 +41,92 @@ struct DriverChecklistSubmitModel: Mappable {
 
 // MARK: - Save to local
 
+/// Records one driver checklist step. Phase 2: goes into the durable, idempotent Sync
+/// Engine (KabbaSync) — the step is on disk before this returns, survives app kill /
+/// reboot, retries with backoff, and is never dead-lettered. Returns the operation id so
+/// the caller can show sync status. Falls back to the legacy MMKV queue only if the engine
+/// failed to bootstrap.
+@discardableResult
 func saveDriverChecklistLocally(order_product_unique_id: String,
                                 equipment_fuel: String,
                                 call_customer: String,
                                 equipment_key_location: String,
                                 equipment_driver_status: String,
-                                checklist_type: String) {
+                                checklist_type: String) -> String? {
+    if let engine = KabbaSync.engine {
+        do {
+            let operation = try DriverChecklistSyncHandler.enqueue(
+                into: engine,
+                orderProductUniqueId: order_product_unique_id,
+                orderUniqueId: nil,
+                equipmentFuel: equipment_fuel,
+                callCustomer: call_customer,
+                equipmentKeyLocation: equipment_key_location,
+                equipmentDriverStatus: equipment_driver_status,
+                checklistType: checklist_type
+            )
+            return operation.id
+        } catch {
+            debugPrint("Driver Checklist: sync engine enqueue failed (\(error)) — falling back to legacy queue")
+        }
+    }
+
+    legacySaveDriverChecklistLocally(order_product_unique_id: order_product_unique_id,
+                                     equipment_fuel: equipment_fuel,
+                                     call_customer: call_customer,
+                                     equipment_key_location: equipment_key_location,
+                                     equipment_driver_status: equipment_driver_status,
+                                     checklist_type: checklist_type)
+    return nil
+}
+
+/// Migrates anything still sitting in the legacy MMKV queue (kDriverChecklistSubmit) into the
+/// Sync Engine, preserving the original capture time (the legacy `id` is the epoch second the
+/// step was saved), then clears the legacy queue. Runs once per launch from KabbaSync.bootstrap.
+func migrateLegacyDriverChecklistQueueIntoSyncEngine() {
+    guard let engine = KabbaSync.engine else { return }
+    let storageKey = kFileStorageName.kDriverChecklistSubmit.rawValue
+    let arr: [DriverChecklistSubmitModel] = SDKUserDefault.getMappableArray(DriverChecklistSubmitModel.self, for: storageKey) ?? []
+    guard !arr.isEmpty else { return }
+
+    var remaining: [DriverChecklistSubmitModel] = []
+    for item in arr {
+        guard let productId = item.order_product_unique_id, !productId.isEmpty else { continue }
+        let epoch = item.id ?? 0
+        let captured = epoch > 1_600_000_000 ? Date(timeIntervalSince1970: TimeInterval(epoch)) : Date()
+        do {
+            _ = try DriverChecklistSyncHandler.enqueue(
+                into: engine,
+                orderProductUniqueId: productId,
+                orderUniqueId: nil,
+                equipmentFuel: item.equipment_fuel ?? "",
+                callCustomer: item.call_customer ?? "",
+                equipmentKeyLocation: item.equipment_key_location ?? "",
+                equipmentDriverStatus: item.equipment_driver_status ?? "",
+                checklistType: item.checklist_type ?? "",
+                capturedAt: captured
+            )
+        } catch {
+            remaining.append(item)
+        }
+    }
+
+    if remaining.isEmpty {
+        SDKUserDefault.remove(for: storageKey)
+    } else {
+        SDKUserDefault.saveMappableArray(remaining, for: storageKey)
+    }
+    debugPrint("Driver Checklist: migrated \(arr.count - remaining.count) legacy item(s) into the Sync Engine")
+}
+
+/// LEGACY (pre-Phase-2) MMKV queue writer. Kept only as the fallback when the Sync Engine is
+/// unavailable and for the migration above. Do not add new callers.
+func legacySaveDriverChecklistLocally(order_product_unique_id: String,
+                                      equipment_fuel: String,
+                                      call_customer: String,
+                                      equipment_key_location: String,
+                                      equipment_driver_status: String,
+                                      checklist_type: String) {
     let storageKey = kFileStorageName.kDriverChecklistSubmit.rawValue
     var arr: [DriverChecklistSubmitModel] = SDKUserDefault.getMappableArray(DriverChecklistSubmitModel.self, for: storageKey) ?? []
 
@@ -70,7 +150,18 @@ func saveDriverChecklistLocally(order_product_unique_id: String,
 
 // MARK: - Sync
 
+/// Legacy trigger kept for its call sites (AppDelegate launch / network-restore, the checklist
+/// screen). With the Sync Engine bootstrapped it simply asks the engine to drain; the legacy
+/// MMKV drain below only runs if the engine is unavailable.
 func syncDriverChecklistWithAPI() {
+    if KabbaSync.isReady {
+        KabbaSync.kick("driver checklist", ignoreBackoff: true)
+        return
+    }
+    legacySyncDriverChecklistWithAPI()
+}
+
+func legacySyncDriverChecklistWithAPI() {
     let storageKey = kFileStorageName.kDriverChecklistSubmit.rawValue
     let arr: [DriverChecklistSubmitModel] = SDKUserDefault.getMappableArray(DriverChecklistSubmitModel.self, for: storageKey) ?? []
 
@@ -131,12 +222,12 @@ func handleDriverChecklistResponse(data: NSDictionary?, localID: Int, completion
         SDKUserDefault.saveMappableArray(arr, for: storageKey)
         indicatorHide()
         completion(true)
-        syncDriverChecklistWithAPI()
+        legacySyncDriverChecklistWithAPI()
         return
     }
 
-    // Failure / transient error — KEEP the item and retry later (launch / network restore),
-    // but cap attempts so a permanently-rejected item can't block the queue forever.
+    // LEGACY fallback only (engine unavailable). The Sync Engine path above never drops an
+    // item — see SyncEngine. This dead-letter cap remains solely for the fallback queue.
     if let index = arr.firstIndex(where: { $0.id == localID }) {
         let attempts = (arr[index].attempts ?? 0) + 1
         if attempts >= kMaxSyncAttempts {
