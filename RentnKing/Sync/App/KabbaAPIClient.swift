@@ -20,38 +20,7 @@
 
 import Foundation
 
-struct MobileClientMetadata: Equatable {
-    let platform: String
-    let version: String
-    let build: String
-    let deviceId: String
-
-    static func current(installation: InstallationIdentity, bundle: Bundle = .main) -> MobileClientMetadata {
-        MobileClientMetadata(
-            platform: "ios",
-            version: sanitize(bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"),
-            build: sanitize(bundle.infoDictionary?["CFBundleVersion"] as? String ?? "0"),
-            deviceId: installation.identifier()
-        )
-    }
-
-    var headers: [String: String] {
-        [
-            "X-Mobile-Platform": platform,
-            "X-Mobile-Version": version,
-            "X-Mobile-Build": build,
-            "X-Device-Id": deviceId,
-        ]
-    }
-
-    /// Server whitelist for version/build: [0-9A-Za-z.+-]{1,32}
-    private static func sanitize(_ raw: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".+-"))
-        let filtered = raw.unicodeScalars.filter { allowed.contains($0) }
-        let value = String(String.UnicodeScalarView(filtered))
-        return value.isEmpty ? "0" : String(value.prefix(32))
-    }
-}
+// MobileClientMetadata lives in Sync/Core/ClientMetadata.swift (Phase 5) so it is unit-tested.
 
 struct KabbaAPIClientConfiguration {
     /// The per-environment API base (…/api/admin/v1/). nil when logged out.
@@ -79,6 +48,12 @@ extension Notification.Name {
     /// Posted on the main queue when a request received a genuine HTTP 401.
     /// userInfo: ["path": String, "request_id": String]
     static let kabbaAuthenticationExpired = Notification.Name("ai.kabba.sync.authenticationExpired")
+    /// Phase 5 — a genuine HTTP 426 APP_UPDATE_REQUIRED. userInfo: ["policy": Data (the 426 body), "path": String, "request_id": String]
+    static let kabbaAppUpdateRequired = Notification.Name("ai.kabba.sync.appUpdateRequired")
+    /// Phase 5 — the server's non-blocking update advice changed (X-Mobile-Update headers). userInfo: ["level": String]
+    static let kabbaUpdateAdviceChanged = Notification.Name("ai.kabba.sync.updateAdviceChanged")
+    /// Phase 5 — an authenticated response carried X-Session-Expires-At. userInfo: ["expires_at": String]
+    static let kabbaSessionExpiryChanged = Notification.Name("ai.kabba.sync.sessionExpiryChanged")
 }
 
 final class KabbaAPIClient: SyncHTTPClient {
@@ -238,9 +213,7 @@ final class KabbaAPIClient: SyncHTTPClient {
                 if let k = key as? String, let v = value as? String { headerMap[k] = v }
             }
             if headerMap["X-Request-Id"] == nil { headerMap["X-Request-Id"] = requestId }
-            if http.statusCode == 401 {
-                self?.handleUnauthorized(path: path, requestId: requestId)
-            }
+            self?.observe(statusCode: http.statusCode, headers: headerMap, body: data, path: path, requestId: requestId)
             completion(.success(SyncHTTPResponse(statusCode: http.statusCode, headers: headerMap, body: data)))
         }
         task.resume()
@@ -302,10 +275,7 @@ final class KabbaAPIClient: SyncHTTPClient {
                 if let k = key as? String, let v = value as? String { headerMap[k] = v }
             }
             if headerMap["X-Request-Id"] == nil { headerMap["X-Request-Id"] = requestId }
-
-            if http.statusCode == 401 {
-                self?.handleUnauthorized(path: path, requestId: requestId)
-            }
+            self?.observe(statusCode: http.statusCode, headers: headerMap, body: data, path: path, requestId: requestId)
             completion(.success(SyncHTTPResponse(statusCode: http.statusCode, headers: headerMap, body: data)))
         }
         task.resume()
@@ -339,6 +309,66 @@ final class KabbaAPIClient: SyncHTTPClient {
     /// Called by the legacy helper when it sees a real HTTP 401.
     static func noteUnauthorizedResponse(path: String) {
         shared?.handleUnauthorized(path: path, requestId: "legacy")
+    }
+
+    /// Phase 5 — the legacy helper (Alamofire) hands every completed exchange here so 426,
+    /// update advice and session expiry are handled ONCE, whichever network path saw them.
+    static func noteLegacyResponse(statusCode: Int?, headers: [AnyHashable: Any]?, body: Data?, path: String) {
+        guard let status = statusCode else { return }
+        var headerMap: [String: String] = [:]
+        for (key, value) in headers ?? [:] {
+            if let k = key as? String, let v = value as? String { headerMap[k] = v }
+        }
+        shared?.observe(statusCode: status, headers: headerMap, body: body, path: path, requestId: headerMap["X-Request-Id"] ?? "legacy")
+    }
+
+    // MARK: - Response observation (Phase 5)
+
+    private(set) var latestUpdateAdvice: UpdateAdvice?
+    private var lastUpdateRequiredAt: Date?
+
+    /// One place that reads the cross-cutting parts of every response: 401 → session
+    /// expired; 426 → update required (body carried as-is, never logged); policy headers →
+    /// non-blocking update advice; X-Session-Expires-At → the phone's session record.
+    func observe(statusCode: Int, headers: [String: String], body: Data?, path: String, requestId: String) {
+        if statusCode == 401 {
+            handleUnauthorized(path: path, requestId: requestId)
+        }
+        if statusCode == 426 {
+            handleUpdateRequired(body: body, path: path, requestId: requestId)
+        }
+        if let advice = UpdateAdvice.from(headers: headers) {
+            let changed: Bool = unauthorizedLock.withLock {
+                let changed = advice != latestUpdateAdvice
+                latestUpdateAdvice = advice
+                return changed
+            }
+            if changed {
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .kabbaUpdateAdviceChanged, object: nil, userInfo: ["level": advice.level.rawValue])
+                }
+            }
+        }
+        if let expires = headers.first(where: { $0.key.caseInsensitiveCompare("X-Session-Expires-At") == .orderedSame })?.value {
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .kabbaSessionExpiryChanged, object: nil, userInfo: ["expires_at": expires])
+            }
+        }
+    }
+
+    private func handleUpdateRequired(body: Data?, path: String, requestId: String) {
+        let shouldPost: Bool = unauthorizedLock.withLock {
+            let now = Date()
+            if let last = lastUpdateRequiredAt, now.timeIntervalSince(last) < unauthorizedDebounce { return false }
+            lastUpdateRequiredAt = now
+            return true
+        }
+        guard shouldPost else { return }
+        var info: [String: Any] = ["path": path, "request_id": requestId]
+        if let body = body { info["policy"] = body }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .kabbaAppUpdateRequired, object: nil, userInfo: info)
+        }
     }
 
     private func handleUnauthorized(path: String, requestId: String) {

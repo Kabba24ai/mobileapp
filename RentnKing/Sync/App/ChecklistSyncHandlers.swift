@@ -43,6 +43,9 @@ struct LegacyChecklistSubmitSyncHandler: SyncOperationHandler {
     let hasSession: () -> Bool
 
     var operationType: String { LegacyChecklistQueueMigration.operationType }
+    /// Category D adapter: drains items an OLD build queued in its legacy wire format. It is the
+    /// ONLY handler allowed to target save-delivery / save-return; nothing new is enqueued as this type.
+    var mayUseDeprecatedEndpoint: Bool { true }
 
     func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
         guard hasSession() else { throw SyncHandlerError.notAuthenticated("No active session") }

@@ -222,19 +222,23 @@ extension SettingViewController{
     }
     
     func RemoveAllDataLogout() {
+        // Phase 5: revoke THIS device's session on the server (fire-and-forget — the local
+        // sign-out never waits for it). Other devices of the same employee stay signed in.
+        KabbaSession.revokeCurrentOnServer()
+
         // Sync Engine: stop sending; stored operations stay on the phone for the next session.
         KabbaSync.sessionDidEnd()
 
         //REMOVE ALL DATA
         UserDefaults.standard.user = nil
-        UserDefaults.standard.accessToken = nil
+        UserDefaults.standard.accessToken = nil          // clears the shared Keychain item (extension included)
         
         //SAVE OBJECT
         UserDefaults.standard.baseURL = ""
         
         //SET DATA TO EXTENSION
         defaultsToExtension?.set("", forKey: "api_url")
-        defaultsToExtension?.set("", forKey: "auth_token")
+        defaultsToExtension?.removeObject(forKey: "auth_token")
         defaultsToExtension?.synchronize()
     }
 

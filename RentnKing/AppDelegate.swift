@@ -207,11 +207,15 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func handleExpiredSession() {
         guard UserDefaults.standard.user != nil || UserDefaults.standard.accessToken != nil else { return }
 
+        // Phase 5: the queue is untouched — quote it so the employee knows nothing was lost.
+        let pending = KabbaSession.pendingWorkCount()
+        KabbaSession.end()
+
         UserDefaults.standard.user = nil
-        UserDefaults.standard.accessToken = nil
+        UserDefaults.standard.accessToken = nil          // clears the shared Keychain item (extension included)
         UserDefaults.standard.baseURL = ""
         defaultsToExtension?.set("", forKey: "api_url")
-        defaultsToExtension?.set("", forKey: "auth_token")
+        defaultsToExtension?.removeObject(forKey: "auth_token")
         defaultsToExtension?.synchronize()
 
         let storyBoard = UIStoryboard(name: GlobalMainConstants.LOGIN_MODEL, bundle: nil)
@@ -221,7 +225,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self.window?.rootViewController = navigationController
             self.window?.makeKeyAndVisible()
         }
-        showAlertMessage(strMessage: "Your session has expired. Please sign in again.")
+        let kept = pending > 0 ? " \(pending) item\(pending == 1 ? "" : "s") saved on this phone \(pending == 1 ? "is" : "are") kept and will sync after you sign in." : ""
+        showAlertMessage(strMessage: "Your session has expired. Please sign in again." + kept)
     }
     
     
@@ -331,6 +336,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 struct LoginParameater: Codable {
     var email : String = ""
     var password : String = ""
+    /// Phase 5 (additive): the device model only — never the user-assigned device name.
+    var device_name : String = UIDevice.current.model
 }
 
 struct NotificationParameater: Codable {

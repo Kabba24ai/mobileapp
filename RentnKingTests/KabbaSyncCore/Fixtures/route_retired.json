@@ -1,0 +1,15 @@
+{
+    "success": false,
+    "message": "This request uses a retired version of the Kabba API. Please update the Kabba app.",
+    "error": {
+        "code": "ROUTE_RETIRED",
+        "message": "This request uses a retired version of the Kabba API. Please update the Kabba app.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "ROUTE_RETIRED",
+    "data": {
+        "replacement": "POST orders/checklists/{execution}/complete"
+    },
+    "request_id": "b24cb747-23dd-402f-be70-6df0f0d6db6d"
+}

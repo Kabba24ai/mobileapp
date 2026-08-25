@@ -64,7 +64,8 @@ extension TimeClockViewController :WebServiceHelperDelegate{
     func getStatusAPI(){
         
         //Declaration URL
-        let strURL = "\(Url.statusList.absoluteString!)"
+        // Phase 5: `statusList` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("attendance/statues") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method
@@ -112,7 +113,8 @@ extension TimeClockViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.employeeStatus.absoluteString!)"
+        // Phase 5: `employeeStatus` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("employee/status") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method
@@ -295,7 +297,8 @@ extension ClockInViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.updateEmployeeStatus.absoluteString!)"
+        // Phase 5: `updateEmployeeStatus` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("employee/attendance/track") else { indicatorHide(); showAlertMessage(strMessage: Url.retiredFeatureMessage); return }
         
        
         //Create object for webservicehelper and start to call method
@@ -359,7 +362,8 @@ extension TimeClockLockViewController :WebServiceHelperDelegate{
     func getStatusAPI(){
         
         //Declaration URL
-        let strURL = "\(Url.statusList.absoluteString!)"
+        // Phase 5: `statusList` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("attendance/statues") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method
@@ -383,7 +387,8 @@ extension TimeClockLockViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.employeeStatus.absoluteString!)"
+        // Phase 5: `employeeStatus` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("employee/status") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method

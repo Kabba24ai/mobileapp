@@ -1,0 +1,25 @@
+{
+    "success": false,
+    "message": "Please update the Kabba app to keep syncing.",
+    "error": {
+        "code": "APP_UPDATE_REQUIRED",
+        "message": "Please update the Kabba app to keep syncing.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "APP_UPDATE_REQUIRED",
+    "data": {
+        "platform": "ios",
+        "state": "update_required",
+        "client_build": "1000",
+        "client_version": "1.0.17",
+        "minimum_supported_build": "1001",
+        "recommended_build": "1002",
+        "recommended_version": "1.0.19",
+        "update_message": "Please update the Kabba app to keep syncing.",
+        "store_url": "https://apps.apple.com/us/app/kabba-ai/id6751110122",
+        "update_required": true,
+        "update_recommended": false
+    },
+    "request_id": "83b236bd-b908-4a71-b949-77c3eb0d3c70"
+}

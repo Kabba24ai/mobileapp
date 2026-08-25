@@ -1,0 +1,38 @@
+{
+    "success": true,
+    "message": "Login successfully",
+    "user": {
+        "id": 1,
+        "unique_id": "PER-ME3X-RJZX",
+        "full_name": "Field Employee",
+        "email": "field-employee@test.local",
+        "status": "Active",
+        "token": "1|ifJoxVhklERn4aI5WSJufWLh1uhp3UfnzKVAoGlO508782c8"
+    },
+    "session": {
+        "token_type": "Bearer",
+        "scope": "installation",
+        "issued_at": "2026-08-25T21:19:22+00:00",
+        "expires_at": "2026-09-24T21:19:22+00:00",
+        "sliding_ttl_days": 30,
+        "installation_id": "install-FIXTURE0-0000-4000-8000-000000000001",
+        "platform": "ios",
+        "app_version": "1.0.18",
+        "app_build": "1001",
+        "device_name": "Fixture iPhone"
+    },
+    "release": {
+        "platform": "ios",
+        "state": "no_policy",
+        "client_build": "1001",
+        "client_version": "1.0.18",
+        "minimum_supported_build": null,
+        "recommended_build": null,
+        "recommended_version": null,
+        "update_message": null,
+        "store_url": null,
+        "update_required": false,
+        "update_recommended": false
+    },
+    "request_id": "0c77069c-bff4-47ae-a792-d65dfb444cd7"
+}

@@ -148,7 +148,11 @@ extension ActionViewController :WebServiceHelperDelegate{
         
 
         DispatchQueue.main.asyncAfter(deadline: .now()){
-            if strRequest != "contactTags"{
+            // Phase 5: a dead session (401) or an unsupported build (426) is explained on every
+            // request, including the silent tag load; anything else keeps the historical behaviour.
+            if let contractError = error as? KabbaExtensionError {
+                self.showAlertMessage(strMessage: contractError.localizedDescription)
+            } else if strRequest != "contactTags"{
                 self.showAlertMessage(strMessage: "\(strRequest)-\(somethingWentWrong)")
             }
         }

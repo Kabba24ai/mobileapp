@@ -95,6 +95,10 @@ protocol SyncOperationHandler {
     /// Media handlers return true: the engine deletes the operation's local files the
     /// moment Laravel acknowledges it (MediaCleanupPolicy). Everything else keeps them.
     var removesAssetsAfterAcknowledgment: Bool { get }
+    /// Phase 5: only the adapter that drains items an OLD build queued in its legacy
+    /// format may target a deprecated route (DeprecatedMobileEndpoints). Default false —
+    /// the engine parks any other operation that tries.
+    var mayUseDeprecatedEndpoint: Bool { get }
 }
 
 extension SyncOperationHandler {
@@ -104,6 +108,8 @@ extension SyncOperationHandler {
     }
 
     var removesAssetsAfterAcknowledgment: Bool { false }
+
+    var mayUseDeprecatedEndpoint: Bool { false }
 }
 
 enum SyncResponseInterpreter {

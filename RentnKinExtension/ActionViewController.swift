@@ -343,7 +343,8 @@ extension ActionViewController : TagsProtocol{
             self.lblPhone.textColor = .red
         }
         else{
-            if Application.BaseURL != ""{
+            // Phase 5: a base URL alone is not a session — the shared Keychain item must hold the token.
+            if Application.BaseURL != "" && KabbaSessionKeychain.shared.read(KabbaSessionKeychain.accessTokenKey) != nil {
                 
                 //CALL API
                 self.ViewSave.isHidden = true

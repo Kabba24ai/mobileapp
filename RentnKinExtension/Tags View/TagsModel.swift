@@ -127,7 +127,12 @@ extension TagsViewController :WebServiceHelperDelegate{
         self.objTagIndicator.stopAnimating()
 
         DispatchQueue.main.asyncAfter(deadline: .now()){
-            self.showAlertMessage(strMessage: "\(strRequest)-\(somethingWentWrong)")
+            // Phase 5: session / version problems are explained; everything else keeps the generic text.
+            if let contractError = error as? KabbaExtensionError {
+                self.showAlertMessage(strMessage: contractError.localizedDescription)
+            } else {
+                self.showAlertMessage(strMessage: "\(strRequest)-\(somethingWentWrong)")
+            }
         }
     }
     

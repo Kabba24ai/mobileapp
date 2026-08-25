@@ -234,6 +234,13 @@ final class SyncEngine {
         }
     }
 
+    /// Phase 5: a 426 verdict persisted from an earlier launch (or delivered by a legacy
+    /// network path) still applies to this build → nothing is sent until appUpdated().
+    /// Operations, assets and identities are untouched.
+    func appUpdateRequired() {
+        queue.async { [weak self] in self?.setPause(.appUpdate) }
+    }
+
     var pause: SyncPause { onQueueSync { _pause } }
 
     func snapshot() -> [SyncOperation] {
@@ -325,6 +332,17 @@ final class SyncEngine {
             return
         } catch {
             applyFailure(&op, APIError.invalidRequest(error.localizedDescription), now: now)
+            operations[op.id] = op
+            persistQuietly(op)
+            emit(.operationChanged(op))
+            draining = false
+            drain()
+            return
+        }
+
+        // Phase 5: a migrated workflow must never reach a retired route. Park it visibly.
+        if DeprecatedMobileEndpoints.isDeprecated(request) && !handler.mayUseDeprecatedEndpoint {
+            applyFailure(&op, APIError.invalidRequest("This operation targets a retired API route (\(DeprecatedMobileEndpoints.normalized(request.path))). The app must use the canonical route."), now: now)
             operations[op.id] = op
             persistQuietly(op)
             emit(.operationChanged(op))

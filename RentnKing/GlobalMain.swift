@@ -687,11 +687,20 @@ enum Url {
         return makeURL(baseURL: Application.BaseURL_NEW, path: path)
     }
 
-    private static func oldAPI(_ path: String) -> NSURL {
-        return makeURL(baseURL: Application.BaseURL_NEW, path: path)
-    }
+    // Phase 5: the "oldAPI" family (getcategoryproducts, search-products, getProductDetails,
+    // place-order, time-clock/settings, attendance/statues, employee/status,
+    // employee/attendance/track, maintenance/*) never existed under api/admin/v1 and always
+    // answered 404. The client no longer requests them; the screens that did show
+    // `retiredFeatureMessage` instead. Server-side retirement is a separate, later step.
+    static let retiredFeatureMessage = "This feature is not available in this version of the Kabba app."
 
-    // MARK: - NEW API
+    /// Always nil — the compiler-visible replacement for a retired oldAPI URL.
+    static func retired(_ path: String) -> String? {
+        #if DEBUG
+        print("[api] retired endpoint not requested: \(path)")
+        #endif
+        return nil
+    }
 
     static var login: NSURL {
         return newAPI("login")
@@ -868,57 +877,6 @@ enum Url {
 
     // MARK: - CATEGORY
 
-    static var categoryProducts: NSURL {
-        return oldAPI("getcategoryproducts")
-    }
-
-    static var searchProducts: NSURL {
-        return oldAPI("search-products")
-    }
-
-    static var productsDetaisl: NSURL {
-        return oldAPI("getProductDetails")
-    }
-
-    static var placeORder: NSURL {
-        return oldAPI("place-order")
-    }
-
-    // MARK: - TIME CLOCK
-
-    static var timeClockSetting: NSURL {
-        return oldAPI("time-clock/settings")
-    }
-
-    static var statusList: NSURL {
-        return oldAPI("attendance/statues")
-    }
-
-    static var employeeStatus: NSURL {
-        return oldAPI("employee/status")
-    }
-
-    static var updateEmployeeStatus: NSURL {
-        return oldAPI("employee/attendance/track")
-    }
-
-    // MARK: - MACHINE PROFILE
-
-    static var maintenanceProfile: NSURL {
-        return oldAPI("maintenance/inventory/report")
-    }
-
-    static var inventoryClass: NSURL {
-        return oldAPI("maintenance/inventory/class")
-    }
-
-    static var inventoryStatus: NSURL {
-        return oldAPI("maintenance/statues")
-    }
-
-    static var inventoryService: NSURL {
-        return oldAPI("maintenance/inventory/services")
-    }
 }
 
 //URL

@@ -78,7 +78,8 @@ extension PaymentViewController :WebServiceHelperDelegate{
 
         print(parameater)
         //Declaration URL
-        let strURL = "\(Url.placeORder.absoluteString!)"
+        // Phase 5: `placeORder` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("place-order") else { indicatorHide(); showAlertMessage(strMessage: Url.retiredFeatureMessage); return }
         
        
         //Create object for webservicehelper and start to call method

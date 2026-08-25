@@ -1,0 +1,13 @@
+{
+    "success": false,
+    "message": "Unauthenticated.",
+    "error": {
+        "code": "UNAUTHENTICATED",
+        "message": "Unauthenticated.",
+        "retryable": false,
+        "reason": "expired"
+    },
+    "errors": [],
+    "error_code": "UNAUTHENTICATED",
+    "request_id": "88384168-86e2-48cf-bc6c-3da2e78dd8a4"
+}

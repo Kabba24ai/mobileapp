@@ -349,7 +349,8 @@ extension ProductListViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.categoryProducts.absoluteString!)"
+        // Phase 5: `categoryProducts` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("getcategoryproducts") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method
@@ -378,7 +379,8 @@ extension ProductListViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.searchProducts.absoluteString!)"
+        // Phase 5: `searchProducts` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("search-products") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method

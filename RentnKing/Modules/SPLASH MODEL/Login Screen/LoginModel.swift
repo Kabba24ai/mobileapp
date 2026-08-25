@@ -89,11 +89,14 @@ extension LoginViewController : WebServiceHelperDelegate{
                     
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj
+                    // Phase 5: written to the shared Keychain item the extension reads too.
                     UserDefaults.standard.accessToken = userData.getStringForID(key: "token")
+                    // Phase 5: remember the server's description of this session (expiry, scope) — never the token.
+                    KabbaSession.start(loginResponse: data)
                     
-                    //SET DATA TO EXTENSION
-                    defaultsToExtension?.set(Application.BaseURL_NEW, forKey: "api_url")                    
-                    defaultsToExtension?.set(UserDefaults.standard.accessToken, forKey: "auth_token")
+                    //SET DATA TO EXTENSION (base URL only — the token is no longer copied here)
+                    defaultsToExtension?.set(Application.BaseURL_NEW, forKey: "api_url")
+                    defaultsToExtension?.removeObject(forKey: "auth_token")
 
                     // Sync Engine: lift any authentication pause and drain what was captured while signed out.
                     KabbaSync.sessionDidStart()

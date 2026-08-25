@@ -79,6 +79,21 @@ then these three files are not compiled or executed.
 - `PendingCheckListTests` — the Pending (prepare-before-arrival) Delivery Checklist
   store. Runs against the app test host (uses `SDKUserDefault`).
 
+## Phase 5 — authentication lifecycle + version enforcement
+`SessionStateTests` (session record from the login response, offline rule, protected persistence,
+one-time credential migration into the shared Keychain — pure logic over `SessionCredentialStore`),
+`ReleasePolicyTests` (426 / `app/release` / login `release` decoding, `X-Mobile-Update` header advice,
+`BuildNumber`, the persisted Update Required verdict surviving relaunch and clearing on a compatible
+build), `AuthRecoveryTests` (401 pauses the engine and keeps every operation and file, re-login resumes
+the SAME operation ids; relaunch without a session; 426 pauses incompatible sync and `appUpdated()`
+resumes; a persisted verdict pauses before the first drain; logout keeps the queue),
+`DeprecatedEndpointGuardTests` (the engine parks any migrated workflow that targets a retired route,
+only the legacy-queue adapter may; structural scan that no Sync source names a retired route literal
+and that the `oldAPI` URL family is gone from the client), `Phase5ContractTests` (shared fixtures
+`auth_login_success`, `auth_unauthenticated_expired`, `app_update_required`, `route_retired`,
+`app_release_no_policy`). The Keychain access group and the share extension's request headers are
+exercised on device, not here.
+
 ## Next tests to add
 - `DriverChecklistSyncHandler` request building (needs the app host or a small
   Foundation-only test once the handler's payload shaping is asserted end-to-end).

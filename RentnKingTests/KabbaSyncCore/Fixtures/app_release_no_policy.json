@@ -1,0 +1,23 @@
+{
+    "success": true,
+    "data": {
+        "platform": "ios",
+        "state": "no_policy",
+        "client_build": "1001",
+        "client_version": "1.0.18",
+        "minimum_supported_build": null,
+        "recommended_build": null,
+        "recommended_version": null,
+        "update_message": null,
+        "store_url": null,
+        "update_required": false,
+        "update_recommended": false,
+        "upload": {
+            "upload_max_filesize_bytes": 2097152,
+            "post_max_size_bytes": 8388608,
+            "laravel_rule_bytes": 524288000,
+            "effective_max_bytes": 2097152
+        }
+    },
+    "request_id": "a76b560e-4e8b-4cee-874b-3eed05ca3742"
+}

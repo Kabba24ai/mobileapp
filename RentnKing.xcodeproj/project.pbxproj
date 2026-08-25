@@ -21,6 +21,16 @@
 		5A5C00000000000000000038 /* LegacyMediaQueueMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000037 /* LegacyMediaQueueMigration.swift */; };
 		5A5C0000000000000000003A /* QueueLineSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000039 /* QueueLineSyncHandler.swift */; };
 		5A5C0000000000000000003C /* MediaSyncHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000003B /* MediaSyncHandlers.swift */; };
+		5A5C00000000000000000042 /* ClientMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000041 /* ClientMetadata.swift */; };
+		5A5C00000000000000000044 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
+		5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
+		5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
+		5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000049 /* KabbaSessionKeychain.swift */; };
+		5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */; };
+		5A5C00000000000000000050 /* KabbaSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004F /* KabbaSession.swift */; };
+		5A5C00000000000000000052 /* KabbaUpdateGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000051 /* KabbaUpdateGate.swift */; };
+		5A5C0000000000000000004B /* KabbaSessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000049 /* KabbaSessionKeychain.swift */; };
+		5A5C0000000000000000004E /* KabbaSharedClientHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */; };
 		5A5C0000000000000000003E /* SyncBackgroundUploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000003D /* SyncBackgroundUploader.swift */; };
 		5A5C00000000000000000040 /* LegacyMediaQueueMigrationApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000003F /* LegacyMediaQueueMigrationApp.swift */; };
 		5A5C00000000000000000002 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000001 /* JSONValue.swift */; };
@@ -337,6 +347,14 @@
 		5A5C00000000000000000037 /* LegacyMediaQueueMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMediaQueueMigration.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000039 /* QueueLineSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineSyncHandler.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000003B /* MediaSyncHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaSyncHandlers.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000041 /* ClientMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMetadata.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000043 /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000045 /* ReleasePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicy.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000047 /* DeprecatedEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpoints.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000049 /* KabbaSessionKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychain.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSharedClientHeaders.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000004F /* KabbaSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSession.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000051 /* KabbaUpdateGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaUpdateGate.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000003D /* SyncBackgroundUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncBackgroundUploader.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000003F /* LegacyMediaQueueMigrationApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMediaQueueMigrationApp.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000001 /* JSONValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValue.swift; sourceTree = "<group>"; };
@@ -1698,6 +1716,10 @@
 				5A5C0000000000000000000F /* SyncRetryPolicy.swift */,
 				5A5C00000000000000000011 /* SyncDiagnostics.swift */,
 				5A5C00000000000000000013 /* InstallationIdentity.swift */,
+				5A5C00000000000000000041 /* ClientMetadata.swift */,
+				5A5C00000000000000000043 /* SessionState.swift */,
+				5A5C00000000000000000045 /* ReleasePolicy.swift */,
+				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
 			);
 			path = Core;
@@ -1711,6 +1733,10 @@
 				5A5C00000000000000000031 /* ChecklistCaptureFactory.swift */,
 				5A5C00000000000000000039 /* QueueLineSyncHandler.swift */,
 				5A5C0000000000000000003B /* MediaSyncHandlers.swift */,
+				5A5C00000000000000000049 /* KabbaSessionKeychain.swift */,
+				5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */,
+				5A5C0000000000000000004F /* KabbaSession.swift */,
+				5A5C00000000000000000051 /* KabbaUpdateGate.swift */,
 				5A5C0000000000000000003D /* SyncBackgroundUploader.swift */,
 				5A5C0000000000000000003F /* LegacyMediaQueueMigrationApp.swift */,
 				5A5C00000000000000000017 /* KabbaAPIClient.swift */,
@@ -1912,6 +1938,14 @@
 				5A5C00000000000000000038 /* LegacyMediaQueueMigration.swift in Sources */,
 				5A5C0000000000000000003A /* QueueLineSyncHandler.swift in Sources */,
 				5A5C0000000000000000003C /* MediaSyncHandlers.swift in Sources */,
+				5A5C00000000000000000042 /* ClientMetadata.swift in Sources */,
+				5A5C00000000000000000044 /* SessionState.swift in Sources */,
+				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
+				5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */,
+				5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */,
+				5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */,
+				5A5C00000000000000000050 /* KabbaSession.swift in Sources */,
+				5A5C00000000000000000052 /* KabbaUpdateGate.swift in Sources */,
 				5A5C0000000000000000003E /* SyncBackgroundUploader.swift in Sources */,
 				5A5C00000000000000000040 /* LegacyMediaQueueMigrationApp.swift in Sources */,
 				5A5C00000000000000000002 /* JSONValue.swift in Sources */,
@@ -2119,6 +2153,8 @@
 				C51AF6A02AD17CF10042589E /* UILabel+Extension.swift in Sources */,
 				C51AF6A82AD17D6A0042589E /* ActionViewController.swift in Sources */,
 				C51AF6942AD17CF10042589E /* WebServiceHelper.swift in Sources */,
+				5A5C0000000000000000004B /* KabbaSessionKeychain.swift in Sources */,
+				5A5C0000000000000000004E /* KabbaSharedClientHeaders.swift in Sources */,
 				C51AF6AB2AD17D8D0042589E /* TagsViewController.swift in Sources */,
 				C51AF69F2AD17CF10042589E /* UIColor+Extension.swift in Sources */,
 				C59E7F3E2B46F45D00C4D58D /* UIBarButtonItemWithClouserExtension.swift in Sources */,

@@ -16,7 +16,8 @@ extension HomeViewController :WebServiceHelperDelegate{
     @objc func getTimeClockSettingAPI(){
         
         //Declaration URL
-        let strURL = "\(Url.timeClockSetting.absoluteString!)"
+        // Phase 5: `timeClockSetting` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("time-clock/settings") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method

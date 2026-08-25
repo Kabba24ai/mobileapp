@@ -89,8 +89,8 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
 //        }
         
         if UserDefaults.standard.user != nil{
-            //SET DATA TO EXTENSION
-            defaultsToExtension?.set(UserDefaults.standard.accessToken, forKey: "auth_token")
+            // Phase 5: the extension reads the shared Keychain item; purge any pre-Phase-5 plaintext copy.
+            defaultsToExtension?.removeObject(forKey: "auth_token")
             defaultsToExtension?.synchronize()
         }
     }

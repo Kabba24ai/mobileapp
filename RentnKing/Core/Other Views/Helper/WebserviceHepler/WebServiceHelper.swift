@@ -136,7 +136,7 @@ class WebServiceHelper: NSObject {
                     (response) in
                         // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
                         let httpStatusCode = response.response?.statusCode
-                        if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
+                        KabbaAPIClient.noteLegacyResponse(statusCode: httpStatusCode, headers: response.response?.allHeaderFields, body: response.data, path: self.strURL)   // 401 / 426 / policy + session headers, handled once
                     
                     switch response.result {
                     case .success(let data):
@@ -280,7 +280,7 @@ class WebServiceHelper: NSObject {
                     (response) in
                         // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
                         let httpStatusCode = response.response?.statusCode
-                        if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
+                        KabbaAPIClient.noteLegacyResponse(statusCode: httpStatusCode, headers: response.response?.allHeaderFields, body: response.data, path: self.strURL)   // 401 / 426 / policy + session headers, handled once
                     
                     switch response.result {
                     case .success(let data):
@@ -408,7 +408,7 @@ class WebServiceHelper: NSObject {
                 .responseData { response in
                     // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
                     let httpStatusCode = response.response?.statusCode
-                    if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
+                    KabbaAPIClient.noteLegacyResponse(statusCode: httpStatusCode, headers: response.response?.allHeaderFields, body: response.data, path: self.strURL)   // 401 / 426 / policy + session headers, handled once
                     switch response.result {
                     case .success(let data):
                         do {
@@ -709,7 +709,7 @@ class WebServiceHelper: NSObject {
             .responseData { response in
                 // HTTP status is authoritative for 401 handling; the legacy success-flag flow below is unchanged.
                 let httpStatusCode = response.response?.statusCode
-                if httpStatusCode == 401 { KabbaAPIClient.noteUnauthorizedResponse(path: self.strURL) }
+                KabbaAPIClient.noteLegacyResponse(statusCode: httpStatusCode, headers: response.response?.allHeaderFields, body: response.data, path: self.strURL)   // 401 / 426 / policy + session headers, handled once
                 webservice_Nool_Load = false
                 switch response.result {
                 case .success(let data):

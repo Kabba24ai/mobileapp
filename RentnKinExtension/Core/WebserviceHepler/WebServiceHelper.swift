@@ -101,8 +101,16 @@ class WebServiceHelper: NSObject {
                 
                 
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                if let defaultsToExtension = UserDefaults(suiteName: "group.com.RentnKingNew.shared"), let token = defaultsToExtension.string(forKey: "auth_token"){
+                // Phase 5: the bearer token comes from the shared Keychain item the main app writes;
+                // the pre-Phase-5 app-group `auth_token` copy is read only until the main app has
+                // launched once after the upgrade and purged it.
+                if let token = KabbaSessionKeychain.shared.read(KabbaSessionKeychain.accessTokenKey)
+                    ?? UserDefaults(suiteName: KabbaSharedClientHeaders.appGroup)?.string(forKey: "auth_token"), !token.isEmpty {
                     request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                // Phase 5: the same request-context headers as the main app (X-Request-Id, X-Mobile-*, X-Device-Id).
+                for (name, value) in KabbaSharedClientHeaders.headers(requestIdPrefix: "ios-ext") {
+                    request.setValue(value, forHTTPHeaderField: name)
                 }
                 
                 //Pass paramater with value data
@@ -119,6 +127,13 @@ class WebServiceHelper: NSObject {
                 manager.request(request).responseData{
                     (response) in
                     
+                    // Phase 5: HTTP status is authoritative for the session / version contract.
+                    if let status = response.response?.statusCode, let contractError = KabbaExtensionError.from(status: status) {
+                        webservice_Nool_Load = false
+                        self.delegateWeb?.appDataDidFail(contractError, request: self.strMethodName)
+                        return
+                    }
+
                     switch response.result {
                     case .success(let data):
                         do {

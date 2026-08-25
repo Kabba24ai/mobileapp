@@ -90,37 +90,56 @@ extension UserDefaults{
         }
     }
     
-    /// Keychain store for the auth token — encrypted at rest, device-only (not iCloud-backed),
-    /// and readable by background uploads after the device's first unlock.
+    /// Pre-Phase-5 app-private Keychain item — read only to migrate it into the shared item.
     private static let tokenKeychain = Keychain(service: "com.rentnking.auth")
         .accessibility(.afterFirstUnlockThisDeviceOnly)
 
+    /// Migration runs once per process; afterwards reads go straight to the shared item.
+    private static var sharedTokenMigrationChecked = false
+
+    /// Phase 5: the bearer token lives in ONE shared Keychain item (KabbaSessionKeychain —
+    /// app-group access group, after-first-unlock, this device only) that the share
+    /// extension reads too. Older copies (plaintext UserDefaults, the app-private Keychain,
+    /// the app-group `auth_token` default) are moved into it once and purged — but only
+    /// after the shared write succeeded, so a Keychain failure can never log anyone out.
     var accessToken: String?{
         get {
-            // One-time migration: move any legacy token from UserDefaults into the Keychain.
-            // Only drop the UserDefaults copy if the Keychain write succeeds, so a Keychain
-            // failure can never log an existing user out.
-            if let legacy = string(forKey: NSUDKey.accessToken), !legacy.isEmpty {
-                do {
-                    try UserDefaults.tokenKeychain.set(legacy, key: NSUDKey.accessToken)
-                    removeObject(forKey: NSUDKey.accessToken)
-                    synchronize()
-                } catch {
-                    // keep the legacy value; migration will be retried on the next read
-                }
-                return legacy
+            let shared = KabbaSessionKeychain.shared
+            if UserDefaults.sharedTokenMigrationChecked {
+                return shared.read(KabbaSessionKeychain.accessTokenKey)
             }
-            return try? UserDefaults.tokenKeychain.getString(NSUDKey.accessToken)
+            let group = UserDefaults(suiteName: KabbaSharedClientHeaders.appGroup)
+            let outcome = SessionCredentialMigration.run(shared: shared, legacy: [
+                .init(name: "user_defaults",
+                      read: { [weak self] in self?.string(forKey: NSUDKey.accessToken).flatMap { $0.isEmpty ? nil : $0 } },
+                      purge: { [weak self] in self?.removeObject(forKey: NSUDKey.accessToken); self?.synchronize() }),
+                .init(name: "private_keychain",
+                      read: { (try? UserDefaults.tokenKeychain.getString(NSUDKey.accessToken)).flatMap { $0 }.flatMap { $0.isEmpty ? nil : $0 } },
+                      purge: { try? UserDefaults.tokenKeychain.remove(NSUDKey.accessToken) }),
+                .init(name: "app_group_defaults",
+                      read: { group?.string(forKey: "auth_token").flatMap { $0.isEmpty ? nil : $0 } },
+                      purge: { group?.removeObject(forKey: "auth_token"); group?.synchronize() }),
+            ])
+            // Stop re-checking once the shared item holds the token (or there is no token anywhere);
+            // a failed shared write keeps returning the legacy value and retries on the next read.
+            UserDefaults.sharedTokenMigrationChecked = outcome.token == nil || shared.read(KabbaSessionKeychain.accessTokenKey) != nil
+            return outcome.token
         }
         set {
+            let shared = KabbaSessionKeychain.shared
             if let value = newValue, !value.isEmpty {
-                try? UserDefaults.tokenKeychain.set(value, key: NSUDKey.accessToken)
+                try? shared.write(value, key: KabbaSessionKeychain.accessTokenKey)
             } else {
-                try? UserDefaults.tokenKeychain.remove(NSUDKey.accessToken)
+                shared.remove(KabbaSessionKeychain.accessTokenKey)
             }
-            // Never leave a copy of the token in plaintext UserDefaults.
+            // Never leave a copy of the token anywhere else.
             removeObject(forKey: NSUDKey.accessToken)
+            try? UserDefaults.tokenKeychain.remove(NSUDKey.accessToken)
+            let group = UserDefaults(suiteName: KabbaSharedClientHeaders.appGroup)
+            group?.removeObject(forKey: "auth_token")
+            group?.synchronize()
             synchronize()
+            UserDefaults.sharedTokenMigrationChecked = true
         }
     }
     

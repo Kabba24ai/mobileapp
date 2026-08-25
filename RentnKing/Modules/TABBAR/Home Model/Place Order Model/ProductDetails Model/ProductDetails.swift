@@ -156,7 +156,8 @@ extension ProductDetailsViewController :WebServiceHelperDelegate{
         }
         
         //Declaration URL
-        let strURL = "\(Url.productsDetaisl.absoluteString!)"
+        // Phase 5: `productsDetaisl` was an oldAPI endpoint that never existed under api/admin/v1 (always 404) — retired on the client.
+        guard let strURL = Url.retired("getProductDetails") else { indicatorHide(); return }
         
        
         //Create object for webservicehelper and start to call method

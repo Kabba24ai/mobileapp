@@ -97,6 +97,13 @@ enum KabbaSync {
             KabbaSync.installation = installation
             KabbaSync.sessionExpiredHandler = onSessionExpired
 
+            // Phase 5 — session record, update-required gate, and the install id the share
+            // extension puts on its own requests. The gate may pause the engine BEFORE the
+            // first drain when a persisted 426 verdict still applies to this build.
+            KabbaSession.configure(rootDirectory: root)
+            KabbaUpdateGate.shared.configure(rootDirectory: root, engine: engine)
+            KabbaSharedClientHeaders.publishInstallationId(installation.identifier())
+
             // Old MMKV queues → durable operations. Runs once per launch; each migration clears its source.
             legacyMigrations.forEach { $0() }
 
@@ -139,7 +146,11 @@ enum KabbaSync {
     /// Explicit logout: stop sending (operations stay stored for the next session).
     static func sessionDidEnd() {
         engine?.authenticationLost()
+        KabbaSession.end()
     }
+
+    /// The server's non-blocking update advice from the most recent response (policy headers).
+    static var updateAdvice: UpdateAdvice? { client?.latestUpdateAdvice }
 
     // MARK: - Background refresh (opportunistic; the queue never depends on it)
 
@@ -209,6 +220,15 @@ enum KabbaSync {
         observers.append(center.addObserver(forName: .kabbaAuthenticationExpired, object: nil, queue: .main) { _ in
             engine?.authenticationLost()
             sessionExpiredHandler?()
+        })
+        // Phase 5 — 426 from either network layer: persist the verdict, pause, show Update Required.
+        observers.append(center.addObserver(forName: .kabbaAppUpdateRequired, object: nil, queue: .main) { note in
+            KabbaUpdateGate.shared.handle(policyBody: note.userInfo?["policy"] as? Data,
+                                          requestId: note.userInfo?["request_id"] as? String)
+        })
+        // Phase 5 — sliding expiry echoed by the server keeps the local session record honest.
+        observers.append(center.addObserver(forName: .kabbaSessionExpiryChanged, object: nil, queue: .main) { note in
+            KabbaSession.noteServerContact(expiresAtHeader: note.userInfo?["expires_at"] as? String)
         })
     }
 
