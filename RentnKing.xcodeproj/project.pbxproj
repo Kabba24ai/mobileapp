@@ -306,6 +306,70 @@
 		DD0002A22FE5000000000012 /* SyncDeliveryPickupInputs.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */; };
 		EB026B0B2E90F05800937ED5 /* MMKV in Frameworks */ = {isa = PBXBuildFile; productRef = EB026B0A2E90F05800937ED5 /* MMKV */; };
 		EB026B0D2E90F08B00937ED5 /* SDKUserDefault.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */; };
+		5A5C00000000000000000061 /* APIEnvelopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000060 /* APIEnvelopeTests.swift */; };
+		5A5C00000000000000000063 /* APIErrorClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000062 /* APIErrorClassifierTests.swift */; };
+		5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000064 /* AuthRecoveryTests.swift */; };
+		5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000066 /* ChecklistContractTests.swift */; };
+		5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000068 /* ChecklistOperationTests.swift */; };
+		5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */; };
+		5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000006C /* ExternalTransferTests.swift */; };
+		5A5C0000000000000000006F /* FileSyncOperationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000006E /* FileSyncOperationStoreTests.swift */; };
+		5A5C00000000000000000071 /* InstallationIdentityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000070 /* InstallationIdentityTests.swift */; };
+		5A5C00000000000000000073 /* JSONValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000072 /* JSONValueTests.swift */; };
+		5A5C00000000000000000075 /* LegacyChecklistMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000074 /* LegacyChecklistMigrationTests.swift */; };
+		5A5C00000000000000000077 /* LegacyMediaMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000076 /* LegacyMediaMigrationTests.swift */; };
+		5A5C00000000000000000079 /* MediaOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000078 /* MediaOperationTests.swift */; };
+		5A5C0000000000000000007B /* Phase4ContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007A /* Phase4ContractTests.swift */; };
+		5A5C0000000000000000007D /* Phase5ContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007C /* Phase5ContractTests.swift */; };
+		5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007E /* QueueLineOperationTests.swift */; };
+		5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000080 /* ReleasePolicyTests.swift */; };
+		5A5C00000000000000000083 /* SessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000082 /* SessionStateTests.swift */; };
+		5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000084 /* SyncEngineTests.swift */; };
+		5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */; };
+		5A5C00000000000000000089 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000088 /* TestSupport.swift */; };
+		5A5C0000000000000000008B /* app_release_no_policy.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000008A /* app_release_no_policy.json */; };
+		5A5C0000000000000000008D /* app_update_required.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000008C /* app_update_required.json */; };
+		5A5C0000000000000000008F /* auth_login_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000008E /* auth_login_success.json */; };
+		5A5C00000000000000000091 /* auth_unauthenticated_expired.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000090 /* auth_unauthenticated_expired.json */; };
+		5A5C00000000000000000093 /* checklist_completion_idempotent_replay.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000092 /* checklist_completion_idempotent_replay.json */; };
+		5A5C00000000000000000095 /* checklist_equipment_assignment_conflict.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000094 /* checklist_equipment_assignment_conflict.json */; };
+		5A5C00000000000000000097 /* checklist_validation_failure.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000096 /* checklist_validation_failure.json */; };
+		5A5C00000000000000000099 /* delivery_checklist_completion_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000098 /* delivery_checklist_completion_success.json */; };
+		5A5C0000000000000000009B /* delivery_checklist_context.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000009A /* delivery_checklist_context.json */; };
+		5A5C0000000000000000009D /* delivery_checklist_prepared.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000009C /* delivery_checklist_prepared.json */; };
+		5A5C0000000000000000009F /* media_client_id_conflict.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000009E /* media_client_id_conflict.json */; };
+		5A5C000000000000000000A1 /* media_upload_idempotent_replay.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */; };
+		5A5C000000000000000000A3 /* media_upload_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A2 /* media_upload_success.json */; };
+		5A5C000000000000000000A5 /* queue_line_board_item.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A4 /* queue_line_board_item.json */; };
+		5A5C000000000000000000A7 /* queue_line_mark_staged_conflict.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */; };
+		5A5C000000000000000000A9 /* queue_line_mark_staged_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */; };
+		5A5C000000000000000000AB /* return_checklist_completion_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AA /* return_checklist_completion_success.json */; };
+		5A5C000000000000000000AD /* return_checklist_context.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AC /* return_checklist_context.json */; };
+		5A5C000000000000000000AF /* route_retired.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AE /* route_retired.json */; };
+		5A5C000000000000000000B0 /* ChecklistContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000021 /* ChecklistContext.swift */; };
+		5A5C000000000000000000B1 /* ChecklistContextStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000023 /* ChecklistContextStore.swift */; };
+		5A5C000000000000000000B2 /* SyncMultipartBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000025 /* SyncMultipartBuilder.swift */; };
+		5A5C000000000000000000B3 /* SyncAssetWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000027 /* SyncAssetWriter.swift */; };
+		5A5C000000000000000000B4 /* ChecklistOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000029 /* ChecklistOperations.swift */; };
+		5A5C000000000000000000B5 /* LegacyChecklistQueueMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000002B /* LegacyChecklistQueueMigration.swift */; };
+		5A5C000000000000000000B6 /* QueueLineOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000033 /* QueueLineOperations.swift */; };
+		5A5C000000000000000000B7 /* MediaOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000035 /* MediaOperations.swift */; };
+		5A5C000000000000000000B8 /* LegacyMediaQueueMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000037 /* LegacyMediaQueueMigration.swift */; };
+		5A5C000000000000000000B9 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000001 /* JSONValue.swift */; };
+		5A5C000000000000000000BA /* KabbaDateFormats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000003 /* KabbaDateFormats.swift */; };
+		5A5C000000000000000000BB /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000005 /* APIError.swift */; };
+		5A5C000000000000000000BC /* APIEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000007 /* APIEnvelope.swift */; };
+		5A5C000000000000000000BD /* SyncOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000009 /* SyncOperation.swift */; };
+		5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000B /* SyncOperationStore.swift */; };
+		5A5C000000000000000000BF /* SyncHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000D /* SyncHTTP.swift */; };
+		5A5C000000000000000000C0 /* SyncRetryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000000F /* SyncRetryPolicy.swift */; };
+		5A5C000000000000000000C1 /* SyncDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000011 /* SyncDiagnostics.swift */; };
+		5A5C000000000000000000C2 /* InstallationIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000013 /* InstallationIdentity.swift */; };
+		5A5C000000000000000000C3 /* ClientMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000041 /* ClientMetadata.swift */; };
+		5A5C000000000000000000C4 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
+		5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
+		5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
+		5A5C000000000000000000C7 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000015 /* SyncEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -611,6 +675,47 @@
 		DD0002A12FE5000000000011 /* SyncDeliveryPickupInputs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDeliveryPickupInputs.swift; sourceTree = "<group>"; };
 		EB026B0C2E90F08B00937ED5 /* SDKUserDefault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKUserDefault.swift; sourceTree = "<group>"; };
 		F3A29B4D73DA4ACE902EE475 /* QueueLineStagePopup.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QueueLineStagePopup.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000060 /* APIEnvelopeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEnvelopeTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000062 /* APIErrorClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIErrorClassifierTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000064 /* AuthRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRecoveryTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000066 /* ChecklistContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContractTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000068 /* ChecklistOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistOperationTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpointGuardTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000006C /* ExternalTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTransferTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000006E /* FileSyncOperationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSyncOperationStoreTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000070 /* InstallationIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentityTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000072 /* JSONValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONValueTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000074 /* LegacyChecklistMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyChecklistMigrationTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000076 /* LegacyMediaMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyMediaMigrationTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000078 /* MediaOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaOperationTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000007A /* Phase4ContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase4ContractTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000007C /* Phase5ContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase5ContractTests.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000007E /* QueueLineOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineOperationTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000080 /* ReleasePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicyTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000082 /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000084 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncResponseInterpreterTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000088 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
+		5A5C0000000000000000008A /* app_release_no_policy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = app_release_no_policy.json; sourceTree = "<group>"; };
+		5A5C0000000000000000008C /* app_update_required.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = app_update_required.json; sourceTree = "<group>"; };
+		5A5C0000000000000000008E /* auth_login_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = auth_login_success.json; sourceTree = "<group>"; };
+		5A5C00000000000000000090 /* auth_unauthenticated_expired.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = auth_unauthenticated_expired.json; sourceTree = "<group>"; };
+		5A5C00000000000000000092 /* checklist_completion_idempotent_replay.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = checklist_completion_idempotent_replay.json; sourceTree = "<group>"; };
+		5A5C00000000000000000094 /* checklist_equipment_assignment_conflict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = checklist_equipment_assignment_conflict.json; sourceTree = "<group>"; };
+		5A5C00000000000000000096 /* checklist_validation_failure.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = checklist_validation_failure.json; sourceTree = "<group>"; };
+		5A5C00000000000000000098 /* delivery_checklist_completion_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = delivery_checklist_completion_success.json; sourceTree = "<group>"; };
+		5A5C0000000000000000009A /* delivery_checklist_context.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = delivery_checklist_context.json; sourceTree = "<group>"; };
+		5A5C0000000000000000009C /* delivery_checklist_prepared.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = delivery_checklist_prepared.json; sourceTree = "<group>"; };
+		5A5C0000000000000000009E /* media_client_id_conflict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = media_client_id_conflict.json; sourceTree = "<group>"; };
+		5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = media_upload_idempotent_replay.json; sourceTree = "<group>"; };
+		5A5C000000000000000000A2 /* media_upload_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = media_upload_success.json; sourceTree = "<group>"; };
+		5A5C000000000000000000A4 /* queue_line_board_item.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_board_item.json; sourceTree = "<group>"; };
+		5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_mark_staged_conflict.json; sourceTree = "<group>"; };
+		5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_mark_staged_success.json; sourceTree = "<group>"; };
+		5A5C000000000000000000AA /* return_checklist_completion_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = return_checklist_completion_success.json; sourceTree = "<group>"; };
+		5A5C000000000000000000AC /* return_checklist_context.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = return_checklist_context.json; sourceTree = "<group>"; };
+		5A5C000000000000000000AE /* route_retired.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = route_retired.json; sourceTree = "<group>"; };
+		5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KabbaSyncCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -650,6 +755,13 @@
 				C5498C552B60D99C00288573 /* NukeExtensions in Frameworks */,
 				C5498C572B60D99C00288573 /* NukeUI in Frameworks */,
 				C5498C5B2B60D9C100288573 /* IQKeyboardManagerSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A5C000000000000000000CD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -755,6 +867,7 @@
 		C51AF50A2AD177DE0042589E = {
 			isa = PBXGroup;
 			children = (
+				5A5C000000000000000000C9 /* RentnKingTests */,
 				C51AF5152AD177DE0042589E /* RentnKing */,
 				C51AF64B2AD17BB10042589E /* RentnKinExtension */,
 				C51AF6482AD17BB10042589E /* Frameworks */,
@@ -765,6 +878,7 @@
 		C51AF5142AD177DE0042589E /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */,
 				C51AF5132AD177DE0042589E /* RentnKing.app */,
 				C51AF6472AD17BB10042589E /* RentnKinExtension.appex */,
 			);
@@ -1748,6 +1862,69 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		5A5C000000000000000000C9 /* RentnKingTests */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C000000000000000000CA /* KabbaSyncCore */,
+			);
+			path = RentnKingTests;
+			sourceTree = "<group>";
+		};
+		5A5C000000000000000000CA /* KabbaSyncCore */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000060 /* APIEnvelopeTests.swift */,
+				5A5C00000000000000000062 /* APIErrorClassifierTests.swift */,
+				5A5C00000000000000000064 /* AuthRecoveryTests.swift */,
+				5A5C00000000000000000066 /* ChecklistContractTests.swift */,
+				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
+				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
+				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
+				5A5C0000000000000000006E /* FileSyncOperationStoreTests.swift */,
+				5A5C00000000000000000070 /* InstallationIdentityTests.swift */,
+				5A5C00000000000000000072 /* JSONValueTests.swift */,
+				5A5C00000000000000000074 /* LegacyChecklistMigrationTests.swift */,
+				5A5C00000000000000000076 /* LegacyMediaMigrationTests.swift */,
+				5A5C00000000000000000078 /* MediaOperationTests.swift */,
+				5A5C0000000000000000007A /* Phase4ContractTests.swift */,
+				5A5C0000000000000000007C /* Phase5ContractTests.swift */,
+				5A5C0000000000000000007E /* QueueLineOperationTests.swift */,
+				5A5C00000000000000000080 /* ReleasePolicyTests.swift */,
+				5A5C00000000000000000082 /* SessionStateTests.swift */,
+				5A5C00000000000000000084 /* SyncEngineTests.swift */,
+				5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */,
+				5A5C00000000000000000088 /* TestSupport.swift */,
+				5A5C000000000000000000CB /* Fixtures */,
+			);
+			path = KabbaSyncCore;
+			sourceTree = "<group>";
+		};
+		5A5C000000000000000000CB /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C0000000000000000008A /* app_release_no_policy.json */,
+				5A5C0000000000000000008C /* app_update_required.json */,
+				5A5C0000000000000000008E /* auth_login_success.json */,
+				5A5C00000000000000000090 /* auth_unauthenticated_expired.json */,
+				5A5C00000000000000000092 /* checklist_completion_idempotent_replay.json */,
+				5A5C00000000000000000094 /* checklist_equipment_assignment_conflict.json */,
+				5A5C00000000000000000096 /* checklist_validation_failure.json */,
+				5A5C00000000000000000098 /* delivery_checklist_completion_success.json */,
+				5A5C0000000000000000009A /* delivery_checklist_context.json */,
+				5A5C0000000000000000009C /* delivery_checklist_prepared.json */,
+				5A5C0000000000000000009E /* media_client_id_conflict.json */,
+				5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */,
+				5A5C000000000000000000A2 /* media_upload_success.json */,
+				5A5C000000000000000000A4 /* queue_line_board_item.json */,
+				5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */,
+				5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */,
+				5A5C000000000000000000AA /* return_checklist_completion_success.json */,
+				5A5C000000000000000000AC /* return_checklist_context.json */,
+				5A5C000000000000000000AE /* route_retired.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1815,6 +1992,23 @@
 			productReference = C51AF6472AD17BB10042589E /* RentnKinExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		5A5C000000000000000000CF /* KabbaSyncCoreTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A5C000000000000000000D0 /* Build configuration list for PBXNativeTarget "KabbaSyncCoreTests" */;
+			buildPhases = (
+				5A5C000000000000000000CC /* Sources */,
+				5A5C000000000000000000CD /* Frameworks */,
+				5A5C000000000000000000CE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KabbaSyncCoreTests;
+			productName = KabbaSyncCoreTests;
+			productReference = 5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1829,6 +2023,9 @@
 						CreatedOnToolsVersion = 15.0;
 					};
 					C51AF6462AD17BB10042589E = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					5A5C000000000000000000CF = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -1859,6 +2056,7 @@
 			targets = (
 				C51AF5122AD177DE0042589E /* RentnKing */,
 				C51AF6462AD17BB10042589E /* RentnKinExtension */,
+				5A5C000000000000000000CF /* KabbaSyncCoreTests */,
 			);
 		};
 /* End PBXProject section */
@@ -1914,6 +2112,32 @@
 				C51AF65C2AD17BD50042589E /* Assets.xcassets in Resources */,
 				C51AF69C2AD17CF10042589E /* Roboto-Bold.ttf in Resources */,
 				C51AF6522AD17BB10042589E /* MainInterface.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A5C000000000000000000CE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A5C0000000000000000008B /* app_release_no_policy.json in Resources */,
+				5A5C0000000000000000008D /* app_update_required.json in Resources */,
+				5A5C0000000000000000008F /* auth_login_success.json in Resources */,
+				5A5C00000000000000000091 /* auth_unauthenticated_expired.json in Resources */,
+				5A5C00000000000000000093 /* checklist_completion_idempotent_replay.json in Resources */,
+				5A5C00000000000000000095 /* checklist_equipment_assignment_conflict.json in Resources */,
+				5A5C00000000000000000097 /* checklist_validation_failure.json in Resources */,
+				5A5C00000000000000000099 /* delivery_checklist_completion_success.json in Resources */,
+				5A5C0000000000000000009B /* delivery_checklist_context.json in Resources */,
+				5A5C0000000000000000009D /* delivery_checklist_prepared.json in Resources */,
+				5A5C0000000000000000009F /* media_client_id_conflict.json in Resources */,
+				5A5C000000000000000000A1 /* media_upload_idempotent_replay.json in Resources */,
+				5A5C000000000000000000A3 /* media_upload_success.json in Resources */,
+				5A5C000000000000000000A5 /* queue_line_board_item.json in Resources */,
+				5A5C000000000000000000A7 /* queue_line_mark_staged_conflict.json in Resources */,
+				5A5C000000000000000000A9 /* queue_line_mark_staged_success.json in Resources */,
+				5A5C000000000000000000AB /* return_checklist_completion_success.json in Resources */,
+				5A5C000000000000000000AD /* return_checklist_context.json in Resources */,
+				5A5C000000000000000000AF /* route_retired.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2168,6 +2392,58 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A5C000000000000000000CC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A5C00000000000000000061 /* APIEnvelopeTests.swift in Sources */,
+				5A5C00000000000000000063 /* APIErrorClassifierTests.swift in Sources */,
+				5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */,
+				5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */,
+				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
+				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
+				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
+				5A5C0000000000000000006F /* FileSyncOperationStoreTests.swift in Sources */,
+				5A5C00000000000000000071 /* InstallationIdentityTests.swift in Sources */,
+				5A5C00000000000000000073 /* JSONValueTests.swift in Sources */,
+				5A5C00000000000000000075 /* LegacyChecklistMigrationTests.swift in Sources */,
+				5A5C00000000000000000077 /* LegacyMediaMigrationTests.swift in Sources */,
+				5A5C00000000000000000079 /* MediaOperationTests.swift in Sources */,
+				5A5C0000000000000000007B /* Phase4ContractTests.swift in Sources */,
+				5A5C0000000000000000007D /* Phase5ContractTests.swift in Sources */,
+				5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */,
+				5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */,
+				5A5C00000000000000000083 /* SessionStateTests.swift in Sources */,
+				5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */,
+				5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */,
+				5A5C00000000000000000089 /* TestSupport.swift in Sources */,
+				5A5C000000000000000000B0 /* ChecklistContext.swift in Sources */,
+				5A5C000000000000000000B1 /* ChecklistContextStore.swift in Sources */,
+				5A5C000000000000000000B2 /* SyncMultipartBuilder.swift in Sources */,
+				5A5C000000000000000000B3 /* SyncAssetWriter.swift in Sources */,
+				5A5C000000000000000000B4 /* ChecklistOperations.swift in Sources */,
+				5A5C000000000000000000B5 /* LegacyChecklistQueueMigration.swift in Sources */,
+				5A5C000000000000000000B6 /* QueueLineOperations.swift in Sources */,
+				5A5C000000000000000000B7 /* MediaOperations.swift in Sources */,
+				5A5C000000000000000000B8 /* LegacyMediaQueueMigration.swift in Sources */,
+				5A5C000000000000000000B9 /* JSONValue.swift in Sources */,
+				5A5C000000000000000000BA /* KabbaDateFormats.swift in Sources */,
+				5A5C000000000000000000BB /* APIError.swift in Sources */,
+				5A5C000000000000000000BC /* APIEnvelope.swift in Sources */,
+				5A5C000000000000000000BD /* SyncOperation.swift in Sources */,
+				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
+				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
+				5A5C000000000000000000C0 /* SyncRetryPolicy.swift in Sources */,
+				5A5C000000000000000000C1 /* SyncDiagnostics.swift in Sources */,
+				5A5C000000000000000000C2 /* InstallationIdentity.swift in Sources */,
+				5A5C000000000000000000C3 /* ClientMetadata.swift in Sources */,
+				5A5C000000000000000000C4 /* SessionState.swift in Sources */,
+				5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */,
+				5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */,
+				5A5C000000000000000000C7 /* SyncEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2326,7 +2602,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1001;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2349,7 +2625,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.17;
+				MARKETING_VERSION = 1.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2368,7 +2644,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1001;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2391,7 +2667,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.17;
+				MARKETING_VERSION = 1.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2407,7 +2683,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1001;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2419,7 +2695,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.17;
+				MARKETING_VERSION = 1.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2436,7 +2712,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1000;
+				CURRENT_PROJECT_VERSION = 1001;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2448,7 +2724,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.17;
+				MARKETING_VERSION = 1.0.18;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -2456,6 +2732,51 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		5A5C000000000000000000D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kabba.KabbaSyncCoreTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		5A5C000000000000000000D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kabba.KabbaSyncCoreTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
 		};
@@ -2485,6 +2806,15 @@
 			buildConfigurations = (
 				C51AF6582AD17BB10042589E /* Debug */,
 				C51AF6592AD17BB10042589E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A5C000000000000000000D0 /* Build configuration list for PBXNativeTarget "KabbaSyncCoreTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A5C000000000000000000D1 /* Debug */,
+				5A5C000000000000000000D2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

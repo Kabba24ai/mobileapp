@@ -79,6 +79,20 @@ then these three files are not compiled or executed.
 - `PendingCheckListTests` — the Pending (prepare-before-arrival) Delivery Checklist
   store. Runs against the app test host (uses `SDKUserDefault`).
 
+## Running through Xcode (Phase 6A)
+`RentnKing.xcodeproj` now has a real unit-test bundle target, **KabbaSyncCoreTests** (shared
+scheme of the same name): a logic-test bundle that compiles `RentnKing/Sync/Core/*.swift`
+together with every file in this directory and copies `Fixtures/*.json` into the bundle root.
+No app host is needed.
+
+    xcodebuild test -project RentnKing.xcodeproj -scheme KabbaSyncCoreTests \
+        -destination 'platform=iOS Simulator,name=iPhone 15'
+
+`Scripts/test-sync-core.sh` (direct swiftc + xctest runner) keeps working as before; both
+paths run the same sources and assertions. The Xcode target was added by script and has not
+yet been executed on this Mac (Xcode license not accepted) — the first `xcodebuild test`
+run is part of the Phase 6A operator checklist.
+
 ## Phase 5 — authentication lifecycle + version enforcement
 `SessionStateTests` (session record from the login response, offline rule, protected persistence,
 one-time credential migration into the shared Keychain — pure logic over `SessionCredentialStore`),
