@@ -65,6 +65,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     override func viewDidLoad() {
         super.viewDidLoad()
         isHomeScreen = true
+        self.view.accessibilityIdentifier = "home.root"
         self.con_viewSize.constant = manageWidth(size: 150)
         
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .notificationCount, object: nil)

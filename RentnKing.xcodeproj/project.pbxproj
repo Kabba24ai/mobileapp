@@ -375,6 +375,8 @@
 		5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */; };
 		5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */; };
 		5A5C00000000000000000112 /* KabbaSessionKeychainDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */; };
+		5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000130 /* StagingTestHarness.swift */; };
+		5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000120 /* AuthFlowUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -386,6 +388,13 @@
 			remoteInfo = RentnKinExtension;
 		};
 		5A5C0000000000000000011B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C51AF50B2AD177DE0042589E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C51AF5122AD177DE0042589E;
+			remoteInfo = RentnKing;
+		};
+		5A5C0000000000000000012B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C51AF50B2AD177DE0042589E /* Project object */;
 			proxyType = 1;
@@ -732,6 +741,9 @@
 		5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychainCredentialStoreTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychainDeviceTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000113 /* RentnKingHostedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingHostedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A5C00000000000000000130 /* StagingTestHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagingTestHarness.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000120 /* AuthFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowUITests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -782,6 +794,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5A5C00000000000000000115 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A5C00000000000000000125 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -891,6 +910,7 @@
 			isa = PBXGroup;
 			children = (
 				5A5C000000000000000000C9 /* RentnKingTests */,
+				5A5C00000000000000000123 /* RentnKingUITests */,
 				C51AF5152AD177DE0042589E /* RentnKing */,
 				C51AF64B2AD17BB10042589E /* RentnKinExtension */,
 				C51AF6482AD17BB10042589E /* Frameworks */,
@@ -903,6 +923,7 @@
 			children = (
 				5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */,
 				5A5C00000000000000000113 /* RentnKingHostedTests.xctest */,
+				5A5C00000000000000000122 /* RentnKingUITests.xctest */,
 				C51AF5132AD177DE0042589E /* RentnKing.app */,
 				C51AF6472AD17BB10042589E /* RentnKinExtension.appex */,
 			);
@@ -1828,6 +1849,7 @@
 			children = (
 				5A5C00000000000000000385 /* Core */,
 				5A5C00000000000000000386 /* App */,
+				5A5C00000000000000000132 /* Support */,
 			);
 			path = Sync;
 			sourceTree = "<group>";
@@ -1862,6 +1884,22 @@
 				5A5C00000000000000000015 /* SyncEngine.swift */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		5A5C00000000000000000132 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000130 /* StagingTestHarness.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		5A5C00000000000000000123 /* RentnKingUITests */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000120 /* AuthFlowUITests.swift */,
+			);
+			path = RentnKingUITests;
 			sourceTree = "<group>";
 		};
 		5A5C00000000000000000386 /* App */ = {
@@ -2062,6 +2100,24 @@
 			productReference = 5A5C00000000000000000113 /* RentnKingHostedTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		5A5C00000000000000000127 /* RentnKingUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A5C00000000000000000128 /* Build configuration list for PBXNativeTarget "RentnKingUITests" */;
+			buildPhases = (
+				5A5C00000000000000000124 /* Sources */,
+				5A5C00000000000000000125 /* Frameworks */,
+				5A5C00000000000000000126 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5A5C0000000000000000012C /* PBXTargetDependency */,
+			);
+			name = RentnKingUITests;
+			productName = RentnKingUITests;
+			productReference = 5A5C00000000000000000122 /* RentnKingUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2082,6 +2138,10 @@
 						CreatedOnToolsVersion = 15.0;
 					};
 					5A5C00000000000000000117 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = C51AF5122AD177DE0042589E;
+					};
+					5A5C00000000000000000127 = {
 						CreatedOnToolsVersion = 15.0;
 						TestTargetID = C51AF5122AD177DE0042589E;
 					};
@@ -2115,6 +2175,7 @@
 				C51AF6462AD17BB10042589E /* RentnKinExtension */,
 				5A5C000000000000000000CF /* KabbaSyncCoreTests */,
 				5A5C00000000000000000117 /* RentnKingHostedTests */,
+				5A5C00000000000000000127 /* RentnKingUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -2206,6 +2267,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A5C00000000000000000126 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -2232,6 +2300,7 @@
 				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
 				5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */,
+				5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */,
 				5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */,
 				5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */,
 				5A5C00000000000000000050 /* KabbaSession.swift in Sources */,
@@ -2521,6 +2590,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A5C00000000000000000124 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -2533,6 +2610,11 @@
 			isa = PBXTargetDependency;
 			target = C51AF5122AD177DE0042589E /* RentnKing */;
 			targetProxy = 5A5C0000000000000000011B /* PBXContainerItemProxy */;
+		};
+		5A5C0000000000000000012C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C51AF5122AD177DE0042589E /* RentnKing */;
+			targetProxy = 5A5C0000000000000000012B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2910,6 +2992,52 @@
 			};
 			name = Release;
 		};
+		5A5C00000000000000000129 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = RentnKing;
+			};
+			name = Debug;
+		};
+		5A5C0000000000000000012A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.UITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = RentnKing;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2954,6 +3082,15 @@
 			buildConfigurations = (
 				5A5C00000000000000000119 /* Debug */,
 				5A5C0000000000000000011A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A5C00000000000000000128 /* Build configuration list for PBXNativeTarget "RentnKingUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A5C00000000000000000129 /* Debug */,
+				5A5C0000000000000000012A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

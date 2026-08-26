@@ -79,6 +79,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         
         
         self.btnLogOut.configureLable(bgColour: .clear, textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Log Out")
+        self.btnLogOut.accessibilityIdentifier = "settings.logout"
         
         
         //SET VIEW

@@ -55,7 +55,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
         setupKeyboard(true)
-        
+
+        #if DEBUG
+        // Phase 6A on-device UI test: start clean at the staging Login. Inert without -KabbaBaseURL.
+        StagingTestHarness.resetSessionIfActive()
+        #endif
+
         UIApplication.shared.applicationIconBadgeNumber = 0
 
         #if DEBUG

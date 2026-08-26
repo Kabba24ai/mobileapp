@@ -68,6 +68,16 @@ class LoginViewController: UIViewController {
         imgColor(imgColor: self.imgelectCustomer, colorHex: .secondary)
         self.txtSelectCustomer.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: "Enter Compnay Code")
         self.txtSelectCustomer.delegate = self
+
+        // Accessibility identifiers for the on-device UI test (RentnKingUITests).
+        self.txtSelectCustomer.accessibilityIdentifier = "login.companyCode"
+        self.txtEmail.accessibilityIdentifier = "login.email"
+        self.txtPassword.accessibilityIdentifier = "login.password"
+        self.btnLogin.accessibilityIdentifier = "login.button"
+        #if DEBUG
+        // DEBUG + `-KabbaBaseURL` only (the UI test); inert otherwise.
+        StagingTestHarness.applyToLogin(company: self.txtSelectCustomer, email: self.txtEmail, password: self.txtPassword)
+        #endif
         self.txtEmail.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: "Enter email")
         self.txtPassword.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 14.0, text: "", placeholder: "Enter password")
 
