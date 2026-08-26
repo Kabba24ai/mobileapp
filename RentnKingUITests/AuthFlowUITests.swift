@@ -29,6 +29,14 @@ final class AuthFlowUITests: XCTestCase {
         base = env["KABBA_BASE_URL"] ?? ""
         email = env["KABBA_EMAIL"] ?? ""
         password = env["KABBA_PASSWORD"] ?? ""
+
+        // System permission dialogs (notifications) must not block the flow.
+        addUIInterruptionMonitor(withDescription: "system-permission") { alert in
+            for label in ["Allow", "Allow While Using App", "OK", "Don’t Allow", "Don't Allow"] {
+                if alert.buttons[label].exists { alert.buttons[label].tap(); return true }
+            }
+            return false
+        }
     }
 
     private func makeApp() -> XCUIApplication {
@@ -79,6 +87,7 @@ final class AuthFlowUITests: XCTestCase {
         let app = makeApp()
         app.launch()
 
+        app.tap()   // let the interruption monitor dismiss any system permission dialog
         signIn(app)
         assertSignedIn(app)
 
@@ -112,6 +121,7 @@ final class AuthFlowUITests: XCTestCase {
         let app = makeApp()
         app.launch()
 
+        app.tap()   // dismiss any system permission dialog via the interruption monitor
         signIn(app)
         assertSignedIn(app)
 

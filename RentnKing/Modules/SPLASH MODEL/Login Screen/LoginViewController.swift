@@ -166,6 +166,16 @@ extension LoginViewController{
     @IBAction func btnLoginClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
+        #if DEBUG
+        // Phase 6A UI test: log into STAGING deterministically — fixed base URL + credentials,
+        // ignoring the on-screen fields and the production company-code lookup. Inert without -KabbaBaseURL.
+        if let base = StagingTestHarness.argument("KabbaBaseURL"), let creds = StagingTestHarness.credentials() {
+            UserDefaults.standard.baseURL = base
+            self.loginAPI(LoginParameater: LoginParameater(email: creds.email, password: creds.password))
+            return
+        }
+        #endif
+
         if UserDefaults.standard.baseURL != nil && UserDefaults.standard.baseURL != "" {
             //CHECK VALIDATION
             let strCode = self.txtSelectCustomer.text?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines) ?? ""

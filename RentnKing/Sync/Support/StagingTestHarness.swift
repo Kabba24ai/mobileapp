@@ -40,6 +40,14 @@ enum StagingTestHarness {
         print("[test-harness] staging base URL applied; company/email/password pre-filled")
     }
 
+    /// The staging credentials the UI test passed. When present, the login must use THESE and
+    /// the staging base URL directly — never the on-screen fields (a person may touch the device
+    /// mid-test) and never the production company-code lookup.
+    static func credentials() -> (email: String, password: String)? {
+        guard isActive, let email = argument("KabbaEmail"), let password = argument("KabbaPassword") else { return nil }
+        return (email, password)
+    }
+
     /// Called at launch (AppDelegate) BEFORE the "already signed in?" routing. Under a UI test
     /// (`-KabbaBaseURL` present) it clears any prior session so the app always starts at the
     /// staging Login — never on a session left over from a manual production sign-in.
