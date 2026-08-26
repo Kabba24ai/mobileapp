@@ -25,6 +25,13 @@
 #
 set -euo pipefail
 UDID="${KABBA_UDID:-$(xcrun xctrace list devices 2>/dev/null | awk '/\(1[0-9]\.[0-9].*\)/{print $NF; exit}' | tr -d '()')}"
+# KABBA_DEST=sim runs on the iPhone 17 simulator (reliable for the pure UI+network auth flows;
+# no auto-lock). Default: the attached device (required for the share-extension check).
+if [ "${KABBA_DEST:-device}" = "sim" ]; then
+  DESTINATION="platform=iOS Simulator,name=${KABBA_SIM:-iPhone 17}"
+else
+  DESTINATION="id=$UDID"
+fi
 : "${KABBA_BASE_URL:?set KABBA_BASE_URL}"
 : "${KABBA_EMAIL:?set KABBA_EMAIL}"
 : "${KABBA_PASSWORD:?set KABBA_PASSWORD}"
@@ -46,6 +53,6 @@ TEST_RUNNER_KABBA_PASSWORD="$KABBA_PASSWORD" \
 exec xcodebuild test \
   -project "$ROOT/RentnKing.xcodeproj" \
   -scheme RentnKingUITests \
-  -destination "id=$UDID" \
+  -destination "$DESTINATION" \
   -allowProvisioningUpdates \
   "${only[@]}"
