@@ -370,6 +370,11 @@
 		5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
 		5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
 		5A5C000000000000000000C7 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000015 /* SyncEngine.swift */; };
+		5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */; };
+		5A5C00000000000000000103 /* SharedKeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */; };
+		5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */; };
+		5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */; };
+		5A5C00000000000000000112 /* KabbaSessionKeychainDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -379,6 +384,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = C51AF6462AD17BB10042589E;
 			remoteInfo = RentnKinExtension;
+		};
+		5A5C0000000000000000011B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C51AF50B2AD177DE0042589E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C51AF5122AD177DE0042589E;
+			remoteInfo = RentnKing;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -716,6 +728,10 @@
 		5A5C000000000000000000AC /* return_checklist_context.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = return_checklist_context.json; sourceTree = "<group>"; };
 		5A5C000000000000000000AE /* route_retired.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = route_retired.json; sourceTree = "<group>"; };
 		5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KabbaSyncCoreTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychainCredentialStore.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedKeychainCredentialStoreTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychainDeviceTests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000113 /* RentnKingHostedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingHostedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -759,6 +775,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5A5C000000000000000000CD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A5C00000000000000000115 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -879,6 +902,7 @@
 			isa = PBXGroup;
 			children = (
 				5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */,
+				5A5C00000000000000000113 /* RentnKingHostedTests.xctest */,
 				C51AF5132AD177DE0042589E /* RentnKing.app */,
 				C51AF6472AD17BB10042589E /* RentnKinExtension.appex */,
 			);
@@ -1834,6 +1858,7 @@
 				5A5C00000000000000000043 /* SessionState.swift */,
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
 				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
+				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
 			);
 			path = Core;
@@ -1866,8 +1891,17 @@
 			isa = PBXGroup;
 			children = (
 				5A5C000000000000000000CA /* KabbaSyncCore */,
+				5A5C00000000000000000110 /* Hosted */,
 			);
 			path = RentnKingTests;
+			sourceTree = "<group>";
+		};
+		5A5C00000000000000000110 /* Hosted */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */,
+			);
+			path = Hosted;
 			sourceTree = "<group>";
 		};
 		5A5C000000000000000000CA /* KabbaSyncCore */ = {
@@ -1894,6 +1928,7 @@
 				5A5C00000000000000000084 /* SyncEngineTests.swift */,
 				5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */,
 				5A5C00000000000000000088 /* TestSupport.swift */,
+				5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */,
 				5A5C000000000000000000CB /* Fixtures */,
 			);
 			path = KabbaSyncCore;
@@ -2009,6 +2044,24 @@
 			productReference = 5A5C000000000000000000C8 /* KabbaSyncCoreTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		5A5C00000000000000000117 /* RentnKingHostedTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5A5C00000000000000000118 /* Build configuration list for PBXNativeTarget "RentnKingHostedTests" */;
+			buildPhases = (
+				5A5C00000000000000000114 /* Sources */,
+				5A5C00000000000000000115 /* Frameworks */,
+				5A5C00000000000000000116 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5A5C0000000000000000011C /* PBXTargetDependency */,
+			);
+			name = RentnKingHostedTests;
+			productName = RentnKingHostedTests;
+			productReference = 5A5C00000000000000000113 /* RentnKingHostedTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -2027,6 +2080,10 @@
 					};
 					5A5C000000000000000000CF = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					5A5C00000000000000000117 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = C51AF5122AD177DE0042589E;
 					};
 				};
 			};
@@ -2057,6 +2114,7 @@
 				C51AF5122AD177DE0042589E /* RentnKing */,
 				C51AF6462AD17BB10042589E /* RentnKinExtension */,
 				5A5C000000000000000000CF /* KabbaSyncCoreTests */,
+				5A5C00000000000000000117 /* RentnKingHostedTests */,
 			);
 		};
 /* End PBXProject section */
@@ -2141,6 +2199,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5A5C00000000000000000116 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -2166,6 +2231,7 @@
 				5A5C00000000000000000044 /* SessionState.swift in Sources */,
 				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
 				5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */,
+				5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */,
 				5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */,
 				5A5C00000000000000000050 /* KabbaSession.swift in Sources */,
@@ -2378,6 +2444,7 @@
 				C51AF6A82AD17D6A0042589E /* ActionViewController.swift in Sources */,
 				C51AF6942AD17CF10042589E /* WebServiceHelper.swift in Sources */,
 				5A5C0000000000000000004B /* KabbaSessionKeychain.swift in Sources */,
+				5A5C00000000000000000103 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C0000000000000000004E /* KabbaSharedClientHeaders.swift in Sources */,
 				C51AF6AB2AD17D8D0042589E /* TagsViewController.swift in Sources */,
 				C51AF69F2AD17CF10042589E /* UIColor+Extension.swift in Sources */,
@@ -2440,7 +2507,17 @@
 				5A5C000000000000000000C4 /* SessionState.swift in Sources */,
 				5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */,
 				5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */,
+				5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */,
+				5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */,
 				5A5C000000000000000000C7 /* SyncEngine.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5A5C00000000000000000114 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5A5C00000000000000000112 /* KabbaSessionKeychainDeviceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2451,6 +2528,11 @@
 			isa = PBXTargetDependency;
 			target = C51AF6462AD17BB10042589E /* RentnKinExtension */;
 			targetProxy = C51AF6542AD17BB10042589E /* PBXContainerItemProxy */;
+		};
+		5A5C0000000000000000011C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C51AF5122AD177DE0042589E /* RentnKing */;
+			targetProxy = 5A5C0000000000000000011B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2780,6 +2862,54 @@
 			};
 			name = Release;
 		};
+		5A5C00000000000000000119 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.HostedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RentnKing.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)RentnKing";
+			};
+			name = Debug;
+		};
+		5A5C0000000000000000011A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = A9U32VVCRV;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.HostedTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RentnKing.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)RentnKing";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2815,6 +2945,15 @@
 			buildConfigurations = (
 				5A5C000000000000000000D1 /* Debug */,
 				5A5C000000000000000000D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5A5C00000000000000000118 /* Build configuration list for PBXNativeTarget "RentnKingHostedTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5A5C00000000000000000119 /* Debug */,
+				5A5C0000000000000000011A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

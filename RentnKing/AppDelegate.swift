@@ -57,6 +57,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         setupKeyboard(true)
         
         UIApplication.shared.applicationIconBadgeNumber = 0
+
+        #if DEBUG
+        // Phase 6A — sanitized Keychain trace (operation names + OSStatus, never a value) and a
+        // launch-time round-trip under THIS build's signed entitlements. Console-only.
+        KabbaSessionKeychain.shared.logger = { print("[keychain] \($0)") }
+        KabbaSessionKeychain.shared.selfTest()
+        #endif
+
         self.checkAppVersionAndLogoutIfNeeded()
         
         //CREATE FOLDER
@@ -643,10 +651,9 @@ extension AppDelegate :WebServiceHelperDelegate {
         indicatorHide()
         
         if data.getStringForID(key: "success") == "1"{
-            print(data)
+            print(KabbaAPIClient.redactedForLog(data))   // never the token
             
             if strRequest == "login"{
-                print(data)
                 if let userData = data["user"] as? NSDictionary{
                     
                     //SAVE USER DATA

@@ -331,6 +331,7 @@ final class KabbaAPIClient: SyncHTTPClient {
     /// expired; 426 → update required (body carried as-is, never logged); policy headers →
     /// non-blocking update advice; X-Session-Expires-At → the phone's session record.
     func observe(statusCode: Int, headers: [String: String], body: Data?, path: String, requestId: String) {
+        KabbaAPIClient.traceResponse(statusCode: statusCode, path: path, requestId: requestId, body: body)
         if statusCode == 401 {
             handleUnauthorized(path: path, requestId: requestId)
         }
@@ -383,6 +384,76 @@ final class KabbaAPIClient: SyncHTTPClient {
             NotificationCenter.default.post(name: .kabbaAuthenticationExpired, object: nil,
                                             userInfo: ["path": path, "request_id": requestId])
         }
+    }
+
+    // MARK: - DEBUG console traces (Phase 6A) — never a credential, never a body
+
+    /// "[api] → POST users/device-token authorization=present rid=ios-… version=1.0.18 build=1001 device=…"
+    static func traceLegacyRequest(_ request: URLRequest) {
+        traceLegacyRequest(method: request.httpMethod ?? "GET",
+                           url: request.url?.absoluteString ?? "?",
+                           headers: request.allHTTPHeaderFields ?? [:])
+    }
+
+    static func traceLegacyRequest(method: String, url: String, headers: [String: String]) {
+        #if DEBUG
+        func header(_ name: String) -> String? {
+            headers.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value
+        }
+        let authorization = (header("Authorization") ?? "").trimmingCharacters(in: .whitespaces)
+        let auth = authorization.isEmpty || authorization.caseInsensitiveCompare("Bearer") == .orderedSame ? "absent" : "present"
+        print("[api] → \(method.uppercased()) \(tracePath(url)) authorization=\(auth) rid=\(header("X-Request-Id") ?? "-") version=\(header("X-Mobile-Version") ?? "-") build=\(header("X-Mobile-Build") ?? "-") device=\(header("X-Device-Id") ?? "absent")")
+        #endif
+    }
+
+    /// "[api] ← 401 users/device-token rid=… error=UNAUTHENTICATED reason=missing"
+    static func traceResponse(statusCode: Int, path: String, requestId: String, body: Data?) {
+        #if DEBUG
+        var line = "[api] ← \(statusCode) \(tracePath(path)) rid=\(requestId)"
+        if statusCode >= 400, let body, let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {
+            let error = json["error"] as? [String: Any]
+            if let code = (error?["code"] as? String) ?? (json["error_code"] as? String) { line += " error=\(code)" }
+            if let reason = error?["reason"] as? String { line += " reason=\(reason)" }
+            if let serverId = json["request_id"] as? String, serverId != requestId { line += " server_rid=\(serverId)" }
+        }
+        print(line)
+        #endif
+    }
+
+    /// "[session] login request_id=… scope=installation expires_at=… token_present=true stored_and_read_back=true …"
+    static func traceLogin(response: NSDictionary, tokenPresent: Bool, storedAndReadBack: Bool) {
+        #if DEBUG
+        let session = response["session"] as? NSDictionary
+        let keychain = KabbaSessionKeychain.shared.lastDiagnostics?.description ?? "-"
+        print("[session] login request_id=\(response["request_id"] ?? "-") scope=\(session?["scope"] ?? "-") issued_at=\(session?["issued_at"] ?? "-") expires_at=\(session?["expires_at"] ?? "-") installation_id=\(session?["installation_id"] ?? "-") token_present=\(tokenPresent) stored_and_read_back=\(storedAndReadBack) \(keychain)")
+        #endif
+    }
+
+    /// A response dictionary for the console with credential-bearing values masked.
+    static func redactedForLog(_ dictionary: NSDictionary) -> String {
+        String(describing: redact(dictionary))
+    }
+
+    private static let redactedKeys: Set<String> = ["token", "access_token", "password", "authorization", "plain_text_token", "refresh_token"]
+
+    private static func redact(_ value: Any) -> Any {
+        if let dictionary = value as? [String: Any] {
+            var masked: [String: Any] = [:]
+            for (key, inner) in dictionary {
+                masked[key] = redactedKeys.contains(key.lowercased()) ? "«redacted»" : redact(inner)
+            }
+            return masked
+        }
+        if let array = value as? [Any] { return array.map(redact) }
+        return value
+    }
+
+    /// "https://host/api/admin/v1/users/device-token" or "users/device-token" → "users/device-token".
+    static func tracePath(_ url: String) -> String {
+        guard let parsed = URL(string: url) else { return url }
+        var path = parsed.path
+        if let range = path.range(of: "/api/admin/v1/") { path = String(path[range.upperBound...]) }
+        return path.isEmpty ? url : path
     }
 
     // MARK: - URL resolution

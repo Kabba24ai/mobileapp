@@ -126,7 +126,14 @@ The app is offline-tolerant. Completed work is persisted locally and drained whe
   anything still pending). Triggered on the Return-checklist save success.
 
 ### Auth & security
-- Bearer token stored in the **Keychain** (`Keychain(service:).accessibility(.afterFirstUnlockThisDeviceOnly)`).
+- Bearer token stored in ONE shared **Keychain** item (`KabbaSessionKeychain` → `SharedKeychainCredentialStore`,
+  service `com.rentnking.auth.shared`, access group = the app group `group.com.RentnKingNew.shared`,
+  `afterFirstUnlockThisDeviceOnly`) that the share extension reads too. The store clears every
+  existing copy with an access-group-less delete BEFORE the shared write — an unqualified
+  `SecItemDelete` spans every access group the process can reach, so run after the write it erased
+  the token (Phase 6A device blocker). Falls back to the app-private group where the app group is not
+  usable as a keychain group. `KabbaSessionKeychain.shared.selfTest()` runs at launch in DEBUG builds
+  and prints a sanitized OSStatus trace (`[keychain] …`). Never logs the token.
 - Token read from the `token` key on login; sent as `Authorization: Bearer <token>`.
 
 ### Release notes

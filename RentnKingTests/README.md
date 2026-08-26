@@ -51,9 +51,11 @@ so they need no simulator, no app host and no third-party package.
 ## 2. App-host tests (`OfflineQueueModelTests`, `PendingCheckListTests`, `QueueLineModelTests`)
 
 These import the app module (`@testable import RentnKing`) and ObjectMapper, so they
-need an Xcode **Unit Testing Bundle** target with the app as host. That target is
-**not yet in `project.pbxproj`** (it must be created in Xcode — see below); until
-then these three files are not compiled or executed.
+need an Xcode **Unit Testing Bundle** target with the app as host. Since Phase 6A the
+project has such a target — **RentnKingHostedTests** (`Hosted/`, see §"Hosted tests"
+below) — but these three files are NOT members of it yet (they also need ObjectMapper
+linked to the test target); until they are added in Xcode they are not compiled or
+executed.
 
 ### One-time setup (in Xcode)
 
@@ -93,6 +95,32 @@ paths run the same sources and assertions. The Xcode target was added by script 
 yet been executed on this Mac (Xcode license not accepted) — the first `xcodebuild test`
 run is part of the Phase 6A operator checklist.
 
+## Hosted tests — `RentnKingHostedTests` (Phase 6A)
+A second unit-test bundle target, **hosted by the app** (`TEST_HOST = RentnKing.app`, shared scheme
+`RentnKingHostedTests`; also a Testable of the `RentnKing` scheme, so ⌘U runs both bundles). It runs
+inside the signed app, on the Simulator or a real iPhone, with the app's real entitlements — which is
+the only way to exercise the Keychain access group for real:
+
+    xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingHostedTests \
+        -destination 'id=<iPhone UDID>' -allowProvisioningUpdates      # phone must be unlocked
+    xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingHostedTests \
+        -destination 'platform=iOS Simulator,name=iPhone 17'
+
+`Hosted/KabbaSessionKeychainDeviceTests` — the Security framework's own semantics on the device
+(the app group is usable as a keychain access group under the signed entitlements; an
+access-group-less `SecItemDelete` reaches the shared-group item) and the App-layer adapter end to
+end (write → immediate read-back, one copy in the shared group, rewrite, remove, the `KeychainStatus`
+constants match `errSec*`). Uses throwaway probe keys only, never the token key. On an environment
+whose app group is not a keychain group the group-specific cases are skipped and the app-private
+fallback is what gets proven.
+
+The policy those tests exercise — delete every copy (unqualified) BEFORE the shared write, duplicate
+→ update in place, entitlement failure → app-private fallback, read-back after every write,
+sanitized diagnostics — is unit-tested without a device in `SharedKeychainCredentialStoreTests`
+against a fake backend that models Apple's access-group semantics (an unqualified query spans all
+reachable groups). That file also replays the Phase 5 ordering to show it erases the token it just
+wrote — the Phase 6A device blocker.
+
 ## Phase 5 — authentication lifecycle + version enforcement
 `SessionStateTests` (session record from the login response, offline rule, protected persistence,
 one-time credential migration into the shared Keychain — pure logic over `SessionCredentialStore`),
@@ -105,8 +133,8 @@ resumes; a persisted verdict pauses before the first drain; logout keeps the que
 only the legacy-queue adapter may; structural scan that no Sync source names a retired route literal
 and that the `oldAPI` URL family is gone from the client), `Phase5ContractTests` (shared fixtures
 `auth_login_success`, `auth_unauthenticated_expired`, `app_update_required`, `route_retired`,
-`app_release_no_policy`). The Keychain access group and the share extension's request headers are
-exercised on device, not here.
+`app_release_no_policy`). The Keychain access group is exercised on device by `RentnKingHostedTests`
+(above); the share extension's request headers are exercised on device, not here.
 
 ## Next tests to add
 - `DriverChecklistSyncHandler` request building (needs the app host or a small

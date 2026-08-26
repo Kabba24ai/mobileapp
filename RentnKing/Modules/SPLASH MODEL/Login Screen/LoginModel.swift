@@ -66,7 +66,7 @@ extension LoginViewController : WebServiceHelperDelegate{
     
     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
-        print(data)
+        print(KabbaAPIClient.redactedForLog(data))   // never the token
 
         if data.getStringForID(key: "success") == "1"{ 
             if strRequest == "clients"{
@@ -76,7 +76,6 @@ extension LoginViewController : WebServiceHelperDelegate{
                 }
             }
             else if strRequest == "login"{
-                print(data)
                 if let userData = data["user"] as? NSDictionary{
                     
                     //SAVE USER DATA
@@ -90,7 +89,20 @@ extension LoginViewController : WebServiceHelperDelegate{
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj
                     // Phase 5: written to the shared Keychain item the extension reads too.
-                    UserDefaults.standard.accessToken = userData.getStringForID(key: "token")
+                    // Phase 6A: proven readable BEFORE anything can use it. A credential that did not
+                    // persist must not reach Home only to be bounced by a 401 a moment later — every
+                    // request after this point (device-token, Home, the Sync Engine) reads it back.
+                    let token: String = userData.getStringForID(key: "token") ?? ""
+                    UserDefaults.standard.accessToken = token
+                    let stored = UserDefaults.standard.accessToken
+                    KabbaAPIClient.traceLogin(response: data, tokenPresent: !token.isEmpty, storedAndReadBack: stored == token && !token.isEmpty)
+                    guard !token.isEmpty, stored == token else {
+                        UserDefaults.standard.user = nil
+                        UserDefaults.standard.accessToken = nil
+                        let code = KabbaSessionKeychain.shared.lastDiagnostics?.steps.last.map { " (Keychain \($0.status))" } ?? ""
+                        showAlertMessage(strMessage: "Kabba could not store your sign-in securely on this phone\(code). Please try again.")
+                        return
+                    }
                     // Phase 5: remember the server's description of this session (expiry, scope) — never the token.
                     KabbaSession.start(loginResponse: data)
                     

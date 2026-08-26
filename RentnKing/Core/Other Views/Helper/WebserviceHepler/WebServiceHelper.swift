@@ -119,6 +119,7 @@ class WebServiceHelper: NSObject {
                 for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
                     request.setValue(headerValue, forHTTPHeaderField: headerName)
                 }
+                KabbaAPIClient.traceLegacyRequest(request)   // Phase 6A: sanitized console trace (no credential, no body)
 
                 //Pass paramater with value data
                 //if methodType == "post" || methodType == "put"{
@@ -263,6 +264,7 @@ class WebServiceHelper: NSObject {
                 for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
                     request.setValue(headerValue, forHTTPHeaderField: headerName)
                 }
+                KabbaAPIClient.traceLegacyRequest(request)   // Phase 6A: sanitized console trace (no credential, no body)
 
                 //Pass paramater with value data
                 //if methodType == "post" || methodType == "put"{
@@ -352,6 +354,10 @@ class WebServiceHelper: NSObject {
         if let accessToken = UserDefaults.standard.accessToken {
             str_accessToken = accessToken
         }
+        // Phase 6A: the exact headers the upload sends (the historical "Bearer " with an empty token when
+        // there is no session is kept — the server answers 401 reason "missing" and the app re-authenticates).
+        let uploadHeaders = KabbaAPIClient.legacyStandardHeaders().merging(["Authorization": "Bearer \(str_accessToken)"], uniquingKeysWith: { _, authorization in authorization })
+        KabbaAPIClient.traceLegacyRequest(method: methodType, url: strURL, headers: uploadHeaders)   // sanitized console trace
         
         if NetworkReachabilityManager()?.isReachable == true {
             do {
@@ -399,9 +405,7 @@ class WebServiceHelper: NSObject {
                             }
                         }
                     }
-                }, to: strURL, method: methodType == "patch" ? .patch : .post, headers: HTTPHeaders(
-                    KabbaAPIClient.legacyStandardHeaders().merging(["Authorization": "Bearer \(str_accessToken)"], uniquingKeysWith: { _, authorization in authorization })
-                ))
+                }, to: strURL, method: methodType == "patch" ? .patch : .post, headers: HTTPHeaders(uploadHeaders))
                 .uploadProgress { progress in
                     print("Upload Progress: \(progress.fractionCompleted * 100)%")
                 }
@@ -684,6 +688,7 @@ class WebServiceHelper: NSObject {
             for (headerName, headerValue) in KabbaAPIClient.legacyStandardHeaders() {
                 headers.add(name: headerName, value: headerValue)
             }
+            KabbaAPIClient.traceLegacyRequest(method: methodType.isEmpty ? "POST" : methodType, url: self.strURL, headers: headers.dictionary)   // Phase 6A: sanitized console trace
             
             AF.upload(multipartFormData: { multipartFormData in
 
