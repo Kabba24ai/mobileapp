@@ -9,6 +9,31 @@ import UIKit
 import Alamofire
 import AVFoundation
 
+/// Phase 5 — the two answers the extension must explain instead of "something went wrong".
+/// (Phase 6A: the definition had been dropped by the Phase 5 edit while its uses stayed —
+/// caught by the first real extension-target build.)
+enum KabbaExtensionError: LocalizedError {
+    /// HTTP 401: the shared session is gone (expired, revoked, or the main app signed out).
+    case sessionExpired
+    /// HTTP 426: this build is below the minimum the server supports.
+    case updateRequired
+
+    static func from(status: Int) -> KabbaExtensionError? {
+        switch status {
+        case 401: return .sessionExpired
+        case 426: return .updateRequired
+        default:  return nil
+        }
+    }
+
+    var errorDescription: String? {
+        switch self {
+        case .sessionExpired: return "Your Kabba session has expired. Open the Kabba app, sign in again, then try again."
+        case .updateRequired: return "This version of the Kabba app is no longer supported. Update it from the App Store to continue."
+        }
+    }
+}
+
 var webservice_Nool_Load : Bool = false
 
 // MARK: - Protocol -

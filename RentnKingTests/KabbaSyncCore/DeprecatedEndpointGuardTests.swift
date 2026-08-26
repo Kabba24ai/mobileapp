@@ -124,4 +124,41 @@ final class DeprecatedEndpointGuardTests: XCTestCase {
             }
         }
     }
+
+    /// Phase 6A regression: the share extension compiles only the files listed in its own Sources
+    /// phase. Every `Kabba…` type its sources reference must be declared in one of those files —
+    /// `swiftc -parse` cannot see a missing declaration, the first real extension build did.
+    func testEveryKabbaTypeTheExtensionReferencesIsDeclaredInAFileTheExtensionCompiles() throws {
+        let project = repoRoot.appendingPathComponent("RentnKing.xcodeproj/project.pbxproj")
+        try XCTSkipIf(!FileManager.default.fileExists(atPath: project.path), "project not available in this checkout")
+        let pbx = try String(contentsOf: project)
+
+        // The extension target's Sources phase → the file names it compiles.
+        guard let phaseRange = pbx.range(of: "C51AF6432AD17BB10042589E /* Sources */ = {"),
+              let end = pbx.range(of: "};", range: phaseRange.upperBound..<pbx.endIndex) else { return XCTFail("extension Sources phase not found") }
+        let phase = String(pbx[phaseRange.lowerBound..<end.lowerBound])
+        let compiled = Set(phase.split(separator: "\n").compactMap { line -> String? in
+            guard let open = line.range(of: "/* "), let close = line.range(of: " in Sources */") else { return nil }
+            return String(line[open.upperBound..<close.lowerBound])
+        })
+        XCTAssertTrue(compiled.contains("KabbaSessionKeychain.swift") && compiled.contains("KabbaSharedClientHeaders.swift"))
+
+        let candidates = swiftFiles(under: "RentnKinExtension") + swiftFiles(under: "RentnKing/Sync/App")
+        let extensionSources = candidates.filter { compiled.contains($0.lastPathComponent) }
+        var declared = Set<String>()
+        var referenced = Set<String>()
+        let declPattern = try NSRegularExpression(pattern: "(?:enum|struct|class|protocol|typealias)\\s+(Kabba[A-Za-z0-9_]+)")
+        let refPattern = try NSRegularExpression(pattern: "\\b(Kabba[A-Za-z0-9_]+)\\b")
+        for file in extensionSources {
+            let source = try String(contentsOf: file)
+            let range = NSRange(source.startIndex..., in: source)
+            declPattern.matches(in: source, range: range).forEach { declared.insert(String(source[Range($0.range(at: 1), in: source)!])) }
+            if file.path.contains("/RentnKinExtension/") {
+                refPattern.matches(in: source, range: range).forEach { referenced.insert(String(source[Range($0.range(at: 1), in: source)!])) }
+            }
+        }
+        let missing = referenced.subtracting(declared)
+        XCTAssertTrue(missing.isEmpty, "referenced by the extension but declared in no file it compiles: \(missing.sorted())")
+        XCTAssertTrue(referenced.contains("KabbaExtensionError"), "sanity: the extension really references the type")
+    }
 }
