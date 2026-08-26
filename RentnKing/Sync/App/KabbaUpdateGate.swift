@@ -73,7 +73,8 @@ final class KabbaUpdateGate {
 
     func present(in window: UIWindow? = nil) {
         guard let state = state, presented == nil else { presented?.refresh(); return }
-        let window = window ?? (UIApplication.shared.delegate?.window ?? nil) ?? UIApplication.shared.windows.first { $0.isKeyWindow }
+        let sceneWindows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap { $0.windows }
+        let window = window ?? (UIApplication.shared.delegate?.window ?? nil) ?? sceneWindows.first { $0.isKeyWindow } ?? sceneWindows.first
         guard let root = window?.rootViewController else { return }
         var top = root
         while let next = top.presentedViewController { top = next }
@@ -144,13 +145,18 @@ final class UpdateRequiredViewController: UIViewController {
         pendingLabel.numberOfLines = 0
         refresh()
 
-        let button = UIButton(type: .system)
-        button.setTitle("Open the App Store", for: .normal)
-        button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
-        button.backgroundColor = .systemBlue
-        button.setTitleColor(.white, for: .normal)
-        button.layer.cornerRadius = 12
-        button.contentEdgeInsets = UIEdgeInsets(top: 14, left: 24, bottom: 14, right: 24)
+        var configuration = UIButton.Configuration.filled()
+        configuration.title = "Open the App Store"
+        configuration.baseBackgroundColor = .systemBlue
+        configuration.baseForegroundColor = .white
+        configuration.cornerStyle = .large
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 24, bottom: 14, trailing: 24)
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
+            var outgoing = incoming
+            outgoing.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
+            return outgoing
+        }
+        let button = UIButton(configuration: configuration)
         button.addTarget(self, action: #selector(openStore), for: .touchUpInside)
 
         let stack = UIStackView(arrangedSubviews: [title, message, detailLabel, pendingLabel, button])

@@ -12,9 +12,9 @@ extension SyncStatusTheme {
     /// Kabba's dark palette: cyan accent, gray secondary text, Roboto.
     static var kabba: SyncStatusTheme {
         SyncStatusTheme(
-            background: UIColor.background ?? .black,
-            card: (UIColor.backgroundDark ?? UIColor.background ?? .black),
-            accent: UIColor.secondary ?? .systemTeal,
+            background: UIColor.background,
+            card: UIColor.backgroundDark,
+            accent: UIColor.secondary,
             text: .white,
             secondaryText: UIColor.gray.withAlphaComponent(0.9),
             success: .systemGreen,
