@@ -46,6 +46,12 @@
 		5A5C00000000000000000016 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000015 /* SyncEngine.swift */; };
 		5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000017 /* KabbaAPIClient.swift */; };
 		5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */; };
+		5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
+		5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
+		5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */; };
+		5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */; };
+		5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E7 /* ManualDispatchListCell.swift */; };
+		5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */; };
 		5A5C0000000000000000001C /* KabbaSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001B /* KabbaSync.swift */; };
 		5A5C0000000000000000001E /* SyncStatusUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001D /* SyncStatusUI.swift */; };
 		5A5C00000000000000000020 /* KabbaSyncAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001F /* KabbaSyncAppearance.swift */; };
@@ -377,6 +383,7 @@
 		5A5C00000000000000000112 /* KabbaSessionKeychainDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */; };
 		5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000130 /* StagingTestHarness.swift */; };
 		5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000120 /* AuthFlowUITests.swift */; };
+		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -455,6 +462,11 @@
 		5A5C00000000000000000015 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000017 /* KabbaAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaAPIClient.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistSyncHandler.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000E0 /* DispatchWorkload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkload.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchSyncHandler.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000E7 /* ManualDispatchListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchListCell.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkloadTests.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001B /* KabbaSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSync.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001D /* SyncStatusUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusUI.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001F /* KabbaSyncAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSyncAppearance.swift; sourceTree = "<group>"; };
@@ -743,6 +755,7 @@
 		5A5C00000000000000000113 /* RentnKingHostedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingHostedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A5C00000000000000000130 /* StagingTestHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagingTestHarness.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000120 /* AuthFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowUITests.swift; sourceTree = "<group>"; };
+		5A5C000000000000000000EC /* DispatchParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchParityUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -1614,6 +1627,7 @@
 				C53C130F2FE40DC50076E2D1 /* Assign Driver */,
 				C53C13122FE41DCA0076E2D1 /* Driver Checklist */,
 				DD0001A52FE5000000000005 /* Warning Checklist */,
+				5A5C000000000000000000EB /* Manual Dispatch */,
 			);
 			path = "Dispatch Model";
 			sourceTree = "<group>";
@@ -1876,6 +1890,7 @@
 				5A5C0000000000000000000F /* SyncRetryPolicy.swift */,
 				5A5C00000000000000000011 /* SyncDiagnostics.swift */,
 				5A5C00000000000000000013 /* InstallationIdentity.swift */,
+				5A5C000000000000000000E0 /* DispatchWorkload.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
@@ -1898,6 +1913,7 @@
 			isa = PBXGroup;
 			children = (
 				5A5C00000000000000000120 /* AuthFlowUITests.swift */,
+				5A5C000000000000000000EC /* DispatchParityUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -1918,6 +1934,7 @@
 				5A5C0000000000000000003F /* LegacyMediaQueueMigrationApp.swift */,
 				5A5C00000000000000000017 /* KabbaAPIClient.swift */,
 				5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */,
+				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A5C0000000000000000001B /* KabbaSync.swift */,
 				5A5C0000000000000000001D /* SyncStatusUI.swift */,
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
@@ -1942,9 +1959,19 @@
 			path = Hosted;
 			sourceTree = "<group>";
 		};
+		5A5C000000000000000000EB /* Manual Dispatch */ = {
+			isa = PBXGroup;
+			children = (
+				5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */,
+				5A5C000000000000000000E7 /* ManualDispatchListCell.swift */,
+			);
+			path = "Manual Dispatch";
+			sourceTree = "<group>";
+		};
 		5A5C000000000000000000CA /* KabbaSyncCore */ = {
 			isa = PBXGroup;
 			children = (
+				5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */,
 				5A5C00000000000000000060 /* APIEnvelopeTests.swift */,
 				5A5C00000000000000000062 /* APIErrorClassifierTests.swift */,
 				5A5C00000000000000000064 /* AuthRecoveryTests.swift */,
@@ -2320,6 +2347,10 @@
 				5A5C00000000000000000016 /* SyncEngine.swift in Sources */,
 				5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */,
 				5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */,
+				5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */,
+				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
+				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
+				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
 				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
 				5A5C0000000000000000001E /* SyncStatusUI.swift in Sources */,
 				5A5C00000000000000000020 /* KabbaSyncAppearance.swift in Sources */,
@@ -2534,6 +2565,7 @@
 			files = (
 				5A5C00000000000000000061 /* APIEnvelopeTests.swift in Sources */,
 				5A5C00000000000000000063 /* APIErrorClassifierTests.swift in Sources */,
+				5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */,
 				5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */,
 				5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
@@ -2567,6 +2599,7 @@
 				5A5C000000000000000000BB /* APIError.swift in Sources */,
 				5A5C000000000000000000BC /* APIEnvelope.swift in Sources */,
 				5A5C000000000000000000BD /* SyncOperation.swift in Sources */,
+				5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
 				5A5C000000000000000000C0 /* SyncRetryPolicy.swift in Sources */,
@@ -2595,6 +2628,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */,
+				5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

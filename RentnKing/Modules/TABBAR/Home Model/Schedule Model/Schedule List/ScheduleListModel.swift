@@ -56,7 +56,15 @@ struct SchedulesModel: Mappable{
     internal var delivery_employee: EmployeesModel?
     internal var pickup_employee: EmployeesModel?
 
-    
+    // Dispatch parity (Phase 6A) — additive mixed-feed identity keys from
+    // orders/schedules/dispatch: the row's source, stable dispatch identity,
+    // active fulfillment leg, and the web board's unified sort key
+    // ("YYYY-MM-DD|NNNNN") used to weave manual tasks into the workday.
+    internal var dispatch_source: String?
+    internal var dispatch_item_id: String?
+    internal var fulfillment_leg: String?
+    internal var sort_key: String?
+
     init?(map:Map) {
         mapping(map: map)
     }
@@ -106,6 +114,11 @@ struct SchedulesModel: Mappable{
 
         delivery_employee <- map["delivery_employee"]
         pickup_employee <- map["pickup_employee"]
+
+        dispatch_source <- map["dispatch_source"]
+        dispatch_item_id <- map["dispatch_item_id"]
+        fulfillment_leg <- map["fulfillment_leg"]
+        sort_key <- map["sort_key"]
 
     }
 }

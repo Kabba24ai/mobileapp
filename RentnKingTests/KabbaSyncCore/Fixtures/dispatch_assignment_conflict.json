@@ -1,0 +1,13 @@
+{
+    "success": false,
+    "message": "This dispatch was reassigned to another driver after you loaded it. Your entry was kept on this phone but was not applied \u2014 refresh your Dispatch list.",
+    "error": {
+        "code": "DISPATCH_ASSIGNMENT_CHANGED",
+        "message": "This dispatch was reassigned to another driver after you loaded it. Your entry was kept on this phone but was not applied \u2014 refresh your Dispatch list.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "DISPATCH_ASSIGNMENT_CHANGED",
+    "status": false,
+    "request_id": "a7588993-3330-43fb-8792-4e59ff01bfcd"
+}

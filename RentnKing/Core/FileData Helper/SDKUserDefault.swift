@@ -384,6 +384,17 @@ class MyMMKVHandler: NSObject, MMKVHandler {
 
 
 extension SDKUserDefault {
+    // MARK: - Codable arrays (string key) — Dispatch parity (Phase 6A)
+    static func saveCodableArray<T: Codable>(_ values: [T], for key: String) {
+        guard let data = try? JSONEncoder().encode(values) else { return }
+        SDKUserDefault.shared.mmkv?.set(data, forKey: key)
+    }
+
+    static func getCodableArray<T: Codable>(_ type: T.Type, for key: String) -> [T]? {
+        guard let data = SDKUserDefault.shared.mmkv?.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode([T].self, from: data)
+    }
+
     static func saveMappableArray<T: Mappable>(_ values: [T], for key: String) {
         // Convert array → JSON string
         guard let jsonString = Mapper().toJSONString(values, prettyPrint: false) else { return }

@@ -99,6 +99,10 @@ extension DispatchListViewController :WebServiceHelperDelegate{
         var transport_mode : String  //ALll, Truck, Store
         var date_filter : String //= "Today" //Today, All
         var driver_id : String
+        // Dispatch parity (Phase 6A) — opt into the mixed contract: the
+        // response carries manual_jobs (page 1) and the server scopes a
+        // missing driver_id to the authenticated driver.
+        var include_manual : String = "1"
     }
 
     func callAPIforGetDispatchList(DispatchParameater: DispatchParameater, completion: @escaping (Bool) -> Void) {
@@ -135,13 +139,42 @@ extension DispatchListViewController :WebServiceHelperDelegate{
             
             if data?.getStringForID(key: "success") == "1",
                let arrData = data?["orders"] as? [[String: Any]] {
-                
+
                 let newOrders = Mapper<SchedulesModel>().mapArray(JSONArray: arrData)
-                
+
+                // Dispatch parity (Phase 6A) — the server's pagination block is
+                // authoritative for "is there another page": the old heuristic
+                // (accumulated cache count vs a mismatched threshold) locked the
+                // screen into an append-only merge that never removed rows.
+                if let pagination = data?["pagination"] as? [String: Any] {
+                    self.serverLastPage = (pagination["last_page"] as? Int) ?? 1
+                } else {
+                    self.serverLastPage = newOrders.isEmpty ? self.pageCount : self.pageCount + 1
+                }
+
                 // Manage local storage
                 if self.pageCount == 1 {
-                    // Overwrite old data
+                    // Overwrite old data — a fresh page-1 snapshot REPLACES the
+                    // cached server truth (jobs reassigned away disappear here).
                     SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)")
+
+                    // Manual Dispatch tasks ride along on page 1 (mixed
+                    // contract). The server snapshot replaces the cached one;
+                    // an absent key (older server) clears rather than
+                    // resurrects state the server no longer vouches for. A
+                    // Return-only request deliberately carries no manual jobs
+                    // (web-board rule: manual lives in the Deliveries column),
+                    // so it must not wipe the cache either.
+                    if DispatchParameater.schedule_type != "Return" {
+                        let manualSnapshot = (data?["manual_jobs"] as? [[String: Any]]).map(DispatchManualJob.decodeList(fromJSONArray:))
+                        let reconciled = DispatchWorkload.reconciledManualList(
+                            cached: self.getDispatchManualData(),
+                            serverSnapshot: manualSnapshot
+                        )
+                        SDKUserDefault.saveCodableArray(reconciled, for: self.manualCacheKey())
+                    }
+
+                    self.lastDispatchServerSyncAt = Date()
                 } else {
                     // Append to local
                     var existing = self.getDispatchOrderData(schedule_type: DispatchParameater.schedule_type)
@@ -150,12 +183,12 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                     let filteredNew = newOrders.filter { newItem in
                         !existing.contains(where: { $0.id == newItem.id })
                     }
-                    
+
                     existing.append(contentsOf: filteredNew)
                     SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)")
 
                 }
-                
+
                 completion(true)
             } else {
                 completion(false)
@@ -178,15 +211,12 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                 
 
                 print(data)
-                if self.arrDispatchList.count != 0{
-                    
-                    if self.arrDispatchList.count == 0{
-                        return
-                    }
-                   
-        
-                    //UPDATE ARRAY
+                if self.arrDispatchList.count != 0, index < self.arrDispatchList.count {
+
+                    //UPDATE ARRAY — persist + re-weave so the cached snapshot
+                    //agrees with the screen (Dispatch parity, Phase 6A).
                     self.arrDispatchList.remove(at: index)
+                    self.persistOrderListAndRebuild()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
                         //RELOAD TABLE
                         self.tblView.reloadData()

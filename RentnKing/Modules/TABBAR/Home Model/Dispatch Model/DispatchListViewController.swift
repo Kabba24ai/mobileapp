@@ -60,6 +60,18 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     // MARK: - State
     var arrDispatchList : [SchedulesModel] = []
 
+    // Dispatch parity (Phase 6A) — the mixed workday. arrManualList is the
+    // driver's Manual Dispatch tasks (server truth, replaced on every page-1
+    // refresh); arrRows weaves both sources by the web board's sort_key and is
+    // the ONLY array the table renders. arrRenderedManuals is the
+    // schedule-type-filtered manual list arrRows' manual indices point into.
+    var arrManualList : [DispatchManualJob] = []
+    var arrRenderedManuals : [DispatchManualJob] = []
+    var arrRows : [DispatchRowRef] = []
+    var serverLastPage = 1
+    var lastDispatchServerSyncAt: Date?
+    private let lblFreshness = UILabel()
+
     var isLoading = true
     var bool_Load = false
     var pageCount = 1
@@ -115,7 +127,15 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         
         //SET LOADING
         self.setupTableView()
-        
+
+        //MANUAL DISPATCH CELL (programmatic — no storyboard prototype)
+        self.tblView.register(ManualDispatchListCell.self, forCellReuseIdentifier: ManualDispatchListCell.reuseId)
+
+        //FOREGROUND REFRESH — a phone left on this screen must learn about a
+        //web-side reassignment when it comes back to the app.
+        NotificationCenter.default.addObserver(self, selector: #selector(self.appDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification, object: nil)
+
         //GET CATEGORY DATA
         getCategoryList { arr_data in
             self.arrCategoryList = arr_data
@@ -201,26 +221,87 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     // MARK: - Refresh Action
     @objc func refreshList() {
         self.pageCount = 1
+        self.serverLastPage = 1
         self.bool_Load = true
         self.isLoading = true
         self.arrDispatchList = []
+        self.arrManualList = []
+        self.rebuildRows()
         self.tblView.reloadData()
         self.setTheView()
 
-        // Always show existing local data immediately
+        // Always show existing local data immediately (last-known server
+        // snapshot; a successful refresh below REPLACES it).
         let localData = self.getDispatchOrderData(schedule_type: self.selectScheduleType())
-        if !localData.isEmpty {
-            self.arrDispatchList = localData
-            self.setTheView()
-        }
-        else {
-            self.arrDispatchList.removeAll()
-            self.setTheView()
-        }
+        self.arrDispatchList = localData
+        self.arrManualList = self.getDispatchManualData()
+        self.rebuildRows()
+        self.setTheView()
 
         if NetworkReachabilityManager()?.isReachable == true {
             self.APICall()
+        } else {
+            // Offline: the cached snapshot is all we have — say so.
+            self.updateFreshnessLine(refreshFailed: true)
         }
+    }
+
+    @objc func appDidBecomeActive() {
+        guard self.viewIfLoaded?.window != nil else { return }
+        self.refreshList()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    /// Rebuilds the ONE rendered row list: order legs (server pagination
+    /// order) woven with the driver's manual tasks by the web board's
+    /// sort_key. Web-board rule: manual tasks belong to the Deliveries
+    /// column, so Return-only hides them.
+    func rebuildRows() {
+        let scheduleType = self.selectScheduleType()
+        self.arrRenderedManuals = DispatchWorkload.manualBelongs(inScheduleType: scheduleType) ? self.arrManualList : []
+        self.arrRows = DispatchWorkload.weave(
+            orderSortKeys: self.arrDispatchList.map { $0.sort_key },
+            manualSortKeys: self.arrRenderedManuals.map { $0.sort_key }
+        )
+    }
+
+    /// Row → index into arrDispatchList, when the row is an order leg.
+    func orderIndexForRow(_ row: Int) -> Int? {
+        guard row < self.arrRows.count, case let .order(i) = self.arrRows[row], i < self.arrDispatchList.count else { return nil }
+        return i
+    }
+
+    /// Row → the manual task, when the row is a manual card.
+    func manualJobForRow(_ row: Int) -> DispatchManualJob? {
+        guard row < self.arrRows.count, case let .manual(i) = self.arrRows[row], i < self.arrRenderedManuals.count else { return nil }
+        return self.arrRenderedManuals[i]
+    }
+
+    /// Offline/stale indication (Phase 4 conventions): a cached list is never
+    /// presented as current. Shown as a slim table header only when it says
+    /// something (offline, or an aged snapshot).
+    func updateFreshnessLine(refreshFailed: Bool) {
+        let text = QueueLineFreshness.line(lastServerSyncAt: self.lastDispatchServerSyncAt,
+                                           lastRefreshFailed: refreshFailed,
+                                           pendingCount: 0)
+        let showsBanner = refreshFailed
+
+        guard showsBanner else {
+            self.tblView.tableHeaderView = nil
+            return
+        }
+
+        self.lblFreshness.text = text
+        self.lblFreshness.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12.0)
+        self.lblFreshness.textColor = .secondaryText
+        self.lblFreshness.textAlignment = .center
+        let wrap = UIView(frame: CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: 26))
+        self.lblFreshness.frame = wrap.bounds
+        wrap.addSubview(self.lblFreshness)
+        self.tblView.tableHeaderView = wrap
     }
     
     func selectScheduleType() -> String{
@@ -298,9 +379,9 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             self.stopLoading()
             self.isLoading = false
             
-            //NO DATA
+            //NO DATA — the rendered mixed workday (orders + manual tasks)
             self.emptyDataView.isHidden = true
-            if self.arrDispatchList.count == 0{
+            if self.arrRows.count == 0{
                 self.emptyDataView.isHidden = false
             }
             
@@ -582,16 +663,32 @@ extension DispatchListViewController{
         defaults.set(todayDateString(), forKey: kDriverDate)
     }
 
-    /// Restores the saved driver only if it was chosen today; otherwise resets to "All Driver".
+    /// Dispatch parity (Phase 6A): the Dispatch screen is MY workday by
+    /// default. The logged-in user is the default driver scope — sending an
+    /// empty driver_id made the server return EVERY driver's jobs, which is
+    /// why a reassignment away from this driver never reliably disappeared.
+    /// "All Drivers" (and any other driver) remains selectable in the picker.
+    private func loggedInDriverDefault() -> (name: String, id: String) {
+        let user = UserDefaults.standard.user
+        if let id = user?.id, !id.isEmpty {
+            return (user?.full_name ?? "My Jobs", id)
+        }
+        return ("All Drivers", "")
+    }
+
+    /// Restores the saved driver only if it was chosen today; otherwise resets
+    /// to the logged-in driver.
     func restoreSelectedDriverForToday() {
         let defaults = UserDefaults.standard
         if defaults.string(forKey: kDriverDate) == todayDateString() {
-            self.selectDriver   = defaults.string(forKey: kDriverName) ?? "All Drivers"
-            self.selectDriverID = defaults.string(forKey: kDriverID) ?? ""
+            let fallback = self.loggedInDriverDefault()
+            self.selectDriver   = defaults.string(forKey: kDriverName) ?? fallback.name
+            self.selectDriverID = defaults.string(forKey: kDriverID) ?? fallback.id
         } else {
-            // New day → clear the stored selection and default to All Driver
-            self.selectDriver   = "All Drivers"
-            self.selectDriverID = ""
+            // New day → clear the stored selection and default to MY jobs
+            let fallback = self.loggedInDriverDefault()
+            self.selectDriver   = fallback.name
+            self.selectDriverID = fallback.id
             defaults.removeObject(forKey: kDriverName)
             defaults.removeObject(forKey: kDriverID)
             defaults.removeObject(forKey: kDriverDate)
@@ -614,29 +711,40 @@ extension DispatchListViewController{
             
             if isSaved {
                 let localData = self.getDispatchOrderData(schedule_type: DispatchParameater.schedule_type)
-                
+
                 if overrideLocal {
-                    // Replace all old data
+                    // Replace all old data — server truth wins: a job
+                    // reassigned to another driver is GONE after this.
                     self.arrDispatchList = localData
                 } else {
-                    // Append only new unique orders
+                    // Append only new unique orders (later pages of the SAME
+                    // server snapshot generation).
                     let newItems = localData.filter { newItem in
                         !self.arrDispatchList.contains(where: { $0.id == newItem.id })
                     }
                     self.arrDispatchList.append(contentsOf: newItems)
                 }
-                
-                // Pagination Control
-                if localData.count >= Int(Application.PageOrderLimit) {
+
+                // Manual tasks are a page-1 rider; re-read the reconciled cache.
+                self.arrManualList = self.getDispatchManualData()
+                self.rebuildRows()
+
+                // Pagination Control — the server's pagination block is
+                // authoritative (the old accumulated-count heuristic locked
+                // the screen into an append-only merge forever).
+                if self.pageCount < self.serverLastPage {
                     self.bool_Load = false
                     self.pageCount += 1
                 } else {
                     self.bool_Load = true
                 }
+
+                self.updateFreshnessLine(refreshFailed: false)
             } else {
                 self.bool_Load = true
+                self.updateFreshnessLine(refreshFailed: true)
             }
-            
+
             DispatchQueue.main.async {
                 self.setTheView()
             }
@@ -649,6 +757,26 @@ extension DispatchListViewController{
             return arr
         }
         return []
+    }
+
+    /// MMKV key for the driver's Manual Dispatch cache. Deliberately NOT
+    /// keyed by schedule_type: the manual set is one list; the Delivery /
+    /// Return rendering rule is applied at weave time.
+    func manualCacheKey() -> String {
+        return "kDispatchManualList_\(self.strSelectDay)_\(self.selectDriverID)"
+    }
+
+    func getDispatchManualData() -> [DispatchManualJob] {
+        return SDKUserDefault.getCodableArray(DispatchManualJob.self, for: self.manualCacheKey()) ?? []
+    }
+
+    /// Persists the in-memory order list back to its cache slot and re-weaves
+    /// the rendered rows — the single write path every local mutation
+    /// (checklist update, driver change, row removal) goes through, so the
+    /// cache and the screen can never drift apart.
+    func persistOrderListAndRebuild() {
+        SDKUserDefault.saveMappableArray(self.arrDispatchList, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(self.selectScheduleType())_\(self.strSelectDay)_\(self.selectDriverID)")
+        self.rebuildRows()
     }
 }
 
@@ -793,7 +921,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             return 10
         }
         else{
-            return self.arrDispatchList.count
+            return self.arrRows.count
         }
     }
     
@@ -802,6 +930,14 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        // MANUAL DISPATCH card (mixed workday — Phase 6A). Rendered from its
+        // own programmatic cell; never forced through the order-shaped cell.
+        if !isLoading, let manualJob = self.manualJobForRow(indexPath.row),
+           let manualCell = tableView.dequeueReusableCell(withIdentifier: ManualDispatchListCell.reuseId) as? ManualDispatchListCell {
+            manualCell.configure(with: manualJob)
+            return manualCell
+        }
+
         if let cell = tableView.dequeueReusableCell(withIdentifier: "DispatchListCell") as? DispatchListCell{
             cell.backgroundColor = UIColor.clear
             cell.viewLine.isHidden = false
@@ -812,13 +948,13 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 self.dispatchPlaceholderMarker.startAnimation()
                 return cell
             }
-            
-            if self.arrDispatchList.count == 0{
+
+            guard let orderIndex = self.orderIndexForRow(indexPath.row) else {
                 return cell
             }
-            
+
             //GET DATA
-            let objData = self.arrDispatchList[indexPath.row]
+            let objData = self.arrDispatchList[orderIndex]
 
             //OVERDUE FLAG — delivery rows use is_delivery_overdue, pickup rows use is_pickup_overdue
             let isRowOverdue = (objData.is_delivered == false) ? (objData.is_delivery_overdue ?? false) : (objData.is_pickup_overdue ?? false)
@@ -1038,20 +1174,24 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             cell.lblProductName.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 18, text: "\(objData.product_name ?? "")")
             
                     
-            // BUTTON ACTION
-            cell.btnCall.tag = indexPath.row
+            // BUTTON ACTION — tags carry the ORDER-ARRAY index (not the table
+            // row): manual cards share the table, so row numbers no longer
+            // line up with arrDispatchList, and every handler + child-screen
+            // callback (checklist update, driver change, row removal) indexes
+            // arrDispatchList.
+            cell.btnCall.tag = orderIndex
             cell.btnCall.addTarget(self, action: #selector(self.btnCallClicked(_:)), for: .touchUpInside)
 
-            cell.btnAddress.tag = indexPath.row
+            cell.btnAddress.tag = orderIndex
             cell.btnAddress.addTarget(self, action: #selector(self.btnMapClicked(_:)), for: .touchUpInside)
 
-            cell.btnReturnAddress.tag = indexPath.row
+            cell.btnReturnAddress.tag = orderIndex
             cell.btnReturnAddress.addTarget(self, action: #selector(self.btnMapClicked(_:)), for: .touchUpInside)
 
-            cell.btnDriver.tag = indexPath.row
+            cell.btnDriver.tag = orderIndex
             cell.btnDriver.addTarget(self, action: #selector(self.btnAssingDriverClicked(_:)), for: .touchUpInside)
 
-            cell.btnStatus.tag = indexPath.row
+            cell.btnStatus.tag = orderIndex
             cell.btnStatus.addTarget(self, action: #selector(self.btnStatusCallClicked(_:)), for: .touchUpInside)
 
             cell.layoutIfNeeded()
@@ -1078,6 +1218,13 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        // Manual card → Task Details (status progression lives there).
+        if let manualJob = self.manualJobForRow(indexPath.row) {
+            let detail = ManualDispatchDetailViewController()
+            detail.item = manualJob
+            detail.onChanged = { [weak self] in self?.refreshList() }
+            self.navigationController?.pushViewController(detail, animated: true)
+        }
     }
     
     @objc func btnStatusCallClicked(_ sender : UIButton) {
@@ -1210,6 +1357,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     
     
     func data_updateInCurrentDic(index: Int, dicCheckList: CheckListResponeData?) {
+        guard index < self.arrDispatchList.count else { return }
 
         if self.arrDispatchList[index].is_delivered == false {
             //DELIVERY CASE
@@ -1220,7 +1368,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             self.arrDispatchList[index].pickup_checklist = dicCheckList
         }
 
-        SDKUserDefault.saveMappableArray(self.arrDispatchList, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(self.selectScheduleType())_\(self.strSelectDay)_\(self.selectDriverID)")
+        self.persistOrderListAndRebuild()
     }
     
     
@@ -1375,19 +1523,33 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func updateDriver(delivery_employee: EmployeesModel?, pickup_employee: EmployeesModel?, index: Int) {
-        if self.arrDispatchList.count == 0{
-            return
-        }
-        
+        guard index < self.arrDispatchList.count else { return }
+
         var objData = self.arrDispatchList[index]
         objData.delivery_employee = delivery_employee
         objData.pickup_employee = pickup_employee
 
+        // Dispatch parity (Phase 6A): when this screen is scoped to one
+        // driver and the job's ACTIVE leg was just handed to someone else,
+        // the row leaves this driver's workload — the old behavior kept it
+        // on screen (and only in memory) showing the new driver's name.
+        let scopedDriverId = Int(self.selectDriverID)
+        let activeLegDriverId = (objData.is_delivered == false)
+            ? delivery_employee?.id
+            : pickup_employee?.id
+        let movedAway = scopedDriverId != nil && activeLegDriverId != scopedDriverId
+
         DispatchQueue.main.async {
-            self.arrDispatchList.remove(at: index)
-            self.arrDispatchList.insert(objData, at: index)
-            
-            self.tblView.reloadRows(at: [IndexPath(row: index, section: 0)], with: .automatic)
+            if movedAway {
+                self.arrDispatchList.remove(at: index)
+            } else {
+                self.arrDispatchList.remove(at: index)
+                self.arrDispatchList.insert(objData, at: index)
+            }
+
+            // Persist + re-weave so the cache can never resurrect the stale row.
+            self.persistOrderListAndRebuild()
+            self.tblView.reloadData()
         }
     }
     

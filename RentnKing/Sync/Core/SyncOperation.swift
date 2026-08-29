@@ -34,17 +34,23 @@ struct SyncBusinessIdentity: Codable, Equatable {
     var equipmentUniqueId: String?
     var checklistExecutionId: String?
     var employeeId: String?
+    /// Dispatch parity (Phase 6A): a Manual Dispatch task (MDT-…) — an
+    /// order-free driver job. Optional + additive, so records persisted
+    /// before this field existed decode unchanged.
+    var manualTaskUniqueId: String?
 
     init(orderUniqueId: String? = nil,
          orderProductUniqueId: String? = nil,
          equipmentUniqueId: String? = nil,
          checklistExecutionId: String? = nil,
-         employeeId: String? = nil) {
+         employeeId: String? = nil,
+         manualTaskUniqueId: String? = nil) {
         self.orderUniqueId = orderUniqueId
         self.orderProductUniqueId = orderProductUniqueId
         self.equipmentUniqueId = equipmentUniqueId
         self.checklistExecutionId = checklistExecutionId
         self.employeeId = employeeId
+        self.manualTaskUniqueId = manualTaskUniqueId
     }
 
     /// Short, non-sensitive summary for diagnostics.
@@ -54,6 +60,7 @@ struct SyncBusinessIdentity: Codable, Equatable {
         if let p = orderProductUniqueId { parts.append("product \(p)") }
         if let e = equipmentUniqueId { parts.append("equipment \(e)") }
         if let c = checklistExecutionId { parts.append("checklist \(c)") }
+        if let m = manualTaskUniqueId { parts.append("manual task \(m)") }
         return parts.joined(separator: " · ")
     }
 }
