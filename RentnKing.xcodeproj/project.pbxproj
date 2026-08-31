@@ -88,6 +88,7 @@
 		C51954692CFE289A007AB49C /* EPSignatureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51954622CFE289A007AB49C /* EPSignatureViewController.swift */; };
 		C51AF5172AD177DE0042589E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5162AD177DE0042589E /* AppDelegate.swift */; };
 		C51AF5202AD177DF0042589E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C51AF51F2AD177DF0042589E /* Assets.xcassets */; };
+		FADE0000000000000000B11D /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = FADE0000000000000000F11E /* PrivacyInfo.xcprivacy */; };
 		C51AF5232AD177DF0042589E /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5212AD177DF0042589E /* LaunchScreen.storyboard */; };
 		C51AF5382AD178130042589E /* HomeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52D2AD178130042589E /* HomeViewController.swift */; };
 		C51AF5392AD178130042589E /* TabbarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF52E2AD178130042589E /* TabbarViewController.swift */; };
@@ -506,6 +507,7 @@
 		C51AF51F2AD177DF0042589E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C51AF5222AD177DF0042589E /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		C51AF5242AD177DF0042589E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FADE0000000000000000F11E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		C51AF52D2AD178130042589E /* HomeViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeViewController.swift; sourceTree = "<group>"; };
 		C51AF52E2AD178130042589E /* TabbarViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TabbarViewController.swift; sourceTree = "<group>"; };
 		C51AF5302AD178130042589E /* SettingViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SettingViewController.swift; sourceTree = "<group>"; };
@@ -957,6 +959,7 @@
 				C51AF5342AD178130042589E /* Storyboard */,
 				C51AF52A2AD178130042589E /* Modules */,
 				C51AF5242AD177DF0042589E /* Info.plist */,
+				FADE0000000000000000F11E /* PrivacyInfo.xcprivacy */,
 				C51AF51F2AD177DF0042589E /* Assets.xcassets */,
 				C51AF6322AD178840042589E /* Colour.xcassets */,
 				C51AF5212AD177DF0042589E /* LaunchScreen.storyboard */,
@@ -2216,6 +2219,7 @@
 				C51AF6332AD178840042589E /* Colour.xcassets in Resources */,
 				C521B1162D897A7800D6B0D8 /* Equipment.storyboard in Resources */,
 				C5B1A6452BE00B9B0068222C /* GoogleService-Info.plist in Resources */,
+				FADE0000000000000000B11D /* PrivacyInfo.xcprivacy in Resources */,
 				C51AF5DB2AD178220042589E /* CountryPickerView.bundle in Resources */,
 				C51AF5DC2AD178220042589E /* CountryPicker.storyboard in Resources */,
 				C521126D2BC7DC2C00B654F0 /* Assets.xcassets in Resources */,
@@ -2800,7 +2804,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2842,7 +2846,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2881,7 +2885,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -2910,7 +2914,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001;
+				CURRENT_PROJECT_VERSION = 1002;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;

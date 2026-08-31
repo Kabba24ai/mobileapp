@@ -72,7 +72,9 @@ extension AppDelegate : MessagingDelegate{
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         Messaging.messaging().apnsToken = deviceToken
         let deviceTokenString = deviceToken.hexString
+        #if DEBUG
         print(deviceTokenString)
+        #endif
         ////        UIPasteboard.general.string = "device token \(deviceTokenString)"
         //        UserDefaults.standard.deviceToken = deviceTokenString
     }
@@ -82,7 +84,9 @@ extension AppDelegate : MessagingDelegate{
     }
     
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        #if DEBUG
         print("\(String(describing: fcmToken))")
+        #endif
         UserDefaults.standard.deviceToken = fcmToken
         
         let dataDict:[String: String] = ["token": fcmToken ?? ""]
