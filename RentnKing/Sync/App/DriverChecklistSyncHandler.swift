@@ -60,6 +60,7 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
                         equipmentKeyLocation: String,
                         equipmentDriverStatus: String,
                         checklistType: String,
+                        driverChecks: [Int]? = nil,
                         capturedAt: Date = Date(),
                         operationId: String = UUID().uuidString) throws -> SyncOperation {
         var payload: [String: JSONValue] = [
@@ -72,6 +73,13 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
         if !equipmentKeyLocation.isEmpty { payload["equipment_key_location"] = .string(equipmentKeyLocation) }
         if !equipmentDriverStatus.isEmpty { payload["equipment_driver_status"] = .string(equipmentDriverStatus) }
         if !callCustomer.isEmpty { payload["call_customer"] = .string(callCustomer) }
+        // The call-customer sub-checklist ticks. Sent whenever the screen has
+        // them (partial saves AND the Ready to Go / Arrived transitions) so
+        // the server copy converges on the driver's latest state; omitted =
+        // "no change", exactly like the scalar fields above.
+        if let driverChecks {
+            payload["driver_checks"] = .array(driverChecks.map { .number(Double($0)) })
+        }
 
         return try engine.enqueue(type: operationType,
                                   payload: .object(payload),

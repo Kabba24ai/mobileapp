@@ -81,6 +81,20 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     var productUniqueId : String = "" //USER THIS ID FOR order_product_unique_id
     var checklistType : String = ""
 
+    // 2026-09 workflow correction — persistent, editable checklist state.
+    /// The state Laravel last received. Leaving the screen with anything newer
+    /// queues a PARTIAL driver_checklist.update (no equipment_driver_status →
+    /// no ready-to-go / arrived side effects on the server).
+    private var syncedSnapshot: DriverChecklistLocalState?
+    /// True once past the checklist stage (Ready to Go tapped this session, or
+    /// the server already has ready-to-go/arrived) — the checklist controls
+    /// are hidden then, so exits must not queue a partial save.
+    private var passedChecklistStage = false
+    /// Server already recorded Arrived for this leg: Screen 2 still opens
+    /// (routing is absolute) showing the Arrived status, and its button just
+    /// continues to Order Details without re-firing the Arrived mutation.
+    private var alreadyArrived = false
+
     // Side-by-side toggles replacing the fuel/keys dropdowns (delivery only)
     private let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
     private let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
@@ -137,42 +151,77 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     
     func getReadyToGo_ArrivedStatus() {
         var ready_to_go_at: String = ""
+        var arrived_at: String = ""
+        var is_arrived: Bool = false
 
         if self.objDispatch?.is_delivered == false {
             //DELIVERY CASE
             ready_to_go_at = self.objDispatch?.delivery_checklist?.ready_to_go_at ?? ""
+            arrived_at = self.objDispatch?.delivery_checklist?.arrived_at ?? ""
+            is_arrived = self.objDispatch?.delivery_checklist?.is_arrived ?? false
         }
         else{
             //PICKUP CASE
             ready_to_go_at = self.objDispatch?.pickup_checklist?.ready_to_go_at ?? ""
+            arrived_at = self.objDispatch?.pickup_checklist?.arrived_at ?? ""
+            is_arrived = self.objDispatch?.pickup_checklist?.is_arrived ?? false
         }
 
-        if ready_to_go_at != "" {
-            //ARRIVED BUTTON VIEW SHOW
+        if is_arrived {
+            // ALREADY ARRIVED. Screen 2 still opens (routing is absolute) and
+            // shows the recorded Arrived status; the button becomes "Continue"
+            // and only navigates — the Arrived mutation is never re-fired.
+            alreadyArrived = true
+            passedChecklistStage = true
+            self.viewArrivedMain?.isHidden = false
+            self.viewDriverCheckList.isHidden = true
+            self.setStatusLine(kDriverCheckListStatus.kArrived.rawValue)
+            self.lblArrived.text = "Continue"
+            self.lbl_Arrived_dateTime.text = Self.displayDateTime(arrived_at.isEmpty ? ready_to_go_at : arrived_at)
+            self.setupHeader(arrived: true)
+        }
+        else if ready_to_go_at != "" {
+            //ARRIVED BUTTON VIEW SHOW — driver is en route (past the checklist stage)
+            passedChecklistStage = true
 
             // Show On My Way status view, hide checklist
             self.viewArrivedMain?.isHidden = false
             self.viewDriverCheckList.isHidden = true
-            
 
-            // Set current date & time
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            if let dateee = formatter.date(from: ready_to_go_at) {
-                formatter.dateFormat = "MM/dd/yyyy hh:mm a"
-                self.lbl_Arrived_dateTime.text = formatter.string(from: dateee)
-            }
-            else {
-                formatter.dateFormat = "MM/dd/yyyy hh:mm a"
-                self.lbl_Arrived_dateTime.text = formatter.string(from: Date())
-            }
+            self.lbl_Arrived_dateTime.text = Self.displayDateTime(ready_to_go_at)
 
             self.setupHeader(arrived: true)
-            
+
         }
         else {
             //READY TO GO BUTTON VIEW SHOW
         }
+    }
+
+    /// "yyyy-MM-dd HH:mm:ss" (server) → "MM/dd/yyyy hh:mm a" (display); falls back to now.
+    private static func displayDateTime(_ raw: String) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let parsed = formatter.date(from: raw)
+        formatter.dateFormat = "MM/dd/yyyy hh:mm a"
+        return formatter.string(from: parsed ?? Date())
+    }
+
+    /// Rewrites the "Status: Delivery/Return <state>" line (setupStatusView
+    /// seeds it with "On the Way"; the arrived revisit shows "Arrived").
+    private func setStatusLine(_ state: String) {
+        let statusText = NSMutableAttributedString(
+            string: "Status: ",
+            attributes: [.foregroundColor: UIColor.primary,
+                         .font: UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 20) ?? UIFont.systemFont(ofSize: 20, weight: .bold)]
+        )
+        let leg = self.objDispatch?.is_delivered == false ? "Delivery" : "Return"
+        statusText.append(NSAttributedString(
+            string: "\(leg) \(state)",
+            attributes: [.foregroundColor: UIColor.secondary,
+                         .font: UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 20) ?? UIFont.systemFont(ofSize: 20, weight: .bold)]
+        ))
+        self.lbl_status.attributedText = statusText
     }
     
     func setupHeader(arrived: Bool = false) {
@@ -846,9 +895,13 @@ extension DriverChecklistViewController {
         
         
         // Durably queued (Sync Engine) before the UI moves on; the toast reports Pending Sync → Synced.
-        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType)
+        // Carries the full checklist state (answers + ticks) with the Ready to Go transition.
+        let readyToGoState = currentLocalState()
+        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType, driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 })
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: readyToGoOperationId)
+        passedChecklistStage = true
+        syncedSnapshot = readyToGoState
         
         
         // Show On My Way status view, hide checklist
@@ -866,8 +919,8 @@ extension DriverChecklistViewController {
         let strReadytoGoDate = formatter.string(from: Date())
         
         if self.objDispatch?.is_delivered == false {
-            //DELIVERY CASE
-            UserDefaults.standard.removeObject(forKey: localStateKey)
+            //DELIVERY CASE — the local saved answers are KEPT (they restore into
+            //Screen 2 on every revisit; Ready to Go is a stage, not an eraser).
             self.objDispatch?.delivery_checklist?.ready_to_go_at = strReadytoGoDate
             self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.delivery_checklist)
         }
@@ -924,46 +977,52 @@ extension DriverChecklistViewController {
     }
     
     // MARK: - Local State Persistence
+    //
+    // Scoped to ORDER-PRODUCT + LEG (DriverChecklistLocalState v2 key): the
+    // delivery checklist of product A can never populate its return, another
+    // line of the same order, or another order. Saved answers are current
+    // state, not a lock — every restore lands in the same editable controls.
 
     private var localStateKey: String {
-        "driverChecklist_\(self.objDispatch?.order?.unique_id ?? "")_delivery"
+        DriverChecklistLocalState.key(
+            orderProductUniqueId: self.productUniqueId,
+            leg: checklistType == "pickup" ? DriverChecklistLocalState.legPickup : DriverChecklistLocalState.legDelivery
+        )
     }
 
-    private var localPickupStateKey: String {
-        "driverChecklist_\(self.objDispatch?.order?.unique_id ?? "")_pickup"
+    /// The screen's controls as one value (pickup has no fuel/keys — both stay "").
+    private func currentLocalState() -> DriverChecklistLocalState {
+        DriverChecklistLocalState(
+            checks: checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks,
+            callCustomer: self.strCallCustomer,
+            fuel: self.strDoubleCheck,
+            keys: self.strKeys
+        )
     }
+
+    /// Called on EVERY mutation (checkbox, segment) so progress is durable the
+    /// moment it is entered — backing out, force quit and relaunch all keep it.
     func saveChecklistState() {
-        if checklistType == "delivery"{
-            
-            let dict: [String: Any] = [
-                "deliveryChecks": callDeliveryCustomerChecks.map { $0 ? 1 : 0 },
-                "fuel":           self.strDoubleCheck,
-                "keys":           self.strKeys,
-                "call_customer":  self.strCallCustomer
-            ]
-
-            UserDefaults.standard.set(dict, forKey: localStateKey)
-
-        }
-        else{
-
-            let dict: [String: Any] = [
-                "deliveryChecks": callReturnCustomerChecks.map { $0 ? 1 : 0 },
-                "call_customer":  self.strCallCustomer
-            ]
-
-            UserDefaults.standard.set(dict, forKey: localPickupStateKey)
-            
-        }
-        
+        UserDefaults.standard.set(currentLocalState().dictionary(), forKey: localStateKey)
     }
 
     func restoreChecklistState() {
-        guard let dict = UserDefaults.standard.dictionary(forKey: localStateKey) else { return }
+        // Local copy first (most recent edits on this phone); otherwise the
+        // state the server last accepted (fresh install / reassigned driver).
+        let stored = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: localStateKey))
+        let seededFromServer = stored == nil
+        guard let state = stored ?? serverSeededState() else {
+            syncedSnapshot = currentLocalState()
+            return
+        }
 
-        if let deliveryRaw = dict["deliveryChecks"] as? [Int] {
-            for (i, val) in deliveryRaw.enumerated() where i < callDeliveryCustomerChecks.count {
-                callDeliveryCustomerChecks[i] = val == 1
+        if checklistType == "pickup" {
+            for (i, val) in state.checks.enumerated() where i < callReturnCustomerChecks.count {
+                callReturnCustomerChecks[i] = val
+            }
+        } else {
+            for (i, val) in state.checks.enumerated() where i < callDeliveryCustomerChecks.count {
+                callDeliveryCustomerChecks[i] = val
             }
         }
 
@@ -972,26 +1031,77 @@ extension DriverChecklistViewController {
             btn.isSelected = checks[i]
         }
 
-        if showFuelSegment, let fuel = dict["fuel"] as? String, !fuel.isEmpty {
-            self.strDoubleCheck = fuel
-            fuelSegment.selectedSegmentIndex = fuel == "Full" ? 1 : 0
+        if showFuelSegment, !state.fuel.isEmpty {
+            self.strDoubleCheck = state.fuel
+            fuelSegment.selectedSegmentIndex = state.fuel == "Full" ? 1 : 0
         }
 
         // Restore keys
-        if showKeysSegment, let keys = dict["keys"] as? String, !keys.isEmpty {
-            self.strKeys = keys
-            keysSegment.selectedSegmentIndex = keys == "With Machine" ? 1 : 0
+        if showKeysSegment, !state.keys.isEmpty {
+            self.strKeys = state.keys
+            keysSegment.selectedSegmentIndex = state.keys == "With Machine" ? 1 : 0
         }
 
-        // Restore Call Customer state ("no_answer" == With Machine → checklist inactive)
-        if let call = dict["call_customer"] as? String, !call.isEmpty {
-            self.strCallCustomer = call
-            let withMachine = (call == "no_answer")
+        // Restore Call Customer state ("no_answer" → checklist inactive)
+        if !state.callCustomer.isEmpty {
+            self.strCallCustomer = state.callCustomer
+            let withMachine = (state.callCustomer == "no_answer")
             callCustomerSegment.selectedSegmentIndex = withMachine ? 1 : 0
             setCallCustomerChecklistEnabled(!withMachine)
         }
 
         self.updateReadyToGoButton()
+
+        if seededFromServer {
+            // Keep the server copy locally too, so the list's green band and the
+            // next open agree without a network round trip.
+            saveChecklistState()
+        }
+        // What the screen now shows IS the converged state — only edits made
+        // after this point need a partial sync on exit.
+        syncedSnapshot = currentLocalState()
+    }
+
+    /// The mini-checklist state the SERVER has accepted for this product+leg,
+    /// from the dispatch feed's checklist block. nil when it holds nothing.
+    private func serverSeededState() -> DriverChecklistLocalState? {
+        let checklist = checklistType == "pickup" ? self.objDispatch?.pickup_checklist : self.objDispatch?.delivery_checklist
+        guard let checklist else { return nil }
+        let state = DriverChecklistLocalState(
+            checks: (checklist.driver_checks ?? []).map { $0 == 1 },
+            callCustomer: checklist.call_customer ?? "",
+            fuel: checklist.equipment_fuel ?? "",
+            keys: checklist.equipment_key_location ?? ""
+        )
+        return (state.hasProgress || !(checklist.driver_checks ?? []).isEmpty) ? state : nil
+    }
+
+    // MARK: - Partial-progress sync (Laravel convergence)
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        syncPartialProgressIfNeeded()
+    }
+
+    /// Leaving the screen with unsynced edits queues ONE durable partial save:
+    /// the payload carries the answers but NO equipment_driver_status, so the
+    /// server stores them without touching ready-to-go/arrived timestamps,
+    /// fulfillment, or any completion side effect. Offline-safe by
+    /// construction — the Sync Engine drains it when connectivity returns.
+    private func syncPartialProgressIfNeeded() {
+        guard !passedChecklistStage, !alreadyArrived else { return }
+        let current = currentLocalState()
+        guard current != syncedSnapshot else { return }
+
+        _ = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId,
+                                       equipment_fuel: self.strDoubleCheck,
+                                       call_customer: self.strCallCustomer,
+                                       equipment_key_location: self.strKeys,
+                                       equipment_driver_status: "",   // partial: no transition
+                                       checklist_type: self.checklistType,
+                                       driver_checks: current.checks.map { $0 ? 1 : 0 })
+        syncDriverChecklistWithAPI()
+        syncedSnapshot = current
     }
 
     @objc private func btnArrivedClicked() {
@@ -1007,15 +1117,26 @@ extension DriverChecklistViewController {
         
         
                 
+        if alreadyArrived {
+            // Revisit after arrival: the button is "Continue" — navigate only,
+            // never re-fire the Arrived mutation.
+            self.pushOrderDetails()
+            return
+        }
+
+        let arrivedState = currentLocalState()
         let arrivedOperationId = saveDriverChecklistLocally(
             order_product_unique_id: self.productUniqueId,
             equipment_fuel:          self.strDoubleCheck, call_customer: self.strCallCustomer,
             equipment_key_location:  self.strKeys,
             equipment_driver_status: kDriverCheckListStatus.kArrived.rawValue,
-            checklist_type: self.checklistType
+            checklist_type: self.checklistType,
+            driver_checks: arrivedState.checks.map { $0 ? 1 : 0 }
         )
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: arrivedOperationId)
+        alreadyArrived = true
+        syncedSnapshot = arrivedState
         
         // Set current date & time
         let formatter = DateFormatter()
@@ -1044,9 +1165,12 @@ extension DriverChecklistViewController {
         }
         
         
-        //            self.navigationController?.popViewController(animated: true)
-        
-        //ORDER DETAILS SCREEN
+        self.pushOrderDetails()
+    }
+
+    /// Screen 2 → Screen 3. The ONLY way Order Details is reached from
+    /// Dispatch — through this screen, for every state (see DriverChecklistRouting).
+    private func pushOrderDetails() {
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
             newViewController.isOrderScreen = true

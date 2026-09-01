@@ -24,6 +24,7 @@
 		5A5C00000000000000000042 /* ClientMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000041 /* ClientMetadata.swift */; };
 		5A5C00000000000000000044 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
 		5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
+		5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
 		5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
 		5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000049 /* KabbaSessionKeychain.swift */; };
 		5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */; };
@@ -330,6 +331,7 @@
 		5A5C0000000000000000007D /* Phase5ContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007C /* Phase5ContractTests.swift */; };
 		5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007E /* QueueLineOperationTests.swift */; };
 		5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000080 /* ReleasePolicyTests.swift */; };
+		5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */; };
 		5A5C00000000000000000083 /* SessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000082 /* SessionStateTests.swift */; };
 		5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000084 /* SyncEngineTests.swift */; };
 		5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */; };
@@ -375,6 +377,7 @@
 		5A5C000000000000000000C3 /* ClientMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000041 /* ClientMetadata.swift */; };
 		5A5C000000000000000000C4 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
 		5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
+		5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
 		5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
 		5A5C000000000000000000C7 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000015 /* SyncEngine.swift */; };
 		5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */; };
@@ -443,6 +446,7 @@
 		5A5C00000000000000000041 /* ClientMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientMetadata.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000043 /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000045 /* ReleasePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicy.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalState.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000047 /* DeprecatedEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpoints.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000049 /* KabbaSessionKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychain.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSharedClientHeaders.swift; sourceTree = "<group>"; };
@@ -727,6 +731,7 @@
 		5A5C0000000000000000007C /* Phase5ContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase5ContractTests.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000007E /* QueueLineOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineOperationTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000080 /* ReleasePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicyTests.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalStateTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000082 /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000084 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncResponseInterpreterTests.swift; sourceTree = "<group>"; };
@@ -1897,6 +1902,7 @@
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
+				5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */,
 				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
@@ -1992,6 +1998,7 @@
 				5A5C0000000000000000007C /* Phase5ContractTests.swift */,
 				5A5C0000000000000000007E /* QueueLineOperationTests.swift */,
 				5A5C00000000000000000080 /* ReleasePolicyTests.swift */,
+				5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */,
 				5A5C00000000000000000082 /* SessionStateTests.swift */,
 				5A5C00000000000000000084 /* SyncEngineTests.swift */,
 				5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */,
@@ -2329,6 +2336,7 @@
 				5A5C00000000000000000042 /* ClientMetadata.swift in Sources */,
 				5A5C00000000000000000044 /* SessionState.swift in Sources */,
 				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
+				5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */,
 				5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */,
@@ -2585,6 +2593,7 @@
 				5A5C0000000000000000007D /* Phase5ContractTests.swift in Sources */,
 				5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */,
 				5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */,
+				5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */,
 				5A5C00000000000000000083 /* SessionStateTests.swift in Sources */,
 				5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */,
 				5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */,
@@ -2612,6 +2621,7 @@
 				5A5C000000000000000000C3 /* ClientMetadata.swift in Sources */,
 				5A5C000000000000000000C4 /* SessionState.swift in Sources */,
 				5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */,
+				5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */,
 				5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */,

@@ -132,6 +132,12 @@ struct CheckListResponeData: Mappable{
     internal var is_arrived: Bool?
     internal var is_delivered: Bool?
     internal var ready_to_go_at: String?
+    // Driver mini-checklist state the server has accepted (2026-09): the
+    // call-customer segment value and the sub-checklist ticks. Lets a fresh
+    // install / reassigned driver restore saved progress and lets the
+    // Dispatch card show the green progress band from server truth.
+    internal var call_customer: String?
+    internal var driver_checks: [Int]?
 
     init?(map:Map) {
         mapping(map: map)
@@ -145,6 +151,8 @@ struct CheckListResponeData: Mappable{
         is_arrived <- map["is_arrived"]
         is_delivered <- map["is_delivered"]
         ready_to_go_at <- map["ready_to_go_at"]
+        call_customer <- map["call_customer"]
+        driver_checks <- map["driver_checks"]
     }
 }
 

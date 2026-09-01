@@ -1021,15 +1021,14 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 //                }
 //                
                 
-                //DELIVERY CASE
-                let isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
+                //DELIVERY CASE — GREEN band = saved Driver Checklist progress for THIS
+                //order product's delivery leg (local or server). Progress indicator only:
+                //it never changes routing (Start always opens the Driver Checklist).
+                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legDelivery)
                 let ready_to_go_at: String = objData.delivery_checklist?.ready_to_go_at ?? ""
 
-                
-                //DELIVERY BUTTON — text then logo (not flipped); green only once the driver started
-//                cell.viewStatus.backgroundColor = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
                 cell.viewStatus.backgroundColor = hexStringToUIColor(hex: "4DA3FF")
-                cell.viewStatus.viewBorderCorneRadius(borderColour: ready_to_go_at != "" ? .redText : (isDriverStarted ? .redText : .clear), size: 4)
+                cell.viewStatus.viewBorderCorneRadius(borderColour: (ready_to_go_at != "" || isDriverStarted) ? .greenText : .clear, size: 4)
                 cell.lblStatus.configureLable(textColor:  .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
 
                 if let stack = cell.lblStatus.superview as? UIStackView,
@@ -1084,15 +1083,14 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 
 
 
-                //DELIVERY CASE
-                let isDriverStarted = isLocalStoredPickupValue(objData.order?.unique_id ?? "")
+                //RETURN CASE — GREEN band = saved Driver Checklist progress for THIS
+                //order product's return leg (local or server). Progress indicator only:
+                //it never changes routing (Start always opens the Driver Checklist).
+                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legPickup)
                 let ready_to_go_at: String = objData.pickup_checklist?.ready_to_go_at ?? ""
-                               
-                
-                //DELIVERY BUTTON — text then logo (not flipped); green only once the driver started
-//                cell.viewStatus.backgroundColor = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
+
                 cell.viewStatus.backgroundColor = .secondaryText
-                cell.viewStatus.viewBorderCorneRadius(borderColour: ready_to_go_at != "" ? .redText : (isDriverStarted ? .redText : .clear), size: 4)
+                cell.viewStatus.viewBorderCorneRadius(borderColour: (ready_to_go_at != "" || isDriverStarted) ? .greenText : .clear, size: 4)
                 cell.lblStatus.configureLable(textColor: .background, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14, text: stringStatus)
 
                 //RETURN BUTTON — flipped logo first then text; green only once the driver started
@@ -1266,8 +1264,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 //DELIVERY CASE
                 is_arrived = objData.delivery_checklist?.is_arrived ?? false
                 ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
-                
-                let isDriverStarted = isLocalStoredValue(objData.order?.unique_id ?? "")
+
+                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legDelivery)
                 buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
 
             }
@@ -1275,40 +1273,22 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 //PICKUP CASE
                 is_arrived = objData.pickup_checklist?.is_arrived ?? false
                 ready_to_go_at = objData.pickup_checklist?.ready_to_go_at ?? ""
-                
-                
-                //DELIVERY CASE
-                let isDriverStarted = isLocalStoredPickupValue(objData.order?.unique_id ?? "")
+
+                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legPickup)
                 buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
 
             }
-            
-            if is_arrived {
-                print("=============DIS==============>>>> \(objData.unique_id ?? "")")
-                //ORDER DETAILS SCREEN
-                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                    newViewController.isOrderScreen = true
-                    newViewController.fromCheckListScreen = true
-                    newViewController.selectIndex = sender.tag
-                    newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
-                    newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
-                    newViewController.strComplateDelivery = "\(objData.is_delivered == false ? "Delivery" : "Return") Complete - Next Mission"
-                    newViewController.strProductID = objData.unique_id ?? ""
-                    self.navigationController?.pushViewController(newViewController, animated: true)
-                }
-            }
-            else {
-                
-                if ready_to_go_at != "" {
-                    //ARRIVED BUTTON VIEW SHOW
-                }
-                else {
-                    //READY TO GO BUTTON VIEW SHOW
-                }
-                print("=============DIS33332==============>>>> \(objData.unique_id ?? "")")
 
-                //ORDER DETAILS SCREEN
+            // ONE canonical route (2026-09 correction): Start Delivery / Start Return
+            // ALWAYS opens the Driver Checklist. Prior state — arrived, ready-to-go,
+            // saved progress, green band — only changes what Screen 2 SHOWS, never
+            // which screen opens. The old is_arrived shortcut straight to Order
+            // Details is gone; Screen 2 itself carries the driver on to Screen 3.
+            let hasProgress = hasSavedDriverProgress(objData, leg: checklistType == "pickup" ? DriverChecklistLocalState.legPickup : DriverChecklistLocalState.legDelivery)
+            switch DriverChecklistRouting.destination(isArrived: is_arrived,
+                                                      readyToGoAt: ready_to_go_at.isEmpty ? nil : ready_to_go_at,
+                                                      hasSavedProgress: hasProgress) {
+            case .driverChecklist:
                 let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
                 if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
                     newViewController.delegate_Data = self
@@ -1327,32 +1307,23 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         
     }
     
-    func isLocalStoredValue(_ oederUniqueID: String) -> Bool {
-        
-        let strKey = "driverChecklist_\(oederUniqueID)_delivery"
-        guard let dict = UserDefaults.standard.dictionary(forKey: strKey) else { return false }
+    /// Saved Driver Checklist progress for THIS order product + leg — local copy
+    /// first, otherwise the state the server has accepted (so a reassigned
+    /// driver or fresh install still sees the green band). Replaces the old
+    /// order-scoped lookups that leaked one product's progress onto every
+    /// line of a multi-line order. Drives the GREEN band only — never routing.
+    func hasSavedDriverProgress(_ objData: SchedulesModel, leg: String) -> Bool {
+        let key = DriverChecklistLocalState.key(orderProductUniqueId: objData.unique_id ?? "", leg: leg)
+        if let local = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: key)),
+           local.hasProgress {
+            return true
+        }
 
-        // Any checkbox ticked
-        if let checks = dict["deliveryChecks"] as? [Int], checks.contains(1) { return true }
-
-        // Fuel changed from default ("Not Full")
-        if let fuel = dict["fuel"] as? String, fuel == "Full" { return true }
-
-        // Keys changed from default ("Missing")
-        if let keys = dict["keys"] as? String, keys == "With Machine" { return true }
-        
-        return false
-    }
-    
-    func isLocalStoredPickupValue(_ oederUniqueID: String) -> Bool {
-        let strKey = "driverChecklist_\(oederUniqueID)_pickup"
-        guard let dict = UserDefaults.standard.dictionary(forKey: strKey) else { return false }
-
-        // Any checkbox ticked
-        if let checks = dict["deliveryChecks"] as? [Int], checks.contains(1) { return true }
-
-        return false
-
+        let checklist = leg == DriverChecklistLocalState.legPickup ? objData.pickup_checklist : objData.delivery_checklist
+        return DriverChecklistLocalState.serverHasProgress(driverChecks: checklist?.driver_checks,
+                                                           callCustomer: checklist?.call_customer,
+                                                           fuel: checklist?.equipment_fuel,
+                                                           keys: checklist?.equipment_key_location)
     }
     
     
