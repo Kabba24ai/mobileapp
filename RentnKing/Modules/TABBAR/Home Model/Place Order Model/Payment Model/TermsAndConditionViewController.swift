@@ -23,6 +23,14 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     var selectIndex : Int = -1
     weak var delegate: TermsDelegate?
     var strOrderUniqueId : String = ""
+    // Local-first T&C (order workflow only): the signing page records the
+    // acceptance server-side; these ids let the phone keep durable evidence
+    // of it too (terms.accept), so a force-quit or stale feed can never
+    // resurrect a false "terms missing" exception. The new-order flow
+    // (isOrderFrom == false) never enqueues — its server-fresh path stands.
+    var strProductUniqueId : String = ""
+    var isReturnLeg : Bool = false
+    var strOrderNumber : String = ""
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -101,8 +109,25 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
         print(navigationAction.request.url!)
         if   (navigationAction.request.url?.absoluteString.contains("thank-you"))!
         {
-            
-            showAlertMessage(strMessage: "Terms and conditions updated successfully.")
+
+            // Order workflow: the signing page has already recorded the
+            // acceptance server-side — make the phone's knowledge of it
+            // durable FIRST (engine-first, SyncDriverChecklist pattern), then
+            // flip the in-memory state via the existing delegate. When the
+            // engine is unavailable the legacy in-session behaviour stands
+            // alone, exactly as before.
+            var termsOperationId: String? = nil
+            if self.isOrderFrom {
+                termsOperationId = KabbaTermsSync.recordAccepted(orderUniqueId: self.strOrderUniqueId,
+                                                                 orderProductUniqueId: self.strProductUniqueId,
+                                                                 isReturnLeg: self.isReturnLeg,
+                                                                 orderNumber: self.strOrderNumber)
+            }
+            if let termsOperationId = termsOperationId {
+                KabbaSync.showStatusToast(for: termsOperationId)
+            } else {
+                showAlertMessage(strMessage: "Terms and conditions updated successfully.")
+            }
             if self.isOrderFrom{
                 self.delegate?.termsSucess(selectIndex: self.selectIndex)
             }

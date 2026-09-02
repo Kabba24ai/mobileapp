@@ -513,7 +513,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewTermsAndCondition.backgroundColor = .clear
             self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             self.lblTermsAndCondition.textColor = .secondary
-            if self.objOrderData.terms_status == "Accepted"{
+            if self.objOrderData.terms_status == "Accepted"
+                || EffectiveFieldState.termsSatisfied(serverAccepted: false,
+                                                      operations: syncOps,
+                                                      orderUniqueId: self.strOrderUniqueId) {
                 self.lblTermsAndCondition.textColor = .background
                 self.viewTermsAndCondition.backgroundColor = .secondary
             }
@@ -880,6 +883,13 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
                 newViewController.delegate = self
                 newViewController.selectIndex = sender.tag
                 newViewController.signUrl = self.objOrderData.terms_page ?? ""
+                // Local-first T&C: ids for the durable terms.accept evidence.
+                newViewController.strOrderUniqueId = self.strOrderUniqueId
+                newViewController.strProductUniqueId = !self.strProductID.isEmpty
+                    ? self.strProductID
+                    : (self.objOrderData.arrProduct.first?.unique_id ?? "")
+                newViewController.isReturnLeg = self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false })
+                newViewController.strOrderNumber = "\(self.objOrderData.order_number ?? "")"
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
@@ -890,12 +900,15 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             // Delivery vs Return phase (return once products are delivered)
             let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
 
-            // T&C completed?
-            let termsDone = (self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt")
-
-            // Local-first — durably saved media/license is satisfied; never ask an
+            // Local-first — durably saved media/license/terms is satisfied; never ask an
             // exception for work sitting in the Sync Engine.
             let syncOps = KabbaSync.engine?.snapshot() ?? []
+
+            // T&C completed? (effective: server Accepted/Exempt ∨ durable local terms.accept)
+            let termsDone = EffectiveFieldState.termsSatisfied(
+                serverAccepted: self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt",
+                operations: syncOps,
+                orderUniqueId: self.strOrderUniqueId)
 
             // License uploaded?
             let arrLicenseUpload = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)

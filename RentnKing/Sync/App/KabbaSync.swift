@@ -72,6 +72,8 @@ enum KabbaSync {
                                         ChecklistPrepareSyncHandler(leg: .return, hasSession: hasSession),
                                         LegacyChecklistSubmitSyncHandler(hasSession: hasSession),
                                         FulfillmentInputsSyncHandler(hasSession: hasSession),
+                                        // Local-first T&C — durable evidence of a signed Terms & Conditions
+                                        TermsAcceptSyncHandler(hasSession: hasSession),
                                         // Phase 4 — Queue Line item-level orchestration + media / licence offline sync
                                         QueueLineStageSyncHandler(hasSession: hasSession),
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)

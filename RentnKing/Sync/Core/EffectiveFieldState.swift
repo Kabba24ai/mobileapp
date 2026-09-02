@@ -33,6 +33,7 @@ enum EffectiveFieldState {
     static let deliveryMediaType = "delivery_media.upload"
     static let returnMediaType = "return_media.upload"
     static let licenseMediaType = "license_media.upload"
+    static let termsAcceptedType = "terms.accept"
 
     /// Every retained operation counts as durable completion for WORKFLOW
     /// purposes — including needsAttention (work preserved) and synced
@@ -116,6 +117,18 @@ enum EffectiveFieldState {
         serverHasLicense || hasDurableEvidence(in: operations,
                                                types: [licenseMediaType],
                                                orderUniqueId: orderUniqueId)
+    }
+
+    /// Terms & Conditions requirement satisfied? server truth (Accepted/Exempt)
+    /// ∨ durable local acceptance op. Terms are an ORDER-level fact — any
+    /// terms.accept evidence for the order satisfies, whichever product's
+    /// workflow surfaced the signing.
+    static func termsSatisfied(serverAccepted: Bool,
+                                      operations: [SyncOperation],
+                                      orderUniqueId: String) -> Bool {
+        serverAccepted || hasDurableEvidence(in: operations,
+                                             types: [termsAcceptedType],
+                                             orderUniqueId: orderUniqueId)
     }
 
     /// Leg completion satisfied? server truth ∨ durable local completion op.

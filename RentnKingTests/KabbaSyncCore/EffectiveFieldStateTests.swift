@@ -55,6 +55,28 @@ final class EffectiveFieldStateTests: XCTestCase {
         XCTAssertTrue(EffectiveFieldState.licenseSatisfied(serverHasLicense: true, operations: [], orderUniqueId: "O1"))
     }
 
+    func testTermsAcceptedLocallyImmediatelySatisfiesTermsRequirement() {
+        // Signed T&C saved on the phone (Pending Sync window) — no exception.
+        let ops = [op(EffectiveFieldState.termsAcceptedType, order: "O1", product: "P1")]
+        XCTAssertTrue(EffectiveFieldState.termsSatisfied(serverAccepted: false, operations: ops, orderUniqueId: "O1"))
+        // Terms are ORDER-level: another order's acceptance never leaks in.
+        XCTAssertFalse(EffectiveFieldState.termsSatisfied(serverAccepted: false, operations: ops, orderUniqueId: "O2"))
+        // Server truth alone (Accepted or Exempt) still satisfies.
+        XCTAssertTrue(EffectiveFieldState.termsSatisfied(serverAccepted: true, operations: [], orderUniqueId: "O1"))
+        // Genuinely skipped (no op, server not accepted) → the exception IS asked.
+        XCTAssertFalse(EffectiveFieldState.termsSatisfied(serverAccepted: false, operations: [], orderUniqueId: "O1"))
+    }
+
+    func testTermsEvidenceSurvivesEveryRetainedState() {
+        // pending/syncing/synced/needsAttention — the signing already happened
+        // server-side; the phone's judgment must never regress on sync trouble.
+        for state in [SyncState.pending, .syncing, .synced, .needsAttention] {
+            let ops = [op(EffectiveFieldState.termsAcceptedType, order: "O1", state: state)]
+            XCTAssertTrue(EffectiveFieldState.termsSatisfied(serverAccepted: false, operations: ops, orderUniqueId: "O1"),
+                          "\(state) must satisfy")
+        }
+    }
+
     func testGenuinelyUnsatisfiedRequirementStillAsksForException() {
         // Neither server-complete nor locally durable → the exception IS asked.
         XCTAssertFalse(EffectiveFieldState.mediaSatisfied(serverHasMedia: false, operations: [],

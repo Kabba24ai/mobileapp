@@ -95,6 +95,11 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
                 newViewController.delegate = self
                 newViewController.selectIndex = sender.tag
                 newViewController.signUrl = objData.terms_page ?? ""
+                // Local-first T&C: ids for the durable terms.accept evidence.
+                newViewController.strOrderUniqueId = objData.unique_id ?? ""
+                newViewController.strProductUniqueId = objData.arrProduct.first?.unique_id ?? ""
+                newViewController.isReturnLeg = objData.arrProduct.contains(where: { $0.is_delivered ?? false })
+                newViewController.strOrderNumber = objData.order_number ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
