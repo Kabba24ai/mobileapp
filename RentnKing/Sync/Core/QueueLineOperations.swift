@@ -2,25 +2,32 @@
 //  QueueLineOperations.swift
 //  RentnKing — Sync Core (Foundation only)
 //
-//  Phase 4 — Queue Line item-level orchestration.
+//  Checklist-driven Queue Line (2026-09).
 //
-//  The Queue Line ITEM is the order product. Laravel's board feed now carries an
-//  explicit `identity` block (order product, order, equipment, store, fulfillment
-//  leg, checklist execution) and a `checklist.delivery` state; the phone keeps
-//  that identity together through Mark as Staged and into the Delivery Checklist
-//  instead of re-deriving it from array position or the order alone.
+//  The Queue Line ITEM is the order product. Laravel's board feed carries an
+//  explicit `identity` block (order product, order, equipment, store,
+//  fulfillment leg, checklist execution) and a `checklist.delivery` state; the
+//  phone keeps that identity together into the Delivery Checklist instead of
+//  re-deriving it from array position or the order alone.
 //
-//  Mark as Staged is a durable Sync Engine operation (`queue_line.mark_staged`):
-//  one operation id generated at tap time, replayed by Laravel through the
-//  mobile operation ledger, parked as Needs Attention on a 409 conflict with
-//  newer server truth (assignment changed, item left the yard).
+//  There is NO Queue Line-specific staging operation any more. The Delivery
+//  Checklist is the canonical preparation controller:
+//
+//      delivery_checklist.prepare  + mark_staged  → Pending → Staged
+//      delivery_checklist.complete (signed)       → Delivered
+//
+//  Those durable checklist operations are ALSO the board's local-first
+//  evidence: QueueLineLocalOverlay reads the engine snapshot and moves cards
+//  between lanes immediately, before Laravel confirms. The retired
+//  queue_line.mark_staged path (fuel/key mini-checklist) was removed with its
+//  endpoints — the fleet updates as one, so no compatibility shim exists.
 //
 
 import Foundation
 
-// MARK: - Wire contract (decodes the Laravel board item / acknowledgment)
+// MARK: - Wire contract (decodes the Laravel board item)
 
-/// The `identity` block on every board item and on the mark-staged acknowledgment.
+/// The `identity` block on every board item.
 struct QueueLineItemIdentity: Codable, Equatable {
     let queueLineItemId: String
     let orderUniqueId: String
@@ -97,7 +104,11 @@ struct QueueLineItemContract: Codable, Equatable {
     let orderNumber: String
     let status: String
     let staged: Bool
-    let fullyStaged: Bool
+    /// Derived from the canonical dispatch On My Way state — prepared
+    /// equipment currently traveling to the customer (checklist-driven Queue
+    /// Line, 2026-09). Operational badge only; gates nothing.
+    let inTransit: Bool
+    let readiness: String?
     let fulfillmentLeg: String
     let identity: QueueLineItemIdentity
     let checklist: Checklist
@@ -107,8 +118,8 @@ struct QueueLineItemContract: Codable, Equatable {
         case orderProductUniqueId = "order_product_unique_id"
         case orderUniqueId = "order_unique_id"
         case orderNumber = "order_number"
-        case status, staged
-        case fullyStaged = "fully_staged"
+        case status, staged, readiness
+        case inTransit = "in_transit"
         case fulfillmentLeg = "fulfillment_leg"
         case identity, checklist, equipment
     }
@@ -118,160 +129,87 @@ struct QueueLineItemContract: Codable, Equatable {
     }
 }
 
-/// The `data` of a mark-staged acknowledgment (success envelope).
-struct QueueLineStageAcknowledgment: Codable, Equatable {
-    let orderProductUniqueId: String
-    let fullyStaged: Bool
-    let replayed: Bool
-    let status: String?
-    let identity: QueueLineItemIdentity?
-    let stagedAt: String?
-
-    enum CodingKeys: String, CodingKey {
-        case orderProductUniqueId = "order_product_unique_id"
-        case fullyStaged = "fully_staged"
-        case replayed, status, identity
-        case stagedAt = "staged_at"
-    }
-
-    static func decode(envelopeData: Data) throws -> QueueLineStageAcknowledgment {
-        struct Envelope: Decodable { let data: QueueLineStageAcknowledgment }
-        return try KabbaISO8601.makeDecoder().decode(Envelope.self, from: envelopeData).data
-    }
-}
-
-// MARK: - The employee command
-
-/// What the employee did on the Mark as Staged sheet — for the CURRENTLY ASSIGNED
-/// unit only. (Reassign + stage stays an online call: the switch itself is not an
-/// idempotent operation yet, and a queued stage against a unit the server never
-/// saw assigned would always be a conflict.)
-struct QueueLineStageCommand: Equatable {
-    var orderProductUniqueId: String
-    var orderUniqueId: String
-    var orderNumber: String
-    var productName: String
-    var equipmentUniqueId: String
-    var equipmentName: String
-    var performedByUniqueId: String
-    var performedByName: String
-    /// nil = the unit has no fuel trait (not applicable); the field is omitted.
-    var fuelFull: Bool?
-    /// nil = the unit has no key trait (not applicable); the field is omitted.
-    var keyWithMachine: Bool?
-    var capturedAt: Date = Date()
-
-    /// Mirrors Laravel's readiness rules so an offline command can never be queued
-    /// in a state the server is guaranteed to reject (QUEUE_FUEL_NOT_FULL / QUEUE_KEY_MISSING).
-    func localValidationProblems() -> [String] {
-        var problems: [String] = []
-        if orderProductUniqueId.isEmpty { problems.append("Missing order item") }
-        if equipmentUniqueId.isEmpty { problems.append("No equipment is assigned to this item") }
-        if performedByUniqueId.isEmpty { problems.append("Select the employee who staged this machine") }
-        if fuelFull == false { problems.append("Fill the machine, then mark it as staged") }
-        if keyWithMachine == false { problems.append("Locate the key and leave it with the machine, then mark it as staged") }
-        return problems
-    }
-}
-
-enum QueueLineOperationBuilder {
-
-    static let markStagedType = "queue_line.mark_staged"
-
-    static func payload(_ command: QueueLineStageCommand) -> JSONValue {
-        var body: [String: JSONValue] = [
-            "order_product_unique_id": .string(command.orderProductUniqueId),
-            "order_unique_id": .string(command.orderUniqueId),
-            "equipment_unique_id": .string(command.equipmentUniqueId),
-            "performed_by": .string(command.performedByUniqueId),
-        ]
-        if let fuel = command.fuelFull { body["fuel_full"] = .bool(fuel) }
-        if let key = command.keyWithMachine { body["key_with_machine"] = .bool(key) }
-        return .object(body)
-    }
-
-    static func identity(_ command: QueueLineStageCommand) -> SyncBusinessIdentity {
-        SyncBusinessIdentity(orderUniqueId: command.orderUniqueId,
-                             orderProductUniqueId: command.orderProductUniqueId,
-                             equipmentUniqueId: command.equipmentUniqueId,
-                             employeeId: command.performedByUniqueId)
-    }
-
-    /// Non-sensitive: order number + product + unit code. Never the customer.
-    static func displayTitle(_ command: QueueLineStageCommand) -> String {
-        var parts = ["Mark as Staged"]
-        if !command.orderNumber.isEmpty { parts.append("#\(command.orderNumber)") }
-        if !command.productName.isEmpty { parts.append(command.productName) }
-        if !command.equipmentName.isEmpty { parts.append(command.equipmentName) }
-        return parts.joined(separator: " · ")
-    }
-
-    /// Durably records the staging command. Returns after it is on disk.
-    @discardableResult
-    static func enqueueMarkStaged(_ command: QueueLineStageCommand,
-                                  into engine: SyncEngine,
-                                  operationId: String = UUID().uuidString) throws -> SyncOperation {
-        try engine.enqueue(type: markStagedType,
-                           payload: payload(command),
-                           identity: identity(command),
-                           capturedAt: command.capturedAt,
-                           displayTitle: displayTitle(command),
-                           operationId: operationId)
-    }
-}
-
-enum QueueLineRequestFactory {
-    static func markStagedRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
-        guard var body = operation.payload.objectValue,
-              let productId = body["order_product_unique_id"]?.stringValue, !productId.isEmpty,
-              body["equipment_unique_id"]?.stringValue?.isEmpty == false,
-              body["performed_by"]?.stringValue?.isEmpty == false else {
-            throw SyncHandlerError.invalidPayload("Mark as Staged command is missing its item, unit or employee")
-        }
-        // The operation id is also the fuel/key ledger token, so every server-side row
-        // written for this command carries the same identity as the operation itself.
-        body["operation_id"] = .string(operation.id)
-        body["idempotency_token"] = .string(operation.id)
-        body["captured_at"] = .string(KabbaISO8601.string(from: operation.capturedAt))
-        body["order_product_unique_id"] = nil
-        body["order_unique_id"] = nil
-        return SyncHTTPRequest(method: "POST",
-                               path: "queue-line/\(productId)/mark-staged",
-                               headers: ["X-Operation-Id": operation.id],
-                               jsonBody: .object(body),
-                               operationId: operation.id)
-    }
-}
-
 // MARK: - Local display state
 
-/// What the Queue Line board overlays on top of the cached/server items: which
-/// products have a staging command still on the phone (Pending Sync) and which
-/// were rejected (Sync Issue). Pure function of the engine snapshot.
+/// What the Queue Line board overlays on top of the cached/server items —
+/// a pure function of the engine snapshot, built from the SAME durable
+/// checklist operations the Delivery Checklist writes:
+///
+///   • stagedLocally    — a complete checklist Save (prepare + mark_staged) is
+///                        durably on this phone → the card belongs in the
+///                        Staged lane NOW, whatever the cached feed says.
+///   • completedLocally — a signed completion is durably on this phone → the
+///                        card belongs in the Completed lane NOW, and a stale
+///                        feed replace can never reinsert it into Pending.
+///   • inTransitLocally — this phone durably recorded the delivery driver
+///                        status On My Way for the product.
+///   • pendingSync      — the staging Save has not been server-acknowledged
+///                        yet ("Pending Sync" chip).
+///   • attention        — a staging Save was terminally rejected ("Sync
+///                        Issue" chip; the office resolves it on Manage
+///                        Schedule Conflicts).
 struct QueueLineLocalOverlay: Equatable {
-    /// order product → the pending/syncing operation id
+    /// order product → the pending/syncing staging-save operation id
     var pendingStage: [String: String] = [:]
     /// order product → the employee-facing reason
     var attention: [String: String] = [:]
+    /// Durable staging evidence (any retained state — incl. synced/attention).
+    var stagedLocally: Set<String> = []
+    /// Durable signed-completion evidence for the delivery leg.
+    var completedLocally: Set<String> = []
+    /// Durable local On My Way evidence for the delivery leg.
+    var inTransitLocally: Set<String> = []
 
     func isPendingStage(_ orderProductUniqueId: String) -> Bool { pendingStage[orderProductUniqueId] != nil }
     func attentionReason(_ orderProductUniqueId: String) -> String? { attention[orderProductUniqueId] }
+    func isStagedLocally(_ orderProductUniqueId: String) -> Bool { stagedLocally.contains(orderProductUniqueId) }
+    func isCompletedLocally(_ orderProductUniqueId: String) -> Bool { completedLocally.contains(orderProductUniqueId) }
+    func isInTransitLocally(_ orderProductUniqueId: String) -> Bool { inTransitLocally.contains(orderProductUniqueId) }
 
     static func from(_ operations: [SyncOperation]) -> QueueLineLocalOverlay {
         var overlay = QueueLineLocalOverlay()
-        for op in operations where op.type == QueueLineOperationBuilder.markStagedType {
-            guard let product = op.identity.orderProductUniqueId else { continue }
-            switch op.state {
-            case .pending, .syncing:
-                overlay.pendingStage[product] = op.id
-            case .needsAttention:
-                overlay.attention[product] = op.attentionReason ?? "Staging was not accepted by Kabba."
-            case .synced:
+
+        for op in operations {
+            guard let product = op.identity.orderProductUniqueId,
+                  EffectiveFieldState.countsAsDurableEvidence(op.state) else { continue }
+
+            switch op.type {
+            case EffectiveFieldState.deliveryPrepareType:
+                // Only the explicit Save (staging intent) moves lanes; a
+                // partial progress sync is invisible to lane membership.
+                guard op.payload["mark_staged"]?.boolValue == true else { continue }
+                overlay.stagedLocally.insert(product)
+                switch op.state {
+                case .pending, .syncing:
+                    overlay.pendingStage[product] = op.id
+                case .needsAttention:
+                    overlay.attention[product] = op.attentionReason ?? "The staging Save was not accepted by Kabba."
+                case .synced:
+                    break
+                }
+
+            case EffectiveFieldState.deliveryCompleteType:
+                overlay.completedLocally.insert(product)
+
+            case EffectiveFieldState.driverChecklistType:
+                if op.payload["checklist_type"]?.stringValue == "delivery",
+                   op.payload["equipment_driver_status"]?.stringValue == "On My Way" {
+                    overlay.inTransitLocally.insert(product)
+                }
+
+            default:
                 break
             }
         }
-        // A newer pending command supersedes an older rejection for the same product.
+
+        // A newer pending Save supersedes an older rejection for the same product.
         for product in overlay.pendingStage.keys { overlay.attention[product] = nil }
+        // A completed item is past staging chatter entirely.
+        for product in overlay.completedLocally {
+            overlay.pendingStage[product] = nil
+            overlay.attention[product] = nil
+            overlay.inTransitLocally.remove(product)
+        }
         return overlay
     }
 }

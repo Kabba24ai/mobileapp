@@ -1,14 +1,14 @@
 {
-    "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
-    "order_unique_id": "ORD-9AXH-0BVD",
-    "order_number": "7719",
+    "order_product_unique_id": "ORD-SCH-P0WW-QMQA",
+    "order_unique_id": "ORD-MHUV-9OZX",
+    "order_number": "7703",
     "customer_name": "Check Customer",
     "identity": {
-        "queue_line_item_id": "ORD-SCH-7NDW-3GD2",
-        "order_unique_id": "ORD-9AXH-0BVD",
-        "order_product_unique_id": "ORD-SCH-7NDW-3GD2",
-        "equipment_unique_id": "EQP-1LPU-HAPV",
-        "store_unique_id": "STO-QG2Y-INE0",
+        "queue_line_item_id": "ORD-SCH-P0WW-QMQA",
+        "order_unique_id": "ORD-MHUV-9OZX",
+        "order_product_unique_id": "ORD-SCH-P0WW-QMQA",
+        "equipment_unique_id": "EQP-8IBL-Q4IJ",
+        "store_unique_id": "STO-KEML-VOGA",
         "fulfillment_leg": "delivery",
         "checklist_execution_id": null
     },
@@ -23,27 +23,27 @@
         }
     },
     "store": {
-        "unique_id": "STO-QG2Y-INE0",
+        "unique_id": "STO-KEML-VOGA",
         "name": "Yard Store"
     },
     "product": {
-        "unique_id": "PRO-ZYHC-765D",
+        "unique_id": "PRO-UUIA-OEFN",
         "name": "Skid Steer Rental",
         "image_url": "http://api.kabba.local/storage/admin/images/error/No_Image_Available.jpg"
     },
     "delivery": {
         "type_label": "Delivery Truck",
         "transport_mode": "Truck",
-        "date": "2026-08-25",
+        "date": "2026-09-02",
         "dispatch_date": null,
         "time": null
     },
     "urgency": "today",
     "assignment_state": "assignment_product_unknown",
     "equipment": {
-        "unique_id": "EQP-1LPU-HAPV",
-        "display_id": "EQP-P3-6A8DFAA105DE4",
-        "name": "Skid Steer 6a8dfaa105de3",
+        "unique_id": "EQP-8IBL-Q4IJ",
+        "display_id": "EQP-P3-6A97D6F4218F5",
+        "name": "Skid Steer 6a97d6f4218f4",
         "assigned_product_name": null,
         "status": "available",
         "status_label": "Available",
@@ -54,11 +54,11 @@
         "rental_ready": "Not Inspected"
     },
     "equipment_collection": {
-        "id": 20,
-        "unique_id": "EQP-1LPU-HAPV",
-        "equipment_name": "Skid Steer 6a8dfaa105de3",
+        "id": 4,
+        "unique_id": "EQP-8IBL-Q4IJ",
+        "equipment_name": "Skid Steer 6a97d6f4218f4",
         "product_category_id": 0,
-        "equipment_id": "EQP-P3-6A8DFAA105DE4",
+        "equipment_id": "EQP-P3-6A97D6F4218F5",
         "equipment_hours": 0,
         "is_tracked": "",
         "overage_rate": 0,
@@ -86,7 +86,7 @@
         "gas_tank_capacity": 0,
         "standard_battery_count": 0,
         "expanded_battery_count": 0,
-        "checklist_master_id": 8,
+        "checklist_master_id": 4,
         "equipment_notes": "",
         "current_status": "Available",
         "current_status_updated_by": "",
@@ -97,29 +97,29 @@
         "order_product": null,
         "checklist_qas": [
             {
-                "id": 33,
-                "unique_id": "CAQST-RMXB-5XOE",
+                "id": 3,
+                "unique_id": "CAQST-UWKC-VUND",
                 "question_name": "Body damage",
-                "category_id": 17,
+                "category_id": 2,
                 "question_delivery_text": "Any body damage at delivery?",
                 "question_return_text": "Any body damage at return?",
                 "required_question": 1,
                 "category": {
-                    "id": 17,
-                    "unique_id": "CACAT-FPKD-UKR2",
+                    "id": 2,
+                    "unique_id": "CACAT-4YSI-K8H8",
                     "category_name": "Condition",
                     "description": ""
                 },
                 "answers": [
                     {
-                        "id": 65,
-                        "unique_id": "CAANS-9DPS-OAQG",
+                        "id": 5,
+                        "unique_id": "CAANS-V2Q7-I1LT",
                         "answer_delivery_text": "No damage",
                         "answer_return_text": "No damage",
                         "delivery_amt": 0,
                         "return_amt": 0,
                         "sync_texts": 1,
-                        "question_id": 33,
+                        "question_id": 3,
                         "index_number": 1,
                         "user_delivery_amount": 0,
                         "user_return_amount": 0,
@@ -127,14 +127,14 @@
                         "is_return_answer": false
                     },
                     {
-                        "id": 66,
-                        "unique_id": "CAANS-USJS-FDPB",
+                        "id": 6,
+                        "unique_id": "CAANS-J235-TXQ1",
                         "answer_delivery_text": "Damaged",
                         "answer_return_text": "Damaged",
                         "delivery_amt": 0,
                         "return_amt": 150,
                         "sync_texts": 1,
-                        "question_id": 33,
+                        "question_id": 3,
                         "index_number": 2,
                         "user_delivery_amount": 0,
                         "user_return_amount": 0,
@@ -144,29 +144,29 @@
                 ]
             },
             {
-                "id": 34,
-                "unique_id": "CAQST-XRU0-H0WT",
+                "id": 4,
+                "unique_id": "CAQST-YAZN-JS8F",
                 "question_name": "Keys present",
-                "category_id": 17,
+                "category_id": 2,
                 "question_delivery_text": "Keys handed over?",
                 "question_return_text": "Keys returned?",
                 "required_question": 0,
                 "category": {
-                    "id": 17,
-                    "unique_id": "CACAT-FPKD-UKR2",
+                    "id": 2,
+                    "unique_id": "CACAT-4YSI-K8H8",
                     "category_name": "Condition",
                     "description": ""
                 },
                 "answers": [
                     {
-                        "id": 67,
-                        "unique_id": "CAANS-9P9G-BOVY",
+                        "id": 7,
+                        "unique_id": "CAANS-9HNN-EWJX",
                         "answer_delivery_text": "Yes",
                         "answer_return_text": "Yes",
                         "delivery_amt": 0,
                         "return_amt": 0,
                         "sync_texts": 1,
-                        "question_id": 34,
+                        "question_id": 4,
                         "index_number": 1,
                         "user_delivery_amount": 0,
                         "user_return_amount": 0,
@@ -174,14 +174,14 @@
                         "is_return_answer": false
                     },
                     {
-                        "id": 68,
-                        "unique_id": "CAANS-ADB5-HYMO",
+                        "id": 8,
+                        "unique_id": "CAANS-8RUD-QYC6",
                         "answer_delivery_text": "No",
                         "answer_return_text": "No",
                         "delivery_amt": 0,
                         "return_amt": 0,
                         "sync_texts": 1,
-                        "question_id": 34,
+                        "question_id": 4,
                         "index_number": 2,
                         "user_delivery_amount": 0,
                         "user_return_amount": 0,
@@ -212,33 +212,21 @@
         "equipment_store": null
     },
     "options_count": 0,
-    "fuel": {
-        "state": "not_verified",
-        "verified_by": null,
-        "verified_at": null
-    },
-    "key": {
-        "state": "not_applicable",
-        "confirmed_by": null,
-        "confirmed_at": null
-    },
     "payment_label": "No Payment Recorded",
     "status": "pending",
     "staged": false,
     "staged_by": null,
     "staged_at": null,
-    "performed_by": null,
-    "performed_at": null,
-    "fully_staged": false,
+    "in_transit": false,
+    "on_my_way_at": null,
     "completed": false,
     "completed_at": null,
     "is_fast_track": false,
-    "readiness": "staging_required",
+    "readiness": "checklist_preparation_required",
     "available_actions": {
         "assign_equipment": false,
         "switch_equipment": true,
-        "mark_staged": true,
-        "return_to_pending": false,
+        "open_delivery_checklist": true,
         "view_history": true
     }
 }

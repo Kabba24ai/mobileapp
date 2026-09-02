@@ -74,8 +74,8 @@ enum KabbaSync {
                                         FulfillmentInputsSyncHandler(hasSession: hasSession),
                                         // Local-first T&C — durable evidence of a signed Terms & Conditions
                                         TermsAcceptSyncHandler(hasSession: hasSession),
-                                        // Phase 4 — Queue Line item-level orchestration + media / licence offline sync
-                                        QueueLineStageSyncHandler(hasSession: hasSession),
+                                        // (queue_line.mark_staged retired 2026-09 — staging is the
+                                        //  Delivery Checklist's Save: delivery_checklist.prepare + mark_staged)
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)
                                         ManualDispatchSyncHandler(hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),

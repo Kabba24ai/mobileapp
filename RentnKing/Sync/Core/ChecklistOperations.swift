@@ -41,8 +41,16 @@ struct ChecklistCapture: Equatable {
     var returnCleanId: String = ""
     var totalCleanCharge: String = ""
     var capturedAt: Date = Date()
+    /// Checklist-driven Queue Line staging (2026-09): true marks the
+    /// checklist's explicit Save — the canonical Pending → Staged request.
+    /// Only meaningful on the delivery leg; progress syncs leave it false.
+    var markStaged: Bool = false
 
     var leg: ChecklistLeg { context.leg }
+
+    /// Every required question answered — the staging precondition the phone
+    /// validates before requesting Pending → Staged (Laravel re-enforces).
+    var isChecklistComplete: Bool { context.missingRequiredQuestionIds(answered: answers).isEmpty }
 
     /// Local usability validation. Laravel re-validates the same rules on sync.
     func localValidationProblems() -> [String] {
@@ -106,6 +114,9 @@ enum ChecklistOperationBuilder {
         // Prepare may happen before the delivering employee is chosen.
         if capture.employeeUserId > 0 { body["user_id"] = .number(Double(capture.employeeUserId)) }
         if let revision = capture.context.template.revision { body["context_revision"] = .string(revision) }
+        // The explicit Save → Pending → Staged request (delivery leg only —
+        // the return leg has no queue semantics).
+        if capture.markStaged && capture.leg.isDelivery { body["mark_staged"] = .bool(true) }
         return .object(body)
     }
 

@@ -30,10 +30,13 @@ enum EffectiveFieldState {
 
     static let deliveryCompleteType = "delivery_checklist.complete"
     static let returnCompleteType = "return_checklist.complete"
+    static let deliveryPrepareType = "delivery_checklist.prepare"
+    static let returnPrepareType = "return_checklist.prepare"
     static let deliveryMediaType = "delivery_media.upload"
     static let returnMediaType = "return_media.upload"
     static let licenseMediaType = "license_media.upload"
     static let termsAcceptedType = "terms.accept"
+    static let driverChecklistType = "driver_checklist.update"
 
     /// Every retained operation counts as durable completion for WORKFLOW
     /// purposes — including needsAttention (work preserved) and synced

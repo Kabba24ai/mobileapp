@@ -55,6 +55,9 @@ enum kOrderStatusType: String {
 enum kDriverCheckListStatus: String {
     case knone = ""
     case kReadytoGo = "Ready to Go"
-    case kOnMyWay = "On the Way"
+    // Canonical server wire value (EquipmentDriverStatus::ON_MY_WAY). The
+    // driver's "Load Map & Go" departure sends THIS — it is the moment the
+    // equipment leaves the yard (Queue Line shows Staged + In Transit).
+    case kOnMyWay = "On My Way"
     case kArrived = "Arrived"
 }

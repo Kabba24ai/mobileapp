@@ -173,6 +173,17 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     /// Guards one-time installation of the delivery-only "Save" (prepare) button.
     private var didInstallSaveButton = false
 
+    // Checklist-driven staging (2026-09) — local-first partial progress.
+    /// True once the order + contexts have loaded; drafts are never persisted
+    /// from an empty/unloaded screen.
+    private var checklistLoaded = false
+    /// Set by Save/Preview before they push forward, so the leave-time partial
+    /// sync doesn't double-fire on their navigations.
+    private var didNavigateForward = false
+    /// Per-product fingerprint of the last answers synced to the server, so a
+    /// leave with no changes enqueues nothing.
+    private var lastSyncedFingerprint: [String: String] = [:]
+
     override func viewDidLoad() {
         super.viewDidLoad()
         //        setupCutomeKeyboard()
@@ -189,8 +200,13 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         //
         //KEYBOARD METHOD
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(notification:)), name: UIResponder.keyboardWillShowNotification , object:nil)
-        
+
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(notification:)), name: UIResponder.keyboardWillHideNotification , object:nil)
+
+        // Local-first partial progress (2026-09): backgrounding the app (the
+        // step before any force quit) durably snapshots the in-progress
+        // answers, so partial checklist work always survives relaunch.
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
         
         //GET Equipment LIST DATA
         getEquipmentList { arr_data in
@@ -299,6 +315,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                     self.prefillPendingCheckListIfNeeded()
                     self.focusQueueLineItemIfNeeded()
                     self.loadChecklistContexts()
+                    self.checklistLoaded = true
 
                 }
                 
@@ -368,6 +385,68 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     
     override func viewWillDisappear(_ animated: Bool) {
         setupKeyboard(true)
+
+        // Local-first partial progress (2026-09): leaving the screen — by any
+        // route — durably keeps the answers (draft) and syncs them to the
+        // server in the background WITHOUT staging. Save/Preview handle their
+        // own persistence before navigating forward.
+        persistDraftSnapshot()
+        if !didNavigateForward {
+            syncPartialProgress()
+        }
+        didNavigateForward = false
+    }
+
+    @objc private func appDidEnterBackground() {
+        persistDraftSnapshot()
+        syncPartialProgress()
+    }
+
+    /// Durable draft of the WHOLE screen state (all products, all rows), so a
+    /// reopened checklist restores exactly what the employee left. Written on
+    /// leave/background — a snapshot of untouched data is harmless (identical
+    /// to what would be rebuilt), and completion clears the key.
+    private func persistDraftSnapshot() {
+        guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
+        _ = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                 objOrderData: order, arrOtherData: self.arrOtherData)
+    }
+
+    /// Background partial-progress sync (checklist-driven staging, 2026-09):
+    /// one durable prepare WITHOUT staging intent per touched product, so
+    /// another device / the web sees the yard's progress. Never fires for a
+    /// product whose answers are incomplete while the equipment is In Transit
+    /// (the server refuses that edit — the last valid prepared state stands),
+    /// and never re-enqueues unchanged answers.
+    private func syncPartialProgress() {
+        guard checklistLoaded, let engine = KabbaSync.engine, let order = self.objOrderData else { return }
+
+        for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
+            guard let uid = product.unique_id, let context = self.checklistContexts[uid],
+                  product.objMachine != nil,
+                  !checkQuestionsIsBlank(objProduct: product) else { continue }
+
+            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+                                                       isDelivery: self.isDeliveryType,
+                                                       totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+
+            // In Transit + incomplete → do not commit an invalid prepared
+            // state (§ physical truth); the local draft still holds the edits.
+            if context.serverState.inTransit == true, !capture.isChecklistComplete { continue }
+
+            let fingerprint = Self.answersFingerprint(capture)
+            if lastSyncedFingerprint[uid] == fingerprint { continue }
+
+            if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
+                lastSyncedFingerprint[uid] = fingerprint
+            }
+        }
+    }
+
+    /// Stable digest of what a prepare would send for one product.
+    private static func answersFingerprint(_ capture: ChecklistCapture) -> String {
+        let answers = capture.answers.keys.sorted().map { "\($0)=\(capture.answers[$0] ?? "")" }.joined(separator: "|")
+        return answers + "|h:\(capture.startHours)|f:\(capture.fuelInitialReading)|c:\(capture.deliveryCleanId)|e:\(capture.employeeUserId)|s:\(capture.markStaged)"
     }
     
     
@@ -720,84 +799,126 @@ extension CheckListViewController{
     
 
 
-    /// Saves the current checklist as a PENDING draft (local only) — no signature, no upload, no
-    /// completion — then opens Delivery Image/Video Upload. Stays put if the save fail
-    /// s.
+    /// The checklist's explicit SAVE — the canonical preparation transition
+    /// (checklist-driven Queue Line staging, 2026-09):
+    ///
+    ///   • Progress always persists (durable local draft + a background
+    ///     prepare per touched product) — remembering work never changes
+    ///     fulfillment state.
+    ///   • A product whose checklist is 100% complete gets a prepare WITH
+    ///     staging intent → the server moves it Pending → Staged. Per
+    ///     product: on a multi-line order, completing A stages only A.
+    ///   • While a product is In Transit, an edit may never leave its
+    ///     prepared checklist incomplete — the invalid state is not
+    ///     committed and the employee is told exactly what is missing.
+    ///
+    /// No signature, no upload queue, no completion side effects here.
     @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
-//        guard isDeliveryType else { return }
         self.view.endEditing(true)
+        guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
 
-        // SAME data prep + validation as Preview (btnSubmitClicked). Instead of moving to
-        // CheckListUpdateViewController, we SAVE this prepared data as a PENDING draft (local only).
-        var objTempOrderData = self.objOrderData
-        var arrTempOtherData = self.arrOtherData
-        for i in 0..<self.objOrderData.arrProduct.count{
-            let obj = self.objOrderData.arrProduct[i]
-            if obj.objMachine == nil{
-                objTempOrderData?.arrProduct.remove(at: i)
-                arrTempOtherData.remove(at: i)
-            }
-        }
+        // 1) The durable draft — the FULL screen state, so reopening restores
+        //    every product exactly as left (partial or complete).
+        guard persistDraftReporting() else { return }
 
-        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
-        if self.isCombineChecklist == false{
-            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
-        }
+        // 2) Per-product evaluation + durable server operations.
+        let errorSections = Set(checkQuestions(objOrderData: order).map { $0.section })
+        var stagedCount = 0
+        var progressCount = 0
+        var firstIncomplete: IndexPath?
+        var inTransitProblems: [String] = []
 
-        let errors = checkQuestions(objOrderData: objTempOrderData!)
-        if self.checkMachineData(objOrderData: objTempOrderData!) == false{
-            return
-        }
-        else if let first = errors.first {
-            scrollToCell(indexPath: first, isError: true)
-            return
-        }
-        else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
-            return
-        }
-        else{
-            // Persist the SAME prepared data that Preview would pass onward — as a PENDING draft.
-            // No signature, no upload queue, no completion side effects. No forward navigation.
-            let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
-                                             objOrderData: objTempOrderData, arrOtherData: arrTempOtherData)
-            guard saved else {
-                showAlertMessage(strMessage: "Could not save the checklist. Please try again.")
-                return
-            }
+        if let engine = KabbaSync.engine {
+            for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
+                guard let uid = product.unique_id, let context = self.checklistContexts[uid],
+                      product.objMachine != nil,
+                      !checkQuestionsIsBlank(objProduct: product) else { continue }
 
-            // Phase 3: the prepared state is also a canonical server operation (durable, idempotent)
-            // so another device / the web can see the checklist was prepared. Partial answers allowed.
-            if let engine = KabbaSync.engine, let tempOrder = objTempOrderData {
-                for (index, product) in tempOrder.arrProduct.enumerated() where index < arrTempOtherData.count {
-                    guard let uid = product.unique_id, let context = self.checklistContexts[uid] else { continue }
-                    let capture = ChecklistCaptureFactory.make(context: context, product: product, other: arrTempOtherData[index],
-                                                               isDelivery: self.isDeliveryType,
-                                                               totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
-                    do {
-                        _ = try ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)
-                    } catch {
-                        debugPrint("Checklist prepare: could not enqueue for \(uid): \(error)")
+                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+                                                           isDelivery: self.isDeliveryType,
+                                                           totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                let problems = capture.localValidationProblems()
+                let complete = problems.isEmpty && !errorSections.contains(index)
+                let inTransit = context.serverState.inTransit == true
+
+                if complete {
+                    // The explicit Save on a complete checklist = the staging
+                    // transition (delivery leg only; the server enforces too).
+                    capture.markStaged = self.isDeliveryType
+                    if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
+                        lastSyncedFingerprint[uid] = Self.answersFingerprint(capture)
+                        stagedCount += 1
                     }
-                }
-            }
-
-            if self.isDeliveryMediaUploaded() {
-                if self.isQueueLine {
-                    if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                        self.navigationController?.popToViewController(targetViewController, animated: true)
-                    } else {
-                        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-                        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController {
-                            newViewController.is_going_main = true
-                            self.navigationController?.pushViewController(newViewController, animated: true)
-                        }
+                } else if inTransit {
+                    // §16 — never commit an incomplete prepared state for
+                    // equipment already traveling to the customer.
+                    let productName = product.product_name ?? "This equipment"
+                    inTransitProblems.append("\(productName) is IN TRANSIT — its prepared checklist must stay complete. " + problems.joined(separator: ". "))
+                    if firstIncomplete == nil {
+                        firstIncomplete = checkQuestions(objOrderData: order).first(where: { $0.section == index })
                     }
                 } else {
-                    self.navigationController?.popViewController(animated: true)
+                    // Progress save: persist the partial answers durably,
+                    // equipment remains Pending.
+                    if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
+                        lastSyncedFingerprint[uid] = Self.answersFingerprint(capture)
+                    }
+                    progressCount += 1
+                    if firstIncomplete == nil {
+                        firstIncomplete = checkQuestions(objOrderData: order).first(where: { $0.section == index })
+                    }
                 }
+            }
+        }
+
+        // 3) Outcome.
+        if !inTransitProblems.isEmpty {
+            showAlertMessage(strMessage: inTransitProblems.joined(separator: "\n\n"))
+            if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
+            return
+        }
+
+        if stagedCount > 0 {
+            // At least one product is fully prepared — continue the existing
+            // prepared-checklist flow (delivery media, then back to the board).
+            didNavigateForward = true
+            if self.isDeliveryMediaUploaded() {
+                self.popAfterSave()
             } else {
                 self.openDeliveryMediaUpload()
             }
+            return
+        }
+
+        if progressCount > 0 {
+            showAlertMessage(strMessage: "Progress saved. The equipment remains Pending until every required checklist item is complete and saved.")
+            if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
+            return
+        }
+
+        // Nothing answered anywhere yet — nudge to the first requirement.
+        if let first = checkQuestions(objOrderData: order).first {
+            scrollToCell(indexPath: first, isError: true)
+        }
+    }
+
+    /// Draft write with the user-facing failure message the old Save showed.
+    private func persistDraftReporting() -> Bool {
+        let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                         objOrderData: self.objOrderData, arrOtherData: self.arrOtherData)
+        if !saved { showAlertMessage(strMessage: "Could not save the checklist. Please try again.") }
+        return saved
+    }
+
+    /// After a staging Save: Queue Line entry returns to the Queue Line board
+    /// (which reflects Staged immediately from the durable operation); other
+    /// entries pop back where they came from. Navigation only — never state.
+    private func popAfterSave() {
+        if self.isQueueLine,
+           let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
+            self.navigationController?.popToViewController(board, animated: true)
+        } else {
+            self.navigationController?.popViewController(animated: true)
         }
     }
 
@@ -880,8 +1001,10 @@ extension CheckListViewController{
             return
         }
         else{
-            
+
             //MOVE CHECKLIST
+            didNavigateForward = true
+            persistDraftSnapshot()
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.arrPriceList = self.arrPriceList

@@ -895,9 +895,15 @@ extension DriverChecklistViewController {
         
         
         // Durably queued (Sync Engine) before the UI moves on; the toast reports Pending Sync → Synced.
-        // Carries the full checklist state (answers + ticks) with the Ready to Go transition.
+        // Carries the full checklist state (answers + ticks) with the departure transition.
+        //
+        // Checklist-driven Queue Line (2026-09): "Load Map & Go" IS the
+        // departure — it sends the canonical ON MY WAY status (the server
+        // back-fills ready_to_go_at when the prep stamp was skipped, so every
+        // existing consumer keeps working). The Queue Line board shows the
+        // item as Staged + In Transit until arrival/signed completion.
         let readyToGoState = currentLocalState()
-        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kReadytoGo.rawValue, checklist_type: self.checklistType, driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 })
+        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kOnMyWay.rawValue, checklist_type: self.checklistType, driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 })
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: readyToGoOperationId)
         passedChecklistStage = true

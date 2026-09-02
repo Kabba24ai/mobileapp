@@ -355,8 +355,6 @@
 		5A5C000000000000000000A1 /* media_upload_idempotent_replay.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */; };
 		5A5C000000000000000000A3 /* media_upload_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A2 /* media_upload_success.json */; };
 		5A5C000000000000000000A5 /* queue_line_board_item.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A4 /* queue_line_board_item.json */; };
-		5A5C000000000000000000A7 /* queue_line_mark_staged_conflict.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */; };
-		5A5C000000000000000000A9 /* queue_line_mark_staged_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */; };
 		5A5C000000000000000000AB /* return_checklist_completion_success.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AA /* return_checklist_completion_success.json */; };
 		5A5C000000000000000000AD /* return_checklist_context.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AC /* return_checklist_context.json */; };
 		5A5C000000000000000000AF /* route_retired.json in Resources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000AE /* route_retired.json */; };
@@ -762,8 +760,6 @@
 		5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = media_upload_idempotent_replay.json; sourceTree = "<group>"; };
 		5A5C000000000000000000A2 /* media_upload_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = media_upload_success.json; sourceTree = "<group>"; };
 		5A5C000000000000000000A4 /* queue_line_board_item.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_board_item.json; sourceTree = "<group>"; };
-		5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_mark_staged_conflict.json; sourceTree = "<group>"; };
-		5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue_line_mark_staged_success.json; sourceTree = "<group>"; };
 		5A5C000000000000000000AA /* return_checklist_completion_success.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = return_checklist_completion_success.json; sourceTree = "<group>"; };
 		5A5C000000000000000000AC /* return_checklist_context.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = return_checklist_context.json; sourceTree = "<group>"; };
 		5A5C000000000000000000AE /* route_retired.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = route_retired.json; sourceTree = "<group>"; };
@@ -2043,8 +2039,6 @@
 				5A5C000000000000000000A0 /* media_upload_idempotent_replay.json */,
 				5A5C000000000000000000A2 /* media_upload_success.json */,
 				5A5C000000000000000000A4 /* queue_line_board_item.json */,
-				5A5C000000000000000000A6 /* queue_line_mark_staged_conflict.json */,
-				5A5C000000000000000000A8 /* queue_line_mark_staged_success.json */,
 				5A5C000000000000000000AA /* return_checklist_completion_success.json */,
 				5A5C000000000000000000AC /* return_checklist_context.json */,
 				5A5C000000000000000000AE /* route_retired.json */,
@@ -2307,8 +2301,6 @@
 				5A5C000000000000000000A1 /* media_upload_idempotent_replay.json in Resources */,
 				5A5C000000000000000000A3 /* media_upload_success.json in Resources */,
 				5A5C000000000000000000A5 /* queue_line_board_item.json in Resources */,
-				5A5C000000000000000000A7 /* queue_line_mark_staged_conflict.json in Resources */,
-				5A5C000000000000000000A9 /* queue_line_mark_staged_success.json in Resources */,
 				5A5C000000000000000000AB /* return_checklist_completion_success.json in Resources */,
 				5A5C000000000000000000AD /* return_checklist_context.json in Resources */,
 				5A5C000000000000000000AF /* route_retired.json in Resources */,

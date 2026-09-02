@@ -129,15 +129,20 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         laneContents.removeAll()
 
-        // Phase 4 overlay: an item with a staging command still on this phone shows in the
-        // Staged lane with a Pending Sync tag; a rejected command stays where the server has
-        // it, tagged Sync Issue. Server truth is never overwritten in the cache.
+        // Local-first overlay (checklist-driven staging, 2026-09): lane
+        // membership = server truth ∨ durable local checklist evidence. A
+        // complete checklist Save moves the card to Staged NOW; a signed
+        // completion moves it to Completed NOW — and a stale feed replace can
+        // never reinsert it, because the evidence outlives the feed. Server
+        // truth is never overwritten in the cache; this is display-time only.
         syncOverlay = KabbaQueueLineSync.overlay()
         updateFreshnessLine()
         func lane(_ item: QueueLineModel) -> String {
+            let product = item.itemOrderProductUniqueId
             let server = (item.status ?? "") == "completed" || item.completed == true ? "completed" : (item.status ?? "pending")
-            if server == "pending", syncOverlay.isPendingStage(item.itemOrderProductUniqueId) { return "staged" }
-            return server
+            if server == "completed" || syncOverlay.isCompletedLocally(product) { return "completed" }
+            if server == "staged" || syncOverlay.isStagedLocally(product) { return "staged" }
+            return "pending"
         }
 
         let pendingItems   = arrQueueLine.filter { lane($0) == "pending" }
@@ -145,9 +150,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         let completedItems = arrQueueLine.filter { lane($0) == "completed" }
 
         let pending = makeLaneContent(cards(for: pendingItems,
-            empty: "Nothing pending — every order has a machine assigned, fueled, and staged."))
+            empty: "Nothing pending — every machine has a completed, saved Delivery Checklist."))
         let staged = makeLaneContent(cards(for: stagedItems,
-            empty: "Nothing staged yet. Thumbs-up a Pending card once its machine is assigned, fueled, and keyed."))
+            empty: "Nothing staged yet. Open a Pending card's Delivery Checklist, complete it, and Save to stage the machine."))
         let completed = makeLaneContent(cards(for: completedItems,
             empty: "Nothing has left the yard yet today."))
 
@@ -226,33 +231,19 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         return items.map { makeCard(for: $0) }
     }
 
-    // MARK: - Thumbs-up → stage / staged-info popup
+    // MARK: - Checklist button → the ONE Delivery Checklist (no mini-checklist)
+    //
+    // Checklist-driven staging (2026-09): selecting a Pending OR Staged item
+    // opens the SAME main Delivery Checklist every other entry point uses.
+    // The former Mark as Staged popup (fuel/key mini-checklist) is retired —
+    // a 100%-complete checklist + Save stages the item; Preview + customer
+    // signature + Complete delivers it (directly from Pending for walk-ins).
     @objc private func thumbTapped(_ sender: QueueMenuButton) {
         guard let item = sender.item else { return }
-        if syncOverlay.isPendingStage(item.itemOrderProductUniqueId) {
-            // Staged on this phone, not yet confirmed by Kabba — nothing to undo server-side yet.
-            showAlertMessage(strMessage: "This machine was marked as staged on this phone and is waiting to sync with Kabba. It will appear as staged for everyone once the connection returns.")
-            return
-        }
-        if item.staged == true {
-            let vc = QueueLineStagedInfoViewController()
-            vc.item = item
-            vc.onChanged = { [weak self] in self?.loadQueueLine() }   // refresh after Return to Pending
-            present(vc, animated: true)
-        } else {
-            let vc = QueueLineStageViewController()
-            vc.item = item
-            vc.employees = self.arrEmployesList
-            vc.categories = self.arrCategoryList
-            vc.allEquipment = self.arrEquipmentList
-            vc.onChanged = { [weak self] in self?.loadQueueLine() }   // refresh after Mark as Staged
-            // After staging succeeds, open the Delivery Checklist for the same order (prepare flow).
-            vc.onStaged = { [weak self] staged in self?.openDeliveryChecklist(for: staged) }
-            present(vc, animated: true)
-        }
+        openDeliveryChecklist(for: item)
     }
 
-    /// Opens the Delivery Checklist for a just-staged item (prepare-before-arrival flow).
+    /// Opens the main Delivery Checklist for a Queue Line item.
     /// Uses the same controller/identifiers Orders uses, so the screen stays independently usable.
     ///
     /// Phase 4: the EXACT Queue Line item identity travels with the navigation — order product,
@@ -672,9 +663,11 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         customer.attributedText = attr(item.customer_name ?? "", Palette.ink, rFont(bold, 16))
         customer.setContentHuggingPriority(.required, for: .horizontal)
 
+        // Checklist-driven staging (2026-09): the card's action opens the ONE
+        // main Delivery Checklist (no mini-checklist) — for Pending AND Staged.
         let thumb = QueueMenuButton(type: .system)
         thumb.item = item
-        thumb.setImage(UIImage(systemName: "hand.thumbsup.fill"), for: .normal)
+        thumb.setImage(UIImage(systemName: "checklist"), for: .normal)
         thumb.tintColor = Palette.cyan
         thumb.translatesAutoresizingMaskIntoConstraints = false
         thumb.widthAnchor.constraint(equalToConstant: 24).isActive = true
@@ -686,12 +679,20 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         if (item.urgency ?? "").lowercased() == "rush" {
             headerViews.append(makeBadge("RUSH", bg: .redText, text: .white, bordered: false))
         }
-        // Phase 4 — local sync state (never implies the server confirmed anything).
+        // Local sync state (never implies the server confirmed anything).
         let productKey = item.itemOrderProductUniqueId
         if syncOverlay.isPendingStage(productKey) {
             headerViews.append(makeBadge("Pending Sync", bg: .clear, text: Palette.amber, bordered: true))
         } else if syncOverlay.attentionReason(productKey) != nil {
             headerViews.append(makeBadge("Sync Issue", bg: .clear, text: .redText, bordered: true))
+        }
+
+        // In Transit (2026-09): derived from the canonical dispatch On My Way
+        // state (server) ∨ this phone's durable driver evidence. Prepared
+        // equipment currently traveling — disappears on trip reset/delivery.
+        let isCompletedForBadges = (item.status ?? "") == "completed" || item.completed == true
+        if !isCompletedForBadges, item.in_transit == true || syncOverlay.isInTransitLocally(productKey) {
+            headerViews.append(makeBadge("In Transit", bg: Palette.cyan, text: .white, bordered: false))
         }
 
         // Completed cards: no thumbs-up. Show a FAST TRACK tag when flagged.

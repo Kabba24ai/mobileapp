@@ -378,19 +378,20 @@ extension ImageUploadViewController {
             self.saveTheVideoandImageLocal()
 
             if self.isQueueLine {
-                
-                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                // Checklist-driven staging (2026-09): the Queue Line flow
+                // returns to the Queue Line board, which reflects the staged
+                // state immediately from the durable local operations.
+                if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
+                    self.navigationController?.popToViewController(board, animated: true)
+                }
+                else if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
                     self.navigationController?.popToViewController(targetViewController, animated: true)
                 }
                 else {
-                    let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-                    if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController {
-                        newViewController.is_going_main = true
-                        self.navigationController?.pushViewController(newViewController, animated: true)
-                    }
+                    self.navigationController?.popViewController(animated: true)
                 }
             }
-            
+
         }
     }
     

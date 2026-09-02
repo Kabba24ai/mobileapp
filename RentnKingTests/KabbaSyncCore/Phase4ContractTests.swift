@@ -20,7 +20,7 @@ final class Phase4ContractTests: XCTestCase {
         throw XCTSkip("Fixture \(name).json not synced — run Scripts/sync-contract-fixtures.sh")
     }
 
-    func testBoardItemCarriesExplicitIdentityAndChecklistState() throws {
+    func testBoardItemCarriesExplicitIdentityChecklistStateAndInTransit() throws {
         let item = try QueueLineItemContract.decode(fixture("queue_line_board_item"))
         XCTAssertEqual(item.identity.orderProductUniqueId, item.orderProductUniqueId)
         XCTAssertEqual(item.identity.queueLineItemId, item.orderProductUniqueId, "the Queue Line item IS the order product")
@@ -32,34 +32,15 @@ final class Phase4ContractTests: XCTestCase {
         XCTAssertEqual(item.checklist.delivery.status, .notPrepared)
         XCTAssertEqual(item.checklist.delivery.leg, "delivery")
         XCTAssertEqual(item.status, "pending")
+        // Checklist-driven staging (2026-09): the derived dispatch flag is on
+        // every item; a fresh pending item is not traveling anywhere.
+        XCTAssertFalse(item.inTransit)
+        XCTAssertFalse(item.staged)
     }
 
-    func testMarkStagedAcknowledgmentDecodesAndIsAnAcknowledgment() throws {
-        let data = try fixture("queue_line_mark_staged_success")
-        let ack = try QueueLineStageAcknowledgment.decode(envelopeData: data)
-        XCTAssertTrue(ack.fullyStaged)
-        XCTAssertFalse(ack.replayed)
-        XCTAssertEqual(ack.status, "staged")
-        XCTAssertEqual(ack.identity?.orderProductUniqueId, ack.orderProductUniqueId)
-        XCTAssertEqual(ack.identity?.fulfillmentLeg, "delivery")
-        XCTAssertNotNil(ack.identity?.equipmentUniqueId)
-
-        let outcome = SyncResponseInterpreter.interpret(SyncHTTPResponse(statusCode: 200, headers: [:], body: data), now: Date())
-        guard case .acknowledged(let a) = outcome else { return XCTFail("expected acknowledgment") }
-        XCTAssertNotNil(a.requestId)
-    }
-
-    func testMarkStagedConflictIsPermanentAndNamesTheCurrentUnit() throws {
-        let data = try fixture("queue_line_mark_staged_conflict")
-        let outcome = SyncResponseInterpreter.interpret(SyncHTTPResponse(statusCode: 409, headers: [:], body: data), now: Date())
-        guard case .failed(let error) = outcome else { return XCTFail("expected failure") }
-        XCTAssertEqual(error.code, "QUEUE_ASSIGNMENT_CHANGED")
-        XCTAssertEqual(error.disposition, .needsAttention)
-        XCTAssertEqual(error.serverRetryable, false)
-        let envelope = APIEnvelope.parse(data)
-        XCTAssertNotNil(envelope?.raw["error"]?["current_equipment"]?["unique_id"]?.stringValue)
-        XCTAssertNotNil(envelope?.raw["error"]?["corrective_action"]?.stringValue)
-    }
+    // (The mark-staged acknowledgment/conflict fixtures were retired with the
+    //  queue_line.mark_staged operation — staging is the Delivery Checklist's
+    //  Save, covered by the checklist prepare contract + QueueLineOperationTests.)
 
     func testMediaUploadSuccessAndReplayAreAcknowledgments() throws {
         let success = try fixture("media_upload_success")

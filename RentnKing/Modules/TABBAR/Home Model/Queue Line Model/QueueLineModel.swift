@@ -22,8 +22,6 @@ struct QueueLineModel: Mappable {
     internal var delivery: QueueLineDelivery?
     internal var equipment: QueueLineEquipment?
     internal var equipment_collection: MachineModel?
-    internal var fuel: QueueLineFuel?
-    internal var key: QueueLineKey?
     internal var available_actions: QueueLineActions?
 
     internal var urgency: String?
@@ -32,12 +30,14 @@ struct QueueLineModel: Mappable {
     internal var payment_label: String?
     internal var status: String?        // "pending" | "staged" | "completed"
     internal var staged: Bool?
-    internal var fully_staged: Bool?
     internal var completed: Bool?
     internal var readiness: String?
-    internal var staged_by: String?     // employee who staged it (Entered By)
+    internal var staged_by: String?     // employee whose checklist Save staged it
     internal var staged_at: String?     // timestamp it was staged
     internal var is_fast_track: Bool?   // FAST TRACK tag (shown on Completed cards)
+    // Checklist-driven Queue Line (2026-09): derived dispatch On My Way state.
+    internal var in_transit: Bool?
+    internal var on_my_way_at: String?
 
     // Phase 4 — canonical item identity + delivery-checklist state (additive server fields).
     internal var identity: QueueLineIdentity?
@@ -57,8 +57,6 @@ struct QueueLineModel: Mappable {
         delivery          <- map["delivery"]
         equipment         <- map["equipment"]
         equipment_collection <- map["equipment_collection"]
-        fuel              <- map["fuel"]
-        key               <- map["key"]
         available_actions <- map["available_actions"]
 
         urgency          <- map["urgency"]
@@ -67,8 +65,9 @@ struct QueueLineModel: Mappable {
         payment_label    <- map["payment_label"]
         status           <- map["status"]
         staged           <- map["staged"]
-        fully_staged     <- map["fully_staged"]
         completed        <- map["completed"]
+        in_transit       <- map["in_transit"]
+        on_my_way_at     <- map["on_my_way_at"]
         readiness        <- map["readiness"]
         staged_by        <- map["staged_by"]
         staged_at        <- map["staged_at"]
@@ -205,43 +204,21 @@ struct QueueLineEquipment: Mappable {
     }
 }
 
-struct QueueLineFuel: Mappable {
-    internal var state: String?
-    internal var verified_by: String?
-    internal var verified_at: String?
-    init?(map: Map) { mapping(map: map) }
-    mutating func mapping(map: Map) {
-        state       <- map["state"]
-        verified_by <- map["verified_by"]
-        verified_at <- map["verified_at"]
-    }
-}
-
-struct QueueLineKey: Mappable {
-    internal var state: String?
-    internal var confirmed_by: String?
-    internal var confirmed_at: String?
-    init?(map: Map) { mapping(map: map) }
-    mutating func mapping(map: Map) {
-        state        <- map["state"]
-        confirmed_by <- map["confirmed_by"]
-        confirmed_at <- map["confirmed_at"]
-    }
-}
+// (QueueLineFuel / QueueLineKey retired 2026-09 with the fuel/key
+//  mini-checklist — staging is checklist-driven; the ledgers remain
+//  server-side history only.)
 
 struct QueueLineActions: Mappable {
     internal var assign_equipment: Bool?
     internal var switch_equipment: Bool?
-    internal var mark_staged: Bool?
-    internal var return_to_pending: Bool?
+    internal var open_delivery_checklist: Bool?
     internal var view_history: Bool?
     init?(map: Map) { mapping(map: map) }
     mutating func mapping(map: Map) {
-        assign_equipment  <- map["assign_equipment"]
-        switch_equipment  <- map["switch_equipment"]
-        mark_staged       <- map["mark_staged"]
-        return_to_pending <- map["return_to_pending"]
-        view_history      <- map["view_history"]
+        assign_equipment        <- map["assign_equipment"]
+        switch_equipment        <- map["switch_equipment"]
+        open_delivery_checklist <- map["open_delivery_checklist"]
+        view_history            <- map["view_history"]
     }
 }
 

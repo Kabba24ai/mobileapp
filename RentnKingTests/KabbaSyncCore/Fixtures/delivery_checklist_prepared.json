@@ -2,14 +2,21 @@
     "success": true,
     "message": "Checklist prepared.",
     "data": {
-        "checklist_execution_id": "ORD-CHK-UWF9-XYOG",
-        "order_product_unique_id": "ORD-SCH-0VIQ-DMUS",
+        "checklist_execution_id": "ORD-CHK-ZQLE-9ETA",
+        "order_product_unique_id": "ORD-SCH-GSNL-TWUQ",
         "leg": "delivery",
         "status": "prepared",
-        "prepared_at": "2026-08-25T20:27:12+00:00",
-        "captured_at": "2026-08-25T20:27:12+00:00",
-        "server_received_at": "2026-08-25T20:27:12+00:00",
-        "answer_count": 1
+        "prepared_at": "2026-09-02T07:57:39+00:00",
+        "captured_at": "2026-09-02T07:57:39+00:00",
+        "server_received_at": "2026-09-02T07:57:39+00:00",
+        "answer_count": 1,
+        "queue": {
+            "governs": true,
+            "status": "pending",
+            "staged": false,
+            "complete": true,
+            "unstaged": false
+        }
     },
-    "request_id": "7013a914-be25-4a3a-b671-7d63c93eb95a"
+    "request_id": "836effef-6aaf-4f67-8ab4-d893a1f66873"
 }

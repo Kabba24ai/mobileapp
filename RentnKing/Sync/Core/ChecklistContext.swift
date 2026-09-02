@@ -191,6 +191,13 @@ struct ChecklistContext: Codable, Equatable {
         let capturedAt: String?
         let canComplete: Bool
         let blockedReason: String?
+        /// Checklist-driven Queue Line staging (2026-09). Optional so cached
+        /// pre-upgrade contexts still decode.
+        let queueStaged: Bool?
+        /// Physical-truth guard: while true, an edit may never leave the
+        /// prepared delivery checklist incomplete (server refuses; the phone
+        /// blocks it inline first).
+        let inTransit: Bool?
 
         enum CodingKeys: String, CodingKey {
             case isDelivered = "is_delivered", isReturned = "is_returned"
@@ -198,6 +205,7 @@ struct ChecklistContext: Codable, Equatable {
             case deliverySignaturePresent = "delivery_signature_present", returnSignaturePresent = "return_signature_present"
             case executionStatus = "execution_status", preparedAt = "prepared_at", completedAt = "completed_at", capturedAt = "captured_at"
             case canComplete = "can_complete", blockedReason = "blocked_reason"
+            case queueStaged = "queue_staged", inTransit = "in_transit"
         }
     }
 
