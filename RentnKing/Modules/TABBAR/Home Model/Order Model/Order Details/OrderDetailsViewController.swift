@@ -497,9 +497,12 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgLicense, colorHex: .secondary)
             
-            //GET LOACA DATA
+            //GET LOACA DATA (local-first: durable Sync Engine evidence also lights the chip)
+            let syncOps = KabbaSync.engine?.snapshot() ?? []
             let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            if self.objOrderData.arrLicense.count != 0 || arrData.count != 0 {
+            if EffectiveFieldState.licenseSatisfied(serverHasLicense: self.objOrderData.arrLicense.count != 0 || arrData.count != 0,
+                                                    operations: syncOps,
+                                                    orderUniqueId: self.strOrderUniqueId) {
                 self.lblLicense.textColor = .background
                 imgColor(imgColor: self.imgLicense, colorHex: .background)
                 self.viewLicense.backgroundColor = .secondary
@@ -527,7 +530,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .secondary)
             
             let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "delivery")
-            if self.objOrderData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0 {
+            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0,
+                                                  operations: syncOps,
+                                                  orderUniqueId: self.strOrderUniqueId,
+                                                  isDeliveryLeg: true) {
                 self.lblPhotVideoDeli.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .background)
                 self.viewPhotVideoDeli.backgroundColor = .secondary
@@ -539,7 +545,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             imgColor(imgColor: self.imgPhotVideoRet, colorHex: .secondary)
 
             let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "pickup")
-            if self.objOrderData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0 {
+            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0,
+                                                  operations: syncOps,
+                                                  orderUniqueId: self.strOrderUniqueId,
+                                                  isDeliveryLeg: false) {
                 self.lblPhotVideoRet.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoRet, colorHex: .background)
                 self.viewPhotVideoRet.backgroundColor = .secondary
@@ -646,6 +655,22 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
         }
         return false
+    }
+
+    /// Local-first effective leg state: the local completed-checklist marker /
+    /// server flag (checkCheckListStatus) ∨ a durable Sync Engine completion op
+    /// for any of the order's products — with a delivery completion still
+    /// syncing, Return opens and Delivery never reopens the create flow.
+    func effectiveLegCompleted(isDelivery: Bool) -> Bool {
+        if self.checkCheckListStatus(isDelivery: isDelivery) { return true }
+        guard self.objOrderData != nil else { return false }
+        let syncOps = KabbaSync.engine?.snapshot() ?? []
+        return self.objOrderData.arrProduct.contains { product in
+            EffectiveFieldState.legSatisfied(serverCompleted: (isDelivery ? product.is_delivered : product.is_returned) ?? false,
+                                             operations: syncOps,
+                                             orderProductUniqueId: product.unique_id ?? "",
+                                             isDeliveryLeg: isDelivery)
+        }
     }
 }
 
@@ -868,22 +893,37 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             // T&C completed?
             let termsDone = (self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt")
 
+            // Local-first — durably saved media/license is satisfied; never ask an
+            // exception for work sitting in the Sync Engine.
+            let syncOps = KabbaSync.engine?.snapshot() ?? []
+
             // License uploaded?
             let arrLicenseUpload = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            let licenseUploaded = (self.objOrderData?.arrLicense.count ?? 0) != 0 || arrLicenseUpload.count != 0
+            let licenseUploaded = EffectiveFieldState.licenseSatisfied(
+                serverHasLicense: (self.objOrderData?.arrLicense.count ?? 0) != 0 || arrLicenseUpload.count != 0,
+                operations: syncOps,
+                orderUniqueId: self.strOrderUniqueId)
 
             // Photos / video uploaded? (delivery vs return media)
             let mediaUploaded: Bool
             if isReturn {
                 let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
-                mediaUploaded = (self.objOrderData?.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) ?? false) || arrV.count != 0
+                mediaUploaded = EffectiveFieldState.mediaSatisfied(
+                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) ?? false) || arrV.count != 0,
+                    operations: syncOps,
+                    orderUniqueId: self.strOrderUniqueId,
+                    isDeliveryLeg: false)
             } else {
                 let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
-                mediaUploaded = (self.objOrderData?.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) ?? false) || arrV.count != 0
+                mediaUploaded = EffectiveFieldState.mediaSatisfied(
+                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) ?? false) || arrV.count != 0,
+                    operations: syncOps,
+                    orderUniqueId: self.strOrderUniqueId,
+                    isDeliveryLeg: true)
             }
 
-            // Checklist completed?
-            let checklistDone = self.checkCheckListStatus(isDelivery: !isReturn)
+            // Checklist completed? (effective: local marker/server ∨ Sync Engine op)
+            let checklistDone = self.effectiveLegCompleted(isDelivery: !isReturn)
 
             // All steps complete → show the success animation and finish.
             if termsDone && licenseUploaded && mediaUploaded && checklistDone {
@@ -1125,7 +1165,9 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
-        if self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false }) {
+        // Local-first routing: effective leg state (server ∨ durable local completion),
+        // never the raw server flag alone.
+        if self.effectiveLegCompleted(isDelivery: true) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true
@@ -1153,11 +1195,13 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnCheckListRetClicked(_ sender : UIButton) {
-        if self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false }) == false{
+        // Local-first routing: a delivery completion still in the Sync Engine
+        // unlocks the Return checklist (effective state, not the raw server flag).
+        if self.effectiveLegCompleted(isDelivery: true) == false{
             return
         }
 
-        if self.objOrderData.arrProduct.contains(where: { $0.is_returned ?? false }) {
+        if self.effectiveLegCompleted(isDelivery: false) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true

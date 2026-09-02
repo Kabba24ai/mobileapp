@@ -782,9 +782,12 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: cell.imgLicense, colorHex: .secondary)
             
-            //GET LOACA DATA
+            //GET LOACA DATA (local-first: durable Sync Engine evidence also lights the chip)
+            let syncOps = KabbaSync.engine?.snapshot() ?? []
             let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.unique_id ?? "", strType: uploadType.image.rawValue)
-            if objData.arrLicense.count != 0 || arrData.count != 0 {
+            if EffectiveFieldState.licenseSatisfied(serverHasLicense: objData.arrLicense.count != 0 || arrData.count != 0,
+                                                    operations: syncOps,
+                                                    orderUniqueId: objData.unique_id ?? "") {
                 cell.lblLicense.textColor = .background
                 imgColor(imgColor: cell.imgLicense, colorHex: .background)
                 cell.viewLicense.backgroundColor = .secondary
@@ -797,7 +800,10 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             imgColor(imgColor: cell.imgPhotVideoDeli, colorHex: .secondary)
             
             let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.unique_id ?? "", strType: uploadType.video_image.rawValue,strVideoType: "delivery")
-            if objData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0{
+            if EffectiveFieldState.mediaSatisfied(serverHasMedia: objData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0,
+                                                  operations: syncOps,
+                                                  orderUniqueId: objData.unique_id ?? "",
+                                                  isDeliveryLeg: true){
                 cell.lblPhotVideoDeli.textColor = .background
                 imgColor(imgColor: cell.imgPhotVideoDeli, colorHex: .background)
                 cell.viewPhotVideoDeli.backgroundColor = .secondary
@@ -810,7 +816,10 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             imgColor(imgColor: cell.imgPhotVideoRet, colorHex: .secondary)
 
             let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: objData.unique_id ?? "", strType: uploadType.video_image.rawValue,strVideoType: "pickup")
-            if  objData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0{
+            if  EffectiveFieldState.mediaSatisfied(serverHasMedia: objData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0,
+                                                   operations: syncOps,
+                                                   orderUniqueId: objData.unique_id ?? "",
+                                                   isDeliveryLeg: false){
                 cell.lblPhotVideoRet.textColor = .background
                 imgColor(imgColor: cell.imgPhotVideoRet, colorHex: .background)
                 cell.viewPhotVideoRet.backgroundColor = .secondary

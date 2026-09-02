@@ -136,6 +136,14 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         NotificationCenter.default.addObserver(self, selector: #selector(self.appDidBecomeActive),
                                                name: UIApplication.didBecomeActiveNotification, object: nil)
 
+        //LOCAL-FIRST RE-FILTER — a checklist completion saved into the Sync
+        //Engine (or any queue change) drops its row from the working queue
+        //immediately, without waiting for a server refresh.
+        NotificationCenter.default.addObserver(self, selector: #selector(self.syncStateDidChange),
+                                               name: .kabbaSyncQueueChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(self.syncStateDidChange),
+                                               name: .updateCheckList, object: nil)
+
         //GET CATEGORY DATA
         getCategoryList { arr_data in
             self.arrCategoryList = arr_data
@@ -251,6 +259,17 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.refreshList()
     }
 
+    /// Re-applies the local completion filter to the already-loaded rows and
+    /// reloads the table (main thread; no network, no cache mutation).
+    @objc func syncStateDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isLoading == false else { return }
+            self.rebuildRows()
+            self.emptyDataView.isHidden = self.arrRows.count != 0
+            self.tblView.reloadData()
+        }
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -262,10 +281,29 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     func rebuildRows() {
         let scheduleType = self.selectScheduleType()
         self.arrRenderedManuals = DispatchWorkload.manualBelongs(inScheduleType: scheduleType) ? self.arrManualList : []
-        self.arrRows = DispatchWorkload.weave(
+        var rows = DispatchWorkload.weave(
             orderSortKeys: self.arrDispatchList.map { $0.sort_key },
             manualSortKeys: self.arrRenderedManuals.map { $0.sort_key }
         )
+
+        // Local-first: a leg durably completed on THIS phone leaves the Pending
+        // working queue at display time. Only the rendered rows are filtered —
+        // never arrDispatchList or its MMKV cache, so server truth underneath
+        // stays intact — and the overlay outlives a page-1 feed replace, so the
+        // row can never reinsert. Completed view stays unfiltered (retained
+        // synced ops must not hide genuinely completed rows there).
+        if self.selectStatus == "1" {
+            let overlay = EffectiveFieldState.CompletionOverlay.from(KabbaSync.engine?.snapshot() ?? [])
+            if !overlay.isEmpty {
+                rows = rows.filter { row in
+                    guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
+                    let objData = self.arrDispatchList[i]
+                    return !overlay.isLegLocallyCompleted(orderProductUniqueId: objData.unique_id ?? "",
+                                                          isDeliveryLeg: objData.is_delivered == false)
+                }
+            }
+        }
+        self.arrRows = rows
     }
 
     /// Row → index into arrDispatchList, when the row is an order leg.
