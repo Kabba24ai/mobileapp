@@ -186,4 +186,38 @@ final class DispatchWorkloadTests: XCTestCase {
         XCTAssertEqual(decoded.orderUniqueId, "ORD-1")
         XCTAssertNil(decoded.manualTaskUniqueId)
     }
+
+    // MARK: - Render-time driver membership (driver-filter reconciliation, 2026-09)
+
+    func testAllDriversAlwaysBelongs() {
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false,
+                                                       deliveryEmployeeId: 7, pickupEmployeeId: 9))
+    }
+
+    func testPendingDeliveryBelongsToItsCurrentDeliveryDriverOnly() {
+        // The reproduced defect: delivery reassigned Gary(7) → Jerome(9) while
+        // the return leg still names Gary. The ACTIVE leg (pending delivery)
+        // decides — the card leaves Gary's rendered workload on the same
+        // rebuild, and appears under Jerome.
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: false,
+                                                        deliveryEmployeeId: 9, pickupEmployeeId: 7),
+                       "the old driver keeps the card only via the stale return leg — must be hidden")
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 9, isDelivered: false,
+                                                       deliveryEmployeeId: 9, pickupEmployeeId: 7))
+    }
+
+    func testDeliveredRowBelongsToItsReturnDriver() {
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: true,
+                                                       deliveryEmployeeId: 9, pickupEmployeeId: 7))
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: 9, isDelivered: true,
+                                                        deliveryEmployeeId: 9, pickupEmployeeId: 7),
+                       "a completed delivery no longer keeps the row under the delivery driver")
+    }
+
+    func testMissingActiveLegEmployeeNeverHidesTheRow() {
+        // The server scoped the row in; hiding on missing serialized data
+        // would drop legitimate work.
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: false,
+                                                       deliveryEmployeeId: nil, pickupEmployeeId: 9))
+    }
 }

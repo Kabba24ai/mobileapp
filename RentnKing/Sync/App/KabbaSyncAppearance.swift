@@ -36,4 +36,16 @@ extension KabbaSync {
                                  theme: .kabba)
         }
     }
+
+    /// A brief non-blocking confirmation (no button, ~1.3s, survives the
+    /// navigation that follows). Means DURABLE LOCAL success — never implies
+    /// the server already synchronized.
+    static func showConfirmationToast(_ text: String, duration: TimeInterval = 1.3) {
+        DispatchQueue.main.async {
+            SyncStatusToast.showMessage(text,
+                                        in: GlobalMainConstants.appDelegate?.window,
+                                        theme: .kabba,
+                                        duration: duration)
+        }
+    }
 }

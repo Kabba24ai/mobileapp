@@ -303,6 +303,24 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                 }
             }
         }
+
+        // Driver-filter reconciliation (2026-09): membership is DERIVED from
+        // the row's ACTIVE leg on every rebuild — never sticky from cache. A
+        // web reassignment updates the row's employee in the next feed; this
+        // predicate makes the card leave the previous driver's rendered
+        // workload on the SAME rebuild, whatever path updated the row. The
+        // server applies the identical rule; caches and Sync Engine work are
+        // never touched (display-time only).
+        if let selectedDriverId = Int(self.selectDriverID) {
+            rows = rows.filter { row in
+                guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
+                let objData = self.arrDispatchList[i]
+                return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
+                                                        isDelivered: objData.is_delivered == true,
+                                                        deliveryEmployeeId: objData.delivery_employee?.id,
+                                                        pickupEmployeeId: objData.pickup_employee?.id)
+            }
+        }
         self.arrRows = rows
     }
 

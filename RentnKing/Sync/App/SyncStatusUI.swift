@@ -74,6 +74,62 @@ enum SyncStatusToast {
         toast.present(in: window)
     }
 
+    /// A plain transient confirmation ("✓ Checklist successfully completed"):
+    /// non-blocking, no button, auto-dismisses, survives the navigation that
+    /// follows. Reflects DURABLE LOCAL success only — it never waits for (or
+    /// implies) server synchronization.
+    static func showMessage(_ text: String, in window: UIWindow?, theme: SyncStatusTheme = .system, duration: TimeInterval = 1.3) {
+        guard let window = window else { return }
+        let toast = MessageToastView(text: text, theme: theme)
+        toast.present(in: window, duration: duration)
+    }
+
+    private final class MessageToastView: UIView {
+        private let label = UILabel()
+
+        init(text: String, theme: SyncStatusTheme) {
+            super.init(frame: .zero)
+            backgroundColor = theme.card.withAlphaComponent(0.96)
+            layer.cornerRadius = 12
+            layer.borderWidth = 1
+            layer.borderColor = theme.success.withAlphaComponent(0.7).cgColor
+            translatesAutoresizingMaskIntoConstraints = false
+            label.numberOfLines = 2
+            label.textAlignment = .center
+            label.font = theme.bold(15)
+            label.textColor = theme.text
+            label.text = text
+            label.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(label)
+            NSLayoutConstraint.activate([
+                label.topAnchor.constraint(equalTo: topAnchor, constant: 12),
+                label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12),
+                label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+                label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            ])
+            isAccessibilityElement = true
+            accessibilityTraits = .staticText
+            accessibilityLabel = text
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+        func present(in window: UIWindow, duration: TimeInterval) {
+            window.addSubview(self)
+            NSLayoutConstraint.activate([
+                centerXAnchor.constraint(equalTo: window.centerXAnchor),
+                centerYAnchor.constraint(equalTo: window.centerYAnchor),
+                widthAnchor.constraint(lessThanOrEqualTo: window.widthAnchor, constant: -48),
+            ])
+            alpha = 0
+            UIView.animate(withDuration: 0.15) { self.alpha = 1 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+                guard let self = self else { return }
+                UIView.animate(withDuration: 0.25, animations: { self.alpha = 0 }, completion: { _ in self.removeFromSuperview() })
+            }
+        }
+    }
+
     private final class ToastView: UIView {
         private let operationId: String
         private let engine: SyncEngine

@@ -139,4 +139,47 @@ final class EffectiveFieldStateTests: XCTestCase {
         XCTAssertTrue(overlay.isEmpty)
         XCTAssertFalse(overlay.isLegLocallyCompleted(orderProductUniqueId: "P1", isDeliveryLeg: true))
     }
+
+    // MARK: - Delivery VIDEO evidence (post-Save smart routing, 2026-09)
+
+    private func mediaOp(_ type: String, product: String, state: SyncState, mimeType: String) -> SyncOperation {
+        var op = SyncOperation(type: type, capturedAt: Date(),
+                               identity: SyncBusinessIdentity(orderUniqueId: "O1", orderProductUniqueId: product),
+                               payload: .object([:]),
+                               assets: [SyncAsset(clientMediaId: "m-\(product)", relativePath: "\(product)/clip.mp4", mimeType: mimeType, fieldName: "media")])
+        op.state = state
+        return op
+    }
+
+    func testDeliveryVideoSatisfiedByServerTruthAlone() {
+        XCTAssertTrue(EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: true, operations: [], orderProductUniqueId: "P1"))
+        XCTAssertFalse(EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false, operations: [], orderProductUniqueId: "P1"))
+    }
+
+    func testDeliveryVideoSatisfiedByEveryRetainedLocalState() {
+        // Pending Sync, currently syncing, server-confirmed, and retained
+        // Needs Attention all count — the operator never re-captures durable work.
+        for state in [SyncState.pending, .syncing, .synced, .needsAttention] {
+            XCTAssertTrue(EffectiveFieldState.deliveryVideoSatisfied(
+                serverHasVideo: false,
+                operations: [mediaOp(EffectiveFieldState.deliveryMediaType, product: "P1", state: state, mimeType: "video/mp4")],
+                orderProductUniqueId: "P1"), "state \(state) must satisfy")
+        }
+    }
+
+    func testDeliveryVideoIdentityIsStrict() {
+        let ops = [
+            // Sibling product's video — never satisfies P1.
+            mediaOp(EffectiveFieldState.deliveryMediaType, product: "P2", state: .pending, mimeType: "video/mp4"),
+            // Return-leg video for the right product — wrong leg.
+            mediaOp(EffectiveFieldState.returnMediaType, product: "P1", state: .pending, mimeType: "video/mp4"),
+            // Delivery PHOTO for the right product — not a video.
+            mediaOp(EffectiveFieldState.deliveryMediaType, product: "P1", state: .pending, mimeType: "image/jpeg"),
+        ]
+        XCTAssertFalse(EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false, operations: ops, orderProductUniqueId: "P1"))
+        XCTAssertTrue(EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false, operations: ops, orderProductUniqueId: "P2"),
+                      "the sibling's own video satisfies the sibling")
+        XCTAssertFalse(EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false, operations: ops, orderProductUniqueId: ""),
+                       "an empty identity never matches")
+    }
 }

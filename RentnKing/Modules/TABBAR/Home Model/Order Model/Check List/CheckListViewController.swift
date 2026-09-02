@@ -824,6 +824,8 @@ extension CheckListViewController{
         // 2) Per-product evaluation + durable server operations.
         let errorSections = Set(checkQuestions(objOrderData: order).map { $0.section })
         var stagedCount = 0
+        var stagedProducts: [ProductModel] = []
+        var enqueueFailed = false
         var progressCount = 0
         var firstIncomplete: IndexPath?
         var inTransitProblems: [String] = []
@@ -848,6 +850,10 @@ extension CheckListViewController{
                     if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
                         lastSyncedFingerprint[uid] = Self.answersFingerprint(capture)
                         stagedCount += 1
+                        stagedProducts.append(product)
+                    } else {
+                        // Durable persistence failed — never claim success.
+                        enqueueFailed = true
                     }
                 } else if inTransit {
                     // §16 — never commit an incomplete prepared state for
@@ -878,14 +884,31 @@ extension CheckListViewController{
             return
         }
 
+        if enqueueFailed {
+            // Durable local persistence failed for a completed product —
+            // no success confirmation, no forward navigation (the draft
+            // still holds the answers; the employee can retry Save).
+            showAlertMessage(strMessage: "Could not save the checklist on this phone. Please try again.")
+            return
+        }
+
         if stagedCount > 0 {
-            // At least one product is fully prepared — continue the existing
-            // prepared-checklist flow (delivery media, then back to the board).
+            // Durable local success — confirm IMMEDIATELY (non-blocking, no
+            // button, ~1.3s; means saved on this phone, never that Laravel
+            // already synced), then smart-route: open Delivery Photo/Video
+            // Upload ONLY when a delivery VIDEO is still needed for one of
+            // the just-staged products; otherwise back to the workflow.
             didNavigateForward = true
-            if self.isDeliveryMediaUploaded() {
-                self.popAfterSave()
-            } else {
-                self.openDeliveryMediaUpload()
+            KabbaSync.showConfirmationToast("✓ Checklist successfully completed")
+
+            let needsVideo = stagedProducts.contains { !self.deliveryVideoPresent(for: $0) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                guard let self = self else { return }
+                if needsVideo {
+                    self.openDeliveryMediaUpload()
+                } else {
+                    self.popAfterSave()
+                }
             }
             return
         }
@@ -922,20 +945,38 @@ extension CheckListViewController{
         }
     }
 
-    /// True if delivery image/video media already exists for this order — either saved locally
-    /// (pending upload) or already uploaded per the API — so Save can skip straight past
-    /// ImageUploadViewController instead of re-prompting for media.
-    private func isDeliveryMediaUploaded() -> Bool {
-        let localCount = CoreDBManager.sharedDatabase.getUploadListData(
+    /// Post-Save smart routing (2026-09): does a delivery VIDEO already exist
+    /// for THIS order product? Effective state, strict identity:
+    ///   • server-confirmed media (arrDeliveryMedia, media_type video),
+    ///   • a durable local delivery_media.upload operation for this product
+    ///     carrying a video asset (Pending Sync / syncing / synced / retained
+    ///     Needs Attention — EffectiveFieldState.deliveryVideoSatisfied),
+    ///   • a legacy local upload row for this product (videoType "delivery",
+    ///     not an image; rows are keyed by the product's unique_id).
+    /// A sibling product's video, a Return-leg video, or a photo never counts.
+    /// Never waits for Laravel.
+    private func deliveryVideoPresent(for product: ProductModel) -> Bool {
+        let uid = product.unique_id ?? ""
+
+        if product.arrDeliveryMedia.contains(where: { ($0.media_type ?? "").lowercased() == "video" }) {
+            return true
+        }
+
+        if let engine = KabbaSync.engine, !uid.isEmpty,
+           EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false,
+                                                      operations: engine.snapshot(),
+                                                      orderProductUniqueId: uid) {
+            return true
+        }
+
+        let legacyRows = CoreDBManager.sharedDatabase.getUploadListData(
             strOrderID: self.strOrderUniqueId,
             strType: uploadType.video_image.rawValue,
-            strVideoType: self.isDeliveryType ? "delivery" : "pickup"
-        ).count
-        if localCount > 0 { return true }
-        // Phase 4: media captured into the Sync Engine counts as present too.
-        if KabbaMediaSync.hasPendingMedia(orderUniqueId: self.strOrderUniqueId, kind: self.isDeliveryType ? .delivery : .pickup) { return true }
-
-        return self.isDeliveryType ? self.objOrderData.arrProduct.contains { !$0.arrDeliveryMedia.isEmpty } : self.objOrderData.arrProduct.contains { !$0.arrPickupMedia.isEmpty }
+            strVideoType: "delivery"
+        )
+        return legacyRows.contains { row in
+            row.isImage == false && !uid.isEmpty && (row.productID ?? "") == uid
+        }
     }
 
     /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;

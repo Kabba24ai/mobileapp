@@ -182,6 +182,32 @@ public enum DispatchWorkload {
     /// under Delivery and All, never under Return-only. (The server already
     /// enforces this by sending no manual_jobs on a Return-only request; this
     /// is the client-side statement of the same rule for cached data.)
+    /// Render-time driver-membership predicate (driver-filter reconciliation,
+    /// 2026-09). Membership is DERIVED from the row's ACTIVE leg every time
+    /// the list is rebuilt — never sticky from fetch-time cache membership:
+    ///
+    ///   active leg = delivery while not delivered, else return
+    ///   the card belongs to the selected driver iff the active leg's
+    ///   current employee IS that driver.
+    ///
+    /// The server applies the same rule (DispatchController's driver filter);
+    /// this predicate is defense-in-depth so an in-place row update (feed
+    /// replace, checklist reconciliation) can never leave a reassigned card
+    /// in the previous driver's rendered workload. Rules:
+    ///   • no selected driver (All Drivers) → always belongs;
+    ///   • an active leg with NO serialized employee id is never hidden
+    ///     (the server scoped it in; hiding on missing data would drop
+    ///     legitimate work).
+    public static func orderRowBelongs(selectedDriverId: Int?,
+                                       isDelivered: Bool,
+                                       deliveryEmployeeId: Int?,
+                                       pickupEmployeeId: Int?) -> Bool {
+        guard let selected = selectedDriverId else { return true }
+        let activeLegDriverId = isDelivered ? pickupEmployeeId : deliveryEmployeeId
+        guard let active = activeLegDriverId else { return true }
+        return active == selected
+    }
+
     public static func manualBelongs(inScheduleType scheduleType: String) -> Bool {
         return scheduleType != "Return"
     }

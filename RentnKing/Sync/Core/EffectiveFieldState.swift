@@ -134,6 +134,27 @@ enum EffectiveFieldState {
                                              orderUniqueId: orderUniqueId)
     }
 
+    /// Delivery VIDEO requirement satisfied for ONE order product?
+    /// server truth ∨ a durable local delivery-media operation FOR THIS
+    /// product that carries a video asset. Per-product identity is strict:
+    /// a sibling product's video, a Return-leg video, or a photo never
+    /// satisfies. All retained states count (pending/syncing/synced/
+    /// needsAttention) — the operator never re-captures work that is
+    /// durably on the phone (post-Save smart routing, 2026-09).
+    static func deliveryVideoSatisfied(serverHasVideo: Bool,
+                                              operations: [SyncOperation],
+                                              orderProductUniqueId: String) -> Bool {
+        if serverHasVideo { return true }
+        guard !orderProductUniqueId.isEmpty else { return false }
+
+        return operations.contains { op in
+            op.type == deliveryMediaType
+                && countsAsDurableEvidence(op.state)
+                && op.identity.orderProductUniqueId == orderProductUniqueId
+                && op.assets.contains { $0.mimeType.hasPrefix("video/") }
+        }
+    }
+
     /// Leg completion satisfied? server truth ∨ durable local completion op.
     static func legSatisfied(serverCompleted: Bool,
                                     operations: [SyncOperation],
