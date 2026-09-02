@@ -220,4 +220,97 @@ final class DispatchWorkloadTests: XCTestCase {
         XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: false,
                                                        deliveryEmployeeId: nil, pickupEmployeeId: 9))
     }
+
+    // MARK: - One-tap On My Way – Navigate (2026-09)
+
+    private func statusOp(_ status: String, task: String, state: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: DispatchManualStatus.statusOperationType,
+                               capturedAt: Date(),
+                               identity: SyncBusinessIdentity(manualTaskUniqueId: task),
+                               payload: .object(["status": .string(status)]))
+        op.state = state
+        return op
+    }
+
+    func testEffectiveStatusIsServerTruthWithoutLocalEvidence() {
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(serverStatus: "Assigned", operations: [],
+                                                            manualTaskUniqueId: "MDT-1"), "Assigned")
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(serverStatus: "On My Way", operations: [],
+                                                            manualTaskUniqueId: "MDT-1"), "On My Way")
+    }
+
+    func testDurableLocalOnMyWayUpgradesInEveryRetainedState() {
+        // Pending Sync, currently syncing, server-confirmed, and retained
+        // Needs Attention all mean the trip WAS recorded on this phone.
+        for state in [SyncState.pending, .syncing, .synced, .needsAttention] {
+            XCTAssertEqual(DispatchManualStatus.effectiveStatus(
+                serverStatus: "Assigned",
+                operations: [statusOp("On My Way", task: "MDT-1", state: state)],
+                manualTaskUniqueId: "MDT-1"), "On My Way", "state \(state) must upgrade")
+        }
+    }
+
+    func testEffectiveStatusIdentityIsStrict() {
+        let ops = [statusOp("On My Way", task: "MDT-OTHER")]
+        // Another task's transition never leaks in; a missing/empty id never matches.
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(serverStatus: "Assigned", operations: ops,
+                                                            manualTaskUniqueId: "MDT-1"), "Assigned")
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(serverStatus: "Assigned", operations: ops,
+                                                            manualTaskUniqueId: ""), "Assigned")
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(serverStatus: "Assigned", operations: ops,
+                                                            manualTaskUniqueId: nil), "Assigned")
+    }
+
+    func testEffectiveStatusNeverDowngradedByAStaleLocalOp() {
+        // The server already advanced past the local record (op synced long
+        // ago, feed is fresher) — the furthest transition wins.
+        XCTAssertEqual(DispatchManualStatus.effectiveStatus(
+            serverStatus: "Arrived",
+            operations: [statusOp("On My Way", task: "MDT-1", state: .synced)],
+            manualTaskUniqueId: "MDT-1"), "Arrived")
+    }
+
+    func testLocalCancelIsEffectivelyTerminal() {
+        let effective = DispatchManualStatus.effectiveStatus(
+            serverStatus: "Assigned",
+            operations: [statusOp("Cancelled", task: "MDT-1")],
+            manualTaskUniqueId: "MDT-1")
+        XCTAssertEqual(effective, "Cancelled")
+        XCTAssertTrue(DispatchManualStatus.isTerminal(effective))
+    }
+
+    func testDestinationActionFollowsEffectiveStatus() {
+        // Pre-trip with an address: ONE tap records On My Way and navigates.
+        XCTAssertEqual(DispatchManualStatus.destinationAction(effectiveStatus: "Assigned", hasAddress: true), .onMyWayNavigate)
+        // No address: nothing to navigate to.
+        XCTAssertEqual(DispatchManualStatus.destinationAction(effectiveStatus: "Assigned", hasAddress: false), .none)
+        // Already On My Way (server-confirmed): reopen Maps only.
+        XCTAssertEqual(DispatchManualStatus.destinationAction(effectiveStatus: "On My Way", hasAddress: true), .navigate)
+        XCTAssertEqual(DispatchManualStatus.destinationAction(effectiveStatus: "Arrived", hasAddress: true), .navigate)
+    }
+
+    func testPendingSyncOnMyWayDisplaysNavigateAndNeverEnqueuesAgain() {
+        // The tap-time guard: with a durable Pending Sync On My Way already on
+        // disk, the derived action is .navigate — the enqueue path is
+        // unreachable, so a second tap (or a return from Maps) can never
+        // duplicate the status transition.
+        let effective = DispatchManualStatus.effectiveStatus(
+            serverStatus: "Assigned",
+            operations: [statusOp("On My Way", task: "MDT-1", state: .pending)],
+            manualTaskUniqueId: "MDT-1")
+        XCTAssertEqual(effective, "On My Way")
+        XCTAssertEqual(DispatchManualStatus.destinationAction(effectiveStatus: effective, hasAddress: true), .navigate)
+    }
+
+    func testBottomAdvanceOwnership() {
+        // The Destination button owns the On My Way step when an address exists…
+        XCTAssertNil(DispatchManualStatus.bottomAdvance(effectiveStatus: "Assigned", hasAddress: true))
+        // …but an address-less task keeps its plain advance button.
+        XCTAssertEqual(DispatchManualStatus.bottomAdvance(effectiveStatus: "Assigned", hasAddress: false), "On My Way")
+        // Later lifecycle steps are untouched: Arrived is never skipped.
+        XCTAssertEqual(DispatchManualStatus.bottomAdvance(effectiveStatus: "On My Way", hasAddress: true), "Arrived")
+        XCTAssertEqual(DispatchManualStatus.bottomAdvance(effectiveStatus: "Arrived", hasAddress: true), "Completed")
+        XCTAssertNil(DispatchManualStatus.bottomAdvance(effectiveStatus: "Completed", hasAddress: true))
+        XCTAssertNil(DispatchManualStatus.bottomAdvance(effectiveStatus: "Cancelled", hasAddress: true))
+    }
 }

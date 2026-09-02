@@ -55,6 +55,76 @@ public enum DispatchManualStatus {
     public static func isTerminal(_ status: String?) -> Bool {
         return status == completed || status == cancelled
     }
+
+    // MARK: One-tap On My Way – Navigate (2026-09)
+
+    /// The Sync Engine operation type of a manual status transition
+    /// (ManualDispatchSyncHandler submits it). Declared in Core so effective
+    /// status can be derived from durable local operations without UIKit.
+    public static let statusOperationType = "manual_dispatch.update_status"
+
+    /// Lifecycle position used to pick the FURTHEST recorded transition.
+    /// Cancelled outranks everything: a durable local cancel is the driver's
+    /// last word on the task.
+    private static func rank(_ status: String?) -> Int? {
+        switch status {
+        case pending:   return 0
+        case assigned:  return 1
+        case onMyWay:   return 2
+        case arrived:   return 3
+        case completed: return 4
+        case cancelled: return 5
+        default:        return nil
+        }
+    }
+
+    /// Effective status = server status ∨ durable local Sync Engine evidence —
+    /// the same rule as EffectiveFieldState (pending / syncing / synced /
+    /// needsAttention all count). The furthest transition wins, so a Pending
+    /// Sync "On My Way" upgrades a cached "Assigned" immediately, and a
+    /// fresher server truth is never downgraded by a stale local operation.
+    static func effectiveStatus(serverStatus: String?,
+                                operations: [SyncOperation],
+                                manualTaskUniqueId: String?) -> String? {
+        var best = serverStatus
+        var bestRank = rank(serverStatus) ?? -1
+        guard let uid = manualTaskUniqueId, !uid.isEmpty else { return best }
+        for op in operations {
+            guard op.type == statusOperationType,
+                  EffectiveFieldState.countsAsDurableEvidence(op.state),
+                  op.identity.manualTaskUniqueId == uid,
+                  let status = op.payload.objectValue?["status"]?.stringValue,
+                  let r = rank(status), r > bestRank else { continue }
+            best = status
+            bestRank = r
+        }
+        return best
+    }
+
+    /// What the Destination section offers for the task's effective status.
+    public enum DestinationAction: Equatable {
+        /// One tap records On My Way (durable, idempotent) AND opens navigation.
+        case onMyWayNavigate
+        /// Reopens navigation only — the trip is already recorded (or the
+        /// on-my-way step isn't this task's next transition).
+        case navigate
+        /// No address — nothing to navigate to.
+        case none
+    }
+
+    public static func destinationAction(effectiveStatus: String?, hasAddress: Bool) -> DestinationAction {
+        guard hasAddress else { return .none }
+        return next(after: effectiveStatus) == onMyWay ? .onMyWayNavigate : .navigate
+    }
+
+    /// The bottom advance action (Arrived / Completed). Returns nil when the
+    /// next step is On My Way and the Destination button owns it — but an
+    /// address-less task keeps its plain On My Way button so the lifecycle is
+    /// never blocked.
+    public static func bottomAdvance(effectiveStatus: String?, hasAddress: Bool) -> String? {
+        guard let step = next(after: effectiveStatus) else { return nil }
+        return (step == onMyWay && hasAddress) ? nil : step
+    }
 }
 
 // MARK: - Manual Dispatch DTO

@@ -45,10 +45,24 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
         view.backgroundColor = Palette.page
         setupScaffold()
         rebuild()
+        // Coming back from Maps re-derives the effective status, so a task
+        // whose On My Way is still Pending Sync renders "Navigate", not a
+        // second "On My Way – Navigate".
+        NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive),
+                                               name: UIApplication.didBecomeActiveNotification, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func appBecameActive() {
+        rebuild()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        rebuild()
         AppUtility.PortraitMode()
         self.navigationController?.setNavigationBarHidden(false, animated: animated)
         self.navigationController?.interactivePopGestureRecognizer?.isEnabled = true
@@ -85,9 +99,21 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
         ])
     }
 
+    /// Effective status = server feed status ∨ durable local Sync Engine
+    /// evidence (Pending Sync / syncing / synced / Needs Attention) — so the
+    /// screen shows On My Way the moment the transition is durably saved on
+    /// this phone, without waiting for Laravel.
+    private func currentEffectiveStatus() -> String? {
+        return DispatchManualStatus.effectiveStatus(serverStatus: item?.status,
+                                                    operations: KabbaSync.engine?.snapshot() ?? [],
+                                                    manualTaskUniqueId: item?.unique_id)
+    }
+
     private func rebuild() {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         guard let item = item else { return }
+        let effective = currentEffectiveStatus()
+        let hasAddress = item.address?.isEmpty == false
 
         // Header: MANUAL (+ INVENTORY TRANSFER) + type + status
         var pills: [UIView] = [pill("MANUAL", bg: Palette.indigo.withAlphaComponent(0.18), fg: Palette.indigo)]
@@ -95,7 +121,7 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             pills.append(pill("INVENTORY TRANSFER", bg: Palette.amber.withAlphaComponent(0.18), fg: Palette.amber))
         }
         pills.append(UIView())
-        pills.append(pill(item.status ?? "", bg: Palette.blue.withAlphaComponent(0.18), fg: Palette.blue))
+        pills.append(pill(effective ?? "", bg: Palette.blue.withAlphaComponent(0.18), fg: Palette.blue))
         let head = UIStackView(arrangedSubviews: pills)
         head.axis = .horizontal; head.alignment = .center; head.spacing = 6
         stack.addArrangedSubview(head)
@@ -124,25 +150,31 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
         }
         stack.addArrangedSubview(section("Task", rows: taskRows))
 
-        // Destination
-        let destCard = section("Destination", rows: [
+        // Destination — one compact action below the card: pre-trip it both
+        // records On My Way AND opens navigation in a single tap; once the
+        // task is effectively On My Way (server-confirmed OR Pending Sync) it
+        // becomes plain Navigate and only reopens Maps.
+        stack.addArrangedSubview(section("Destination", rows: [
             ("Location", item.location_name),
             ("Address", item.address),
-        ])
-        if let addr = item.address, !addr.isEmpty {
-            destCard.addArrangedSubview(bigButton("Navigate", bg: Palette.blue, action: #selector(navigateTapped)))
+        ]))
+        switch DispatchManualStatus.destinationAction(effectiveStatus: effective, hasAddress: hasAddress) {
+        case .onMyWayNavigate:
+            stack.addArrangedSubview(compactButton("On My Way – Navigate", bg: Palette.indigo, action: #selector(onMyWayNavigateTapped)))
+        case .navigate:
+            stack.addArrangedSubview(compactButton("Navigate", bg: Palette.blue, action: #selector(navigateTapped)))
+        case .none:
+            break
         }
-        stack.addArrangedSubview(destCard)
 
         // Contact
-        let contactCard = section("Contact", rows: [
+        stack.addArrangedSubview(section("Contact", rows: [
             ("Name", item.contact_name),
             ("Phone", item.phone),
-        ])
+        ]))
         if let phone = item.phone, !phone.isEmpty {
-            contactCard.addArrangedSubview(bigButton("Call", bg: Palette.green, action: #selector(callTapped)))
+            stack.addArrangedSubview(compactButton("Call", bg: Palette.green, action: #selector(callTapped)))
         }
-        stack.addArrangedSubview(contactCard)
 
         // Operational
         stack.addArrangedSubview(section("Operational", rows: [
@@ -150,19 +182,57 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             ("Dispatch Date", item.date),
             ("Dispatch Time", item.time),
             ("Priority", item.priority.map { "\($0)" } ?? "Normal"),
-            ("Status", item.status),
+            ("Status", effective),
         ]))
 
-        // Status actions (non-terminal only)
-        if !DispatchManualStatus.isTerminal(item.status) {
-            if let next = DispatchManualStatus.next(after: item.status) {
-                stack.addArrangedSubview(bigButton(next, bg: Palette.indigo, action: #selector(advanceTapped)))
+        // Status actions (non-terminal only). The On My Way step lives on the
+        // combined Destination button when an address exists; an address-less
+        // task keeps its plain advance button so the lifecycle is never blocked.
+        if !DispatchManualStatus.isTerminal(effective) {
+            if let step = DispatchManualStatus.bottomAdvance(effectiveStatus: effective, hasAddress: hasAddress) {
+                stack.addArrangedSubview(compactButton(step, bg: Palette.indigo, action: #selector(advanceTapped)))
             }
-            stack.addArrangedSubview(bigButton("Cancel Task", bg: .clear, fg: Palette.red, bordered: true, action: #selector(cancelTapped)))
+            stack.addArrangedSubview(compactButton("Cancel Task", bg: .clear, fg: Palette.red, bordered: true, action: #selector(cancelTapped)))
         }
     }
 
     // MARK: - Actions
+
+    /// One tap = "I'm leaving now — take me there": durably enqueue the
+    /// canonical On My Way transition, then open navigation. Local-first —
+    /// Maps is never blocked on Laravel; if durable local persistence itself
+    /// fails, no status is claimed and no navigation launches.
+    @objc private func onMyWayNavigateTapped() {
+        guard let item = item else { return }
+        let hasAddress = item.address?.isEmpty == false
+
+        // Re-derive at tap time: already effectively On My Way (fast second
+        // tap, or recorded elsewhere) → reopen Maps only, never a second
+        // operation.
+        guard DispatchManualStatus.destinationAction(effectiveStatus: currentEffectiveStatus(),
+                                                     hasAddress: hasAddress) == .onMyWayNavigate else {
+            openAddressInMap(address: item.address)
+            return
+        }
+
+        guard let uid = item.unique_id, let engine = KabbaSync.engine else {
+            showAlertMessage(strMessage: str.somethingWentWrong)
+            return
+        }
+        do {
+            let operation = try ManualDispatchSyncHandler.enqueue(into: engine,
+                                                                  taskUniqueId: uid,
+                                                                  status: DispatchManualStatus.onMyWay)
+            KabbaSync.showStatusToast(for: operation.id)
+            onChanged?()                 // list refresh — the driver stays here
+            rebuild()                    // pill → On My Way, button → Navigate
+            openAddressInMap(address: item.address)
+        } catch {
+            // Durable local save failed — no false status, no navigation.
+            showAlertMessage(strMessage: str.somethingWentWrong)
+        }
+    }
+
     @objc private func navigateTapped() {
         openAddressInMap(address: item?.address)
     }
@@ -193,7 +263,9 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
     }
 
     @objc private func advanceTapped() {
-        guard let item = item, let next = DispatchManualStatus.next(after: item.status) else { return }
+        // Effective status, so a task whose On My Way is still Pending Sync
+        // advances to Arrived — never re-offered On My Way.
+        guard let next = DispatchManualStatus.next(after: currentEffectiveStatus()) else { return }
         confirm("Mark this task as \(next)?") { [weak self] in
             self?.submitStatus(next)
         }
@@ -291,7 +363,10 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
         return label
     }
 
-    private func bigButton(_ title: String, bg: UIColor, fg: UIColor = .white, bordered: Bool = false, action: Selector) -> UIButton {
+    /// A compact, centered action button (mockup proportions) — intentional
+    /// button, not a section-wide bar. Same palette, typography and corner
+    /// radius as before; 48pt touch target.
+    private func compactButton(_ title: String, bg: UIColor, fg: UIColor = .white, bordered: Bool = false, action: Selector) -> UIView {
         let b = UIButton(type: .system)
         b.setTitle(title, for: .normal)
         b.setTitleColor(fg, for: .normal)
@@ -303,8 +378,14 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             b.layer.borderColor = fg.withAlphaComponent(0.5).cgColor
         }
         b.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        b.widthAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
+        b.contentEdgeInsets = UIEdgeInsets(top: 0, left: 24, bottom: 0, right: 24)
         b.addTarget(self, action: action, for: .touchUpInside)
-        return b
+
+        let wrap = UIStackView(arrangedSubviews: [b])
+        wrap.axis = .vertical
+        wrap.alignment = .center
+        return wrap
     }
 }
 

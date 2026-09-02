@@ -19,7 +19,7 @@ import Foundation
 
 struct ManualDispatchSyncHandler: SyncOperationHandler {
 
-    static let operationType = "manual_dispatch.update_status"
+    static let operationType = DispatchManualStatus.statusOperationType
     static let path = "dispatch/manual/update-status"
 
     /// Whether a session exists (token + base URL). When false the engine pauses for authentication.
