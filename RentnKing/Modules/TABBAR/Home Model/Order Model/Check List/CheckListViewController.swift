@@ -163,10 +163,10 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
     // durable cache when offline). A product without a context falls back to the legacy shape.
     var checklistContexts: [String: ChecklistContext] = [:]
-    /// Order products whose equipment is assigned by the office (hard/soft) — the picker is locked
-    /// for them; swapping a unit is the Queue Line / Order "Change Equipment" workflow, not a
-    /// checklist side effect.
-    private var contextLockedProducts: Set<String> = []
+    /// Compact destructive action offered when a non-final preparation exists
+    /// ("Delete Checklist / Start Over"). Lives in the table footer so it never
+    /// competes with the Save / Next bar.
+    private var restartFooter: UIView?
     /// Table scroll position captured when an equipment pick is applied, so the reloads that
     /// follow don't jump the screen up. Only set during the picker flow (nil for the keyboard).
     private var pickerSavedOffset: CGPoint?
@@ -604,8 +604,13 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     
     // MARK: - Actions
     func openPicker() {
-        if let uid = self.objOrderData?.arrProduct[safe: self.selectProductIndex]?.unique_id, self.contextLockedProducts.contains(uid) {
-            showAlertMessage(strMessage: "This equipment was assigned by the office. To use a different unit, change the assignment in Queue Line or on the order — the checklist cannot swap it.")
+        // Pre-departure preparation lifecycle (2026-09): the office-assigned
+        // unit is the PRESELECTED DEFAULT, not a lock — substituting a machine
+        // in the yard is routine, and this screen is the preparation workbench.
+        // The only refusals are physical: the unit already left, or it was
+        // delivered. (Laravel enforces the same two cutoffs.)
+        if let context = self.focusedChecklistContext, let block = PreparationPolicy.block(for: context) {
+            showAlertMessage(strMessage: block.message)
             return
         }
         picker.reloadAllComponents()
@@ -642,7 +647,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                         let alert = UIAlertController(title: Application.appName, message: "This equipment is currently marked as \(objMachineList.status ?? ""). Do you want to automatically change its status to Available and assign it to this order?", preferredStyle: .alert)
                         alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
                             self.cancelTapped()
-                            self.callCheckListAPI(index: index)
+                            self.requestEquipmentChange(index: index)
                         }))
                         alert.addAction(UIAlertAction(title: str.no, style: .default,handler: { (Action) in
                             self.cancelTapped()
@@ -650,7 +655,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                         self.present(alert, animated: true)
                     }
                     else if objMachineList.status == "Available"{
-                        self.callCheckListAPI(index: index)
+                        self.requestEquipmentChange(index: index)
                     }
                     else if objMachineList.status == "Rented"{
                         let alert = UIAlertController(title: Application.appName, message: "This equipment is currently rented and is not available to be assigned to this order.", preferredStyle: .alert)
@@ -957,15 +962,26 @@ extension CheckListViewController{
     /// Never waits for Laravel.
     private func deliveryVideoPresent(for product: ProductModel) -> Bool {
         let uid = product.unique_id ?? ""
+        let context = uid.isEmpty ? nil : self.checklistContexts[uid]
+        let activeExecutionId = context?.executionId ?? ""
 
-        if product.arrDeliveryMedia.contains(where: { ($0.media_type ?? "").lowercased() == "video" }) {
+        // Server truth, scoped to the CYCLE (2026-09): a walk-around video is
+        // evidence about ONE machine. `delivery_video_present` is computed for
+        // the ACTIVE execution, so after a substitution or a restart the
+        // replacement unit correctly needs its own video. The old per-product
+        // media list is only consulted when no context exists (offline first
+        // open), where it cannot distinguish cycles.
+        if let present = context?.serverState.deliveryVideoPresent {
+            if present { return true }
+        } else if product.arrDeliveryMedia.contains(where: { ($0.media_type ?? "").lowercased() == "video" }) {
             return true
         }
 
         if let engine = KabbaSync.engine, !uid.isEmpty,
            EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false,
                                                       operations: engine.snapshot(),
-                                                      orderProductUniqueId: uid) {
+                                                      orderProductUniqueId: uid,
+                                                      activeExecutionId: activeExecutionId) {
             return true
         }
 
@@ -974,6 +990,13 @@ extension CheckListViewController{
             strType: uploadType.video_image.rawValue,
             strVideoType: "delivery"
         )
+        // A legacy local row carries no cycle identity; once this phone has
+        // durably discarded a preparation for the product, it stops counting.
+        if let engine = KabbaSync.engine, !uid.isEmpty,
+           EffectiveFieldState.lastDiscardAt(in: engine.snapshot(), orderProductUniqueId: uid) != nil {
+            return false
+        }
+
         return legacyRows.contains { row in
             row.isImage == false && !uid.isEmpty && (row.productID ?? "") == uid
         }
@@ -2858,6 +2881,277 @@ extension CheckListViewController{
 // MARK: - Phase 3: canonical checklist context
 extension CheckListViewController {
 
+    // MARK: - Pre-departure preparation lifecycle (2026-09)
+    //
+    // The Delivery Checklist is the preparation workbench, so the two yard
+    // corrections belong HERE rather than behind a trip to another screen:
+    //
+    //   • substitute the physical unit  → the canonical Queue Line reassignment
+    //   • Delete Checklist / Start Over → the canonical preparation reset
+    //
+    // Both discard a preparation CYCLE. Laravel supersedes the execution and
+    // mints the next one; this screen records the decision durably (so it
+    // survives offline), clears ONLY that product's local work, and reloads the
+    // context so the operator immediately sees a blank checklist for the unit
+    // that is actually going out.
+
+    /// The canonical context for the product the picker / actions target.
+    private var focusedChecklistContext: ChecklistContext? {
+        guard let uid = self.objOrderData?.arrProduct[safe: self.selectProductIndex]?.unique_id else { return nil }
+        return self.checklistContexts[uid]
+    }
+
+    /// Has the operator entered anything for this product on this screen?
+    private func hasEnteredAnswers(atProductIndex index: Int) -> Bool {
+        guard let product = self.objOrderData?.arrProduct[safe: index] else { return false }
+        return !checkQuestionsIsBlank(objProduct: product)
+    }
+
+    /// Applying an equipment pick. With a canonical assignment already in place
+    /// this is a REASSIGNMENT, never a local model edit: confirm what would be
+    /// discarded, record the canonical switch, then start a fresh cycle.
+    private func requestEquipmentChange(index: Int) {
+        guard let replacement = self.arrMachineList[safe: index],
+              let replacementUid = replacement.unique_id, !replacementUid.isEmpty else { return }
+
+        guard let context = self.focusedChecklistContext, context.equipment.hasUnit else {
+            // No canonical assignment yet — the first selection is still a
+            // plain local choice that the checklist Save will carry.
+            self.callCheckListAPI(index: index)
+            return
+        }
+
+        // Choosing the unit that is already assigned changes nothing.
+        if PreparationPolicy.isSameUnit(context, replacementUniqueId: replacementUid) { return }
+
+        if let block = PreparationPolicy.block(for: context) {
+            showAlertMessage(strMessage: block.message)
+            return
+        }
+
+        let productIndex = self.selectProductIndex
+        let confirmation = PreparationPolicy.confirmation(for: context,
+                                                          hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex))
+
+        guard confirmation != .none else {
+            self.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: PreparationPolicy.substitutionTitle(),
+            message: PreparationPolicy.substitutionMessage(currentCode: context.equipment.equipmentCode ?? "",
+                                                           replacementCode: replacement.equipment_id ?? "",
+                                                           confirmation: confirmation),
+            preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Change Equipment & Start Over", style: .destructive) { [weak self] _ in
+            self?.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
+        })
+        present(alert, animated: true)
+    }
+
+    /// ONE confirmation performs the whole logical change: the canonical
+    /// reassignment (which supersedes the old preparation, releases the old
+    /// unit and de-stages the Queue Line item server-side) plus the local
+    /// equivalent, so the screen is correct before Laravel answers.
+    private func applyEquipmentSubstitution(context: ChecklistContext, replacementIndex: Int, productIndex: Int) {
+        guard let engine = KabbaSync.engine,
+              let replacement = self.arrMachineList[safe: replacementIndex],
+              let replacementUid = replacement.unique_id else { return }
+
+        guard let performedBy = context.employee?.uniqueId, !performedBy.isEmpty else {
+            showAlertMessage(strMessage: "We could not confirm who is making this change. Sign in again, then switch the unit.")
+            return
+        }
+
+        let capture = EquipmentSubstitutionCapture(
+            orderUniqueId: context.identity.orderUniqueId,
+            orderProductUniqueId: context.identity.orderProductUniqueId,
+            supersededExecutionId: context.executionId,
+            previousEquipmentUniqueId: context.equipment.equipmentUniqueId,
+            replacementEquipmentUniqueId: replacementUid,
+            performedByUniqueId: performedBy)
+
+        do {
+            _ = try PreparationOperationBuilder.enqueueSubstitution(capture, into: engine)
+        } catch {
+            showAlertMessage(strMessage: "That change could not be saved on this phone. Try again.")
+            return
+        }
+
+        // Local-first: the old preparation is gone NOW, and the replacement is
+        // the unit being prepared. Only this product is touched.
+        discardLocalPreparation(atProductIndex: productIndex)
+        self.callCheckListAPI(index: replacementIndex)
+        reloadChecklistContext(forProductAt: productIndex, equipmentUniqueId: replacementUid)
+    }
+
+    /// "Delete Checklist / Start Over" — same supersession, same unit.
+    @objc private func restartChecklistTapped() {
+        self.view.endEditing(true)
+        let productIndex = self.selectProductIndex
+        guard let uid = self.objOrderData?.arrProduct[safe: productIndex]?.unique_id,
+              let context = self.checklistContexts[uid] else { return }
+
+        if let block = PreparationPolicy.block(for: context) {
+            showAlertMessage(strMessage: block.message)
+            return
+        }
+
+        let alert = UIAlertController(title: PreparationPolicy.restartTitle(),
+                                      message: PreparationPolicy.restartMessage(currentCode: context.equipment.equipmentCode ?? ""),
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Delete & Start Over", style: .destructive) { [weak self] _ in
+            self?.applyChecklistRestart(context: context, productIndex: productIndex)
+        })
+        present(alert, animated: true)
+    }
+
+    private func applyChecklistRestart(context: ChecklistContext, productIndex: Int) {
+        guard let engine = KabbaSync.engine else { return }
+
+        let capture = ChecklistRestartCapture(
+            orderUniqueId: context.identity.orderUniqueId,
+            orderProductUniqueId: context.identity.orderProductUniqueId,
+            executionId: context.executionId,
+            leg: context.leg,
+            equipmentUniqueId: context.equipment.equipmentUniqueId,
+            employeeUserId: context.employee?.userId ?? 0)
+
+        do {
+            _ = try PreparationOperationBuilder.enqueueRestart(capture, into: engine)
+        } catch {
+            showAlertMessage(strMessage: "That reset could not be saved on this phone. Try again.")
+            return
+        }
+
+        // The assignment stays; only the preparation is discarded.
+        discardLocalPreparation(atProductIndex: productIndex)
+        reloadChecklistContext(forProductAt: productIndex, equipmentUniqueId: context.equipment.equipmentUniqueId)
+    }
+
+    /// Clears the preparation state for ONE order product — answers, the
+    /// machine-specific operational rows, and the partial-sync fingerprint that
+    /// would otherwise suppress the replacement unit's first progress save.
+    /// Sibling products, the order, the customer and unrelated notes are never
+    /// touched (multi-line isolation).
+    private func discardLocalPreparation(atProductIndex index: Int) {
+        guard var order = self.objOrderData, index < order.arrProduct.count else { return }
+
+        var product = order.arrProduct[index]
+        var questions = product.arrQuestions
+        for q in questions.indices {
+            if self.isDeliveryType {
+                questions[q].deliverAnswer = nil
+                questions[q].startHours = 0.0
+                questions[q].startCleaning = ""
+                questions[q].selectFuleDelivery = ""
+            } else {
+                questions[q].returnAnswer = nil
+                questions[q].endHours = 0.0
+                questions[q].endCleaning = ""
+                questions[q].selectFuleReturn = ""
+            }
+        }
+        product.arrQuestions = questions
+        order.arrProduct[index] = product
+        self.objOrderData = order
+
+        if index < self.arrOtherData.count {
+            if self.isDeliveryType {
+                self.arrOtherData[index].startHours = 0.0
+                self.arrOtherData[index].selectFuleDelivery = ""
+                self.arrOtherData[index].dNote = ""
+            } else {
+                self.arrOtherData[index].endHours = 0.0
+                self.arrOtherData[index].selectFuleReturn = ""
+                self.arrOtherData[index].rNote = ""
+            }
+        }
+
+        if let uid = product.unique_id {
+            self.lastSyncedFingerprint[uid] = nil
+        }
+
+        // The durable draft must not restore what was just discarded.
+        persistDraftSnapshot()
+        self.CalculatTotalCharge()
+        self.tblView.reloadData()
+        refreshPreparationActions()
+    }
+
+    /// Re-requests the canonical context for ONE product. Laravel mints the next
+    /// cycle for the current assignment, so the screen picks up a NEW execution
+    /// id, empty prepared answers and a media requirement that is unsatisfied
+    /// again — never a stale cached snapshot.
+    private func reloadChecklistContext(forProductAt index: Int, equipmentUniqueId: String?) {
+        guard let client = KabbaSync.checklistContexts,
+              let uid = self.objOrderData?.arrProduct[safe: index]?.unique_id, !uid.isEmpty else { return }
+
+        // The superseded cycle must never be handed back to this screen.
+        self.checklistContexts[uid] = nil
+        self.queueLineChecklistExecutionId = ""
+
+        let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
+        client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: equipmentUniqueId) { [weak self] result, _ in
+            DispatchQueue.main.async {
+                guard let self = self, case .success(let context) = result else { return }
+                self.checklistContexts[uid] = context
+                self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                self.refreshPreparationActions()
+            }
+        }
+    }
+
+    /// Shows the compact destructive restart action only while restarting is
+    /// actually valid (something to discard, still in the yard, not delivered).
+    private func refreshPreparationActions() {
+        guard isViewLoaded else { return }
+        let index = self.selectProductIndex
+        let uid = self.objOrderData?.arrProduct[safe: index]?.unique_id ?? ""
+        let context = uid.isEmpty ? nil : self.checklistContexts[uid]
+
+        let allowed = context.map {
+            PreparationPolicy.mayRestartChecklist($0, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index))
+        } ?? false
+
+        guard allowed else {
+            self.restartFooter = nil
+            self.tblView.tableFooterView = nil
+            return
+        }
+
+        if self.restartFooter == nil {
+            let container = UIView(frame: CGRect(x: 0, y: 0, width: self.tblView.bounds.width, height: 64))
+            container.backgroundColor = .clear
+
+            let button = UIButton(type: .system)
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.setTitle("Delete Checklist / Start Over", for: .normal)
+            button.titleLabel?.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 14) ?? .boldSystemFont(ofSize: 14)
+            button.setTitleColor(.systemRed, for: .normal)
+            button.layer.borderColor = UIColor.systemRed.cgColor
+            button.layer.borderWidth = 1
+            button.layer.cornerRadius = 8
+            button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 14, bottom: 8, right: 14)
+            button.addTarget(self, action: #selector(restartChecklistTapped), for: .touchUpInside)
+
+            container.addSubview(button)
+            NSLayoutConstraint.activate([
+                button.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+                button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+                button.heightAnchor.constraint(equalToConstant: 38),
+            ])
+            self.restartFooter = container
+        }
+
+        if self.tblView.tableFooterView !== self.restartFooter {
+            self.tblView.tableFooterView = self.restartFooter
+        }
+    }
+
     /// Loads the canonical context for every product (server-first, cache when offline) and
     /// re-points the product's questions at the ONE stable id space. Products that cannot get a
     /// context (never loaded while connected) keep the legacy questions from orders/details.
@@ -2900,7 +3194,6 @@ extension CheckListViewController {
                 }
                 if index < self.arrOtherData.count { self.arrOtherData[index].machine_id = product.objMachine?.id ?? 0 }
             }
-            if context.equipment.isAssigned { self.contextLockedProducts.insert(uid) } else { self.contextLockedProducts.remove(uid) }
         }
 
         // Keep synthesized operational rows; replace the checklist questions with the canonical ones.
@@ -2925,6 +3218,7 @@ extension CheckListViewController {
         }
 
         self.tblView.reloadData()
+        self.refreshPreparationActions()
     }
 }
 

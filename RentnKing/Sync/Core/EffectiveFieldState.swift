@@ -37,6 +37,17 @@ enum EffectiveFieldState {
     static let licenseMediaType = "license_media.upload"
     static let termsAcceptedType = "terms.accept"
     static let driverChecklistType = "driver_checklist.update"
+    /// Pre-departure preparation lifecycle (2026-09): the two operations that
+    /// DISCARD a preparation cycle. Both are the phone's local-first record of
+    /// a supersession Laravel performs canonically.
+    static let equipmentSubstitutionType = PreparationOperationBuilder.substitutionType
+    static let deliveryRestartType = "delivery_checklist.reset"
+    static let returnRestartType = "return_checklist.reset"
+
+    /// Operations that end a preparation cycle for their order product.
+    static let preparationDiscardTypes: Set<String> = [
+        equipmentSubstitutionType, deliveryRestartType, returnRestartType,
+    ]
 
     /// Every retained operation counts as durable completion for WORKFLOW
     /// purposes — including needsAttention (work preserved) and synced
@@ -61,6 +72,29 @@ enum EffectiveFieldState {
             if let orderProductUniqueId, op.identity.orderProductUniqueId != orderProductUniqueId { return false }
             return true
         }
+    }
+
+    /// Checklist executions this phone durably discarded — the cycles named by
+    /// a substitution or a restart operation. Evidence belonging to one of these
+    /// cycles describes a machine that is no longer being prepared, so it must
+    /// never satisfy the current one.
+    static func supersededExecutionIds(in operations: [SyncOperation]) -> Set<String> {
+        var ids = Set<String>()
+        for op in operations where preparationDiscardTypes.contains(op.type) && countsAsDurableEvidence(op.state) {
+            if let execution = op.identity.checklistExecutionId, !execution.isEmpty { ids.insert(execution) }
+        }
+        return ids
+    }
+
+    /// Order products whose preparation this phone durably discarded AFTER the
+    /// given moment. Used to decide whether older local evidence still stands.
+    static func lastDiscardAt(in operations: [SyncOperation], orderProductUniqueId: String) -> Date? {
+        operations
+            .filter { preparationDiscardTypes.contains($0.type)
+                && countsAsDurableEvidence($0.state)
+                && $0.identity.orderProductUniqueId == orderProductUniqueId }
+            .map(\.queuedAt)
+            .max()
     }
 
     // MARK: - Dispatch completion overlay (QueueLineLocalOverlay pattern)
@@ -143,15 +177,36 @@ enum EffectiveFieldState {
     /// durably on the phone (post-Save smart routing, 2026-09).
     static func deliveryVideoSatisfied(serverHasVideo: Bool,
                                               operations: [SyncOperation],
-                                              orderProductUniqueId: String) -> Bool {
+                                              orderProductUniqueId: String,
+                                              activeExecutionId: String = "") -> Bool {
         if serverHasVideo { return true }
         guard !orderProductUniqueId.isEmpty else { return false }
 
+        // Preparation-cycle identity (2026-09): a walk-around video is evidence
+        // about ONE physical machine. When the caller knows which cycle is
+        // active, only that cycle's video counts — so a video shot for the unit
+        // a substitution replaced can never let the replacement skip its own.
+        let superseded = supersededExecutionIds(in: operations)
+        let discardedAt = lastDiscardAt(in: operations, orderProductUniqueId: orderProductUniqueId)
+
         return operations.contains { op in
-            op.type == deliveryMediaType
-                && countsAsDurableEvidence(op.state)
-                && op.identity.orderProductUniqueId == orderProductUniqueId
-                && op.assets.contains { $0.mimeType.hasPrefix("video/") }
+            guard op.type == deliveryMediaType,
+                  countsAsDurableEvidence(op.state),
+                  op.identity.orderProductUniqueId == orderProductUniqueId,
+                  op.assets.contains(where: { $0.mimeType.hasPrefix("video/") }) else { return false }
+
+            let opExecution = op.identity.checklistExecutionId ?? ""
+
+            if !activeExecutionId.isEmpty {
+                return opExecution == activeExecutionId
+            }
+
+            // No active cycle known (legacy/offline first open): the evidence
+            // still stands unless this phone discarded its cycle, or captured
+            // it before a discard it cannot attribute.
+            if !opExecution.isEmpty, superseded.contains(opExecution) { return false }
+            if let discardedAt, op.queuedAt < discardedAt { return false }
+            return true
         }
     }
 

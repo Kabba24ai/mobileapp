@@ -28,6 +28,9 @@
 		5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000014 /* TermsSyncHandler.swift */; };
+		5A5CFADE0000000000000021 /* PreparationLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000020 /* PreparationLifecycle.swift */; };
+		5A5CFADE0000000000000022 /* PreparationLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000020 /* PreparationLifecycle.swift */; };
+		5A5CFADE0000000000000024 /* PreparationSyncHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */; };
 		5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
 		5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000049 /* KabbaSessionKeychain.swift */; };
 		5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */; };
@@ -337,6 +340,7 @@
 		5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */; };
 		5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */; };
 		5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000016 /* TermsOperationsTests.swift */; };
+		5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */; };
 		5A5C00000000000000000083 /* SessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000082 /* SessionStateTests.swift */; };
 		5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000084 /* SyncEngineTests.swift */; };
 		5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */; };
@@ -455,6 +459,8 @@
 		5A5CFADE0000000000000006 /* EffectiveFieldState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldState.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000011 /* TermsOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperations.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000014 /* TermsSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSyncHandler.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000020 /* PreparationLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycle.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationSyncHandlers.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000047 /* DeprecatedEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpoints.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000049 /* KabbaSessionKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychain.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSharedClientHeaders.swift; sourceTree = "<group>"; };
@@ -742,6 +748,7 @@
 		5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalStateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldStateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000016 /* TermsOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperationsTests.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000082 /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000084 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncResponseInterpreterTests.swift; sourceTree = "<group>"; };
@@ -1913,6 +1920,7 @@
 				5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */,
 				5A5CFADE0000000000000006 /* EffectiveFieldState.swift */,
 				5A5CFADE0000000000000011 /* TermsOperations.swift */,
+				5A5CFADE0000000000000020 /* PreparationLifecycle.swift */,
 				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
@@ -1955,6 +1963,7 @@
 				5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */,
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
+				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
 				5A5C0000000000000000001B /* KabbaSync.swift */,
 				5A5C0000000000000000001D /* SyncStatusUI.swift */,
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
@@ -2012,6 +2021,7 @@
 				5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */,
 				5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */,
 				5A5CFADE0000000000000016 /* TermsOperationsTests.swift */,
+				5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */,
 				5A5C00000000000000000082 /* SessionStateTests.swift */,
 				5A5C00000000000000000084 /* SyncEngineTests.swift */,
 				5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */,
@@ -2349,6 +2359,8 @@
 				5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */,
+				5A5CFADE0000000000000021 /* PreparationLifecycle.swift in Sources */,
+				5A5CFADE0000000000000024 /* PreparationSyncHandlers.swift in Sources */,
 				5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000102 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */,
@@ -2608,6 +2620,7 @@
 				5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */,
 				5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */,
 				5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */,
+				5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */,
 				5A5C00000000000000000083 /* SessionStateTests.swift in Sources */,
 				5A5C00000000000000000085 /* SyncEngineTests.swift in Sources */,
 				5A5C00000000000000000087 /* SyncResponseInterpreterTests.swift in Sources */,
@@ -2638,6 +2651,7 @@
 				5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */,
 				5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */,
+				5A5CFADE0000000000000022 /* PreparationLifecycle.swift in Sources */,
 				5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */,

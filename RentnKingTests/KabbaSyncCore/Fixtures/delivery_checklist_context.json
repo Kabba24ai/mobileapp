@@ -3,20 +3,20 @@
     "message": "Checklist context.",
     "data": {
         "identity": {
-            "checklist_execution_id": "ORD-CHK-ZQLE-9ETA",
+            "checklist_execution_id": "ORD-CHK-D0EQ-ALTI",
             "cycle": 1,
             "status": "open",
             "leg": "delivery",
-            "order_unique_id": "ORD-4OEA-NRQB",
+            "order_unique_id": "ORD-964T-TULC",
             "order_number": "7701",
-            "order_product_unique_id": "ORD-SCH-GSNL-TWUQ",
+            "order_product_unique_id": "ORD-SCH-WFS7-YFGH",
             "product_name": "Skid Steer Rental"
         },
         "equipment": {
             "assignment": "soft",
-            "equipment_unique_id": "EQP-UHOB-DLHT",
-            "equipment_code": "EQP-P3-6A97D6F3BC5F7",
-            "equipment_name": "Skid Steer 6a97d6f3bc5f6",
+            "equipment_unique_id": "EQP-TRWI-0BPP",
+            "equipment_code": "EQP-P3-6A9C306E5F4C1",
+            "equipment_name": "Skid Steer 6a9c306e5f4c0",
             "current_status": "available",
             "power_source_type": "diesel",
             "has_def": "No",
@@ -28,9 +28,9 @@
             "equipment_hours": ""
         },
         "template": {
-            "template_id": "CATQS-4FPE-D3LB",
+            "template_id": "CATQS-AN2D-DZGU",
             "template_name": "Skid Steer Checklist",
-            "revision": "ea477242e2bb7d7d",
+            "revision": "9b62c48304769eff",
             "question_source": "equipment_template"
         },
         "requirements": {
@@ -39,18 +39,18 @@
             "store_required": false,
             "equipment_required": true,
             "required_question_ids": [
-                "CAQST-NVDT-T58C"
+                "CAQST-3J5P-RDIM"
             ]
         },
         "questions": [
             {
-                "question_id": "CAQST-NVDT-T58C",
+                "question_id": "CAQST-3J5P-RDIM",
                 "question_name": "Body damage",
                 "text": "Any body damage at delivery?",
                 "delivery_text": "Any body damage at delivery?",
                 "return_text": "Any body damage at return?",
                 "category": {
-                    "category_id": "CACAT-RKXI-PYC2",
+                    "category_id": "CACAT-MFOU-EUJL",
                     "category_name": "Condition"
                 },
                 "required": true,
@@ -58,7 +58,7 @@
                 "index": 1,
                 "answers": [
                     {
-                        "answer_id": "CAANS-VYZG-TQLK",
+                        "answer_id": "CAANS-POL9-D43G",
                         "text": "No damage",
                         "delivery_text": "No damage",
                         "return_text": "No damage",
@@ -70,7 +70,7 @@
                         "index": 1
                     },
                     {
-                        "answer_id": "CAANS-M5M4-JQZC",
+                        "answer_id": "CAANS-EWQB-NLKI",
                         "text": "Damaged",
                         "delivery_text": "Damaged",
                         "return_text": "Damaged",
@@ -87,13 +87,13 @@
                 "prepared_answer_id": null
             },
             {
-                "question_id": "CAQST-IJND-HAB0",
+                "question_id": "CAQST-AHGA-XHFY",
                 "question_name": "Keys present",
                 "text": "Keys handed over?",
                 "delivery_text": "Keys handed over?",
                 "return_text": "Keys returned?",
                 "category": {
-                    "category_id": "CACAT-RKXI-PYC2",
+                    "category_id": "CACAT-MFOU-EUJL",
                     "category_name": "Condition"
                 },
                 "required": false,
@@ -101,7 +101,7 @@
                 "index": 2,
                 "answers": [
                     {
-                        "answer_id": "CAANS-HZ5T-W93F",
+                        "answer_id": "CAANS-QWE4-DMOY",
                         "text": "Yes",
                         "delivery_text": "Yes",
                         "return_text": "Yes",
@@ -113,7 +113,7 @@
                         "index": 1
                     },
                     {
-                        "answer_id": "CAANS-AA3H-HLPB",
+                        "answer_id": "CAANS-PNCW-RPHE",
                         "text": "No",
                         "delivery_text": "No",
                         "return_text": "No",
@@ -160,14 +160,16 @@
             "completed_at": null,
             "captured_at": null,
             "can_complete": true,
-            "blocked_reason": null
+            "blocked_reason": null,
+            "delivery_video_present": false,
+            "delivery_media_present": false
         },
         "employee": {
             "user_id": 1,
-            "unique_id": "PER-PM5C-3W1H",
+            "unique_id": "PER-XNEC-EWCD",
             "full_name": "Field Employee"
         },
-        "server_time": "2026-09-02T07:57:39+00:00"
+        "server_time": "2026-09-05T15:08:30+00:00"
     },
-    "request_id": "e93753e3-c5fe-4266-86ce-d2484e3c8e52"
+    "request_id": "e8725881-36d8-465e-95a8-92990d16a5b7"
 }

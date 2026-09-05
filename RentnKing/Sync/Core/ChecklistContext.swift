@@ -198,6 +198,13 @@ struct ChecklistContext: Codable, Equatable {
         /// prepared delivery checklist incomplete (server refuses; the phone
         /// blocks it inline first).
         let inTransit: Bool?
+        /// Delivery evidence for THIS preparation cycle (2026-09). Media is
+        /// anchored to the checklist execution it was captured in, so a unit
+        /// substitution or a checklist restart — which supersede the cycle —
+        /// make these false again: the replacement machine must be filmed on
+        /// its own. Optional so cached pre-upgrade contexts still decode.
+        let deliveryVideoPresent: Bool?
+        let deliveryMediaPresent: Bool?
 
         enum CodingKeys: String, CodingKey {
             case isDelivered = "is_delivered", isReturned = "is_returned"
@@ -206,6 +213,7 @@ struct ChecklistContext: Codable, Equatable {
             case executionStatus = "execution_status", preparedAt = "prepared_at", completedAt = "completed_at", capturedAt = "captured_at"
             case canComplete = "can_complete", blockedReason = "blocked_reason"
             case queueStaged = "queue_staged", inTransit = "in_transit"
+            case deliveryVideoPresent = "delivery_video_present", deliveryMediaPresent = "delivery_media_present"
         }
     }
 

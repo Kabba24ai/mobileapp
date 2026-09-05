@@ -169,9 +169,22 @@ struct QueueLineLocalOverlay: Equatable {
     static func from(_ operations: [SyncOperation]) -> QueueLineLocalOverlay {
         var overlay = QueueLineLocalOverlay()
 
-        for op in operations {
+        // Capture order matters: a substitution / restart DISCARDS the staging
+        // evidence recorded before it, and a later Save re-earns it. Replaying
+        // the operations in the order the operator created them is what makes
+        // "Staged Unit A → switch → Pending → Save → Staged Unit B" come out
+        // right locally, before Laravel has confirmed anything.
+        for op in operations.sorted(by: { $0.queuedAt < $1.queuedAt }) {
             guard let product = op.identity.orderProductUniqueId,
                   EffectiveFieldState.countsAsDurableEvidence(op.state) else { continue }
+
+            if EffectiveFieldState.preparationDiscardTypes.contains(op.type) {
+                // The preparation this card was staged on no longer exists.
+                overlay.stagedLocally.remove(product)
+                overlay.pendingStage[product] = nil
+                overlay.attention[product] = nil
+                continue
+            }
 
             switch op.type {
             case EffectiveFieldState.deliveryPrepareType:

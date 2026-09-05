@@ -76,6 +76,12 @@ enum KabbaSync {
                                         TermsAcceptSyncHandler(hasSession: hasSession),
                                         // (queue_line.mark_staged retired 2026-09 — staging is the
                                         //  Delivery Checklist's Save: delivery_checklist.prepare + mark_staged)
+                                        // Pre-departure preparation lifecycle (2026-09) — the yard
+                                        // substitutes the physical unit, or restarts a saved
+                                        // non-final checklist. Both discard a preparation cycle.
+                                        EquipmentSubstitutionSyncHandler(hasSession: hasSession),
+                                        ChecklistRestartSyncHandler(leg: .delivery, hasSession: hasSession),
+                                        ChecklistRestartSyncHandler(leg: .return, hasSession: hasSession),
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)
                                         ManualDispatchSyncHandler(hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),
