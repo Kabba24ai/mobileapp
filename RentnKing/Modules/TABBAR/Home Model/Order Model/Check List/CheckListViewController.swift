@@ -1394,25 +1394,27 @@ extension CheckListViewController : UITextFieldDelegate{
             for (index,obj) in objProduct.arrQuestions.enumerated(){
                 var objQuestion = obj
                 if objQuestion.type == "text"{
-                    var hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                    // Total math (ChecklistHoursMath): a meter reading that
+                    // parsed to ±inf/NaN must yield zero overage, never a trap.
+                    var totalHours = ChecklistHoursMath.overageHours(start: Float(objQuestion.startHours),
+                                                                     end: Float(objQuestion.endHours))
                     if objProduct.is_delivered == true && objQuestion.startHours == 0.0{
-                        hours = 0
+                        totalHours = 0
                     }
-                    
-                    let totalHours = Int(hours.rounded(.up))
                     objQuestion.total = 0
                     if totalHours > 0{
                         //SET TOTAL HOURS
                         objQuestion.total = Float(totalHours)
                     }
-                    
-                    
+
+
                     //SET ADDITION HOURS
-                    var additionslHours = Float(totalHours) - (objProduct.allocated_hours ?? 0)
+                    var additionslHours = Float(ChecklistHoursMath.additionalHours(total: totalHours,
+                                                                                   allocated: objProduct.allocated_hours ?? 0))
                     objQuestion.additinal = 0
                     if additionslHours > 0{
                         //SET TOTAL HOURS
-                        objQuestion.additinal = Int(Float(additionslHours))
+                        objQuestion.additinal = Int(additionslHours)
                     }
                     else{
                         additionslHours = 0
@@ -2800,6 +2802,13 @@ extension CheckListViewController{
     func setUpTheEqupmentData(objEquipment : MachineModel?, index : Int){
         var objProduct = self.objOrderData.arrProduct[index]
 //        objProduct.arrQuestions = objEquipment?.arrAnswerCheckList ?? []
+
+        // The hours/cleaning/fuel rows describe the MACHINE being prepared. A
+        // (re)pick rebuilds them for the new unit — REPLACE the previous
+        // unit's rows instead of stacking another pair (every substitution
+        // used to prepend a fresh Start Hours + Fuel pair, and the checklist
+        // could then never reach 100% for staging).
+        objProduct.arrQuestions.removeAll { SynthesizedRowPolicy.isMachineRow(type: $0.type) }
         
         // Build the optional rows independently, then prepend them in a FIXED priority order:
         // text → cleaning → fuel (whichever of them are available), followed by the base questions.
@@ -3187,6 +3196,43 @@ extension CheckListViewController {
         // re-requested for the chosen unit when the employee picks one (callCheckListAPI).
         if context.equipment.hasUnit, let unitId = context.equipment.equipmentUniqueId {
             if product.objMachine?.unique_id != unitId {
+                // Out-of-band reassignment reconciliation (2026-09): this screen
+                // (or its restored draft) held a DIFFERENT unit than the
+                // canonical assignment the context resolved. Any locally entered
+                // answers/hours/fuel were captured against a machine that is no
+                // longer being prepared — they must not pre-fill the new unit's
+                // blank cycle. (The in-app substitution path sets objMachine to
+                // the replacement BEFORE reloading, so it never lands here.)
+                if product.objMachine != nil {
+                    var questions = product.arrQuestions
+                    for q in questions.indices {
+                        if self.isDeliveryType {
+                            questions[q].deliverAnswer = nil
+                            questions[q].startHours = 0.0
+                            questions[q].startCleaning = ""
+                            questions[q].selectFuleDelivery = ""
+                        } else {
+                            questions[q].returnAnswer = nil
+                            questions[q].endHours = 0.0
+                            questions[q].endCleaning = ""
+                            questions[q].selectFuleReturn = ""
+                        }
+                    }
+                    product.arrQuestions = questions
+                    if index < self.arrOtherData.count {
+                        if self.isDeliveryType {
+                            self.arrOtherData[index].startHours = 0.0
+                            self.arrOtherData[index].selectFuleDelivery = ""
+                        } else {
+                            self.arrOtherData[index].endHours = 0.0
+                            self.arrOtherData[index].selectFuleReturn = ""
+                        }
+                    }
+                    if let uid = product.unique_id { self.lastSyncedFingerprint[uid] = nil }
+                    // The durable draft must stop re-injecting the stale answers.
+                    self.objOrderData.arrProduct[index] = product
+                    persistDraftSnapshot()
+                }
                 if let known = self.arrAllMachineList.first(where: { $0.unique_id == unitId }) {
                     product.objMachine = known
                 } else {

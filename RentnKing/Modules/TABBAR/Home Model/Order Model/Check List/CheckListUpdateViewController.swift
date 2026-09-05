@@ -541,25 +541,26 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
                 for (index,obj) in objProduct.arrQuestions.enumerated(){
                     var objQuestion = obj
                     if objQuestion.type == "text"{
-                        var hours = Float(objQuestion.endHours) - Float(objQuestion.startHours)
+                        // Total math (ChecklistHoursMath): never traps on ±inf/NaN meter values.
+                        var totalHours = ChecklistHoursMath.overageHours(start: Float(objQuestion.startHours),
+                                                                         end: Float(objQuestion.endHours))
                         if objQuestion.startHours == 0.0{
-                            hours = 0
+                            totalHours = 0
                         }
-
-                        let totalHours = Int(hours.rounded(.up))
                         objQuestion.total = 0
                         if totalHours > 0{
                             //SET TOTAL HOURS
                             objQuestion.total = Float(totalHours)
                         }
-                        
-                        
+
+
                         //SET ADDITION HOURS
-                        var additionslHours = Float(totalHours) - (objProduct.allocated_hours ?? 0)
+                        var additionslHours = Float(ChecklistHoursMath.additionalHours(total: totalHours,
+                                                                                       allocated: objProduct.allocated_hours ?? 0))
                         objQuestion.additinal = 0
                         if additionslHours > 0{
                             //SET TOTAL HOURS
-                            objQuestion.additinal = Int(Float(additionslHours))
+                            objQuestion.additinal = Int(additionslHours)
                         }
                         else{
                             additionslHours = 0

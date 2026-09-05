@@ -290,3 +290,54 @@ enum PreparationRequestFactory {
                                operationId: operation.id)
     }
 }
+
+// MARK: - Hour-meter math (total over every Float — never traps)
+//
+// The legacy total-charge pass did `Int(hours.rounded(.up))` on unvalidated
+// Float arithmetic. The hours text field re-renders a large model value in
+// scientific notation ("2.002e+11"); appending digits lands them in the
+// EXPONENT ("2.002e+11200"), which parses to ±infinity — and Int(±.infinity)
+// is a hard Swift trap that crashed the preparation workbench mid-keystroke.
+// Overage hours are by definition a small non-negative number, so both
+// conversions clamp to 0...cap and treat every non-finite value as no overage.
+enum ChecklistHoursMath {
+
+    /// Ceiling of (end − start) clamped to 0...cap. Non-finite input → 0
+    /// overage (the operator fixes the meter reading; the app never dies).
+    static func overageHours(start: Float, end: Float, cap: Int = 1_000_000) -> Int {
+        guard start.isFinite || end.isFinite else { return 0 }
+        let delta = end - start
+        guard !delta.isNaN else { return 0 }
+        guard delta > 0 else { return 0 }
+        let rounded = delta.rounded(.up)
+        return rounded >= Float(cap) ? cap : Int(rounded)
+    }
+
+    /// Billable hours above the allocation, truncated like the legacy
+    /// Int(Float) conversion, clamped to 0...cap, total over every Float.
+    static func additionalHours(total: Int, allocated: Float, cap: Int = 1_000_000) -> Int {
+        let boundedTotal = max(0, min(total, cap))
+        guard !allocated.isNaN else { return 0 }
+        guard allocated.isFinite else { return allocated < 0 ? boundedTotal : 0 }
+        let delta = Float(boundedTotal) - allocated
+        guard delta.isFinite, delta > 0 else { return 0 }
+        return delta >= Float(cap) ? cap : Int(delta)
+    }
+}
+
+// MARK: - Machine-row synthesis policy
+//
+// The hours/cleaning/fuel rows describe the PHYSICAL MACHINE being prepared,
+// not the order line. A machine (re)pick rebuilds them for the new unit and
+// must REPLACE the previous unit's rows — the substitution flow used to
+// prepend a fresh Start Hours + Fuel pair on every pick, and after two
+// substitutions the checklist demanded three hour meters and could never
+// reach 100% for staging.
+enum SynthesizedRowPolicy {
+    static let machineRowTypes: Set<String> = ["text", "cleaning", "fuel"]
+
+    static func isMachineRow(type: String?) -> Bool {
+        guard let type = type else { return false }
+        return machineRowTypes.contains(type)
+    }
+}

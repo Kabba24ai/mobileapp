@@ -261,8 +261,9 @@ extension MachineHoursViewController : UITextFieldDelegate{
         var objdata = self.objOrderData.arrMachineHours[index]
 
         //SET TOTLA HOURS
-        let hours = Float(objdata.end ?? 0) - Float(objdata.start ?? 0)
-        let totalHours = Int(hours.rounded(.up))
+        // Total math (ChecklistHoursMath): never traps on ±inf/NaN meter values.
+        let totalHours = ChecklistHoursMath.overageHours(start: Float(objdata.start ?? 0),
+                                                         end: Float(objdata.end ?? 0))
         objdata.total = 0
         if totalHours > 0{
             //SET TOTAL HOURS

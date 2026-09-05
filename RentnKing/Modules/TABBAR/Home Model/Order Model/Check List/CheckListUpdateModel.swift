@@ -211,14 +211,16 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
                             objCheckList?.endHours = objProduct.end_hours
                             objCheckList?.hour_rate = Float(objEquipment?.overage_rate ?? "") ?? 0
                             
-                            let hours = Float(objProduct.end_hours) - Float(objProduct.start_hours)
-                            let totalHours = Int(hours.rounded(.up))
-                            
+                            // Total math (ChecklistHoursMath): never traps on ±inf/NaN meter values.
+                            let totalHours = ChecklistHoursMath.overageHours(start: Float(objProduct.start_hours),
+                                                                             end: Float(objProduct.end_hours))
+
                             //SET ADDITION HOURS
-                            var additionslHours = Float(totalHours) - (objProduct.allocated_hours ?? 0)
+                            var additionslHours = Float(ChecklistHoursMath.additionalHours(total: totalHours,
+                                                                                           allocated: objProduct.allocated_hours ?? 0))
                             if additionslHours > 0{
                                 //SET TOTAL HOURS
-                                objCheckList?.additinal = Int(Float(additionslHours))
+                                objCheckList?.additinal = Int(additionslHours)
                             }
                             else{
                                 additionslHours = 0

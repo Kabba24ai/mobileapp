@@ -397,6 +397,7 @@
 		5A5C00000000000000000131 /* StagingTestHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000130 /* StagingTestHarness.swift */; };
 		5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000120 /* AuthFlowUITests.swift */; };
 		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
+		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -778,6 +779,7 @@
 		5A5C00000000000000000130 /* StagingTestHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StagingTestHarness.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000120 /* AuthFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowUITests.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000EC /* DispatchParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchParityUITests.swift; sourceTree = "<group>"; };
+		5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -1941,6 +1943,7 @@
 			children = (
 				5A5C00000000000000000120 /* AuthFlowUITests.swift */,
 				5A5C000000000000000000EC /* DispatchParityUITests.swift */,
+				5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -2673,6 +2676,7 @@
 			files = (
 				5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */,
 				5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */,
+				5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -51,6 +51,18 @@ final class ChecklistContextClient {
             case .success(let response):
                 guard response.isSuccessStatus else {
                     let error = APIErrorClassifier.classify(statusCode: response.statusCode, body: response.body, headers: response.headers)
+                    // The unit hint came from this phone's cache; when the office
+                    // reassigned out of band, the hint is stale and the server
+                    // answers EQUIPMENT_ASSIGNMENT_CONFLICT. Never wedge on the
+                    // stale unit: retry ONCE with no hint so the server resolves
+                    // the CANONICAL assignment (superseding a stale prepared
+                    // cycle via the openExecution backstop) and hands back the
+                    // fresh truth.
+                    if error.code == "EQUIPMENT_ASSIGNMENT_CONFLICT", equipmentUniqueId != nil {
+                        self.load(orderProductUniqueId: orderProductUniqueId, leg: leg,
+                                  equipmentUniqueId: nil, completion: completion)
+                        return
+                    }
                     if let cached = self.store.load(orderProductUniqueId: orderProductUniqueId, leg: leg), error.isServerFailure {
                         completion(.success(cached), true)
                     } else {

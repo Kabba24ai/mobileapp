@@ -514,4 +514,68 @@ final class PreparationLifecycleTests: XCTestCase {
         // Still durable evidence — the board reflects what the operator did.
         XCTAssertTrue(EffectiveFieldState.countsAsDurableEvidence(.needsAttention))
     }
+
+    // ── Hour-meter math is total (2026-09 physical acceptance regression) ───
+    //
+    // The legacy total-charge pass converted unvalidated Float arithmetic
+    // straight to Int. The hours text field re-renders a large model value in
+    // scientific notation ("2.002e+11"); appending digits lands them in the
+    // EXPONENT ("2.002e+11200"), which parses to ±infinity — and
+    // Int(-.infinity) is a hard Swift trap that killed the preparation
+    // workbench mid-keystroke on the physical acceptance run. Overage hours
+    // are by definition a small non-negative number: the math must be total
+    // over EVERY Float, never trapping.
+
+    func testOverageHoursForOrdinaryMeterReadingsMatchesTheLegacyCeiling() {
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 100, end: 108.2), 9)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 100, end: 108.0), 8)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 0, end: 0), 0)
+    }
+
+    func testOverageHoursIsZeroDuringDeliveryPreparation() {
+        // Delivery: only the START meter is known — end 0, start 200 → no overage.
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 200, end: 0), 0)
+    }
+
+    func testOverageHoursNeverTrapsOnNonFiniteOrHugeInput() {
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: .infinity, end: 0), 0)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 0, end: .infinity), 1_000_000)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: .nan, end: 100), 0)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: 0, end: .greatestFiniteMagnitude), 1_000_000)
+        XCTAssertEqual(ChecklistHoursMath.overageHours(start: -.greatestFiniteMagnitude, end: 0), 1_000_000)
+    }
+
+    func testAdditionalHoursSubtractsTheAllocationAndNeverTraps() {
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 10, allocated: 4), 6)
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 4, allocated: 10), 0)
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 0, allocated: 0), 0)
+        // Truncation, matching the legacy Int(Float) conversion for sane input.
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 10, allocated: 3.5), 6)
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 10, allocated: -.infinity), 10)
+        XCTAssertEqual(ChecklistHoursMath.additionalHours(total: 10, allocated: .nan), 0)
+    }
+
+    // ── Machine rows are REPLACED on a (re)pick, never stacked ──────────────
+    //
+    // Physical acceptance regression (2026-09): every equipment substitution
+    // re-ran the machine-row synthesis, which PREPENDED another Start Hours +
+    // Fuel pair; after two substitutions the checklist demanded three hour
+    // meters and the operator could never stage. A machine pick must replace
+    // the machine-specific operational rows and leave the template questions.
+
+    func testMachineRowSynthesisReplacesTheOldMachineRows() {
+        let before = ["text", "fuel", "text", "cleaning", "question", "question"]
+        let kept = before.filter { !SynthesizedRowPolicy.isMachineRow(type: $0) }
+        XCTAssertEqual(kept, ["question", "question"],
+                       "hours/cleaning/fuel rows belong to the MACHINE and are rebuilt for the new unit")
+    }
+
+    func testTemplateQuestionsAreNeverTreatedAsMachineRows() {
+        XCTAssertFalse(SynthesizedRowPolicy.isMachineRow(type: nil))
+        XCTAssertFalse(SynthesizedRowPolicy.isMachineRow(type: ""))
+        XCTAssertFalse(SynthesizedRowPolicy.isMachineRow(type: "single_choice"))
+        XCTAssertTrue(SynthesizedRowPolicy.isMachineRow(type: "text"))
+        XCTAssertTrue(SynthesizedRowPolicy.isMachineRow(type: "cleaning"))
+        XCTAssertTrue(SynthesizedRowPolicy.isMachineRow(type: "fuel"))
+    }
 }
