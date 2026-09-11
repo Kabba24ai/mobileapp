@@ -1186,6 +1186,10 @@ extension DriverChecklistViewController {
             newViewController.fromCheckListScreen = true
             newViewController.strProductID = self.productUniqueId
 
+            // The leg being completed is the DISPATCH ROW's leg — explicit, so Order
+            // Details never re-derives it from a feed that may already be stale
+            // (a delivery completed locally must not flip the gate to Return rules).
+            newViewController.completionLeg = self.objDispatch?.is_delivered == false ? .delivery : .return
             newViewController.strComplateDelivery = "\(self.objDispatch?.is_delivered == false ? "Delivery" : "Return") Complete - Next Mission"
             self.navigationController?.pushViewController(newViewController, animated: true)
         }

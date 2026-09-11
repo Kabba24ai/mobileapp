@@ -131,6 +131,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var deliveryType : String = "Delivery"
     var isBillingView : Bool = false
     var strComplateDelivery : String = ""
+    /// The leg the Dispatch row is completing (set by DriverChecklistViewController).
+    /// nil → derived from the feed, for screens that never carry a dispatch row.
+    var completionLeg: ChecklistLeg?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -139,6 +142,10 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(UpdateCheckListsProduct), name: .updateCheckList, object: nil)
+        // Local-first: the chips reflect the Sync Engine (pending → synced →
+        // needs attention) the moment it changes, so what the driver sees and
+        // what the completion gate judges are never two different snapshots.
+        NotificationCenter.default.addObserver(self, selector: #selector(syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
 
         //UPDATE NOTIFICTION
         GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: self.OrderID))
@@ -497,12 +504,12 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgLicense, colorHex: .secondary)
             
-            //GET LOACA DATA (local-first: durable Sync Engine evidence also lights the chip)
-            let syncOps = KabbaSync.engine?.snapshot() ?? []
-            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            if EffectiveFieldState.licenseSatisfied(serverHasLicense: self.objOrderData.arrLicense.count != 0 || arrData.count != 0,
-                                                    operations: syncOps,
-                                                    orderUniqueId: self.strOrderUniqueId) {
+            // ONE leg-aware evaluator lights the chips AND judges "Complete – Next
+            // Mission" (LegCompletionEvaluator): server-confirmed ∨ durable Sync
+            // Engine evidence, per leg, per line. Never two definitions of "complete".
+            let deliveryDecision = self.legCompletionDecision(for: .delivery)
+            let returnDecision = self.legCompletionDecision(for: .return)
+            if deliveryDecision.status(.driverLicense)?.isSatisfied == true {
                 self.lblLicense.textColor = .background
                 imgColor(imgColor: self.imgLicense, colorHex: .background)
                 self.viewLicense.backgroundColor = .secondary
@@ -513,17 +520,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewTermsAndCondition.backgroundColor = .clear
             self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             self.lblTermsAndCondition.textColor = .secondary
-            if self.objOrderData.terms_status == "Accepted"
-                || EffectiveFieldState.termsSatisfied(serverAccepted: false,
-                                                      operations: syncOps,
-                                                      orderUniqueId: self.strOrderUniqueId) {
-                self.lblTermsAndCondition.textColor = .background
-                self.viewTermsAndCondition.backgroundColor = .secondary
-            }
-            else if self.objOrderData.terms_status == "Exempt"{
+            if self.objOrderData.terms_status == "Exempt"{
                 self.viewTermsAndCondition.backgroundColor = .clear
                 self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .lightGray)
                 self.lblTermsAndCondition.textColor =  .lightGray
+            }
+            else if deliveryDecision.status(.termsAndConditions)?.isSatisfied == true {
+                self.lblTermsAndCondition.textColor = .background
+                self.viewTermsAndCondition.backgroundColor = .secondary
             }
             
             
@@ -532,11 +536,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewPhotVideoDeli.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .secondary)
             
-            let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "delivery")
-            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0,
-                                                  operations: syncOps,
-                                                  orderUniqueId: self.strOrderUniqueId,
-                                                  isDeliveryLeg: true) {
+            if deliveryDecision.status(.deliveryMedia)?.isSatisfied == true {
                 self.lblPhotVideoDeli.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .background)
                 self.viewPhotVideoDeli.backgroundColor = .secondary
@@ -547,11 +547,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewPhotVideoRet.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgPhotVideoRet, colorHex: .secondary)
 
-            let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "pickup")
-            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0,
-                                                  operations: syncOps,
-                                                  orderUniqueId: self.strOrderUniqueId,
-                                                  isDeliveryLeg: false) {
+            if returnDecision.status(.returnMedia)?.isSatisfied == true {
                 self.lblPhotVideoRet.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoRet, colorHex: .background)
                 self.viewPhotVideoRet.backgroundColor = .secondary
@@ -572,7 +568,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             
             
             //CHECK DELIVERY CHECKLIST
-            if self.checkCheckListStatus(isDelivery: true){
+            if deliveryDecision.status(.deliveryChecklist)?.isSatisfied == true {
                 self.lblCheckListDeliv.textColor = .background
                 imgColor(imgColor: self.imgCheckListDeliv, colorHex: .background)
                 self.viewCheckListDeliv.backgroundColor = .secondary
@@ -584,7 +580,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
       
             //CHECK RETURN CHECKLIST
-            if self.checkCheckListStatus(isDelivery: false){
+            if returnDecision.status(.returnChecklist)?.isSatisfied == true {
                 self.lblCheckListRet.textColor = .background
                 imgColor(imgColor: self.imgCheckListRet, colorHex: .background)
                 self.viewCheckListRet.backgroundColor = .secondary
@@ -596,7 +592,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
       
             
-            if self.checkCheckListStatus(isDelivery: true) == false{
+            if deliveryDecision.status(.deliveryChecklist)?.isSatisfied != true {
                 self.lblCheckListRet.textColor = .lightGray
                 imgColor(imgColor: self.imgCheckListRet, colorHex: .lightGray)
                 self.viewCheckListRet.backgroundColor = .clear
@@ -677,6 +673,80 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     }
 }
 
+
+//MARK: - LEG COMPLETION (ONE evaluator for the gate AND the chips)
+extension OrderDetailsViewController {
+
+    /// The leg being completed: the dispatch row's leg when known (explicit),
+    /// else the pre-existing feed-derived rule (any product delivered → Return).
+    func effectiveCompletionLeg() -> ChecklistLeg {
+        if let leg = self.completionLeg { return leg }
+        let anyDelivered = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+        return anyDelivered ? .return : .delivery
+    }
+
+    /// Everything the screen knows OUTSIDE the Sync Engine — the server feed and
+    /// the legacy local stores. Delivery facts keep their order-level semantics;
+    /// Return facts are read for the FOCUS product only (the dispatch row's line),
+    /// so a sibling line's media or returned flag never satisfies this one.
+    func legCompletionInputs(for leg: ChecklistLeg) -> LegCompletionInputs {
+        let order = self.objOrderData
+        let orderUid = self.strOrderUniqueId
+        let products = order?.arrProduct ?? []
+        let focus = self.strProductID
+        let focusProduct = products.first(where: { ($0.unique_id ?? "") == focus && !focus.isEmpty })
+        let deliveredLines = products.filter { $0.is_delivered ?? false }
+
+        // Legacy local queues (pre-Sync-Engine) — still evidence, exactly as before.
+        let legacyLicense = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.image.rawValue)
+        let legacyDeliveryMedia = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
+        let legacyReturnMedia = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
+
+        let returnMediaConfirmed: Bool
+        let returnChecklistConfirmed: Bool
+        if let focusProduct = focusProduct {
+            returnMediaConfirmed = focusProduct.arrPickupMedia.count != 0
+                || legacyReturnMedia.contains { ($0.productID ?? "") == focus }
+            // The order-level "completed checklist" marker is only trusted when the
+            // Sync Engine is unavailable (nothing else could hold the completion).
+            returnChecklistConfirmed = (focusProduct.is_returned ?? false)
+                || (!KabbaSync.isReady && self.checkCheckListStatus(isDelivery: false))
+        } else {
+            // No focus product (never reached from Dispatch): the pre-existing order-wide rule.
+            returnMediaConfirmed = deliveredLines.contains { $0.arrPickupMedia.count != 0 } || legacyReturnMedia.count != 0
+            returnChecklistConfirmed = self.checkCheckListStatus(isDelivery: false)
+        }
+
+        let activeReturnExecution = focus.isEmpty
+            ? ""
+            : (KabbaSync.checklistContexts?.cached(orderProductUniqueId: focus, leg: .return)?.executionId ?? "")
+
+        let lineIds = (leg.isDelivery ? products : deliveredLines).compactMap { $0.unique_id }.filter { !$0.isEmpty }
+
+        return LegCompletionInputs(orderUniqueId: orderUid,
+                                   orderProductUniqueId: focus,
+                                   orderProductUniqueIds: lineIds,
+                                   licenseConfirmed: (order?.arrLicense.count ?? 0) != 0 || legacyLicense.count != 0,
+                                   termsConfirmed: order?.terms_status == "Accepted" || order?.terms_status == "Exempt",
+                                   deliveryMediaConfirmed: products.contains { $0.arrDeliveryMedia.count != 0 } || legacyDeliveryMedia.count != 0,
+                                   deliveryChecklistConfirmed: self.checkCheckListStatus(isDelivery: true),
+                                   returnMediaConfirmed: returnMediaConfirmed,
+                                   returnChecklistConfirmed: returnChecklistConfirmed,
+                                   activeReturnExecutionId: activeReturnExecution)
+    }
+
+    /// The ONE decision for a leg: applicable requirements × effective satisfaction.
+    func legCompletionDecision(for leg: ChecklistLeg) -> LegCompletionDecision {
+        LegCompletionEvaluator.evaluate(leg: leg,
+                                        inputs: self.legCompletionInputs(for: leg),
+                                        operations: KabbaSync.engine?.snapshot() ?? [])
+    }
+
+    @objc func syncQueueDidChange() {
+        guard self.objOrderData != nil, self.isViewLoaded else { return }
+        self.setFooter()
+    }
+}
 
 //MARK: - BUTTON ACTION
 extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, PayMentDelegate, AddNoteDelegate, LicenseUploadDelegate, TermsDelegate{
@@ -896,66 +966,49 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
   
     @IBAction func btnDeliveryComplatedClicked(_ sender : UIButton) {
-        if self.fromCheckListScreen {
-            // Delivery vs Return phase (return once products are delivered)
-            let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+        guard self.fromCheckListScreen, self.objOrderData != nil else { return }
 
-            // Local-first — durably saved media/license/terms is satisfied; never ask an
-            // exception for work sitting in the Sync Engine.
-            let syncOps = KabbaSync.engine?.snapshot() ?? []
+        // ONE leg-aware decision (LegCompletionEvaluator): which requirements
+        // apply to THIS leg, and is each effectively satisfied — server-confirmed
+        // ∨ durable local Sync Engine evidence. Historical Delivery-leg facts
+        // never block a Return; work Pending Sync is never "Not Completed".
+        let leg = self.effectiveCompletionLeg()
+        let decision = self.legCompletionDecision(for: leg)
 
-            // T&C completed? (effective: server Accepted/Exempt ∨ durable local terms.accept)
-            let termsDone = EffectiveFieldState.termsSatisfied(
-                serverAccepted: self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt",
-                operations: syncOps,
-                orderUniqueId: self.strOrderUniqueId)
-
-            // License uploaded?
-            let arrLicenseUpload = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            let licenseUploaded = EffectiveFieldState.licenseSatisfied(
-                serverHasLicense: (self.objOrderData?.arrLicense.count ?? 0) != 0 || arrLicenseUpload.count != 0,
-                operations: syncOps,
-                orderUniqueId: self.strOrderUniqueId)
-
-            // Photos / video uploaded? (delivery vs return media)
-            let mediaUploaded: Bool
-            if isReturn {
-                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
-                mediaUploaded = EffectiveFieldState.mediaSatisfied(
-                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) ?? false) || arrV.count != 0,
-                    operations: syncOps,
-                    orderUniqueId: self.strOrderUniqueId,
-                    isDeliveryLeg: false)
+        if decision.canProceed {
+            if decision.requiresSyncAttention, let operationId = decision.needsAttentionOperationIds.first {
+                // The work exists but the server terminally rejected a record:
+                // the driver moves on (never repeats the physical job) and sees
+                // the canonical sync-attention status, not a success animation.
+                self.completeLegWithSyncAttention(operationId: operationId)
             } else {
-                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
-                mediaUploaded = EffectiveFieldState.mediaSatisfied(
-                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) ?? false) || arrV.count != 0,
-                    operations: syncOps,
-                    orderUniqueId: self.strOrderUniqueId,
-                    isDeliveryLeg: true)
-            }
-
-            // Checklist completed? (effective: local marker/server ∨ Sync Engine op)
-            let checklistDone = self.effectiveLegCompleted(isDelivery: !isReturn)
-
-            // All steps complete → show the success animation and finish.
-            if termsDone && licenseUploaded && mediaUploaded && checklistDone {
                 self.completeDeliveryWithSuccess()
-                return
             }
+            return
+        }
 
-            print("=============ODR==============>>>> \(self.strProductID)")
-            // Otherwise open the Driver Override / Warning screen with only the incomplete sections.
-            let warningVC = WarningViewController()
-            warningVC.strOrderID = "\(self.objOrderData?.order_number ?? "")"
-//            warningVC.strOrderUniqueId = self.strOrderUniqueId
-            warningVC.productUniqueId = self.strProductID
-            warningVC.isReturn = isReturn
-            warningVC.showTerms = !termsDone
-            warningVC.showLicense = !licenseUploaded
-            warningVC.showVideo = !mediaUploaded
-            warningVC.showChecklist = !checklistDone
-            self.navigationController?.pushViewController(warningVC, animated: true)
+        // Genuinely incomplete work → the Driver Override screen with ONLY the
+        // sections the decision names (for a Return: video and/or checklist).
+        let sections = decision.overrideSections
+        let warningVC = WarningViewController()
+        warningVC.strOrderID = "\(self.objOrderData?.order_number ?? "")"
+        warningVC.productUniqueId = self.strProductID
+        warningVC.isReturn = !leg.isDelivery
+        warningVC.showTerms = sections.terms
+        warningVC.showLicense = sections.license
+        warningVC.showVideo = sections.video
+        warningVC.showChecklist = sections.checklist
+        self.navigationController?.pushViewController(warningVC, animated: true)
+    }
+
+    /// Needs Attention path: the driver's work is durably on the phone but the
+    /// server terminally rejected it — reconciliation is the office's job
+    /// (Mobile Sync Issues / Settings › Sync), so the driver proceeds and sees
+    /// the existing sync-status treatment instead of "100% completed".
+    private func completeLegWithSyncAttention(operationId: String) {
+        KabbaSync.showStatusToast(for: operationId)
+        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController }) {
+            self.navigationController?.popToViewController(targetViewController, animated: true)
         }
     }
 
