@@ -60,6 +60,18 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
 
     /// Phase 3 — canonical contexts handed over by CheckListViewController (order_product_unique_id → context).
     var checklistContexts: [String: ChecklistContext] = [:]
+
+    // MARK: Finalization footer (signature → Submit row + Total Charge panel)
+    //
+    // Built once from the storyboard's footer pieces (viewSubmit / lblSubmit /
+    // lblTotalChargeTitle / lblTotalCharge) and rendered ONLY by
+    // renderFinalizationState() from ChecklistFinalizationPresentation.
+    private var finalizationFooter: UIView?
+    private let finalizationRow = UIStackView()
+    private let btnCustomerSignature = UIButton(type: .custom)
+    private let viewTotalCharge = UIView()
+    /// The storyboard's Submit control inside viewSubmit (wired to btnSubmitClicked).
+    private var btnSubmit: UIButton? { viewSubmit.subviews.compactMap { $0 as? UIButton }.first }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -191,11 +203,13 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         indicatorHide()
         self.stopLoading()
 
-        //SET SUBMIT
+        //SET SUBMIT — the signature → Submit row and the Total Charge panel are
+        //ONE footer rendered from ChecklistFinalizationPresentation (never from
+        //whichever button was tapped last).
+        self.installFinalizationFooterIfNeeded()
         self.viewSubmit.isHidden = false
         self.con_Submit.constant = manageWidth(size: 45.0)
-        self.viewSubmit.backgroundColor = self.isDeleteChecklist ? .redText : .secondaryTextView
-        self.lblSubmit.configureLable(textColor: self.isDeleteChecklist ? .primary : .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.isDeleteChecklist ? str.strRemoveChecklist : str.strSubmit)
+        self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.isDeleteChecklist ? str.strRemoveChecklist : str.strSubmit)
         
         if self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false){
             self.viewSubmit.isHidden = true
@@ -209,17 +223,11 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
             self.lblTotalCharge.isHidden = self.checkCheckListStatus(isDelivery: true) ? false : true
         }
         
-        //UPDATE DATA
-//        self.setCheckListData()
-        
-     
-        //SET HEADER
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            //SET TABLE HEADER
-            let vw_Table = self.tblView.tableFooterView
-            vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.viewSubmit.frame.origin.y + self.viewSubmit.frame.size.height)
+        self.renderFinalizationState()
 
-            self.tblView.tableFooterView = vw_Table
+        //SET FOOTER
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.layoutFinalizationFooter()
 
             //RELOAD TABLE
             DispatchQueue.main.asyncAfter(deadline: .now()) {
@@ -227,6 +235,186 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
             }
 
         }
+    }
+
+    // MARK: - Finalization footer
+
+    /// Moves the storyboard footer pieces into the approved layout once:
+    ///
+    ///     [ Customer Signature ]   [ Submit ]
+    ///     ┌────────────────────────────────┐
+    ///     │ Total Charge            $0.00  │
+    ///     └────────────────────────────────┘
+    ///
+    /// Auto Layout throughout (equal-width buttons, 16pt margins); the footer's
+    /// height is measured, never hard-coded per screen size.
+    private func installFinalizationFooterIfNeeded() {
+        guard finalizationFooter == nil, let viewSubmit = self.viewSubmit,
+              let lblTitle = self.lblTotalChargeTitle, let lblAmount = self.lblTotalCharge else { return }
+
+        let footer = UIView()
+        footer.backgroundColor = .clear
+
+        // Signature action — the same pad the signature cell opens.
+        btnCustomerSignature.translatesAutoresizingMaskIntoConstraints = false
+        btnCustomerSignature.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
+        btnCustomerSignature.titleLabel?.adjustsFontSizeToFitWidth = true
+        btnCustomerSignature.titleLabel?.minimumScaleFactor = 0.8
+        btnCustomerSignature.layer.cornerRadius = 10
+        btnCustomerSignature.layer.masksToBounds = true
+        btnCustomerSignature.accessibilityIdentifier = "checklist.customerSignature"
+        btnCustomerSignature.addTarget(self, action: #selector(btnCustomerSignatureTapped), for: .touchUpInside)
+
+        // Submit — reuse the storyboard control; drop its old 40:9 aspect so it
+        // can share the row equally with the signature button.
+        viewSubmit.removeFromSuperview()
+        viewSubmit.translatesAutoresizingMaskIntoConstraints = false
+        viewSubmit.constraints
+            .filter { $0.firstItem === viewSubmit && $0.firstAttribute == .width && $0.secondAttribute == .height }
+            .forEach { $0.isActive = false }
+        viewSubmit.layer.cornerRadius = 10
+        viewSubmit.layer.masksToBounds = true
+        btnSubmit?.accessibilityIdentifier = "checklist.submit"
+
+        finalizationRow.axis = .horizontal
+        finalizationRow.distribution = .fillEqually
+        finalizationRow.alignment = .fill
+        finalizationRow.spacing = 12
+        finalizationRow.translatesAutoresizingMaskIntoConstraints = false
+        finalizationRow.addArrangedSubview(btnCustomerSignature)
+        finalizationRow.addArrangedSubview(viewSubmit)
+        btnCustomerSignature.heightAnchor.constraint(equalTo: viewSubmit.heightAnchor).isActive = true
+
+        // Total Charge panel — one bordered unit spanning the content width.
+        lblTitle.removeFromSuperview()
+        lblAmount.removeFromSuperview()
+        lblTitle.translatesAutoresizingMaskIntoConstraints = false
+        lblAmount.translatesAutoresizingMaskIntoConstraints = false
+        lblAmount.textAlignment = .right
+        lblAmount.setContentCompressionResistancePriority(.required, for: .horizontal)
+        viewTotalCharge.translatesAutoresizingMaskIntoConstraints = false
+        viewTotalCharge.layer.cornerRadius = 10
+        viewTotalCharge.layer.borderWidth = 1.5
+        viewTotalCharge.backgroundColor = .clear
+        viewTotalCharge.accessibilityIdentifier = "checklist.totalCharge"
+        viewTotalCharge.addSubview(lblTitle)
+        viewTotalCharge.addSubview(lblAmount)
+
+        let column = UIStackView(arrangedSubviews: [finalizationRow, viewTotalCharge])
+        column.axis = .vertical
+        column.spacing = 14
+        column.translatesAutoresizingMaskIntoConstraints = false
+        footer.addSubview(column)
+
+        NSLayoutConstraint.activate([
+            column.topAnchor.constraint(equalTo: footer.topAnchor, constant: 16),
+            column.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 16),
+            column.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -16),
+            column.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: -16),
+
+            viewTotalCharge.heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
+            lblTitle.leadingAnchor.constraint(equalTo: viewTotalCharge.leadingAnchor, constant: 16),
+            lblTitle.centerYAnchor.constraint(equalTo: viewTotalCharge.centerYAnchor),
+            lblTitle.topAnchor.constraint(greaterThanOrEqualTo: viewTotalCharge.topAnchor, constant: 12),
+            lblAmount.trailingAnchor.constraint(equalTo: viewTotalCharge.trailingAnchor, constant: -16),
+            lblAmount.centerYAnchor.constraint(equalTo: viewTotalCharge.centerYAnchor),
+            lblAmount.leadingAnchor.constraint(greaterThanOrEqualTo: lblTitle.trailingAnchor, constant: 12),
+        ])
+
+        finalizationFooter = footer
+        layoutFinalizationFooter()
+    }
+
+    /// Sizes the footer with Auto Layout and installs it as the table footer.
+    private func layoutFinalizationFooter() {
+        guard let footer = finalizationFooter else { return }
+        let width = tblView.bounds.width > 0 ? tblView.bounds.width : GlobalMainConstants.windowWidth
+        let height = footer.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+                                                    withHorizontalFittingPriority: .required,
+                                                    verticalFittingPriority: .fittingSizeLevel).height
+        footer.frame = CGRect(x: 0, y: 0, width: width, height: ceil(height))
+        tblView.tableFooterView = footer
+    }
+
+    /// ONE definition of "this product carries a customer signature for the
+    /// current leg": an image drawn on this phone, or a signature already stored
+    /// on the server (a nil image is never a signature). The submit guard, the
+    /// signature preview and the section-footer height all read this — none
+    /// keeps a second answer.
+    func hasSignature(_ obj: NoteModel) -> Bool {
+        let image = self.isDeliveryType ? obj.dSignature : obj.rSignature
+        let url = self.isDeliveryType ? obj.dSignatureUrl : obj.rSignatureUrl
+        guard let image = image else { return false }
+        return image != UIImage() || url != ""
+    }
+
+    /// The canonical "a customer signature exists" fact — the same test the
+    /// submit guard uses (drawn on this phone, or already stored on the server).
+    func hasCustomerSignature() -> Bool {
+        guard let obj = self.arrOtherData.last else { return false }
+        return hasSignature(obj)
+    }
+
+    /// ONE renderer: signature button, Submit and the Total Charge panel all
+    /// derive from ChecklistFinalizationPresentation.
+    func renderFinalizationState() {
+        let state = ChecklistFinalizationPresentation(hasSignature: hasCustomerSignature(),
+                                                      totalCharge: Double(self.strTotalCharge),
+                                                      isDeleteMode: self.isDeleteChecklist)
+
+        // Signature action (delete mode has no signature step).
+        btnCustomerSignature.setTitle(state.signatureTitle, for: .normal)
+        apply(state.signatureTone, background: btnCustomerSignature, title: btnCustomerSignature)
+        btnCustomerSignature.isHidden = self.isDeleteChecklist
+        btnCustomerSignature.accessibilityLabel = state.signatureTitle
+
+        // Submit — genuinely non-interactive until signed.
+        if let viewSubmit = self.viewSubmit {
+            apply(state.submitTone, background: viewSubmit, title: lblSubmit)
+            viewSubmit.isUserInteractionEnabled = state.submitIsEnabled
+            viewSubmit.alpha = state.submitIsEnabled ? 1.0 : 0.85
+        }
+        btnSubmit?.isEnabled = state.submitIsEnabled
+        btnSubmit?.accessibilityLabel = self.isDeleteChecklist ? "Delete" : "Submit"
+        btnSubmit?.accessibilityHint = state.submitIsEnabled ? nil : "Capture the customer signature first"
+        finalizationRow.isHidden = self.viewSubmit?.isHidden ?? true
+
+        // Total Charge panel.
+        let accent: UIColor
+        switch state.chargeAccent {
+        case .green:   accent = hexStringToUIColor(hex: "3DDC6E")
+        case .red:     accent = .redText
+        case .neutral: accent = .primary.withAlphaComponent(0.4)
+        }
+        viewTotalCharge.layer.borderColor = accent.cgColor
+        lblTotalChargeTitle?.textColor = .primary
+        lblTotalCharge?.textColor = state.chargeAccent == .neutral ? .primary : accent
+        viewTotalCharge.isHidden = lblTotalCharge?.isHidden ?? true
+        viewTotalCharge.accessibilityLabel = "\(str.strTotalCheckList) \(lblTotalCharge?.text ?? "")"
+    }
+
+    private func apply(_ tone: ChecklistFinalizationPresentation.ButtonTone, background: UIView, title: UIView?) {
+        let bg: UIColor
+        let fg: UIColor
+        switch tone {
+        case .activeYellow:   bg = .secondaryTextView ?? .systemYellow; fg = .backgroundView ?? .black
+        case .completedGray:  bg = .darkGray; fg = .primary
+        case .disabledGray:   bg = .darkGray; fg = .primary.withAlphaComponent(0.7)
+        case .destructiveRed: bg = .redText; fg = .primary
+        }
+        background.backgroundColor = bg
+        if let button = title as? UIButton {
+            button.setTitleColor(fg, for: .normal)
+            button.setTitleColor(fg, for: .disabled)
+        } else if let label = title as? UILabel {
+            label.textColor = fg
+        }
+    }
+
+    /// Opens the same signature pad the signature cell opens (last product's index).
+    @objc private func btnCustomerSignatureTapped() {
+        btnCustomerSignature.tag = max(0, (self.objOrderData?.arrProduct.count ?? 1) - 1)
+        self.btnSignatureClicked(btnCustomerSignature)
     }
     
     func stopLoading(){
@@ -286,7 +474,8 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             }
         }
 
-        //RELOAD
+        //RELOAD — the footer flips to "✓ Customer Signed" / Submit active from state.
+        self.renderFinalizationState()
         self.tblView.reloadData()
     }
 
@@ -460,24 +649,11 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
     }
     
     func checkCustomerSignature() -> Bool{
-        if self.arrOtherData.count != 0{
-            let obj = self.arrOtherData.last
-            
-            if self.isDeliveryType{
-                if (obj?.dSignature == UIImage() && obj?.dSignatureUrl == "") || obj?.dSignature == nil{
-                    showAlertMessage(strMessage: "Customer signature is required")
-                    return false
-                }
-            }
-            else{
-                if (obj?.rSignature == UIImage() && obj?.rSignatureUrl == "") || obj?.rSignature == nil{
-                    showAlertMessage(strMessage: "Customer signature is required")
-                    return false
-                }
-            }
+        // Defence in depth behind the disabled Submit: the same canonical fact.
+        if self.arrOtherData.count != 0 && !self.hasCustomerSignature() {
+            showAlertMessage(strMessage: "Customer signature is required")
+            return false
         }
-       
-
         return true
     }
 }
@@ -642,10 +818,10 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
         }
         
         
-        //RELOAD TABLE
-        print("\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
-        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
-        print(self.lblTotalCharge.text ?? "")
+        //RELOAD TABLE — same "$%.2f" presentation; the panel's colour comes from state.
+        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0,
+                                           text: ChecklistFinalizationPresentation.formattedCharge(Double(self.strTotalCharge), currency: Application.currency))
+        self.renderFinalizationState()
 
     }
     
@@ -932,7 +1108,12 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 cell.viewReturnEmployee.isHidden = true
             }
             
-            cell.con_Bottom.constant = manageWidth(size: 45.0)
+            // The legacy signature button under the preview is retired: the ONE
+            // signature action is the Customer Signature button in the
+            // finalization footer (renderFinalizationState). con_Bottom is that
+            // button's height.
+            cell.con_Bottom.constant = 0
+            cell.viewSignature.isHidden = true
             
             cell.lblNote.text = ""
             cell.lblNoteDetails.text = ""
@@ -945,16 +1126,10 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             }
             
             
-            //SET SIGNATURE
+            //SET SIGNATURE PREVIEW (the captured signature, same fact as the submit guard)
             cell.con_imgSignature.constant = 0
-            cell.viewSignature.backgroundColor = .secondaryTextView?.withAlphaComponent(0.7)
-            cell.lblSignature.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Customer Signature")
             
-            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != nil && ((self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""){
-                if self.isUpdateData{
-                    cell.con_Bottom.constant = manageWidth(size: 0)
-                }
-
+            if self.hasSignature(objDetails) {
                 cell.con_imgSignature.constant = manageWidth(size: 200.0)
                 cell.imgSignature.backgroundColor = .white
                 cell.imgSignature.viewCorneRadius(radius: 10, isRound: false)
@@ -966,16 +1141,6 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 }
             }
             
-            //SET VIEW
-            cell.viewSignature.isHidden = true
-            if  self.objOrderData.arrProduct.count - 1 <= section{
-                cell.viewSignature.isHidden = false
-            }
-
-            // BUTTON ACTION
-            cell.btnSignature.tag = section
-            cell.btnSignature.addTarget(self, action: #selector(self.btnSignatureClicked(_:)), for: .touchUpInside)
-
             return cell
         }
         
@@ -1002,11 +1167,14 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 noteHeight = lblTitle.frame.height + 60
             }
             
-            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
-                return manageWidth(size: 350 + noteHeight)
+            // Employees block, then the 200pt signature preview when one exists.
+            // (The old "!= UIImage()" test counted a nil image as signed, which
+            // reserved the tall layout for every unsigned checklist.)
+            if self.hasSignature(objDetails) {
+                return manageWidth(size: 315 + noteHeight)
             }
             else{
-                return manageWidth(size: 150 + noteHeight)
+                return manageWidth(size: 115 + noteHeight)
             }
             
         }
