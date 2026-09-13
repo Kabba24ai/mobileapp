@@ -19,6 +19,8 @@ struct MachineModel: Mappable{
     internal var id: Int?
     internal var unique_id: String?
     internal var category_id: Int?
+    /// The product this unit is assigned to (server `assigned_product_id`); nil = unknown.
+    internal var assigned_product_id: Int?
     internal var equipment_id: String?
     internal var equipment_name: String?
     internal var status: String?
@@ -53,6 +55,7 @@ struct MachineModel: Mappable{
         id <- map["id"]
         unique_id <- map["unique_id"]
         category_id <- map["product_category_id"]
+        assigned_product_id <- map["assigned_product_id"]
         equipment_id <- map["equipment_id"]
         equipment_name <- map["equipment_name"]
         equipment_name <- map["equipment_name"]

@@ -14,6 +14,51 @@ import XCTest
 /// replacement machine out of the gate.
 final class PreparationLifecycleTests: XCTestCase {
 
+    // MARK: - Switch reason + attribution (2026-09-13)
+
+    /// Laravel's EquipmentReassignmentService refuses a switch without a reason
+    /// unless the replacement is a DIRECT match; unknown counts as non-direct.
+    func testAReasonIsRequiredUnlessTheReplacementIsAProvenDirectMatch() {
+        XCTAssertFalse(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 42, orderedProductId: 42), "direct match")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 43, orderedProductId: 42), "alternate")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: nil, orderedProductId: 42), "unknown assigned product")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 0, orderedProductId: 42), "zero is not an id")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 42, orderedProductId: nil), "ordered product unknown")
+    }
+
+    func testTheStandardReasonsAreLaravelsPicklist() {
+        XCTAssertEqual(PreparationPolicy.standardSwitchReasons, [
+            "Reserved unit unavailable",
+            "Original unit down for maintenance or damage",
+            "Better-suited unit available",
+            "Correcting a mis-assignment",
+            "Customer request",
+        ])
+        XCTAssertEqual(PreparationPolicy.switchReasonTitle(), "Why this unit?")
+        XCTAssertTrue(PreparationPolicy.switchReasonMessage(replacementCode: "QL-X1").contains("QL-X1"))
+    }
+
+    /// The employee the checklist names for the product wins; the signed-in account
+    /// only fills in while nobody is selected; nothing → no attribution → no switch.
+    func testTheSwitchIsAttributedToTheChecklistsEmployeeBeforeTheLoginAccount() {
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: "PER-YARD", contextEmployeeUniqueId: "PER-LOGIN"), "PER-YARD")
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: "", contextEmployeeUniqueId: "PER-LOGIN"), "PER-LOGIN")
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: nil, contextEmployeeUniqueId: "PER-LOGIN"), "PER-LOGIN")
+        XCTAssertNil(PreparationPolicy.performedBy(selectedEmployeeUniqueId: nil, contextEmployeeUniqueId: ""))
+    }
+
+    func testTheSubstitutionPayloadCarriesTheReasonOnlyWhenOneWasGiven() {
+        var capture = EquipmentSubstitutionCapture(orderUniqueId: "ORD-1", orderProductUniqueId: "ORD-PRD-0001",
+                                                   supersededExecutionId: "EXE-1", previousEquipmentUniqueId: "EQP-A",
+                                                   replacementEquipmentUniqueId: "EQP-B", performedByUniqueId: "PER-YARD")
+        XCTAssertNil(PreparationOperationBuilder.substitutionPayload(capture)["reason"])
+        capture.reason = "Customer request"
+        let payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertEqual(payload["reason"]?.stringValue, "Customer request")
+        XCTAssertEqual(payload["performed_by"]?.stringValue, "PER-YARD")
+        XCTAssertEqual(payload["equipment_unique_id"]?.stringValue, "EQP-B")
+    }
+
     // MARK: - Context builders (wire-shaped, so decoding is covered too)
 
     private func contextJSON(

@@ -74,6 +74,24 @@ executed.
 ## What's covered by the app-host files
 - `QueueLineModelTests` — Queue Line item + nested product/equipment mapping,
   empty-payload safety, completed-item detection.
+- `QueueLinePresentationTests` (target **RentnKingHostedTests**, runs inside the app on a
+  Simulator/device) — Queue Line board presentation: Truck → `icon_delivery_pending` +
+  "Delivery", Store → `icon_store` + "In Store" from ONE rule (icon and label can never
+  disagree; both assets resolve in the app bundle), and the card's single Update button
+  (solid at rest → hollow + disabled the instant it is tapped; highlight never undoes
+  that; reset restores solid). The rapid double-tap → ONE checklist push is covered by
+  `PreparationLifecycleUITests/testQueueLineBoardPresentation`.
+- `QueueLineFilterTests` (target **RentnKingHostedTests**) — Queue Line filters: Type uses the
+  card-icon predicate, Store AND Type, the active-filter line and empty-scope wording, the
+  remembered Delivery Store resolving against the live store list (missing → All, forgotten;
+  unknown list → kept and named from the feed/memory), same-name stores told apart by id, and
+  the UserDefaults round trip where All is an explicit remembered choice. The sheet, the sticky
+  store across reopen/relaunch and the stale-store fallback are covered end to end by
+  `PreparationLifecycleUITests/testQueueLineFilters` and `…/testARememberedStoreThatNoLongerExistsFallsBackToAll`.
+- `PreparationLifecycleTests` (KabbaSyncCore) also covers the switch **reason** policy — required
+  unless the replacement's assigned product IS the ordered product, Laravel's picklist — and the
+  attribution rule (the checklist's employee before the login account); the on-device reason
+  sheet is exercised by `…/testASubstitutionAsksForAReasonWhenTheUnitIsNotADirectMatch`.
 - `OfflineQueueModelTests` — the LEGACY driver-checklist & delivery/pickup queue
   models, including the `attempts` counter and the `kMaxSyncAttempts` cap that now
   applies only to the delivery/pickup-inputs fallback queue (the driver checklist

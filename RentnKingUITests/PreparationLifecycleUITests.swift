@@ -73,6 +73,19 @@ final class PreparationLifecycleUITests: XCTestCase {
         add(att)
     }
 
+    /// Like `shoot`, and also writes `<tag>.png` into $KABBA_SHOT_DIR when that is set
+    /// (forwarded as TEST_RUNNER_KABBA_SHOT_DIR) so a review can look at the PNGs directly.
+    private func shootToDisk(_ tag: String) {
+        let shot = XCUIScreen.main.screenshot()
+        if let dir = ProcessInfo.processInfo.environment["KABBA_SHOT_DIR"], !dir.isEmpty {
+            try? shot.pngRepresentation.write(to: URL(fileURLWithPath: dir).appendingPathComponent("\(tag).png"))
+        }
+        let att = XCTAttachment(screenshot: shot)
+        att.name = "shot-\(tag)"
+        att.lifetime = .keepAlways
+        add(att)
+    }
+
     /// Dismisses springboard-owned system permission alerts (fresh-install
     /// notification prompt etc.) that the in-app interruption monitor cannot
     /// always reach.
@@ -127,23 +140,24 @@ final class PreparationLifecycleUITests: XCTestCase {
         usleep(1_200_000)
     }
 
-    /// Taps the 'checklist' icon on the card whose text contains `anchor`
-    /// (e.g. "#EXC-A" or a product name — the card's unit line).
+    /// Taps the Update button (the card's ONE action → Delivery Checklist) on the
+    /// card whose text contains `anchor` (e.g. "#EXC-A" or a product name — the
+    /// card's unit line).
     private func openCard(_ app: XCUIApplication, anchor: String) {
         let anchorEl = textElement(app, anchor)
         if !anchorEl.waitForExistence(timeout: 30) { dump(app, "no-card-\(anchor)") }
         XCTAssertTrue(anchorEl.exists, "no Queue Line card containing '\(anchor)'")
         let y = anchorEl.frame.midY
 
-        let icons = app.buttons.matching(identifier: "checklist").allElementsBoundByIndex
-        XCTAssertFalse(icons.isEmpty, "no checklist icons on the board")
-        let nearest = icons.min(by: { abs($0.frame.midY - y) < abs($1.frame.midY - y) })!
+        let buttons = app.buttons.matching(identifier: "queueLineUpdate").allElementsBoundByIndex
+        XCTAssertFalse(buttons.isEmpty, "no Update buttons on the board")
+        let nearest = buttons.min(by: { abs($0.frame.midY - y) < abs($1.frame.midY - y) })!
         nearest.tap()
         usleep(2_000_000)
     }
 
-    private func expectOnChecklist(_ app: XCUIApplication, unit code: String, timeout: TimeInterval = 30) {
-        let row = textElement(app, "\(code)    ||    \(code)")
+    private func expectOnChecklist(_ app: XCUIApplication, unit code: String, name: String? = nil, timeout: TimeInterval = 30) {
+        let row = textElement(app, "\(name ?? code)    ||    \(code)")
         if row.waitForExistence(timeout: timeout / 2) { return }
         // The Equipment ID header may be scrolled off-screen — scroll to top.
         for _ in 0..<4 where !row.exists {
@@ -163,8 +177,8 @@ final class PreparationLifecycleUITests: XCTestCase {
     /// covers it); falls back to the other stacked buttons over that row. A tap
     /// can land on the CATEGORY picker instead — detect via the header title,
     /// cancel, and try the next candidate.
-    private func openEquipmentPicker(_ app: XCUIApplication, currentCode: String) {
-        let unitRow = textElement(app, "\(currentCode)    ||    \(currentCode)")
+    private func openEquipmentPicker(_ app: XCUIApplication, currentCode: String, currentName: String? = nil) {
+        let unitRow = textElement(app, "\(currentName ?? currentCode)    ||    \(currentCode)")
         XCTAssertTrue(unitRow.waitForExistence(timeout: 20), "no Equipment ID row for '\(currentCode)'")
         let center = CGPoint(x: unitRow.frame.midX, y: unitRow.frame.midY)
 
@@ -191,7 +205,7 @@ final class PreparationLifecycleUITests: XCTestCase {
             usleep(800_000)
         }
 
-        let unitText = "\(currentCode)    ||    \(currentCode)"
+        let unitText = "\(currentName ?? currentCode)    ||    \(currentCode)"
         for _ in 0..<3 {
             let row = textElement(app, unitText)
             guard row.waitForExistence(timeout: 8) else { break }
@@ -210,9 +224,9 @@ final class PreparationLifecycleUITests: XCTestCase {
     /// Full substitution gesture. `expectConfirmation` = the destructive alert
     /// must appear and is confirmed; false = it must NOT appear (nothing to
     /// discard). The wheel rows read "<name>    ||    <code>".
-    private func substitute(_ app: XCUIApplication, from currentCode: String, to replacementCode: String,
-                            replacementName: String, expectConfirmation: Bool) {
-        openEquipmentPicker(app, currentCode: currentCode)
+    private func substitute(_ app: XCUIApplication, from currentCode: String, currentName: String? = nil, to replacementCode: String,
+                            replacementName: String, expectConfirmation: Bool, reason: String? = nil) {
+        openEquipmentPicker(app, currentCode: currentCode, currentName: currentName)
 
         let wheel = app.pickerWheels.firstMatch
         wheel.adjust(toPickerWheelValue: "\(replacementName)    ||    \(replacementCode)")
@@ -231,6 +245,21 @@ final class PreparationLifecycleUITests: XCTestCase {
             XCTAssertFalse(confirm.exists, "no confirmation expected for a substitution with nothing to discard")
             XCTAssertFalse(app.alerts.firstMatch.exists,
                            "no alert of any kind expected — got: \(app.alerts.firstMatch.label)")
+        }
+
+        // Reason (2026-09-13): Laravel requires one unless the replacement is a
+        // DIRECT match, so the checklist asks — canonical picklist + Other. A
+        // caller that passes `reason` expects the sheet; one that passes nil
+        // gets the first standard reason if it appears anyway (fixture units
+        // may lack an assigned product), so older scenarios keep running.
+        let reasonSheet = app.sheets.firstMatch
+        if let reason = reason {
+            XCTAssertTrue(reasonSheet.waitForExistence(timeout: 10), "expected the 'Why this unit?' reason sheet")
+            let choice = app.sheets.buttons[reason].firstMatch
+            XCTAssertTrue(choice.waitForExistence(timeout: 5), "reason '\(reason)' not offered")
+            choice.tap()
+        } else if reasonSheet.waitForExistence(timeout: 3) {
+            app.sheets.buttons["Better-suited unit available"].firstMatch.tap()
         }
         usleep(2_500_000)
     }
@@ -424,6 +453,50 @@ final class PreparationLifecycleUITests: XCTestCase {
             XCTAssertFalse(textElement(app, "Upload").exists,
                            "video upload must NOT be requested when the active cycle already has a video")
         }
+    }
+
+    // ── Queue Line filter helpers ─────────────────────────────────────────────
+
+    private func element(_ app: XCUIApplication, id: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: id).firstMatch
+    }
+
+    private func tapId(_ app: XCUIApplication, _ id: String) {
+        let el = element(app, id: id)
+        XCTAssertTrue(el.waitForExistence(timeout: 10), "no element '\(id)'")
+        el.tap()
+        usleep(400_000)
+    }
+
+    /// Opens the Queue Line filter sheet from the header's filter icon.
+    private func openFilterSheet(_ app: XCUIApplication) {
+        let icon = app.buttons["icon Filter"].firstMatch
+        if icon.waitForExistence(timeout: 8) {
+            icon.tap()
+        } else if let btn = app.buttons.allElementsBoundByIndex.first(where: { $0.frame.minY < 110 && $0.frame.maxX > app.frame.width - 70 }) {
+            btn.tap()
+        } else {
+            XCTFail("no filter icon in the Queue Line header")
+        }
+        XCTAssertTrue(element(app, id: "queueLineFilter.apply").waitForExistence(timeout: 10), "filter sheet did not open")
+        usleep(800_000)                       // let the store list settle
+    }
+
+    private func storeLine(_ app: XCUIApplication) -> XCUIElement { app.staticTexts.matching(identifier: "queueLineFilter.storeLine").firstMatch }
+    private func typeLine(_ app: XCUIApplication) -> XCUIElement { app.staticTexts.matching(identifier: "queueLineFilter.typeLine").firstMatch }
+
+    private func expectFilterLine(_ app: XCUIApplication, store: String, type: String, timeout: TimeInterval = 15) {
+        let want = NSPredicate(format: "label == %@", "Delivery Store: \(store)")
+        let ok = XCTNSPredicateExpectation(predicate: want, object: storeLine(app))
+        XCTWaiter().wait(for: [ok], timeout: timeout)
+        XCTAssertEqual(storeLine(app).label, "Delivery Store: \(store)")
+        XCTAssertEqual(typeLine(app).label, "Type: \(type)")
+    }
+
+    private func expectCards(_ app: XCUIApplication, present: [String], absent: [String]) {
+        for n in present { XCTAssertTrue(textElement(app, n).waitForExistence(timeout: 15), "card \(n) should be visible") }
+        usleep(500_000)
+        for n in absent { XCTAssertFalse(textElement(app, n).exists, "card \(n) should be hidden by the filter") }
     }
 
     private func goBack(_ app: XCUIApplication) {
@@ -950,5 +1023,191 @@ final class PreparationLifecycleUITests: XCTestCase {
         refreshBoard(app)
         expectCard(app, tab: "Pending", anchor: "#\(r2New)")
         expectNoCard(app, tab: "Staged", anchor: "#\(r2New)")
+    }
+
+    // ── Queue Line board presentation (mobile UI cleanup, 2026-09-13) ─────────
+    //
+    // ONE solid Update button per Pending/Staged card (no checklist icon, no
+    // three-dot menu), no "Checklist Prepared" badge; a rapid double tap opens
+    // the Delivery Checklist exactly once (one Back lands on the board and the
+    // button is solid + enabled again); the three tabs still switch. XCUI cannot
+    // read image names, so the truck/store icon rule is asserted by
+    // QueueLinePresentationTests (hosted) and SHOWN by the PNGs this test saves
+    // to $KABBA_SHOT_DIR.
+    func testQueueLineBoardPresentation() {
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        XCTAssertTrue(app.buttons["Pending"].firstMatch.waitForExistence(timeout: 20), "no Pending tab")
+
+        let updates = app.buttons.matching(identifier: "queueLineUpdate")
+        XCTAssertTrue(updates.firstMatch.waitForExistence(timeout: 30), "no Update button on a Pending card")
+        usleep(1_500_000)                         // let the feed refresh settle before the shot
+        shootToDisk("board-pending")
+
+        // Retired controls and badge are gone.
+        XCTAssertFalse(textElement(app, "Checklist Prepared").exists, "'Checklist Prepared' badge still shown")
+        XCTAssertEqual(app.buttons.matching(identifier: "checklist").count, 0, "checklist icon still shown")
+        XCTAssertEqual(app.buttons.matching(identifier: "ellipsis").count, 0, "three-dot menu still shown")
+        XCTAssertEqual(updates.firstMatch.label, "Update")
+        XCTAssertTrue(updates.firstMatch.isEnabled)
+
+        // Rapid double tap → exactly ONE Delivery Checklist. The shot right after the
+        // gesture catches the acknowledged (hollow, disabled) button before the push lands.
+        updates.firstMatch.doubleTap()
+        shootToDisk("update-tapped")
+        let checklistTitle = textElement(app, "Check List - Delivered")
+        XCTAssertTrue(checklistTitle.waitForExistence(timeout: 30), "Update did not open the Delivery Checklist")
+        usleep(1_500_000)
+        shootToDisk("checklist-opened")
+
+        // ONE Back → the board (a duplicate push would need two).
+        goBack(app)
+        XCTAssertTrue(app.buttons["Staged"].firstMatch.waitForExistence(timeout: 15),
+                      "one Back did not return to the Queue Line board — was the checklist pushed twice?")
+        XCTAssertFalse(checklistTitle.exists, "a Delivery Checklist is still on screen after Back")
+        XCTAssertTrue(updates.firstMatch.waitForExistence(timeout: 15), "Update button not restored after Back")
+        XCTAssertTrue(updates.firstMatch.isEnabled, "Update button still disabled after Back")
+        shootToDisk("board-after-back")
+
+        // Tabs still work.
+        selectTab(app, "Staged");    shootToDisk("board-staged")
+        selectTab(app, "Completed"); shootToDisk("board-completed")
+        selectTab(app, "Pending")
+        XCTAssertTrue(updates.firstMatch.waitForExistence(timeout: 15), "Pending tab lost its Update button")
+    }
+
+    // ── Queue Line filters: Delivery Store (sticky) AND Type ─────────────────
+    //
+    // Staging board: 9202 Bon Aqua · In Store, 9203 Bon Aqua · Truck, 9204
+    // Waverly · Truck (all Pending) and 9201 Bon Aqua · Truck (Staged).
+    func testQueueLineFilters() {
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        XCTAssertTrue(storeLine(app).waitForExistence(timeout: 30), "no active-filter line under the header")
+
+        // Clean slate: Reset + Apply → All / All (All is itself remembered).
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.reset")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "All", type: "All")
+        expectCards(app, present: ["9202", "9203", "9204"], absent: [])
+        shootToDisk("filters-all")
+
+        // Bon Aqua + Truck → only the Bon Aqua truck delivery.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.store.STO-VBHK-QDZY")
+        tapId(app, "queueLineFilter.type.truck")
+        shootToDisk("filters-sheet")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "Bon Aqua", type: "Truck")
+        expectCards(app, present: ["9203"], absent: ["9202", "9204"])
+        shootToDisk("filters-bonaqua-truck")
+
+        // A tab change keeps the scope: Staged shows the Bon Aqua truck that is staged.
+        selectTab(app, "Staged")
+        expectFilterLine(app, store: "Bon Aqua", type: "Truck")
+        expectCards(app, present: ["9201"], absent: ["9202", "9204"])
+        selectTab(app, "Pending")
+        expectCards(app, present: ["9203"], absent: ["9202"])
+
+        // Bon Aqua + In Store → only the customer pickup.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.type.store")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "Bon Aqua", type: "In Store")
+        expectCards(app, present: ["9202"], absent: ["9203", "9204"])
+        shootToDisk("filters-bonaqua-instore")
+
+        // Waverly + Truck → only the Waverly truck delivery (a dynamically listed store).
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.store.STO-WAMV-UTA2")
+        tapId(app, "queueLineFilter.type.truck")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "Waverly", type: "Truck")
+        expectCards(app, present: ["9204"], absent: ["9202", "9203"])
+        shootToDisk("filters-waverly-truck")
+
+        // Waverly + In Store → nothing, and the empty state says why.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.type.store")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "Waverly", type: "In Store")
+        XCTAssertTrue(textElement(app, "Nothing pending for Waverly · In Store").waitForExistence(timeout: 15), "empty scope should be explained")
+        shootToDisk("filters-empty-scope")
+
+        // Leave and come back: the Store is remembered, the Type is not.
+        goBack(app)
+        openQueueLine(app)
+        expectFilterLine(app, store: "Waverly", type: "All")
+        expectCards(app, present: ["9204"], absent: ["9202", "9203"])
+        shootToDisk("filters-remembered-after-reopen")
+
+        // Relaunch the app: still Waverly, Type back to All.
+        app.terminate()
+        login(app)
+        openQueueLine(app)
+        expectFilterLine(app, store: "Waverly", type: "All", timeout: 30)
+        expectCards(app, present: ["9204"], absent: ["9202", "9203"])
+        shootToDisk("filters-remembered-after-relaunch")
+
+        // Reset → All, and All survives leaving the board too.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.reset")
+        tapId(app, "queueLineFilter.apply")
+        expectFilterLine(app, store: "All", type: "All")
+        goBack(app)
+        openQueueLine(app)
+        expectFilterLine(app, store: "All", type: "All")
+        expectCards(app, present: ["9202", "9203", "9204"], absent: [])
+    }
+
+    /// A remembered store that no longer exists (or is inactive) falls back to All
+    /// once the live store list is known. The launch argument plays the stale memory.
+    func testARememberedStoreThatNoLongerExistsFallsBackToAll() {
+        let app = makeApp()
+        app.launchArguments += ["-queue_line_store_filter", "STO-GONE-0000", "-queue_line_store_filter_name", "Closed Store"]
+        login(app)
+        openQueueLine(app)
+        XCTAssertTrue(storeLine(app).waitForExistence(timeout: 30))
+        expectFilterLine(app, store: "All", type: "All", timeout: 30)
+        expectCards(app, present: ["9202", "9203", "9204"], absent: [])
+        shootToDisk("filters-stale-store-fallback")
+    }
+    // ── Reason for a non-direct substitution ─────────────────────────────────
+    //
+    // 9202's unit QL-S1 and the spare QL-X1 have no assigned product, which
+    // Laravel classifies as non-direct: the switch needs a reason. The checklist
+    // asks with the canonical picklist, sends it through the Sync Engine, and
+    // the board then shows the replacement.
+    func testASubstitutionAsksForAReasonWhenTheUnitIsNotADirectMatch() {
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        // Scope to Bon Aqua · In Store so 9202 is the first card.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.store.STO-VBHK-QDZY")
+        tapId(app, "queueLineFilter.type.store")
+        tapId(app, "queueLineFilter.apply")
+        expectCards(app, present: ["9202"], absent: ["9203"])
+
+        openCard(app, anchor: "9202")
+        expectOnChecklist(app, unit: "QL-S1", name: "QL Store Mini Excavator Unit")
+
+        substitute(app, from: "QL-S1", currentName: "QL Store Mini Excavator Unit",
+                   to: "QL-X1", replacementName: "QL Spare Mini Excavator Unit",
+                   expectConfirmation: false, reason: "Customer request")
+        shootToDisk("reason-after-substitution")
+        expectOnChecklist(app, unit: "QL-X1", name: "QL Spare Mini Excavator Unit")
+
+        backToBoard(app)
+        XCTAssertTrue(textElement(app, "#QL-X1").waitForExistence(timeout: 30), "board should show the replacement unit")
+        shootToDisk("reason-board-after")
+
+        // Leave the board as it was found.
+        openFilterSheet(app)
+        tapId(app, "queueLineFilter.reset")
+        tapId(app, "queueLineFilter.apply")
     }
 }

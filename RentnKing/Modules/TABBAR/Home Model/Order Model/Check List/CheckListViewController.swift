@@ -2943,7 +2943,7 @@ extension CheckListViewController {
                                                           hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex))
 
         guard confirmation != .none else {
-            self.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
+            self.collectSwitchReasonThenApply(context: context, replacement: replacement, replacementIndex: index, productIndex: productIndex)
             return
         }
 
@@ -2955,21 +2955,88 @@ extension CheckListViewController {
             preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Change Equipment & Start Over", style: .destructive) { [weak self] _ in
-            self?.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
+            self?.collectSwitchReasonThenApply(context: context, replacement: replacement, replacementIndex: index, productIndex: productIndex)
         })
         present(alert, animated: true)
+    }
+
+    /// Laravel requires a reason for any replacement that is not a DIRECT match for the
+    /// ordered product (the web board asks the same). The prompt is the canonical
+    /// picklist plus "Other"; it appears only when the server would refuse without it,
+    /// and cancelling it cancels the change.
+    private func collectSwitchReasonThenApply(context: ChecklistContext, replacement: MachineModel, replacementIndex: Int, productIndex: Int) {
+        let orderedProductId = self.objOrderData?.arrProduct[safe: productIndex]?.product_id
+        guard PreparationPolicy.switchReasonRequired(replacementAssignedProductId: replacement.assigned_product_id,
+                                                     orderedProductId: orderedProductId) else {
+            self.applyEquipmentSubstitution(context: context, replacementIndex: replacementIndex, productIndex: productIndex, reason: nil)
+            return
+        }
+
+        let sheet = UIAlertController(title: PreparationPolicy.switchReasonTitle(),
+                                      message: PreparationPolicy.switchReasonMessage(replacementCode: replacement.equipment_id ?? ""),
+                                      preferredStyle: .actionSheet)
+        for reason in PreparationPolicy.standardSwitchReasons {
+            sheet.addAction(UIAlertAction(title: reason, style: .default) { [weak self] _ in
+                self?.applyEquipmentSubstitution(context: context, replacementIndex: replacementIndex, productIndex: productIndex, reason: reason)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Other…", style: .default) { [weak self] _ in
+            self?.collectOtherSwitchReason { reason in
+                self?.applyEquipmentSubstitution(context: context, replacementIndex: replacementIndex, productIndex: productIndex, reason: reason)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = self.view
+            pop.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
+        }
+        present(sheet, animated: true)
+    }
+
+    /// "Other…" — a short free-text reason; empty text cancels the change.
+    private func collectOtherSwitchReason(_ completion: @escaping (String) -> Void) {
+        let alert = UIAlertController(title: PreparationPolicy.switchReasonTitle(), message: "Enter a short reason.", preferredStyle: .alert)
+        alert.addTextField { field in
+            field.placeholder = "Reason"
+            field.autocapitalizationType = .sentences
+            field.accessibilityIdentifier = "switchReason.other"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak alert] _ in
+            let text = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if text.isEmpty {
+                showAlertMessage(strMessage: "A reason is required for this equipment change. The unit was not changed.")
+            } else {
+                completion(text)
+            }
+        })
+        present(alert, animated: true)
+    }
+
+    /// The employee this checklist names for the product (its Employee row) as a user
+    /// unique id — nil while nobody is selected yet.
+    private func selectedEmployeeUniqueId(atProductIndex index: Int) -> String? {
+        guard let other = self.arrOtherData[safe: index] else { return nil }
+        let idText = self.isDeliveryType ? other.dEmplayessId : other.rEmplayessId
+        guard let id = Int(idText), id > 0,
+              let uid = self.arrEmployesList.first(where: { $0.id == id })?.unique_id, !uid.isEmpty else { return nil }
+        return uid
     }
 
     /// ONE confirmation performs the whole logical change: the canonical
     /// reassignment (which supersedes the old preparation, releases the old
     /// unit and de-stages the Queue Line item server-side) plus the local
     /// equivalent, so the screen is correct before Laravel answers.
-    private func applyEquipmentSubstitution(context: ChecklistContext, replacementIndex: Int, productIndex: Int) {
+    private func applyEquipmentSubstitution(context: ChecklistContext, replacementIndex: Int, productIndex: Int, reason: String?) {
         guard let engine = KabbaSync.engine,
               let replacement = self.arrMachineList[safe: replacementIndex],
               let replacementUid = replacement.unique_id else { return }
 
-        guard let performedBy = context.employee?.uniqueId, !performedBy.isEmpty else {
+        // Attribution: the employee this checklist already names for the product (the same
+        // person its Save / Complete payloads carry); the signed-in account only when nobody
+        // is selected yet. Never a separate "Performed By" picker.
+        guard let performedBy = PreparationPolicy.performedBy(selectedEmployeeUniqueId: selectedEmployeeUniqueId(atProductIndex: productIndex),
+                                                              contextEmployeeUniqueId: context.employee?.uniqueId) else {
             showAlertMessage(strMessage: "We could not confirm who is making this change. Sign in again, then switch the unit.")
             return
         }
@@ -2980,7 +3047,8 @@ extension CheckListViewController {
             supersededExecutionId: context.executionId,
             previousEquipmentUniqueId: context.equipment.equipmentUniqueId,
             replacementEquipmentUniqueId: replacementUid,
-            performedByUniqueId: performedBy)
+            performedByUniqueId: performedBy,
+            reason: reason)
 
         do {
             _ = try PreparationOperationBuilder.enqueueSubstitution(capture, into: engine)

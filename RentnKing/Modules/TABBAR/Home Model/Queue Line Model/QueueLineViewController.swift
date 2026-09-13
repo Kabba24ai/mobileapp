@@ -53,9 +53,21 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // Day filter (single-select)
     private let dayTitles = ["Today", "Tomorrow", "All"]
     private var dayChips: [UIButton] = []
-    var arrEmployesList : [EmployeesModel] = []
-    var arrCategoryList : [CategoryModel] = []
-    var arrEquipmentList : [MachineModel] = []
+
+    // Update button (2026-09-13): a tap is acknowledged on the button itself BEFORE the
+    // checklist push starts, and only ONE navigation can be in flight — rapid taps during
+    // the push delay can never open the Delivery Checklist twice.
+    private var isOpeningChecklist = false
+    private weak var inFlightUpdateButton: QueueLineUpdateButton?
+
+    // Filters (2026-09-13): Delivery Store is sticky (UserDefaults), Type is per visit.
+    // Applied at render time over the ONE cached feed — never a second feed per store.
+    private var filter = QueueLineFilter()
+    private var filterStoreName = QueueLineStoreMemory.allName
+    private var storeCatalog: [QueueLineFilterStore] = []
+    private var didLoadStoreCatalog = false
+    private let storeFilterLabel = UILabel()
+    private let typeFilterLabel = UILabel()
 
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -63,7 +75,10 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         self.view.backgroundColor = Palette.page
         setupScaffold()
 
-        // FIXED HEADER (does not scroll): Pending / Staged / Completed tabs.
+        // FIXED HEADER (does not scroll): active filters, then Pending / Staged / Completed tabs.
+        restoreRememberedStore()
+        headerStack.addArrangedSubview(buildFilterLine())
+        headerStack.setCustomSpacing(10, after: headerStack.arrangedSubviews.last!)
         headerStack.addArrangedSubview(buildTabs())
 
         // Freshness line (Phase 4): "Updated just now" / "Offline · showing the list saved at 10:42 AM".
@@ -105,7 +120,10 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             let cached = self.getQueueLineData()
             DispatchQueue.main.async {
                 self.arrQueueLine = cached
-                if !cached.isEmpty { self.renderLanes() }
+                if !cached.isEmpty {
+                    self.restoreRememberedStore()
+                    self.renderLanes()
+                }
             }
         }
 
@@ -117,6 +135,7 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
                 let fresh = self.getQueueLineData()
                 DispatchQueue.main.async {
                     self.arrQueueLine = fresh
+                    self.restoreRememberedStore()
                     self.renderLanes()
                 }
             }
@@ -145,16 +164,21 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             return "pending"
         }
 
-        let pendingItems   = arrQueueLine.filter { lane($0) == "pending" }
-        let stagedItems    = arrQueueLine.filter { lane($0) == "staged" }
-        let completedItems = arrQueueLine.filter { lane($0) == "completed" }
+        // Store AND Type, over the complete feed — the same scope on every tab.
+        let visible = filter.apply(arrQueueLine)
+        let pendingItems   = visible.filter { lane($0) == "pending" }
+        let stagedItems    = visible.filter { lane($0) == "staged" }
+        let completedItems = visible.filter { lane($0) == "completed" }
 
         let pending = makeLaneContent(cards(for: pendingItems,
-            empty: "Nothing pending — every machine has a completed, saved Delivery Checklist."))
+            empty: filter.emptyMessage(lane: "pending", storeName: filterStoreName)
+                ?? "Nothing pending — every machine has a completed, saved Delivery Checklist."))
         let staged = makeLaneContent(cards(for: stagedItems,
-            empty: "Nothing staged yet. Open a Pending card's Delivery Checklist, complete it, and Save to stage the machine."))
+            empty: filter.emptyMessage(lane: "staged", storeName: filterStoreName)
+                ?? "Nothing staged yet. Open a Pending card's Delivery Checklist, complete it, and Save to stage the machine."))
         let completed = makeLaneContent(cards(for: completedItems,
-            empty: "Nothing has left the yard yet today."))
+            empty: filter.emptyMessage(lane: "completed today", storeName: filterStoreName)
+                ?? "Nothing has left the yard yet today."))
 
         laneContents = [pending, staged, completed]
         laneContents.forEach { contentStack.addArrangedSubview($0) }
@@ -199,8 +223,8 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             return v
         }
 
-        // Header: id + customer ........ thumb
-        let header = UIStackView(arrangedSubviews: [box(56, 14), box(130, 18), UIView(), box(24, 24)])
+        // Header: id + customer ........ Update button
+        let header = UIStackView(arrangedSubviews: [box(56, 14), box(130, 18), UIView(), box(84, 34)])
         header.axis = .horizontal; header.spacing = 8; header.alignment = .center
 
         // Machine row: image + (name / code / badge)
@@ -231,27 +255,51 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         return items.map { makeCard(for: $0) }
     }
 
-    // MARK: - Checklist button → the ONE Delivery Checklist (no mini-checklist)
+    // MARK: - Update → the ONE Delivery Checklist (no mini-checklist, no popup)
     //
-    // Checklist-driven staging (2026-09): selecting a Pending OR Staged item
-    // opens the SAME main Delivery Checklist every other entry point uses.
-    // The former Mark as Staged popup (fuel/key mini-checklist) is retired —
-    // a 100%-complete checklist + Save stages the item; Preview + customer
-    // signature + Complete delivers it (directly from Pending for walk-ins).
-    @objc private func thumbTapped(_ sender: QueueMenuButton) {
-        guard let item = sender.item else { return }
-        openDeliveryChecklist(for: item)
+    // Checklist-driven staging (2026-09): a card's single Update action — for
+    // Pending AND Staged items — opens the SAME main Delivery Checklist every
+    // other entry point uses. A 100%-complete checklist + Save stages the item;
+    // Preview + customer signature + Complete delivers it (directly from Pending
+    // for walk-ins). Confirming or substituting the Equipment ID happens INSIDE
+    // that checklist (the unit the office picked is a default, not a lock), so
+    // the former three-dot "Confirm / Update Equipment" popup — a second,
+    // non-durable path to the same switch-equipment operation — was retired
+    // 2026-09-13 together with the small checklist icon.
+    @objc private func updateTapped(_ sender: QueueLineUpdateButton) {
+        guard let item = sender.item, !isOpeningChecklist else { return }
+        isOpeningChecklist = true
+        inFlightUpdateButton = sender
+        // Acknowledge the tap NOW (solid → hollow, disabled) …
+        sender.beginLoading()
+        // … and let that frame render before the heavier checklist push begins.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if !self.openDeliveryChecklist(for: item) {
+                self.finishOpeningChecklist()
+            }
+        }
     }
 
-    /// Opens the main Delivery Checklist for a Queue Line item.
+    /// Clears the in-flight state — also on every return to this screen.
+    private func finishOpeningChecklist() {
+        inFlightUpdateButton?.reset()
+        inFlightUpdateButton = nil
+        isOpeningChecklist = false
+    }
+
+    /// Opens the main Delivery Checklist for a Queue Line item. Returns false when nothing
+    /// could be pushed (no controller / no navigation stack) so the caller can re-arm.
     /// Uses the same controller/identifiers Orders uses, so the screen stays independently usable.
     ///
     /// Phase 4: the EXACT Queue Line item identity travels with the navigation — order product,
     /// assigned equipment, fulfillment leg and (when known) the checklist execution — so a
     /// multi-line order can never open on the wrong product.
-    private func openDeliveryChecklist(for item: QueueLineModel) {
+    @discardableResult
+    private func openDeliveryChecklist(for item: QueueLineModel) -> Bool {
+        guard let nav = self.navigationController else { return false }
         let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        guard let vc = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return }
+        guard let vc = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return false }
         vc.isQueueLine = true
         vc.isDeliveryType = true
         vc.selectIndex = 0
@@ -260,30 +308,13 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         vc.focusOrderProductUniqueId = item.itemOrderProductUniqueId
         vc.queueLineEquipmentUniqueId = item.itemEquipmentUniqueId ?? ""
         vc.queueLineChecklistExecutionId = item.deliveryChecklistExecutionId ?? ""
-        self.navigationController?.pushViewController(vc, animated: true)
-    }
-
-    // MARK: - Kebab action
-    // Only "Change Equipment" is available for now, so tapping the kebab opens that popup
-    // directly instead of a menu of not-yet-supported options.
-    @objc private func menuTapped(_ sender: QueueMenuButton) {
-        guard let item = sender.item else { return }
-        self.openChangeEquipment(for: item)
-    }
-
-    /// Opens the "Confirm / Update Equipment" popup (design only).
-    private func openChangeEquipment(for item: QueueLineModel) {
-        let vc = QueueLineChangeEquipmentViewController()
-        vc.item = item
-        vc.employees = self.arrEmployesList
-        vc.categories = self.arrCategoryList
-        vc.allEquipment = self.arrEquipmentList
-        vc.onChanged = { [weak self] in self?.loadQueueLine() }
-        present(vc, animated: true)
+        nav.pushViewController(vc, animated: true)
+        return true
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        finishOpeningChecklist()   // back on the board: the Update button is tappable again
         AppUtility.PortraitMode()
         self.view.backgroundColor = Palette.page
         setNeedsStatusBarAppearanceUpdate()
@@ -293,14 +324,7 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         self.navigationController?.interactivePopGestureRecognizer?.delegate = self
         self.tabBarController?.tabBar.isHidden = true
 
-        // App-standard header (back + filter/search), like the Schedule screen.
-        setNavigationBarForButtons(controller: self, title: "Queue Line", isTransperent: true,
-                                   hideShadowImage: true, leftIcon: "icon_back",
-                                   rightIcon: [], isFilter: false) {
-            self.navigationController?.popViewController(animated: true)
-        } rightActionHandler: { _, _ in
-            // design only
-        }
+        configureNavigationBar()
 
         // Show the shimmer skeleton NOW (cheap to build) so it's visible instantly with the
         // transition — the heavy data parsing still happens off-main in viewDidAppear.
@@ -313,20 +337,128 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         super.viewDidAppear(animated)
         // Heavy cache parsing runs AFTER the push animation so navigation feels instant.
         loadQueueLine()             // parses cache off-main, then renders + refreshes from API
-        loadSupportingListsOnce()   // employees / categories / equipment (for the Reassign popup)
+        loadStoreCatalogOnce()      // active stores for the filter sheet + remembered-store validation
     }
 
-    /// Loads the employee / category / equipment lists once per visit, OFF the main thread
-    /// (the equipment cache in particular maps many heavy MachineModel objects).
-    private var didLoadSupportingLists = false
-    private func loadSupportingListsOnce() {
-        guard !didLoadSupportingLists else { return }
-        didLoadSupportingLists = true
-        DispatchQueue.global(qos: .utility).async {
-            getEmployeeList  { arr in DispatchQueue.main.async { self.arrEmployesList  = arr } }
-            getCategoryList  { arr in DispatchQueue.main.async { self.arrCategoryList  = arr } }
-            getEquipmentList { arr in DispatchQueue.main.async { self.arrEquipmentList = arr } }
+    // MARK: - Filters
+
+    /// App-standard header (back + filter), like the Orders screen: the filter icon
+    /// carries the badge while a Store or Type filter narrows the board.
+    private func configureNavigationBar() {
+        setNavigationBarForButtons(controller: self, title: "Queue Line", isTransperent: true,
+                                   hideShadowImage: true, leftIcon: "icon_back",
+                                   rightIcon: ["icon_Filter"], isFilter: filter.isActive) { [weak self] in
+            self?.navigationController?.popViewController(animated: true)
+        } rightActionHandler: { [weak self] _, _ in
+            self?.openFilterSheet()
         }
+    }
+
+    private func openFilterSheet() {
+        let sheet = QueueLineFilterViewController()
+        sheet.filter = filter
+        sheet.stores = storeCatalog
+        sheet.onApply = { [weak self] chosen, storeName in self?.applyFilter(chosen, storeName: storeName) }
+        present(sheet, animated: false) { sheet.showPopup() }
+    }
+
+    /// Applies a choice from the sheet: the Store is remembered (All included), the
+    /// Type is not; the line, the icon badge and the lanes all follow at once.
+    private func applyFilter(_ chosen: QueueLineFilter, storeName: String) {
+        filter = chosen
+        filterStoreName = chosen.storeUniqueId == nil ? QueueLineStoreMemory.allName : storeName
+        QueueLineStoreMemory.remember(storeUniqueId: chosen.storeUniqueId, name: filterStoreName)
+        refreshFilterLine()
+        configureNavigationBar()
+        renderLanes()
+    }
+
+    /// Re-reads the remembered store against the best store list known right now:
+    /// the active-store catalog when loaded, else the names the cached feed carries.
+    /// A remembered store that the live catalog no longer lists falls back to All.
+    private func restoreRememberedStore() {
+        let memory = QueueLineStoreMemory.remembered()
+        let resolved = QueueLineStoreMemory.resolve(rememberedId: memory.id, rememberedName: memory.name,
+                                                    stores: storeCatalog, feedStores: feedStores())
+        filter.storeUniqueId = resolved.storeUniqueId
+        filterStoreName = resolved.name
+        if resolved.forgotten {
+            QueueLineStoreMemory.remember(storeUniqueId: nil, name: QueueLineStoreMemory.allName)
+        }
+        refreshFilterLine()
+        if isViewLoaded, navigationController != nil { configureNavigationBar() }
+    }
+
+    /// Unique (id, name) pairs the cached feed carries — enough to name a remembered
+    /// store while offline, never a substitute for the active-store catalog.
+    private func feedStores() -> [QueueLineFilterStore] {
+        var seen = Set<String>()
+        return arrQueueLine.compactMap { item in
+            guard let id = item.store?.unique_id, !id.isEmpty, !seen.contains(id) else { return nil }
+            seen.insert(id)
+            return QueueLineFilterStore(uniqueId: id, name: item.store?.name ?? id)
+        }
+    }
+
+    /// Loads the active stores once per visit (cached list first, then the stores
+    /// endpoint), OFF the main thread, then re-validates the remembered store.
+    private func loadStoreCatalogOnce() {
+        guard !didLoadStoreCatalog else { return }
+        didLoadStoreCatalog = true
+        DispatchQueue.global(qos: .utility).async {
+            getStoreList { list in
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self else { return }
+                    var seen = Set<String>()
+                    let catalog: [QueueLineFilterStore] = list.compactMap { s in
+                        guard let id = s.unique_id, !id.isEmpty, !seen.contains(id) else { return nil }
+                        seen.insert(id)
+                        return QueueLineFilterStore(uniqueId: id, name: s.name ?? id)
+                    }
+                    guard !catalog.isEmpty else { return }
+                    self.storeCatalog = catalog
+                    let before = self.filter
+                    self.restoreRememberedStore()
+                    if before != self.filter, !self.arrQueueLine.isEmpty { self.renderLanes() }
+                }
+            }
+        }
+    }
+
+    /// "Delivery Store: Bon Aqua" (left) · "Type: All" (right), always visible under the header.
+    private func buildFilterLine() -> UIView {
+        for label in [storeFilterLabel, typeFilterLabel] {
+            label.numberOfLines = 1
+            label.lineBreakMode = .byTruncatingTail
+        }
+        storeFilterLabel.accessibilityIdentifier = "queueLineFilter.storeLine"
+        typeFilterLabel.accessibilityIdentifier = "queueLineFilter.typeLine"
+        typeFilterLabel.setContentHuggingPriority(.required, for: .horizontal)
+        typeFilterLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
+        storeFilterLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+        let row = UIStackView(arrangedSubviews: [storeFilterLabel, UIView(), typeFilterLabel])
+        row.axis = .horizontal
+        row.spacing = 12
+        row.alignment = .center
+        refreshFilterLine()
+        return row
+    }
+
+    private func refreshFilterLine() {
+        storeFilterLabel.attributedText = filterLineText(QueueLineFilter.storeLine(name: filterStoreName))
+        typeFilterLabel.attributedText = filterLineText(filter.typeLine)
+    }
+
+    /// "Key: " in cyan, the value in ink — the same key/value styling the card's store row uses.
+    private func filterLineText(_ line: String) -> NSAttributedString {
+        let f = rFont(GlobalMainConstants.APP_FONT_Roboto_Medium, 14)
+        guard let colon = line.firstIndex(of: ":") else { return attr(line, Palette.ink, f) }
+        let key = String(line[...colon]) + " "
+        let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        let s = NSMutableAttributedString(string: key, attributes: [.foregroundColor: Palette.cyan, .font: f])
+        s.append(NSAttributedString(string: value, attributes: [.foregroundColor: Palette.ink, .font: rFont(GlobalMainConstants.APP_FONT_Roboto_Bold, 14)]))
+        return s
     }
 
     // MARK: - Scaffold
@@ -661,19 +793,11 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
 
         let customer = UILabel()
         customer.attributedText = attr(item.customer_name ?? "", Palette.ink, rFont(bold, 16))
+        customer.numberOfLines = 1
+        customer.lineBreakMode = .byTruncatingTail
         customer.setContentHuggingPriority(.required, for: .horizontal)
-
-        // Checklist-driven staging (2026-09): the card's action opens the ONE
-        // main Delivery Checklist (no mini-checklist) — for Pending AND Staged.
-        let thumb = QueueMenuButton(type: .system)
-        thumb.item = item
-        thumb.setImage(UIImage(systemName: "checklist"), for: .normal)
-        thumb.tintColor = Palette.cyan
-        thumb.translatesAutoresizingMaskIntoConstraints = false
-        thumb.widthAnchor.constraint(equalToConstant: 24).isActive = true
-        thumb.heightAnchor.constraint(equalToConstant: 24).isActive = true
-        thumb.setContentHuggingPriority(.required, for: .horizontal)
-        thumb.addTarget(self, action: #selector(thumbTapped(_:)), for: .touchUpInside)
+        // A long customer name truncates before the Update button or a badge ever gets squeezed.
+        customer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         var headerViews: [UIView] = [idLabel, customer, UIView()]
         if (item.urgency ?? "").lowercased() == "rush" {
@@ -695,26 +819,19 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
             headerViews.append(makeBadge("In Transit", bg: Palette.cyan, text: .white, bordered: false))
         }
 
-        // Completed cards: no thumbs-up. Show a FAST TRACK tag when flagged.
+        // Completed cards: no action. Show a FAST TRACK tag when flagged.
         let isCompleted = (item.status ?? "") == "completed" || item.completed == true
         if isCompleted {
             if item.is_fast_track == true {
                 headerViews.append(makeBadge("FAST TRACK", bg: Palette.amber, text: Palette.page, bordered: false))
             }
         } else {
-            headerViews.append(thumb)
-
-            // Kebab menu (Change Equipment, …)
-            let kebab = QueueMenuButton(type: .system)
-            kebab.item = item
-            kebab.setImage(UIImage(systemName: "ellipsis"), for: .normal)
-            kebab.tintColor = Palette.subtle
-            kebab.translatesAutoresizingMaskIntoConstraints = false
-            kebab.widthAnchor.constraint(equalToConstant: 22).isActive = true
-            kebab.heightAnchor.constraint(equalToConstant: 24).isActive = true
-            kebab.setContentHuggingPriority(.required, for: .horizontal)
-            kebab.addTarget(self, action: #selector(menuTapped(_:)), for: .touchUpInside)
-            headerViews.append(kebab)
+            // The ONE way to update / confirm this item from the board (Pending AND Staged):
+            // Update → the main Delivery Checklist.
+            let update = QueueLineUpdateButton(fill: Palette.cyan, ink: Palette.page)
+            update.item = item
+            update.addTarget(self, action: #selector(updateTapped(_:)), for: .touchUpInside)
+            headerViews.append(update)
         }
 
         let header = UIStackView(arrangedSubviews: headerViews)
@@ -756,10 +873,8 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
 
         var machineViews: [UIView] = [name, code]
         for badge in statusBadges(for: item) { machineViews.append(leftAlign(badge)) }
-        // Phase 4 — delivery checklist prepared on a phone (Phase 3 execution state from the server).
-        if !isCompleted, item.deliveryChecklistStatus == "prepared" {
-            machineViews.append(leftAlign(makeBadge("Checklist Prepared", bg: .clear, text: Palette.cyan, bordered: true)))
-        }
+        // (No "Checklist Prepared" badge: a prepared, saved checklist IS the Staged lane —
+        //  the lifecycle tab already says it. Badge removed 2026-09-13.)
         let info = UIStackView(arrangedSubviews: machineViews)
         info.axis = .vertical
         info.spacing = 6
@@ -772,13 +887,17 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         stack.addArrangedSubview(machineRow)
 
 
-        // 3) Store (left) + date/time (right) on one line — store uses the app store icon.
+        // 3) Delivery / In Store (left) + date/time (right) on one line. Truck → truck icon,
+        //    In-Store → store icon — the pairing Schedule, Dispatch and Order Details already
+        //    use; icon and label come from ONE rule so they can never disagree.
         let storeName = item.store?.name ?? ""
-        let deliveryLabel = (item.delivery?.transport_mode == "Store") ? "In Store : " : "Delivery : "
+        let transportMode = item.delivery?.transport_mode
+        let deliveryLabel = QueueLineTransportPresentation.label(for: transportMode)
         // On Completed cards the Delivery / In Store icon + label match the time row (cyan icon, ink text).
         let storeLabelColor = isCompleted ? Palette.ink : Palette.cyan
         let storeIconTint = isCompleted ? Palette.cyan : Palette.amber
-        let storeLeft = iconRowAsset("icon_store", storeIconTint, labelValue(deliveryLabel, storeName, labelColor: storeLabelColor))
+        let storeLeft = iconRowAsset(QueueLineTransportPresentation.icon(for: transportMode), storeIconTint,
+                                     labelValue(deliveryLabel, storeName, labelColor: storeLabelColor))
         let timeText = formatDeliveryDateTime(date: item.delivery?.date, time: item.delivery?.time)
         let timeRight = iconRow("clock", Palette.cyan, attr(timeText, Palette.ink, rFont(medium, 13)))
         let infoLine = UIStackView(arrangedSubviews: [storeLeft, UIView(), timeRight])
@@ -1018,7 +1137,7 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
 
 // MARK: - Helpers
 
-/// Kebab button that remembers which item it belongs to.
+/// Card control that remembers which item it belongs to (the tappable Maint. Hold badge).
 private final class QueueMenuButton: UIButton {
     var item: QueueLineModel?
 }

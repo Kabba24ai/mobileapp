@@ -137,6 +137,42 @@ enum PreparationPolicy {
         }
     }
 
+    // MARK: Switch reason + attribution (mirrors EquipmentReassignmentService on Laravel)
+
+    /// The canonical picklist (EquipmentReassignmentService::STANDARD_REASONS); the
+    /// screen offers "Other" (free text) in addition — same as the web board.
+    static let standardSwitchReasons = [
+        "Reserved unit unavailable",
+        "Original unit down for maintenance or damage",
+        "Better-suited unit available",
+        "Correcting a mis-assignment",
+        "Customer request",
+    ]
+
+    /// Laravel refuses a switch without a reason unless the replacement is a DIRECT
+    /// match — its assigned product IS the ordered product. An unknown assigned
+    /// product is non-direct there too, so only a proven match skips the prompt.
+    static func switchReasonRequired(replacementAssignedProductId: Int?, orderedProductId: Int?) -> Bool {
+        guard let replacement = replacementAssignedProductId, replacement > 0,
+              let ordered = orderedProductId, ordered > 0 else { return true }
+        return replacement != ordered
+    }
+
+    static func switchReasonTitle() -> String { "Why this unit?" }
+
+    static func switchReasonMessage(replacementCode: String) -> String {
+        "Equipment \(replacementCode) is not a direct match for the ordered product, so a short reason is recorded with the change."
+    }
+
+    /// Who the canonical switch is attributed to: the employee this checklist already
+    /// names for the product (the same person its Save / Complete payloads carry),
+    /// else the signed-in account. Never a separate picker.
+    static func performedBy(selectedEmployeeUniqueId: String?, contextEmployeeUniqueId: String?) -> String? {
+        if let chosen = selectedEmployeeUniqueId, !chosen.isEmpty { return chosen }
+        if let login = contextEmployeeUniqueId, !login.isEmpty { return login }
+        return nil
+    }
+
     static func restartTitle() -> String { "Start this checklist over?" }
 
     static func restartMessage(currentCode: String) -> String {
