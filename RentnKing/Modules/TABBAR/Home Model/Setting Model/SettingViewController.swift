@@ -91,7 +91,9 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         self.setupAboutSection()
     }
 
-    /// Builds the About block: Version, Release Date, Release Notes list, Full Archive.
+    /// Builds the About block: Version, Build Date, Release Notes list, Full Archive.
+    /// Every value comes from AppReleaseInfo (bundle + build stamp + the entry
+    /// matching the installed version) — never from array position.
     func setupAboutSection() {
         guard aboutStack.superview == nil else { return }   // build once
 
@@ -111,9 +113,8 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
             return l
         }
 
-        let latest = AppReleaseInfo.latest
         let versionLabel = keyValue("Version:  ", AppReleaseInfo.versionDisplay)
-        let releaseDateLabel = keyValue("Release Date:  ", latest?.date ?? "")
+        let buildDateLabel = keyValue("Build Date:  ", AppReleaseInfo.buildDate)
 
         let notesHeader = UILabel()
         notesHeader.attributedText = NSAttributedString(string: "Release Notes",
@@ -123,7 +124,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         notesLabel.numberOfLines = 0
         let notesPara = NSMutableParagraphStyle(); notesPara.lineSpacing = 6
         notesLabel.attributedText = NSAttributedString(
-            string: (latest?.notes ?? []).map { "~ \($0)" }.joined(separator: "\n"),
+            string: AppReleaseInfo.currentNotes.map { "~ \($0)" }.joined(separator: "\n"),
             attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 16),
                          .paragraphStyle: notesPara])
 
@@ -144,7 +145,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         view.addSubview(aboutStack)
 
         aboutStack.addArrangedSubview(versionLabel)
-        aboutStack.addArrangedSubview(releaseDateLabel)
+        aboutStack.addArrangedSubview(buildDateLabel)
 
         // Sync status (Phase 2): what is still on this phone waiting for Kabba, and the
         // diagnostics screen (Retry / Discard / Sync Now, ids for support).
@@ -157,7 +158,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         aboutStack.addArrangedSubview(notesHeader)
         aboutStack.addArrangedSubview(notesLabel)
 //        aboutStack.addArrangedSubview(fullArchive)
-        aboutStack.setCustomSpacing(24, after: releaseDateLabel)
+        aboutStack.setCustomSpacing(24, after: buildDateLabel)
         aboutStack.setCustomSpacing(10, after: notesHeader)
 
         NSLayoutConstraint.activate([
@@ -170,7 +171,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
     @objc func btnFullArchiveClicked() {
         // Present every past release (version, date, notes) in a scrollable dark sheet.
         let archive = ReleaseArchiveViewController()
-        archive.entries = releases.map { ($0.version, $0.date, $0.notes) }
+        archive.entries = releases.map { ($0.version, AppReleaseInfo.displayDate(for: $0), $0.notes) }
         archive.modalPresentationStyle = .overFullScreen
         archive.modalTransitionStyle = .crossDissolve
         self.present(archive, animated: true)
