@@ -2955,7 +2955,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1006;
+				CURRENT_PROJECT_VERSION = 1007;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -2997,7 +2997,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1006;
+				CURRENT_PROJECT_VERSION = 1007;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -3036,7 +3036,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1006;
+				CURRENT_PROJECT_VERSION = 1007;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -3065,7 +3065,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1006;
+				CURRENT_PROJECT_VERSION = 1007;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
