@@ -44,6 +44,14 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.21", notes: [
+            "Assembly Review: every outbound equipment checklist now starts with a review of the whole assembly — the machine, bundled and related items, and every ordered Product Option — with a STOP / GO gate before the checklist",
+            "Assign or change equipment right from Assembly Review; a newly assigned machine always starts unconfirmed",
+            "Equipment reads as Name · #ID on the review, and tapping it changes the assignment",
+            "A checklist Save stages only the item you worked on, never its siblings",
+            "Various fixes and refinements",
+        ]),
+
         AppRelease(version: "1.0.20", notes: [
             "Improved mobile equipment preparation with easier equipment substitutions",
             "Checklist restart support",

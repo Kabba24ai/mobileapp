@@ -63,11 +63,11 @@ final class AppReleaseCatalogTests: XCTestCase {
 
     // 4. An unknown version never borrows another version's notes.
     func testUnknownVersionGetsTheNeutralFallbackOnly() {
-        XCTAssertNil(AppReleaseCatalog.release(for: "1.0.21"))
-        XCTAssertEqual(AppReleaseCatalog.notes(for: "1.0.21"), ["Various fixes and refinements"])
-        XCTAssertEqual(AppReleaseCatalog.notes(for: "1.0.21"), AppReleaseCatalog.fallbackNotes)
+        XCTAssertNil(AppReleaseCatalog.release(for: "9.9.99"))
+        XCTAssertEqual(AppReleaseCatalog.notes(for: "9.9.99"), ["Various fixes and refinements"])
+        XCTAssertEqual(AppReleaseCatalog.notes(for: "9.9.99"), AppReleaseCatalog.fallbackNotes)
         for release in AppReleaseCatalog.history {
-            XCTAssertNotEqual(AppReleaseCatalog.notes(for: "1.0.21"), release.notes,
+            XCTAssertNotEqual(AppReleaseCatalog.notes(for: "9.9.99"), release.notes,
                               "fallback must not equal \(release.version)'s notes")
         }
         XCTAssertNil(AppReleaseCatalog.release(for: ""))
