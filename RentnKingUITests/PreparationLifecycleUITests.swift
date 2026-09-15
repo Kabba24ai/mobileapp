@@ -990,6 +990,11 @@ final class PreparationLifecycleUITests: XCTestCase {
     // ── Acceptance H — multi-line isolation ─────────────────────────────────
 
     /// Units for the multi-line scenarios come from the runner (world state).
+    /// Store unique ids of the two stores the filter scenarios scope to — the staging clone's by
+    /// default; a run against another backend (production smoke) passes its own via
+    /// TEST_RUNNER_KABBA_STORE_BON_AQUA / TEST_RUNNER_KABBA_STORE_WAVERLY.
+    private var bonAquaStoreId: String { ProcessInfo.processInfo.environment["KABBA_STORE_BON_AQUA"] ?? "STO-VBHK-QDZY" }
+    private var waverlyStoreId: String { ProcessInfo.processInfo.environment["KABBA_STORE_WAVERLY"] ?? "STO-WAMV-UTA2" }
     private var hLine1: String { ProcessInfo.processInfo.environment["KABBA_H_LINE1"] ?? "EXC-H1" }
     private var hLine2: String { ProcessInfo.processInfo.environment["KABBA_H_LINE2"] ?? "EXC-X" }
     private var hSub: String   { ProcessInfo.processInfo.environment["KABBA_H_SUB"] ?? "EXC-C" }
@@ -1168,7 +1173,7 @@ final class PreparationLifecycleUITests: XCTestCase {
 
         // Bon Aqua + Truck → only the Bon Aqua truck delivery.
         openFilterSheet(app)
-        tapId(app, "queueLineFilter.store.STO-VBHK-QDZY")
+        tapId(app, "queueLineFilter.store.\(bonAquaStoreId)")
         tapId(app, "queueLineFilter.type.truck")
         shootToDisk("filters-sheet")
         tapId(app, "queueLineFilter.apply")
@@ -1193,7 +1198,7 @@ final class PreparationLifecycleUITests: XCTestCase {
 
         // Waverly + Truck → only the Waverly truck delivery (a dynamically listed store).
         openFilterSheet(app)
-        tapId(app, "queueLineFilter.store.STO-WAMV-UTA2")
+        tapId(app, "queueLineFilter.store.\(waverlyStoreId)")
         tapId(app, "queueLineFilter.type.truck")
         tapId(app, "queueLineFilter.apply")
         expectFilterLine(app, store: "Waverly", type: "Truck")
@@ -1258,7 +1263,7 @@ final class PreparationLifecycleUITests: XCTestCase {
         openQueueLine(app)
         // Scope to Bon Aqua · In Store so 9202 is the first card.
         openFilterSheet(app)
-        tapId(app, "queueLineFilter.store.STO-VBHK-QDZY")
+        tapId(app, "queueLineFilter.store.\(bonAquaStoreId)")
         tapId(app, "queueLineFilter.type.store")
         tapId(app, "queueLineFilter.apply")
         expectCards(app, present: ["9202"], absent: ["9203"])
