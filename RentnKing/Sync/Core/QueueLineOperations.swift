@@ -159,8 +159,22 @@ struct QueueLineLocalOverlay: Equatable {
     var completedLocally: Set<String> = []
     /// Durable local On My Way evidence for the delivery leg.
     var inTransitLocally: Set<String> = []
+    /// order product → the unit this phone assigned through the canonical switch
+    /// (pending, syncing or synced — never a rejected one), so every reader shows
+    /// the replacement's identity before the feed catches up.
+    var pendingEquipment: [String: PendingEquipment] = [:]
+
+    struct PendingEquipment: Equatable {
+        let uniqueId: String
+        let name: String?
+        let displayId: String?
+        let operationId: String
+        let syncState: SyncState
+        var isPendingSync: Bool { syncState == .pending || syncState == .syncing }
+    }
 
     func isPendingStage(_ orderProductUniqueId: String) -> Bool { pendingStage[orderProductUniqueId] != nil }
+    func pendingEquipment(for orderProductUniqueId: String) -> PendingEquipment? { pendingEquipment[orderProductUniqueId] }
     func attentionReason(_ orderProductUniqueId: String) -> String? { attention[orderProductUniqueId] }
     func isStagedLocally(_ orderProductUniqueId: String) -> Bool { stagedLocally.contains(orderProductUniqueId) }
     func isCompletedLocally(_ orderProductUniqueId: String) -> Bool { completedLocally.contains(orderProductUniqueId) }
@@ -183,6 +197,18 @@ struct QueueLineLocalOverlay: Equatable {
                 overlay.stagedLocally.remove(product)
                 overlay.pendingStage[product] = nil
                 overlay.attention[product] = nil
+                // A switch names the replacement unit; a rejected one changed nothing.
+                if op.type == EffectiveFieldState.equipmentSubstitutionType {
+                    if op.state == .needsAttention {
+                        overlay.pendingEquipment[product] = nil
+                    } else if let unit = op.payload["equipment_unique_id"]?.stringValue, !unit.isEmpty {
+                        overlay.pendingEquipment[product] = PendingEquipment(
+                            uniqueId: unit,
+                            name: op.payload["equipment_name"]?.stringValue,
+                            displayId: op.payload["equipment_display_id"]?.stringValue,
+                            operationId: op.id, syncState: op.state)
+                    }
+                }
                 continue
             }
 

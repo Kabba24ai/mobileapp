@@ -904,6 +904,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.btnPhotVideoRet.addTarget(self, action: #selector(self.btnReturnImageVideoUploadClicked(_:)), for: .touchUpInside)
 
             cell.btnCheckListDeliv.tag = indexPath.row
+            cell.btnCheckListDeliv.accessibilityIdentifier = "orderList.checklist.delivery"
             cell.btnCheckListDeliv.addTarget(self, action: #selector(self.btnCheckListDelivClicked(_:)), for: .touchUpInside)
 
             cell.btnCheckListRet.tag = indexPath.row
@@ -1026,19 +1027,14 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
         }
         else{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
-                newViewController.isDeliveryType = true
-//                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderUniqueId = objData.unique_id ?? ""
-                newViewController.strOrderID = "\(objData.order_number ?? "")"
-
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
+            // Universal sequencing (2026-09-14): the outbound checklist opens
+            // through Assembly Review — every entity of the order, each with its
+            // own STOP / GO — and the review opens the focused checklist.
+            ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                              orderUniqueId: objData.unique_id ?? "",
+                                              orderNumber: objData.order_number ?? "",
+                                              origin: ChecklistEntry.Origin(kind: .orderList, selectIndex: sender.tag))
         }
-        
-   
     }
     
     @objc func btnCheckListRetClicked(_ sender : UIButton) {

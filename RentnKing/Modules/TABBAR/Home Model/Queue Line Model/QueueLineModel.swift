@@ -44,6 +44,17 @@ struct QueueLineModel: Mappable {
     internal var checklist: QueueLineChecklist?
     internal var fulfillment_leg: String?
 
+    // Assembly Review (2026-09-14) — additive: the canonical four-stage
+    // classifier, the Queue Line entity this line belongs to (a dependent
+    // assembly or the line on its own), the parent line's effective
+    // availability and the gate blockers. Product Options stay on the
+    // Assembly Review screen; the board only knows they exist.
+    internal var lifecycle_stage: String?
+    internal var assembly: QueueLineAssemblyInfo?
+    internal var availability_effective_state: String?
+    internal var stage_blocker_labels: [String] = []
+    internal var product_option_names: [String] = []
+
     init?(map: Map) { mapping(map: map) }
 
     mutating func mapping(map: Map) {
@@ -75,6 +86,27 @@ struct QueueLineModel: Mappable {
         identity         <- map["identity"]
         checklist        <- map["checklist"]
         fulfillment_leg  <- map["fulfillment_leg"]
+        lifecycle_stage  <- map["lifecycle_stage"]
+        assembly         <- map["assembly"]
+        availability_effective_state <- map["availability.effective_state"]
+        var blockers: [[String: Any]]?
+        blockers <- map["stage_blockers"]
+        stage_blocker_labels = (blockers ?? []).compactMap { $0["label"] as? String }
+        var options: [[String: Any]]?
+        options <- map["product_options"]
+        product_option_names = (options ?? []).compactMap { $0["name"] as? String }
+    }
+
+    /// The Queue Line entity this line belongs to — the server's derived key
+    /// (a dependent assembly from persisted bundle / related-product edges, or
+    /// the line on its own). A board served before the dependency model puts
+    /// every line on its own.
+    var assemblyKey: String { assembly?.key ?? "QLA-\(itemOrderProductUniqueId)" }
+    var assemblyMemberCount: Int { assembly?.member_count ?? 1 }
+    /// The canonical four-stage vocabulary (falls back to the three-lane status).
+    var lifecycleStage: AssemblyStage {
+        AssemblyStage(rawValue: lifecycle_stage ?? "")
+            ?? ((status ?? "") == "completed" || completed == true ? .equipmentDelivered : ((status ?? "") == "staged" ? .staged : .pending))
     }
 
     /// The Queue Line item IS the order product. Prefer the explicit identity block; fall back
@@ -84,6 +116,44 @@ struct QueueLineModel: Mappable {
     var itemEquipmentUniqueId: String? { identity?.equipment_unique_id ?? equipment?.unique_id }
     var deliveryChecklistExecutionId: String? { checklist?.delivery?.checklist_execution_id ?? identity?.checklist_execution_id }
     var deliveryChecklistStatus: String { checklist?.delivery?.status ?? "not_prepared" }
+}
+
+// MARK: - Assembly Review (2026-09-14) — the `assembly` block on a board item
+
+struct QueueLineAssemblyInfo: Mappable {
+    internal var key: String?
+    internal var kind: String?          // single | dependent
+    internal var stage: String?         // pending | staged | in_transit | equipment_delivered (least-advanced member)
+    internal var lane: String?          // pending | staged | completed
+    internal var member_count: Int?
+    internal var pending_count: Int?
+    internal var staged_count: Int?
+    internal var in_transit_count: Int?
+    internal var delivered_count: Int?
+    // How this member hangs on its assembly (base | bundle_child | related_child).
+    internal var dependency_role: String?
+    internal var depends_on_name: String?
+    // The assembly's derived STOP/GO gate (never stored).
+    internal var gate_ready: Bool?
+    internal var gate_required_count: Int?
+    internal var gate_confirmed_count: Int?
+    init?(map: Map) { mapping(map: map) }
+    mutating func mapping(map: Map) {
+        key              <- map["key"]
+        kind             <- map["kind"]
+        stage            <- map["stage"]
+        lane             <- map["lane"]
+        member_count     <- map["member_count"]
+        pending_count    <- map["stage_counts.pending"]
+        staged_count     <- map["stage_counts.staged"]
+        in_transit_count <- map["stage_counts.in_transit"]
+        delivered_count  <- map["stage_counts.equipment_delivered"]
+        dependency_role  <- map["dependency.role"]
+        depends_on_name  <- map["dependency.depends_on_name"]
+        gate_ready       <- map["gate.ready"]
+        gate_required_count  <- map["gate.required_count"]
+        gate_confirmed_count <- map["gate.confirmed_count"]
+    }
 }
 
 // MARK: - Phase 4 identity / checklist blocks

@@ -771,6 +771,17 @@ enum Url {
         return newAPI("queue-line")
     }
 
+    /// Assembly Review (2026-09-13): every Queue Line assembly ONE order forms.
+    /// The canonical unit candidates for ONE line (Laravel classifies each: direct / alternate,
+    /// `requires_reason`), excluding rented units and the unit already assigned.
+    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String) -> NSURL {
+        return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates")
+    }
+
+    static func queueLineAssembly(_ orderUniqueId: String) -> NSURL {
+        return newAPI("queue-line/orders/\(orderUniqueId)/assembly")
+    }
+
     static func queueLineReturnToPending(_ orderProductUniqueId: String) -> NSURL {
         return newAPI("queue-line/\(orderProductUniqueId)/return-to-pending")
     }

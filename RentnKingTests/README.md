@@ -88,6 +88,70 @@ executed.
   the UserDefaults round trip where All is an explicit remembered choice. The sheet, the sticky
   store across reopen/relaunch and the stale-store fallback are covered end to end by
   `PreparationLifecycleUITests/testQueueLineFilters` and `…/testARememberedStoreThatNoLongerExistsFallsBackToAll`.
+- `AssemblyReviewPresentationTests` (target **RentnKingHostedTests**) — the Assembly Review
+  screen rendered from the shared `queue_line_assembly` fixture (dependent-assembly model,
+  2026-09-14): every frozen Product Option by its stored label (including "No Bucket"), the ONE
+  affirmative control (red X + hollow Available → green check + filled Available, no Not
+  Available button), the derived STOP/GO badge, Continue hollow-and-inactive at STOP and
+  filled at GO, the removed redundancies (no unit-status badge, item-availability summary,
+  checklist line, blocker paragraph, customer header, instructions, Unbundle), focus on the
+  tapped entity, and the board's one-card-per-entity grouping in the least-advanced lane
+  (`QueueLineBoardAssembly`; independent same-order lines stay separate). End to end on
+  staging: `PreparationLifecycleUITests/testDependentAssemblyIsStopUntilEveryRequirementIsConfirmedThenGo`,
+  `…/testIndependentLineProceedsAndItsFocusedSaveStagesOnlyItself`,
+  `…/testNoBucketIsConfirmedLikeAnyOptionAndAnUnassignedDependentMemberHoldsStop` and
+  `…/testBundleFocusedSaveThenReversalUnstagesAndConfirmingNeverRestages`
+  (seed: scratchpad `seed_assembly.php` with persisted related/bundle edges, line ids via
+  `TEST_RUNNER_KABBA_QLA_*`). `openCard` now passes through the review (confirm all → Continue).
+  **Universal entry (2026-09-14)** — the same file also pins `ChecklistEntry`, the ONE helper every
+  entry point uses: Queue Line card, Orders list and Order Details all open Assembly Review first
+  (a second tap for the same order pushes nothing), the review builds the focused Delivery
+  Checklist for every origin (only the origin flags differ), Save / finalization Submit / media
+  upload return to the review FIRST and the origin stays beneath it, and an In Transit member
+  still offers Continue (the driver completes the same checklist at the customer) while delivered
+  equipment does not. End to end on staging:
+  `PreparationLifecycleUITests/testOrderDetailsEntersTheDeliveryChecklistThroughAssemblyReviewAndReturnsToOrderDetails`
+  (order 9305, one line, no options: STOP → GO → checklist → Save → review → Order Details) and
+  `…/testTheOrdersListEntersThroughAssemblyReviewShowingEachEntityOfTheOrderAndReturnsToTheList`
+  (order 9301 unfocused: two entities, two gates, back to the list). The Return leg is inbound and
+  keeps its direct path; a completed checklist's record view (`CheckListUpdateViewController`,
+  `isUpdateData`) is not a checklist entry and is untouched.
+  **Assignment from the review (2026-09-14)** — the machine reads "Name · #TAG" (never the tag alone)
+  and the identity is the affordance for changing it; an unassigned member shows "No equipment
+  selected" + **Assign** and no Available control; In Transit / delivered members are not
+  reassignable. Both Assign and the identity tap run `EquipmentAssignmentFlow` — the checklist's
+  own picker (status sections, "Select Equipment ID", Cancel / Select), status triage, "start over"
+  confirmation and Laravel's reason picklist, ending in the ONE canonical `queue_line.switch_equipment`
+  operation — so there is exactly one selector and one service (`EquipmentReassignmentService`, first
+  assignment and reassignment alike). `AssemblyReviewTests` (KabbaSyncCore) pins the local rules: a
+  switch recorded on this phone shows the replacement by name and tag before the feed catches up
+  (`QueueLineLocalOverlay.pendingEquipment`), a unit decision is keyed by the unit it named so the old
+  machine's Available never carries onto the replacement, assignment alone leaves STOP, a rejected
+  switch changes nothing. `PreparationLifecycleTests` pins `EquipmentIdentity`, `EquipmentPickTriage`
+  and the informational identity on the switch payload. On staging:
+  `PreparationLifecycleUITests/testUnassignedMemberIsAssignedFromTheReviewThenReassignedAndEachNewUnitStartsUnconfirmed`
+  (9303: Assign → direct spare, no reason; identity tap → non-direct spare, reason sheet; option
+  confirmations stand; board reads the new unit) and
+  `…/testVReassigningInsideTheChecklistReturnsTheReviewToStopWithTheNewUnit` (9302: GO → checklist →
+  the checklist's substitution → the review shows the new unit unconfirmed, STOP · 1 of 2).
+  **Known automation-only limitation (not a product defect, 2026-09-15)** — in the OLDER
+  checklist-driven-staging suite, `testB_partialThenSubstitute` fails identically on the simulator
+  and on the physical phone: after the answer picker / hours keyboard has been used, the checklist
+  product header cell is exposed to the XCUITest harness as ONE opaque element (identifier
+  "Mini Excavator * 1"), so the harness cannot read the "<name>    ||    <code>" Equipment ID row
+  even though the screen renders and works correctly. C, D, E, F1–F3 cascade from B (they assume
+  B's substitution happened). `testR2_outOfBandReassignment` fails at its board-card precondition
+  ("#EXC-A under Staged") in every environment although the server state after the raw swap is
+  verified correct via tinker; the cause is not isolated. Checklist accessibility was deliberately
+  NOT redesigned to satisfy the harness. Passing in the same suite: 02, A, G, H1–H3, board
+  presentation, filters, remembered-store fallback, substitution reason.
+- `AssemblyReviewTests` (KabbaSyncCore) — the Assembly Review contract decode (a dependent
+  assembly derived from a persisted related-product edge, the gate, the dependency block), the
+  ONE durable operation `queue_line.availability` (payload / identity / request / FIFO with the
+  line's own checklist ops; a reversal is the same operation with `not_available`), the local
+  overlay (latest confirmation wins, a reversal demotes a Staged member until a later Save,
+  Delivered / In Transit never demoted), and the pure policy: least-advanced aggregation,
+  effective availability, the derived STOP/GO gate over every member, refusal wording.
 - `PreparationLifecycleTests` (KabbaSyncCore) also covers the switch **reason** policy — required
   unless the replacement's assigned product IS the ordered product, Laravel's picklist — and the
   attribution rule (the checklist's employee before the login account); the on-device reason

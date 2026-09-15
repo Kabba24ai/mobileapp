@@ -492,6 +492,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.lblTermsAndCondition.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strTerms)
             self.lblCheckListDeliv.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListDeliv)
             self.lblCheckListRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListRet)
+            self.viewCheckListDeliv.firstButton?.accessibilityIdentifier = "orderDetails.checklist.delivery"
+            self.viewCheckListRet.firstButton?.accessibilityIdentifier = "orderDetails.checklist.return"
             self.lblDeliveryStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDeliveyStatus)
             self.lblPickupStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickupStatus)
 
@@ -1247,16 +1249,16 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             }
         }
         else{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
-                newViewController.fromCheckListScreen = self.fromCheckListScreen
-                newViewController.isOrderDetailsView = true
-                newViewController.isDeliveryType = true
-                newViewController.selectIndex = self.selectIndex
-                newViewController.strOrderUniqueId = self.strOrderUniqueId
-                newViewController.strOrderID = self.objOrderData.order_number ?? ""
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
+            // Universal sequencing (2026-09-14): the outbound checklist opens
+            // through Assembly Review — every entity of the order, each with its
+            // own STOP / GO — and the review opens the focused checklist. Back
+            // from the review lands here again (the origin), including when this
+            // screen was reached from Schedule, Dispatch or a notification.
+            ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                              orderUniqueId: self.strOrderUniqueId,
+                                              orderNumber: self.objOrderData.order_number ?? "",
+                                              origin: ChecklistEntry.Origin(kind: .orderDetails, selectIndex: self.selectIndex,
+                                                                            fromCheckListScreen: self.fromCheckListScreen))
         }
     }
     
@@ -1789,5 +1791,15 @@ extension OrderDetailsViewController{
         
         self.objOrderData = localData
         self.setTheView()
+    }
+}
+
+
+private extension UIView {
+    /// The storyboard's tap target inside a labelled tile (button on top of the icon + label).
+    var firstButton: UIButton? {
+        if let b = self as? UIButton { return b }
+        for v in subviews { if let b = v.firstButton { return b } }
+        return nil
     }
 }

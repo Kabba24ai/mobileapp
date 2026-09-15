@@ -29,6 +29,9 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     var isLoading : Bool = false
     var strOrderID : String = ""
     var isQueueLine : Bool = false
+    /// Set when Submit already returned to the Assembly Review beneath — the
+    /// upload's success handler must not pop a second time.
+    private var returnedToReview = false
     
     //OTHER
     var selectIndex : Int = -1
@@ -377,10 +380,14 @@ extension ImageUploadViewController {
             //SAVE IN TABLE
             self.saveTheVideoandImageLocal()
 
-            if self.isQueueLine {
-                // Checklist-driven staging (2026-09): the Queue Line flow
-                // returns to the Queue Line board, which reflects the staged
-                // state immediately from the durable local operations.
+            // Every checklist enters through Assembly Review (2026-09-14): the
+            // media saved durably, return to the review beneath — whatever the
+            // origin — which reflects the staged state immediately from the
+            // durable local operations. Legacy Queue Line stacks fall back to
+            // the board / the Orders list; other legacy stacks pop once the
+            // upload succeeds (below).
+            self.returnedToReview = ChecklistEntry.returnToReview(on: self.navigationController) {
+                guard self.isQueueLine else { return }
                 if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
                     self.navigationController?.popToViewController(board, animated: true)
                 }
@@ -512,7 +519,7 @@ extension ImageUploadViewController {
             }
             
             
-            if self.isQueueLine == false {
+            if self.isQueueLine == false, self.returnedToReview == false {
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
                     self.navigationController?.popViewController(animated: true)

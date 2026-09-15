@@ -1,0 +1,105 @@
+{
+    "success": true,
+    "message": "Acknowledged as Available.",
+    "data": {
+        "order_product_unique_id": "ORD-SCH-VHKE-EJLK",
+        "acknowledgement": {
+            "subject_type": "unit",
+            "subject_key": "EQP-SVSW-VGDH",
+            "replayed": false,
+            "unstaged": false,
+            "state": "available",
+            "acknowledged_by": "Field Employee",
+            "acknowledged_at": "2026-09-14T11:25:46+00:00",
+            "note": null
+        },
+        "product_options": [
+            {
+                "unique_id": "POPT-ITM-FIXT-0001",
+                "name": "Tooth Bucket",
+                "included": false,
+                "availability": {
+                    "state": null,
+                    "acknowledged_by": null,
+                    "acknowledged_at": null,
+                    "note": null
+                }
+            }
+        ],
+        "availability": {
+            "unit": {
+                "equipment_unique_id": "EQP-SVSW-VGDH",
+                "state": "available",
+                "acknowledged_by": "Field Employee",
+                "acknowledged_at": "2026-09-14T11:25:46+00:00",
+                "note": null
+            },
+            "required_count": 2,
+            "acknowledged_count": 1,
+            "effective_state": null
+        },
+        "assembly": {
+            "key": "QLA-ORD-SCH-VHKE-EJLK",
+            "kind": "dependent",
+            "stage": "pending",
+            "lane": "pending",
+            "member_count": 2,
+            "stage_counts": {
+                "pending": 2,
+                "staged": 0,
+                "in_transit": 0,
+                "equipment_delivered": 0
+            },
+            "dependency": {
+                "role": "base",
+                "depends_on": null,
+                "depends_on_name": null
+            },
+            "gate": {
+                "ready": false,
+                "required_count": 3,
+                "confirmed_count": 1,
+                "blockers": [
+                    {
+                        "code": "option_unconfirmed",
+                        "subject_type": "option",
+                        "subject_key": "POPT-ITM-FIXT-0001",
+                        "order_product_unique_id": "ORD-SCH-VHKE-EJLK",
+                        "product_name": "Skid Steer Rental",
+                        "label": "Tooth Bucket has not been confirmed Available."
+                    },
+                    {
+                        "code": "unit_unconfirmed",
+                        "subject_type": "unit",
+                        "subject_key": "EQP-JHOK-S3TN",
+                        "order_product_unique_id": "ORD-SCH-VSL4-U9ZK",
+                        "product_name": "Skid Steer - Brush Cutter",
+                        "label": "Skid Steer 6aa7d9ba6de53 has not been confirmed Available."
+                    }
+                ]
+            },
+            "excluded_reason": null
+        },
+        "stage_blockers": [
+            {
+                "code": "option_unconfirmed",
+                "subject_type": "option",
+                "subject_key": "POPT-ITM-FIXT-0001",
+                "order_product_unique_id": "ORD-SCH-VHKE-EJLK",
+                "product_name": "Skid Steer Rental",
+                "label": "Tooth Bucket has not been confirmed Available."
+            },
+            {
+                "code": "unit_unconfirmed",
+                "subject_type": "unit",
+                "subject_key": "EQP-JHOK-S3TN",
+                "order_product_unique_id": "ORD-SCH-VSL4-U9ZK",
+                "product_name": "Skid Steer - Brush Cutter",
+                "label": "Skid Steer 6aa7d9ba6de53 has not been confirmed Available."
+            }
+        ],
+        "lifecycle_stage": "pending",
+        "staged": false
+    },
+    "request_id": "56aaf803-f1ad-4658-bb43-225319503ffa"
+}

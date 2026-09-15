@@ -205,6 +205,12 @@ struct ChecklistContext: Codable, Equatable {
         /// its own. Optional so cached pre-upgrade contexts still decode.
         let deliveryVideoPresent: Bool?
         let deliveryMediaPresent: Bool?
+        /// Assembly Review (2026-09-13): what the availability gate in the
+        /// staging Save refuses on — the assigned unit or an ordered Product
+        /// Option acknowledged Not Available (server-provided labels). The
+        /// phone blocks the obvious invalid Save inline from these; the
+        /// server stays canonical. Optional so cached contexts still decode.
+        let stageBlockers: [AssemblyStageBlocker]?
 
         enum CodingKeys: String, CodingKey {
             case isDelivered = "is_delivered", isReturned = "is_returned"
@@ -212,6 +218,7 @@ struct ChecklistContext: Codable, Equatable {
             case deliverySignaturePresent = "delivery_signature_present", returnSignaturePresent = "return_signature_present"
             case executionStatus = "execution_status", preparedAt = "prepared_at", completedAt = "completed_at", capturedAt = "captured_at"
             case canComplete = "can_complete", blockedReason = "blocked_reason"
+            case stageBlockers = "stage_blockers"
             case queueStaged = "queue_staged", inTransit = "in_transit"
             case deliveryVideoPresent = "delivery_video_present", deliveryMediaPresent = "delivery_media_present"
         }

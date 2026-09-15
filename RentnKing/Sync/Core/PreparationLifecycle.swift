@@ -180,6 +180,82 @@ enum PreparationPolicy {
     }
 }
 
+// MARK: - Equipment identity + the ONE picker vocabulary (2026-09-14)
+
+/// A unit as the yard identifies it — the human-readable equipment name AND the
+/// physical tag — plus what the canonical reassignment needs to know about it.
+/// Both surfaces that let an employee pick a unit (the Delivery Checklist and
+/// Assembly Review) speak this type, so there is exactly one selector.
+struct EquipmentCandidate: Equatable {
+    var uniqueId: String
+    var displayId: String
+    var name: String
+    /// The unit's status label ("Available", "Rented", "Maint. Hold", "Damaged" …).
+    var statusLabel: String
+    /// Laravel's rule surfaced per unit: a reason is required unless the unit is
+    /// a DIRECT match for the ordered product (candidates endpoint
+    /// `requires_reason`, or PreparationPolicy.switchReasonRequired for the
+    /// fleet list — the same rule).
+    var requiresReason: Bool
+
+    /// "Name · #TAG" — how a unit is written wherever it is displayed.
+    var identityLine: String { EquipmentIdentity.line(name: name, displayId: displayId) }
+    /// The picker wheel row, exactly as the checklist has always written it.
+    var pickerRow: String { EquipmentIdentity.pickerRow(name: name, displayId: displayId) }
+}
+
+enum EquipmentIdentity {
+    /// Display: the equipment name the office gave the unit, then its physical tag.
+    static func line(name: String?, displayId: String?) -> String {
+        let n = (name ?? "").trimmingCharacters(in: .whitespaces)
+        let d = (displayId ?? "").trimmingCharacters(in: .whitespaces)
+        switch (n.isEmpty, d.isEmpty) {
+        case (false, false): return "\(n) · #\(d)"
+        case (false, true): return n
+        case (true, false): return "#\(d)"
+        default: return ""
+        }
+    }
+
+    /// The checklist's picker/header row: "<name>    ||    <code>" (four spaces each side).
+    static func pickerRow(name: String?, displayId: String?) -> String {
+        "\(name ?? "")    ||    \(displayId ?? "")"
+    }
+
+    /// The tag back out of a picker row.
+    static func displayId(fromPickerRow row: String) -> String? {
+        row.components(separatedBy: "||").last?.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+/// What tapping Select on a unit does BEFORE any canonical change — the same
+/// triage the checklist has always applied to the unit's status.
+enum EquipmentPickTriage: Equatable {
+    /// An Available unit: proceed.
+    case proceed
+    /// A unit marked damaged / on maintenance hold: ask first (the yard may still take it).
+    case askAboutStatus(String)
+    /// A rented unit can never be assigned.
+    case refuseRented
+    /// Any other status: the pick is dropped (legacy behaviour, kept as is).
+    case drop
+
+    static func forStatus(_ statusLabel: String?) -> EquipmentPickTriage {
+        let label = (statusLabel ?? "").trimmingCharacters(in: .whitespaces)
+        let lower = label.lowercased()
+        if lower == "available" { return .proceed }
+        if lower == "rented" { return .refuseRented }
+        if lower.contains("damage") || lower.contains("maint") { return .askAboutStatus(label) }
+        return .drop
+    }
+
+    static func statusQuestion(_ label: String) -> String {
+        "This equipment is currently marked as \(label). Do you want to automatically change its status to Available and assign it to this order?"
+    }
+
+    static let rentedRefusal = "This equipment is currently rented and is not available to be assigned to this order."
+}
+
 // MARK: - Durable operations
 
 /// One operator decision that discards a preparation cycle.
@@ -195,6 +271,11 @@ struct EquipmentSubstitutionCapture: Equatable {
     var performedByUniqueId: String
     /// Required by the server for a non-direct product match.
     var reason: String?
+    /// The replacement's identity as the picker showed it — informational
+    /// fields on the payload (Laravel ignores them) so every local reader can
+    /// show "Name · #TAG" for a switch that has not synced yet.
+    var replacementName: String? = nil
+    var replacementDisplayId: String? = nil
     var capturedAt: Date = Date()
 }
 
@@ -227,6 +308,8 @@ enum PreparationOperationBuilder {
             "performed_by": .string(capture.performedByUniqueId),
         ]
         if let reason = capture.reason, !reason.isEmpty { body["reason"] = .string(reason) }
+        if let name = capture.replacementName, !name.isEmpty { body["equipment_name"] = .string(name) }
+        if let tag = capture.replacementDisplayId, !tag.isEmpty { body["equipment_display_id"] = .string(tag) }
         return .object(body)
     }
 

@@ -37,6 +37,14 @@
 		5A5CFADE0000000000000042 /* ChecklistFinalizationPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000040 /* ChecklistFinalizationPresentation.swift */; };
 		5A5CFADE0000000000000052 /* AppReleaseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000050 /* AppReleaseCatalog.swift */; };
 		5A5CFADE0000000000000024 /* PreparationSyncHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */; };
+		5A5CFADE0000000000000081 /* AssemblyReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000080 /* AssemblyReview.swift */; };
+		5A5CFADE0000000000000082 /* AssemblyReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000080 /* AssemblyReview.swift */; };
+		5A5CFADE0000000000000084 /* AssemblySyncHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */; };
+		5A5CFADE0000000000000086 /* AssemblyReviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000085 /* AssemblyReviewViewController.swift */; };
+		5A5CFADE000000000000008C /* ChecklistEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE000000000000008B /* ChecklistEntry.swift */; };
+		5A5CFADE000000000000008E /* EquipmentAssignmentFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE000000000000008D /* EquipmentAssignmentFlow.swift */; };
+		5A5CFADE0000000000000088 /* AssemblyReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000087 /* AssemblyReviewTests.swift */; };
+		5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */; };
 		5A5C00000000000000000048 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
 		5A5C0000000000000000004A /* KabbaSessionKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000049 /* KabbaSessionKeychain.swift */; };
 		5A5C0000000000000000004D /* KabbaSharedClientHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */; };
@@ -479,6 +487,13 @@
 		5A5CFADE0000000000000040 /* ChecklistFinalizationPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistFinalizationPresentation.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000050 /* AppReleaseCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReleaseCatalog.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationSyncHandlers.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000080 /* AssemblyReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReview.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblySyncHandlers.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000085 /* AssemblyReviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReviewViewController.swift; sourceTree = "<group>"; };
+		5A5CFADE000000000000008B /* ChecklistEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistEntry.swift; sourceTree = "<group>"; };
+		5A5CFADE000000000000008D /* EquipmentAssignmentFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAssignmentFlow.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000087 /* AssemblyReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReviewTests.swift; sourceTree = "<group>"; };
+		5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReviewPresentationTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000047 /* DeprecatedEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpoints.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000049 /* KabbaSessionKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSessionKeychain.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000004C /* KabbaSharedClientHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSharedClientHeaders.swift; sourceTree = "<group>"; };
@@ -897,6 +912,8 @@
 				65F9D6318EC14E5E8BE0BDE0 /* QueueLineModel.swift */,
 				5A5CFADE0000000000000070 /* QueueLinePresentation.swift */,
 				5A5CFADE0000000000000074 /* QueueLineFilter.swift */,
+				5A5CFADE0000000000000085 /* AssemblyReviewViewController.swift */,
+				5A5CFADE000000000000008B /* ChecklistEntry.swift */,
 			);
 			path = "Queue Line Model";
 			sourceTree = "<group>";
@@ -1743,6 +1760,7 @@
 				C51954642CFE289A007AB49C /* SignatureView */,
 				C5A286472C904DB700A1CFE9 /* CheckListModel.swift */,
 				C5A286492C904DC300A1CFE9 /* CheckListViewController.swift */,
+				5A5CFADE000000000000008D /* EquipmentAssignmentFlow.swift */,
 				C54047922D2BDE7C002EADF4 /* CheckListUpdateViewController.swift */,
 				C58FBF602E696F4F007E1557 /* CheckListUpdateModel.swift */,
 			);
@@ -1951,6 +1969,7 @@
 				5A5CFADE0000000000000030 /* LegCompletionRequirements.swift */,
 				5A5CFADE0000000000000040 /* ChecklistFinalizationPresentation.swift */,
 				5A5CFADE0000000000000050 /* AppReleaseCatalog.swift */,
+				5A5CFADE0000000000000080 /* AssemblyReview.swift */,
 				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
@@ -1996,6 +2015,7 @@
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
+				5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */,
 				5A5C0000000000000000001B /* KabbaSync.swift */,
 				5A5C0000000000000000001D /* SyncStatusUI.swift */,
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
@@ -2018,6 +2038,7 @@
 				5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */,
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
+				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2059,6 +2080,7 @@
 				5A5CFADE0000000000000035 /* LegCompletionEvaluatorTests.swift */,
 				5A5CFADE0000000000000045 /* ChecklistFinalizationPresentationTests.swift */,
 				5A5CFADE0000000000000055 /* AppReleaseCatalogTests.swift */,
+				5A5CFADE0000000000000087 /* AssemblyReviewTests.swift */,
 				5A5C00000000000000000082 /* SessionStateTests.swift */,
 				5A5C00000000000000000084 /* SyncEngineTests.swift */,
 				5A5C00000000000000000086 /* SyncResponseInterpreterTests.swift */,
@@ -2593,6 +2615,11 @@
 				774BD89A95724C26A758D2E1 /* QueueLineModel.swift in Sources */,
 				5A5CFADE0000000000000071 /* QueueLinePresentation.swift in Sources */,
 				5A5CFADE0000000000000075 /* QueueLineFilter.swift in Sources */,
+				5A5CFADE0000000000000081 /* AssemblyReview.swift in Sources */,
+				5A5CFADE0000000000000084 /* AssemblySyncHandlers.swift in Sources */,
+				5A5CFADE0000000000000086 /* AssemblyReviewViewController.swift in Sources */,
+				5A5CFADE000000000000008C /* ChecklistEntry.swift in Sources */,
+				5A5CFADE000000000000008E /* EquipmentAssignmentFlow.swift in Sources */,
 				C51AF5D82AD178220042589E /* EmptyDataView.swift in Sources */,
 				C5474AA12D8A996E004277AC /* RantalReadyVC.swift in Sources */,
 				C51AF5D62AD178220042589E /* AlertPopUp.swift in Sources */,
@@ -2724,6 +2751,8 @@
 				5A5CFADE0000000000000032 /* LegCompletionRequirements.swift in Sources */,
 				5A5CFADE0000000000000042 /* ChecklistFinalizationPresentation.swift in Sources */,
 				5A5CFADE0000000000000052 /* AppReleaseCatalog.swift in Sources */,
+				5A5CFADE0000000000000082 /* AssemblyReview.swift in Sources */,
+				5A5CFADE0000000000000088 /* AssemblyReviewTests.swift in Sources */,
 				5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */,
 				5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */,
@@ -2738,6 +2767,7 @@
 				5A5C00000000000000000112 /* KabbaSessionKeychainDeviceTests.swift in Sources */,
 				5A5CFADE0000000000000073 /* QueueLinePresentationTests.swift in Sources */,
 				5A5CFADE0000000000000077 /* QueueLineFilterTests.swift in Sources */,
+				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

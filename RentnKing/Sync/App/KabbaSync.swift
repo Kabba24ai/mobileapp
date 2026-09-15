@@ -82,6 +82,9 @@ enum KabbaSync {
                                         EquipmentSubstitutionSyncHandler(hasSession: hasSession),
                                         ChecklistRestartSyncHandler(leg: .delivery, hasSession: hasSession),
                                         ChecklistRestartSyncHandler(leg: .return, hasSession: hasSession),
+                                        // Assembly Review (2026-09-14) — availability confirmations
+                                        // per order product (grouping is derived server-side).
+                                        AvailabilitySyncHandler(hasSession: hasSession),
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)
                                         ManualDispatchSyncHandler(hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),

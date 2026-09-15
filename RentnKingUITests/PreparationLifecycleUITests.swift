@@ -143,7 +143,19 @@ final class PreparationLifecycleUITests: XCTestCase {
     /// Taps the Update button (the card's ONE action → Delivery Checklist) on the
     /// card whose text contains `anchor` (e.g. "#EXC-A" or a product name — the
     /// card's unit line).
-    private func openCard(_ app: XCUIApplication, anchor: String) {
+    /// Taps Update on the card containing `anchor`. Since Assembly Review (2026-09-14)
+    /// every card opens the review first, and its checklist may only open once the
+    /// assembly is GO — so this confirms every requirement and taps the anchored
+    /// member's Continue, landing on the checklist exactly as before.
+    private func openCard(_ app: XCUIApplication, anchor: String, memberUid: String? = nil) {
+        tapUpdate(app, anchor: anchor)
+        guard element(app, id: "assemblyReview.order").waitForExistence(timeout: 20) else { return }
+        confirmEverything(app)
+        continueFromReview(app, memberUid: memberUid)
+    }
+
+    /// Update on the card containing `anchor`, nothing more (lands on the Assembly Review).
+    private func tapUpdate(_ app: XCUIApplication, anchor: String) {
         let anchorEl = textElement(app, anchor)
         if !anchorEl.waitForExistence(timeout: 30) { dump(app, "no-card-\(anchor)") }
         XCTAssertTrue(anchorEl.exists, "no Queue Line card containing '\(anchor)'")
@@ -151,19 +163,60 @@ final class PreparationLifecycleUITests: XCTestCase {
 
         let buttons = app.buttons.matching(identifier: "queueLineUpdate").allElementsBoundByIndex
         XCTAssertFalse(buttons.isEmpty, "no Update buttons on the board")
-        let nearest = buttons.min(by: { abs($0.frame.midY - y) < abs($1.frame.midY - y) })!
+        // A card's Update sits in ITS header row: level with a header anchor (the order
+        // number) and ABOVE a body anchor (the unit line, the assembly line). So the card's
+        // own button is the lowest Update whose bottom is not below the anchor's bottom —
+        // the next card's header is always further down.
+        let ownOrAbove = buttons.filter { $0.frame.maxY <= anchorEl.frame.maxY + 24 }   // level: the pill is taller than the label
+        let nearest = ownOrAbove.max(by: { $0.frame.maxY < $1.frame.maxY })
+            ?? buttons.min(by: { abs($0.frame.midY - y) < abs($1.frame.midY - y) })!
         nearest.tap()
         usleep(2_000_000)
+    }
+
+    /// Confirms every enabled, still-unconfirmed requirement on the review (the
+    /// affirmative control: hollow Available → filled). Scrolls as needed.
+    private func confirmEverything(_ app: XCUIApplication) {
+        let unconfirmed = NSPredicate(format: "identifier ENDSWITH '.available' AND value == 'not confirmed'")
+        for _ in 0..<12 {
+            let candidates = app.buttons.matching(unconfirmed).allElementsBoundByIndex.filter { $0.isEnabled }
+            guard let next = candidates.first else { break }
+            if !next.isHittable { _ = reveal(app, next, tag: "confirm") }
+            next.tap()
+            usleep(700_000)
+        }
+        for _ in 0..<6 { app.swipeDown(); usleep(200_000) }
+    }
+
+    /// Taps Continue for the given member (or the first enabled one).
+    private func continueFromReview(_ app: XCUIApplication, memberUid: String? = nil) {
+        let id = memberUid.map { "assembly.\($0).continue" }
+        let button = id.map { element(app, id: $0) }
+            ?? app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.continue' AND enabled == true")).firstMatch
+        XCTAssertTrue(reveal(app, button, tag: "continue"), "no Continue to Checklist on the review")
+        XCTAssertTrue(button.isEnabled, "Continue must be enabled once the assembly is GO")
+        button.tap()
+        usleep(2_000_000)
+    }
+
+    /// Scrolls the checklist table back to its first row. A plain swipe at the table's
+    /// centre can land on a section's Delivery Note text view (a scroll view of its own)
+    /// and move nothing — so drag from just under the header instead, where question
+    /// cells live, and keep going until `target` is back in the hierarchy.
+    private func scrollChecklistToTop(_ app: XCUIApplication, until target: XCUIElement) {
+        let table = app.tables.firstMatch
+        for _ in 0..<6 where !target.exists {
+            table.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12))
+                .press(forDuration: 0.05, thenDragTo: table.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+            usleep(700_000)
+        }
     }
 
     private func expectOnChecklist(_ app: XCUIApplication, unit code: String, name: String? = nil, timeout: TimeInterval = 30) {
         let row = textElement(app, "\(name ?? code)    ||    \(code)")
         if row.waitForExistence(timeout: timeout / 2) { return }
         // The Equipment ID header may be scrolled off-screen — scroll to top.
-        for _ in 0..<4 where !row.exists {
-            app.tables.firstMatch.swipeDown()
-            usleep(700_000)
-        }
+        scrollChecklistToTop(app, until: row)
         if !row.waitForExistence(timeout: timeout / 2) { dump(app, "unit-row-missing-\(code)") }
         XCTAssertTrue(row.exists, "checklist Equipment ID row does not show '\(code)'")
     }
@@ -179,6 +232,11 @@ final class PreparationLifecycleUITests: XCTestCase {
     /// cancel, and try the next candidate.
     private func openEquipmentPicker(_ app: XCUIApplication, currentCode: String, currentName: String? = nil) {
         let unitRow = textElement(app, "\(currentName ?? currentCode)    ||    \(currentCode)")
+        // The Equipment ID header is the first row: after answering / typing hours further
+        // down, a shorter screen has scrolled (and recycled) it — come back to the top.
+        if !unitRow.exists { shootToDisk("picker-row-missing-before-\(currentCode)") }
+        scrollChecklistToTop(app, until: unitRow)
+        if !unitRow.exists { shootToDisk("picker-row-missing-after-\(currentCode)"); dump(app, "picker-row-missing-\(currentCode)") }
         XCTAssertTrue(unitRow.waitForExistence(timeout: 20), "no Equipment ID row for '\(currentCode)'")
         let center = CGPoint(x: unitRow.frame.midX, y: unitRow.frame.midY)
 
@@ -622,7 +680,7 @@ final class PreparationLifecycleUITests: XCTestCase {
         sleep(4)
         shoot("sanity-inplace-after-restart")   // records the in-place refresh
         XCTAssertFalse(textElement(app, "No damage").exists, "answers survived the restart")
-        goBack(app)
+        backToBoard(app)                          // checklist → Assembly Review → board
         expectCard(app, tab: "Pending", anchor: "#EXC-A")
         // Reopen: the fresh cycle must present the SAME unit with a blank sheet.
         openCard(app, anchor: "#EXC-A")
@@ -662,6 +720,7 @@ final class PreparationLifecycleUITests: XCTestCase {
         answerVisible(app, question: "body damage", answer: "No damage", seek: true)
         XCTAssertTrue(textElement(app, "No damage").waitForExistence(timeout: 10), "answer was not applied")
         enterVisibleHours(app, hours: "123", max: 1)
+        dump(app, "B-before-substitute")
 
         substitute(app, from: "EXC-B", to: "EXC-C",
                    replacementName: "Mini Excavator EXC-C", expectConfirmation: true)
@@ -942,7 +1001,18 @@ final class PreparationLifecycleUITests: XCTestCase {
         openCard(app, anchor: "#\(hLine1)")
         expectOnChecklist(app, unit: hLine1)
 
+        // Focused Save (2026-09-14): entering from the review for line 1 stages line 1 only.
         fillChecklist(app, hourFields: 2, expectSelects: 6)   // both sections
+        saveExpectStaged(app, expectVideoRouting: true)
+        backToBoard(app)
+        expectCard(app, tab: "Staged", anchor: "#\(hLine1)")
+        expectNoCard(app, tab: "Staged", anchor: "#\(hLine2)")
+        // Line 2 stages from its own Continue (it is still on the Pending tab). Its section is
+        // topped up first: the first visit's Save was line 1's, and only line 1 had to be complete.
+        selectTab(app, "Pending")
+        openCard(app, anchor: "#\(hLine2)")
+        expectOnChecklist(app, unit: hLine2)
+        fillChecklist(app, hourFields: 2, expectSelects: 6)
         saveExpectStaged(app, expectVideoRouting: true)
         refreshBoard(app)
         expectCard(app, tab: "Staged", anchor: "#\(hLine1)")
@@ -1052,20 +1122,21 @@ final class PreparationLifecycleUITests: XCTestCase {
         XCTAssertEqual(updates.firstMatch.label, "Update")
         XCTAssertTrue(updates.firstMatch.isEnabled)
 
-        // Rapid double tap → exactly ONE Delivery Checklist. The shot right after the
-        // gesture catches the acknowledged (hollow, disabled) button before the push lands.
+        // Rapid double tap → exactly ONE Assembly Review (since 2026-09-14 every card opens
+        // the review first; the checklist follows from its Continue). The shot right after
+        // the gesture catches the acknowledged (hollow, disabled) button before the push lands.
         updates.firstMatch.doubleTap()
         shootToDisk("update-tapped")
-        let checklistTitle = textElement(app, "Check List - Delivered")
-        XCTAssertTrue(checklistTitle.waitForExistence(timeout: 30), "Update did not open the Delivery Checklist")
+        let reviewTitle = element(app, id: "assemblyReview.order")
+        XCTAssertTrue(reviewTitle.waitForExistence(timeout: 30), "Update did not open the Assembly Review")
         usleep(1_500_000)
-        shootToDisk("checklist-opened")
+        shootToDisk("review-opened")
 
         // ONE Back → the board (a duplicate push would need two).
         goBack(app)
         XCTAssertTrue(app.buttons["Staged"].firstMatch.waitForExistence(timeout: 15),
-                      "one Back did not return to the Queue Line board — was the checklist pushed twice?")
-        XCTAssertFalse(checklistTitle.exists, "a Delivery Checklist is still on screen after Back")
+                      "one Back did not return to the Queue Line board — was the review pushed twice?")
+        XCTAssertFalse(reviewTitle.exists, "an Assembly Review is still on screen after Back")
         XCTAssertTrue(updates.firstMatch.waitForExistence(timeout: 15), "Update button not restored after Back")
         XCTAssertTrue(updates.firstMatch.isEnabled, "Update button still disabled after Back")
         shootToDisk("board-after-back")
@@ -1209,5 +1280,581 @@ final class PreparationLifecycleUITests: XCTestCase {
         openFilterSheet(app)
         tapId(app, "queueLineFilter.reset")
         tapId(app, "queueLineFilter.apply")
+    }
+
+    // ── Assembly Review (Slices D + E, 2026-09-13) ────────────────────────────
+    //
+    // Staging seed (scratchpad/seed_assembly.php), dependencies PERSISTED as checkout
+    // writes them: 9301 Skid Steer (Toothed Bucket + prepaid fuel/waiver) + RELATED
+    // Brush Cutter → one dependent assembly, plus an unrelated Boom Lift; 9302 Mini
+    // Excavator with "No Bucket"; 9303 Skid Steer (Smooth Bucket) + RELATED Harley Rake
+    // with NO unit; 9304 BUNDLE Mini Skid (MASTER, 3 options) + Trencher (CHILD), long
+    // customer name. Line unique ids arrive as TEST_RUNNER_KABBA_QLA_* env.
+
+    private func qla(_ key: String) -> String { ProcessInfo.processInfo.environment["KABBA_QLA_\(key)"] ?? "" }
+    private var qlaSkid: String { qla("SKID") }
+    private var qlaCutter: String { qla("CUTTER") }
+    private var qlaBoom: String { qla("BOOM") }
+    private var qlaExc: String { qla("EXC") }
+    private var qlaRake: String { qla("RAKE") }
+    private var qlaSkid2: String { qla("SKID2") }
+    private var qlaMS: String { qla("MS") }
+    private var qlaTR: String { qla("TR") }
+    private var qlaPC: String { qla("PC") }
+
+    private func reviewIsOpen(_ app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+        element(app, id: "assemblyReview.order").waitForExistence(timeout: timeout)
+    }
+
+    /// Scrolls the Assembly Review until the element exists (or gives up).
+    @discardableResult
+    private func reveal(_ app: XCUIApplication, _ el: XCUIElement, tag: String) -> Bool {
+        for _ in 0..<8 {
+            if el.exists && el.isHittable { return true }
+            app.swipeUp()
+            usleep(500_000)
+        }
+        for _ in 0..<8 where !(el.exists && el.isHittable) {
+            app.swipeDown()
+            usleep(500_000)
+        }
+        if !el.exists { dump(app, "reveal-\(tag)") }
+        return el.exists
+    }
+
+    private func tapReview(_ app: XCUIApplication, _ id: String) {
+        let el = element(app, id: id)
+        XCTAssertTrue(reveal(app, el, tag: id), "no element '\(id)' on the Assembly Review")
+        el.tap()
+        usleep(700_000)
+    }
+
+    private func reviewLabel(_ app: XCUIApplication, _ id: String) -> String {
+        let el = element(app, id: id)
+        _ = reveal(app, el, tag: id)
+        return el.label
+    }
+
+    private func reviewValue(_ app: XCUIApplication, _ id: String) -> String {
+        let el = element(app, id: id)
+        _ = reveal(app, el, tag: id)
+        return (el.value as? String) ?? ""
+    }
+
+    /// Pops screens until the Assembly Review is visible.
+    private func backToReview(_ app: XCUIApplication) {
+        for _ in 0..<5 {
+            if element(app, id: "assemblyReview.order").exists { return }
+            goBack(app)
+        }
+        XCTAssertTrue(reviewIsOpen(app, timeout: 10), "never returned to the Assembly Review")
+    }
+
+    private func progressLine(_ app: XCUIApplication) -> String {
+        let q = NSPredicate(format: "identifier BEGINSWITH 'assemblyReview.group.' AND identifier ENDSWITH '.progress'")
+        return app.staticTexts.matching(q).firstMatch.label
+    }
+
+    private func groupStage(_ app: XCUIApplication) -> String {
+        let q = NSPredicate(format: "identifier BEGINSWITH 'assemblyReview.group.' AND identifier ENDSWITH '.stage'")
+        return app.staticTexts.matching(q).firstMatch.label
+    }
+
+    /// The derived STOP / GO badge of the (single) visible entity, e.g. "STOP · 1 of 3 confirmed".
+    private func gateLabel(_ app: XCUIApplication) -> String {
+        let q = NSPredicate(format: "identifier BEGINSWITH 'assemblyReview.group.' AND identifier ENDSWITH '.gate'")
+        let el = app.descendants(matching: .any).matching(q).firstMatch
+        for _ in 0..<6 where !el.exists { app.swipeDown(); usleep(300_000) }
+        return el.label
+    }
+
+    private func confirm(_ app: XCUIApplication, _ subjectId: String) {
+        XCTAssertEqual(reviewValue(app, "\(subjectId).available"), "not confirmed", "\(subjectId) should start unconfirmed")
+        tapReview(app, "\(subjectId).available")
+        XCTAssertEqual(reviewValue(app, "\(subjectId).available"), "confirmed", "\(subjectId) shows confirmed the moment it is tapped")
+    }
+
+    private func continueIsBlocked(_ app: XCUIApplication, _ uid: String) -> Bool {
+        let el = element(app, id: "assembly.\(uid).continue")
+        _ = reveal(app, el, tag: "continue-\(uid)")
+        return !el.isEnabled && (el.value as? String) == "blocked"
+    }
+
+    // MARK: 1 · A dependent assembly is STOP until every requirement is confirmed, then GO
+
+    func testDependentAssemblyIsStopUntilEveryRequirementIsConfirmedThenGo() {
+        XCTAssertFalse(qlaSkid.isEmpty, "set KABBA_QLA_SKID")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+
+        // Board: the Skid Steer + related Brush Cutter are ONE card; the unrelated Boom Lift
+        // on the same order is its own card; Product Options stay off the board.
+        XCTAssertTrue(textElement(app, "2 items · 0 of 2 staged").waitForExistence(timeout: 30), "the 9301 dependent assembly card should say 2 items · 0 of 2 staged")
+        XCTAssertTrue(textElement(app, "with Brush Cutter").exists, "the dependent member is named on the one card")
+        XCTAssertTrue(textElement(app, "QLA-BL1").exists, "the unrelated Boom Lift has its own card")
+        XCTAssertFalse(textElement(app, "with Boom Lift").exists, "same order id alone never groups")
+        XCTAssertFalse(textElement(app, "Toothed Bucket").exists, "Product Options belong on Assembly Review, not the board card")
+        shootToDisk("d-board-entities")
+
+        tapUpdate(app, anchor: "QLA-SK1")
+        XCTAssertTrue(reviewIsOpen(app), "Update did not open the Assembly Review")
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9301")
+        usleep(2_500_000)                                   // server read replaces the cache
+
+        // Only the tapped entity; the quiet header; every frozen option by its stored label.
+        XCTAssertFalse(textElement(app, "Queue Assembly Customer").exists, "no repeated customer header")
+        XCTAssertFalse(textElement(app, "Everything ordered has to be physically present before the assembly can be staged. Confirm each item, then open its checklist.").exists)
+        for text in ["Skid Steer", "Toothed Bucket", "Brush Cutter", "Goes with Skid Steer", "No Product Options on this line"] {
+            XCTAssertTrue(reveal(app, textElement(app, text), tag: text), "Assembly Review must show '\(text)'")
+        }
+        XCTAssertFalse(element(app, id: "assembly.\(qlaBoom)").exists, "the independent Boom Lift is not part of this assembly")
+        for text in ["Prepaid", "Damage Waiver", "Thrown Track", "Fuel level", "Unit status", "Item availability", "Checklist:", "Cannot be staged", "Not Available", "Unbundle"] {
+            XCTAssertFalse(textElement(app, text).exists, "'\(text)' must not appear")
+        }
+        XCTAssertEqual(gateLabel(app), "STOP · 0 of 3 confirmed")
+        XCTAssertTrue(continueIsBlocked(app, qlaSkid), "STOP: the Skid Steer checklist may not open")
+        XCTAssertTrue(continueIsBlocked(app, qlaCutter), "STOP: the Brush Cutter checklist may not open either")
+        shootToDisk("d-review-stop")
+
+        // Partial: the Skid Steer and its bucket confirmed — the dependent cutter still holds STOP.
+        confirm(app, "assembly.\(qlaSkid).unit")
+        XCTAssertEqual(gateLabel(app), "STOP · 1 of 3 confirmed")
+        confirm(app, "assembly.\(qlaSkid).option.POPT-ITM-ST-TOOTH")
+        XCTAssertEqual(gateLabel(app), "STOP · 2 of 3 confirmed")
+        XCTAssertTrue(continueIsBlocked(app, qlaSkid), "a dependent member left unconfirmed blocks the whole assembly")
+        shootToDisk("d-review-partial")
+
+        // GO: the cutter's unit confirmed — every checklist in the assembly may open.
+        confirm(app, "assembly.\(qlaCutter).unit")
+        XCTAssertEqual(gateLabel(app), "GO · All 3 confirmed")
+        XCTAssertFalse(continueIsBlocked(app, qlaSkid))
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaSkid).continue"), "enabled")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaCutter).continue"), "enabled")
+        shootToDisk("d-review-go")
+
+        // Continue → the checklist; Back → the review (refreshed), still GO.
+        continueFromReview(app, memberUid: qlaSkid)
+        expectOnChecklist(app, unit: "QLA-SK1", name: "Skid Steer Unit")
+        shootToDisk("d-checklist-enabled")
+        backToReview(app)
+        usleep(2_500_000)
+        XCTAssertEqual(gateLabel(app), "GO · All 3 confirmed", "the server agrees after the round trip")
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9301")
+        shootToDisk("d-review-return")
+
+        // ONE Back → the board.
+        goBack(app)
+        XCTAssertTrue(app.buttons["Staged"].firstMatch.waitForExistence(timeout: 15), "one Back did not return to the board")
+    }
+
+    // MARK: 2 · An independent line on the same order proceeds on its own; a focused Save stages only it
+
+    func testIndependentLineProceedsAndItsFocusedSaveStagesOnlyItself() {
+        XCTAssertFalse(qlaBoom.isEmpty, "set KABBA_QLA_BOOM")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+
+        tapUpdate(app, anchor: "QLA-BL1")
+        XCTAssertTrue(reviewIsOpen(app))
+        usleep(2_500_000)
+        XCTAssertTrue(element(app, id: "assembly.\(qlaBoom)").waitForExistence(timeout: 10))
+        XCTAssertFalse(element(app, id: "assembly.\(qlaSkid)").exists, "the Skid Steer assembly is a different entity")
+        XCTAssertEqual(gateLabel(app), "STOP · 0 of 1 confirmed")
+        confirm(app, "assembly.\(qlaBoom).unit")
+        XCTAssertEqual(gateLabel(app), "GO · Confirmed", "GO on its own — whatever state the Skid Steer assembly is in")
+        shootToDisk("d-review-independent-go")
+
+        // The checklist screen still lists every line of the order. Fill ALL of them and Save
+        // from the Boom Lift's focused entry: only the Boom Lift may stage.
+        continueFromReview(app, memberUid: qlaBoom)
+        expectOnChecklist(app, unit: "QLA-BL1", name: "Boom Lift Unit")
+        fillChecklist(app, hourFields: 3, expectSelects: 9)
+        saveExpectStaged(app, expectVideoRouting: true)
+        backToReview(app)
+        usleep(2_500_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaBoom).stage"), "Staged")
+
+        backToBoard(app)
+        sleep(3)
+        expectCard(app, tab: "Staged", anchor: "QLA-BL1")
+        expectNoCard(app, tab: "Staged", anchor: "QLA-SK1")
+        expectNoCard(app, tab: "Staged", anchor: "QLA-BC1")
+        expectCard(app, tab: "Pending", anchor: "0 of 2 staged")   // the dependent assembly: nothing staged by the Boom Lift's Save
+        shootToDisk("d-board-focused-save")
+    }
+
+    // MARK: 3 · No Bucket, and an unassigned dependent member
+
+    func testNoBucketIsConfirmedLikeAnyOptionAndAnUnassignedDependentMemberHoldsStop() {
+        XCTAssertFalse(qlaExc.isEmpty, "set KABBA_QLA_EXC")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+
+        tapUpdate(app, anchor: "QLA-EX1")
+        XCTAssertTrue(reviewIsOpen(app), "a single-line order still goes through Assembly Review")
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9302")
+        usleep(2_000_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT.title"), "No Bucket", "No Bucket is shown explicitly")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT.state"), "Not yet confirmed")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT.icon"), "Not confirmed")
+        XCTAssertFalse(textElement(app, "Prepaid Cleaning").exists)
+        XCTAssertFalse(textElement(app, "Unbundle").exists)
+        XCTAssertEqual(gateLabel(app), "STOP · 0 of 2 confirmed")
+        confirm(app, "assembly.\(qlaExc).unit")
+        confirm(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT.icon"), "Confirmed")
+        XCTAssertEqual(gateLabel(app), "GO · All 2 confirmed", "No Bucket counts like any other requirement")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaExc).continue"), "enabled")
+        shootToDisk("d-review-no-bucket")
+
+        // 9303: the related Harley Rake has no unit — nothing to confirm, and the assembly cannot be GO.
+        goBack(app)
+        tapUpdate(app, anchor: "QLA-SK2")
+        XCTAssertTrue(reviewIsOpen(app))
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9303")
+        usleep(2_000_000)
+        XCTAssertTrue(reveal(app, textElement(app, "Harley Rake"), tag: "rake"))
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.title"), "No equipment selected")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.state"), "Assign a machine first")
+        XCTAssertFalse(element(app, id: "assembly.\(qlaRake).unit.available").exists, "no Available control for a machine that does not exist")
+        XCTAssertTrue(element(app, id: "assembly.\(qlaRake).unit.assign").isEnabled, "the ONE action is Assign")
+        confirm(app, "assembly.\(qlaSkid2).unit")
+        confirm(app, "assembly.\(qlaSkid2).option.POPT-ITM-ST-SMOOTH")
+        XCTAssertEqual(gateLabel(app), "STOP · 2 of 3 confirmed", "the unassigned dependent member holds the assembly at STOP")
+        XCTAssertTrue(continueIsBlocked(app, qlaSkid2), "the fully confirmed Skid Steer still may not open its checklist")
+        shootToDisk("d-review-unassigned-stop")
+    }
+
+    // MARK: 4 · Bundle: focused Save stages one member; a reversal unstages it; confirming never restages
+
+    func testBundleFocusedSaveThenReversalUnstagesAndConfirmingNeverRestages() {
+        XCTAssertFalse(qlaMS.isEmpty, "set KABBA_QLA_MS")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        if !textElement(app, "QLA-MS1").waitForExistence(timeout: 20) { selectTab(app, "Pending") }
+        XCTAssertTrue(textElement(app, "with Mini Skid - Trencher").waitForExistence(timeout: 20), "the bundle MASTER + CHILD are one card")
+
+        tapUpdate(app, anchor: "QLA-MS1")
+        XCTAssertTrue(reviewIsOpen(app))
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9304")
+        usleep(2_500_000)
+        XCTAssertTrue(reveal(app, textElement(app, "Goes with Mini Skid Steer"), tag: "bundle-child"))
+        XCTAssertTrue(reveal(app, textElement(app, "XL Smooth Bucket - 48 inch"), tag: "long-option"))
+        XCTAssertEqual(gateLabel(app), "STOP · 0 of 5 confirmed", "master unit + 3 options + child unit")
+        confirmEverything(app)
+        XCTAssertEqual(gateLabel(app), "GO · All 5 confirmed")
+        shootToDisk("d-review-bundle-go")
+
+        // Focused Save for the MASTER: the CHILD stays Pending even though its section is filled.
+        continueFromReview(app, memberUid: qlaMS)
+        expectOnChecklist(app, unit: "QLA-MS1", name: "Mini Skid Steer Unit")
+        fillChecklist(app, hourFields: 2, expectSelects: 6)
+        saveExpectStaged(app, expectVideoRouting: true)
+        backToReview(app)
+        usleep(2_500_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaMS).stage"), "Staged")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaTR).stage"), "Pending", "the bundle child was not staged by the master's Save")
+        XCTAssertEqual(progressLine(app), "1 of 2 items staged")
+        XCTAssertEqual(groupStage(app), "Pending")
+        shootToDisk("d-review-partial-staged")
+
+        // Reversal: the XL bucket turns out to be missing → the master returns to Pending (locally NOW, then server).
+        tapReview(app, "assembly.\(qlaMS).option.POPT-ITM-MS-XL48.available")
+        let reverse = app.alerts.buttons["Not Available"]
+        XCTAssertTrue(reverse.waitForExistence(timeout: 8), "reversing a confirmation asks first")
+        reverse.tap()
+        usleep(1_000_000)
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaMS).option.POPT-ITM-MS-XL48.available"), "not confirmed")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaMS).stage"), "Pending")
+        XCTAssertEqual(gateLabel(app), "STOP · 4 of 5 confirmed")
+        XCTAssertEqual(progressLine(app), "0 of 2 items staged")
+        shootToDisk("d-review-reversed")
+        sleep(5)                                            // let the engine deliver it
+        goBack(app)
+        tapUpdate(app, anchor: "9304")                      // fresh server read
+        XCTAssertTrue(reviewIsOpen(app))
+        usleep(3_000_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaMS).stage"), "Pending", "the server unstaged it too")
+        XCTAssertTrue(reviewLabel(app, "assembly.\(qlaMS).option.POPT-ITM-MS-XL48.state").hasPrefix("Not Available"), "the reversal stands after the server round trip")
+
+        // Confirmed again: still Pending — only the explicit Save restages.
+        confirm(app, "assembly.\(qlaMS).option.POPT-ITM-MS-XL48")
+        XCTAssertEqual(gateLabel(app), "GO · All 5 confirmed")
+        sleep(4)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaMS).stage"), "Pending", "confirming is a prerequisite, never a staging trigger")
+        continueFromReview(app, memberUid: qlaMS)
+        expectOnChecklist(app, unit: "QLA-MS1", name: "Mini Skid Steer Unit")
+        fillChecklist(app, hourFields: 2, expectSelects: 6)   // server-prefilled: usually a no-op
+        saveExpectStaged(app, expectVideoRouting: true)
+        backToReview(app)
+        usleep(2_500_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaMS).stage"), "Staged")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaTR).stage"), "Pending")
+        shootToDisk("d-review-restaged")
+    }
+
+    // ── Universal Assembly Review sequencing (2026-09-14) ─────────────────────
+    //
+    // Every road into the outbound checklist passes through Assembly Review first
+    // — not only the Queue Line card. Order Details and the Orders list are the
+    // other two launch sites in the app (Schedule, Dispatch's driver flow and the
+    // notification deep link all arrive at Order Details). The seed's 9305 is the
+    // simplest order there is: one Plate Compactor, no options.
+
+    private func openOrders(_ app: XCUIApplication) {
+        let entry = textElement(app, "Orders")
+        XCTAssertTrue(entry.waitForExistence(timeout: 30), "Home screen offered no Orders entry")
+        entry.tap()
+        usleep(2_500_000)
+    }
+
+    /// Scrolls the Orders list until the row whose order number is `number` is visible.
+    private func revealOrderRow(_ app: XCUIApplication, _ number: String) -> XCUIElement {
+        let row = app.staticTexts.matching(NSPredicate(format: "label == %@", number)).firstMatch
+        for _ in 0..<8 where !(row.exists && row.isHittable) {
+            app.swipeUp()
+            usleep(600_000)
+        }
+        if !row.exists { dump(app, "no-order-row-\(number)") }
+        XCTAssertTrue(row.exists, "no Orders row for order \(number)")
+        return row
+    }
+
+    private func onOrderDetails(_ app: XCUIApplication, _ number: String, timeout: TimeInterval = 20) -> Bool {
+        element(app, id: "orderDetails.checklist.delivery").waitForExistence(timeout: timeout)
+            && app.staticTexts.matching(NSPredicate(format: "label == %@", number)).firstMatch.exists
+    }
+
+    // MARK: 5 · Order Details → Assembly Review → Checklist → Assembly Review → Order Details (single item, no options)
+
+    func testOrderDetailsEntersTheDeliveryChecklistThroughAssemblyReviewAndReturnsToOrderDetails() {
+        XCTAssertFalse(qlaPC.isEmpty, "set KABBA_QLA_PC")
+        let app = makeApp()
+        login(app)
+        openOrders(app)
+        revealOrderRow(app, "9305").tap()
+        XCTAssertTrue(onOrderDetails(app, "9305"), "the Orders row did not open Order Details for 9305")
+        shootToDisk("u-order-details")
+
+        // The Delivery checklist tile opens the Assembly Review — even for the simplest order.
+        tapId(app, "orderDetails.checklist.delivery")
+        XCTAssertTrue(reviewIsOpen(app), "Order Details must enter the checklist through Assembly Review")
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9305")
+        usleep(2_500_000)
+        XCTAssertTrue(element(app, id: "assembly.\(qlaPC)").waitForExistence(timeout: 10))
+        XCTAssertTrue(reveal(app, textElement(app, "Plate Compactor"), tag: "compactor"))
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaPC).options.none"), "No Product Options on this line")
+        XCTAssertFalse(textElement(app, "Goes with").exists, "a single line depends on nothing")
+        XCTAssertEqual(gateLabel(app), "STOP · 0 of 1 confirmed", "unconfirmed means STOP, options or not")
+        XCTAssertTrue(continueIsBlocked(app, qlaPC))
+        shootToDisk("u-simple-review-stop")
+
+        // A double tap on the origin's tile could not have stacked a second review:
+        // ONE Back from here must land on Order Details. Proven at the end.
+        confirm(app, "assembly.\(qlaPC).unit")
+        XCTAssertEqual(gateLabel(app), "GO · Confirmed")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaPC).continue"), "enabled")
+        shootToDisk("u-simple-review-go")
+
+        // Continue → the same Delivery Checklist, focused on this member.
+        continueFromReview(app, memberUid: qlaPC)
+        expectOnChecklist(app, unit: "QLA-PC1", name: "Plate Compactor Unit")
+        shootToDisk("u-order-details-checklist")
+        fillChecklist(app, hourFields: 1, expectSelects: 3)
+        saveExpectStaged(app, expectVideoRouting: true)
+
+        // Save → (video routing) → Back → the Assembly Review FIRST, refreshed: Staged.
+        backToReview(app)
+        usleep(2_500_000)
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9305")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaPC).stage"), "Staged", "the explicit Save staged it; the review shows it on return")
+        XCTAssertEqual(gateLabel(app), "GO · Confirmed")
+        shootToDisk("u-review-after-checklist")
+
+        // ONE Back → Order Details (the origin), never the Queue Line.
+        goBack(app)
+        XCTAssertTrue(onOrderDetails(app, "9305", timeout: 15), "Back from the Assembly Review must return to Order Details")
+        XCTAssertFalse(element(app, id: "assemblyReview.order").exists)
+        XCTAssertFalse(app.buttons["Staged"].firstMatch.exists, "Order Details origin is preserved — not the Queue Line board")
+        shootToDisk("u-order-details-return")
+    }
+
+    // MARK: 6 · Orders list → Assembly Review (every entity of the order, separately) → back to the list
+
+    func testTheOrdersListEntersThroughAssemblyReviewShowingEachEntityOfTheOrderAndReturnsToTheList() {
+        XCTAssertFalse(qlaSkid.isEmpty && qlaBoom.isEmpty, "set KABBA_QLA_SKID / KABBA_QLA_BOOM")
+        let app = makeApp()
+        login(app)
+        openOrders(app)
+
+        // The row's own Delivery checklist tile opens the review. The order number sits at the
+        // top of its cell and the tiles at the bottom, so the row's OWN tile is the first one
+        // below the number — and it may still be below the fold: nudge the list until it is
+        // hittable, re-reading frames after every nudge.
+        var tapped = false
+        for _ in 0..<8 {
+            let row = revealOrderRow(app, "9301")
+            let tiles = app.buttons.matching(identifier: "orderList.checklist.delivery").allElementsBoundByIndex
+            XCTAssertFalse(tiles.isEmpty, "no Delivery checklist tiles on the Orders list")
+            let below = tiles.filter { $0.frame.minY >= row.frame.minY }
+            guard let tile = below.min(by: { $0.frame.minY < $1.frame.minY }), tile.isHittable else {
+                let from = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75))
+                from.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)))
+                usleep(700_000)
+                continue
+            }
+            tile.tap()
+            tapped = true
+            break
+        }
+        XCTAssertTrue(tapped, "could not bring 9301's Delivery checklist tile on screen")
+        XCTAssertTrue(reviewIsOpen(app), "the Orders list must enter the checklist through Assembly Review")
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9301")
+        usleep(2_500_000)
+
+        // Unfocused: every entity of the order, each its own group with its own gate —
+        // the dependent Skid Steer + Brush Cutter, and the independent Boom Lift.
+        XCTAssertTrue(reveal(app, element(app, id: "assembly.\(qlaSkid)"), tag: "skid"))
+        XCTAssertTrue(reveal(app, element(app, id: "assembly.\(qlaCutter)"), tag: "cutter"))
+        XCTAssertTrue(reveal(app, element(app, id: "assembly.\(qlaBoom)"), tag: "boom"))
+        let groups = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'assemblyReview.group.' AND identifier ENDSWITH '.gate'"))
+        XCTAssertEqual(groups.count, 2, "two entities on the order → two STOP / GO gates, never one order-wide gate")
+        XCTAssertTrue(textElement(app, "Goes with Skid Steer").exists)
+        XCTAssertFalse(textElement(app, "Goes with Boom Lift").exists, "same order id alone never groups")
+        shootToDisk("u-order-list-review")
+
+        // Back → the Orders list, not the Queue Line.
+        goBack(app)
+        XCTAssertTrue(revealOrderRow(app, "9301").waitForExistence(timeout: 15), "Back from the review must return to the Orders list")
+        XCTAssertFalse(element(app, id: "assemblyReview.order").exists)
+        shootToDisk("u-order-list-return")
+    }
+
+    // ── Assign / reassign from the review — the checklist's own canonical flow (2026-09-14) ─────
+    //
+    // Seed spares (unassigned, Available): QLA-HR1 (direct for the Harley Rake), QLA-SK3 (direct)
+    // and QLA-ALT1 (non-direct, "Other Machine Spare") for 9303's Skid Steer, QLA-EX2 (direct)
+    // for 9302's Mini Excavator.
+
+    /// Picks `row` ("<name>    ||    <code>") on the review's equipment wheel and taps Select.
+    private func pickOnWheel(_ app: XCUIApplication, _ row: String) {
+        let wheel = app.pickerWheels.firstMatch
+        XCTAssertTrue(wheel.waitForExistence(timeout: 10), "the equipment picker did not open")
+        XCTAssertTrue(textElement(app, "Select Equipment ID").exists, "it is the checklist's own Select Equipment ID picker")
+        wheel.adjust(toPickerWheelValue: row)
+        usleep(500_000)
+        app.buttons["Select"].firstMatch.tap()
+        usleep(1_500_000)
+    }
+
+    // MARK: 7 · Assign an unassigned member, then reassign an assigned one — each new unit starts unconfirmed
+
+    func testUnassignedMemberIsAssignedFromTheReviewThenReassignedAndEachNewUnitStartsUnconfirmed() {
+        XCTAssertFalse(qlaRake.isEmpty && qlaSkid2.isEmpty, "set KABBA_QLA_RAKE / KABBA_QLA_SKID2")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        tapUpdate(app, anchor: "QLA-SK2")
+        XCTAssertTrue(reviewIsOpen(app))
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9303")
+        usleep(2_500_000)
+
+        // Unassigned: no Available control, a clear Assign — and the assembly is STOP.
+        XCTAssertTrue(reveal(app, element(app, id: "assembly.\(qlaRake).unit.assign"), tag: "assign"))
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.title"), "No equipment selected")
+        XCTAssertFalse(element(app, id: "assembly.\(qlaRake).unit.available").exists)
+        XCTAssertTrue(gateLabel(app).hasPrefix("STOP"))
+        shootToDisk("a-review-unassigned-assign")
+
+        // Assign → the checklist's own picker → a direct spare: no reason asked, no confirmation to discard.
+        tapReview(app, "assembly.\(qlaRake).unit.assign")
+        pickOnWheel(app, "Harley Rake Spare    ||    QLA-HR1")
+        XCTAssertFalse(app.sheets.firstMatch.exists, "a direct match never asks for a reason")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.title"), "Harley Rake Spare · #QLA-HR1", "named the way the yard names it: name, then tag")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaRake).unit.available"), "not confirmed", "assignment is not availability")
+        XCTAssertFalse(element(app, id: "assembly.\(qlaRake).unit.assign").exists)
+        XCTAssertTrue(gateLabel(app).hasPrefix("STOP"), "assigned, not yet confirmed → still STOP")
+        shootToDisk("a-review-assigned-unconfirmed")
+
+        // Confirm everything → GO.
+        confirm(app, "assembly.\(qlaRake).unit")
+        if reviewValue(app, "assembly.\(qlaSkid2).unit.available") == "not confirmed" { confirm(app, "assembly.\(qlaSkid2).unit") }
+        if reviewValue(app, "assembly.\(qlaSkid2).option.POPT-ITM-ST-SMOOTH.available") == "not confirmed" { confirm(app, "assembly.\(qlaSkid2).option.POPT-ITM-ST-SMOOTH") }
+        XCTAssertEqual(gateLabel(app), "GO · All 3 confirmed")
+        shootToDisk("a-review-assigned-go")
+
+        // Reassign by tapping the identity → a NON-direct spare → the canonical reason sheet.
+        tapReview(app, "assembly.\(qlaSkid2).unit.reassign")
+        pickOnWheel(app, "Other Machine Spare    ||    QLA-ALT1")
+        let reason = app.sheets.buttons["Customer request"].firstMatch
+        XCTAssertTrue(reason.waitForExistence(timeout: 10), "a non-direct unit needs Laravel's reason — the same picklist as the checklist")
+        reason.tap()
+        usleep(1_500_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaSkid2).unit.title"), "Other Machine Spare · #QLA-ALT1")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaSkid2).unit.available"), "not confirmed", "the old unit's Available never carries onto the replacement")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaSkid2).option.POPT-ITM-ST-SMOOTH.available"), "confirmed", "Product Option confirmations stand — the order still asks for the same bucket")
+        XCTAssertEqual(gateLabel(app), "STOP · 2 of 3 confirmed")
+        XCTAssertTrue(continueIsBlocked(app, qlaSkid2))
+        shootToDisk("a-review-reassigned-stop")
+
+        // Confirm the replacement → GO → its checklist opens on the replacement.
+        sleep(4)                                            // let the switch reach Kabba first (FIFO)
+        confirm(app, "assembly.\(qlaSkid2).unit")
+        XCTAssertEqual(gateLabel(app), "GO · All 3 confirmed")
+        continueFromReview(app, memberUid: qlaSkid2)
+        expectOnChecklist(app, unit: "QLA-ALT1", name: "Other Machine Spare")
+        shootToDisk("a-checklist-on-replacement")
+        backToReview(app)
+        usleep(3_000_000)                                   // server read replaces the cache
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaSkid2).unit.title"), "Other Machine Spare · #QLA-ALT1", "the server agrees: one canonical assignment")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.title"), "Harley Rake Spare · #QLA-HR1")
+
+        // The board reads the same assignment.
+        backToBoard(app)
+        expectCard(app, tab: "Pending", anchor: "QLA-ALT1")
+        shootToDisk("a-board-reassigned")
+    }
+
+    // MARK: 8 · Reassigning INSIDE the focused checklist returns the review to STOP with the new unit
+
+    func testVReassigningInsideTheChecklistReturnsTheReviewToStopWithTheNewUnit() {
+        XCTAssertFalse(qlaExc.isEmpty, "set KABBA_QLA_EXC")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        tapUpdate(app, anchor: "QLA-EX1")
+        XCTAssertTrue(reviewIsOpen(app))
+        XCTAssertEqual(element(app, id: "assemblyReview.order").label, "Order #9302")
+        usleep(2_500_000)
+        confirmEverything(app)
+        XCTAssertEqual(gateLabel(app), "GO · All 2 confirmed")
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).unit.title"), "Mini Excavator Unit · #QLA-EX1")
+
+        // GO → the focused checklist → the checklist's own substitution (direct spare, nothing prepared to discard).
+        continueFromReview(app, memberUid: qlaExc)
+        expectOnChecklist(app, unit: "QLA-EX1", name: "Mini Excavator Unit")
+        substitute(app, from: "QLA-EX1", currentName: "Mini Excavator Unit", to: "QLA-EX2",
+                   replacementName: "Mini Excavator Spare", expectConfirmation: false)
+        expectOnChecklist(app, unit: "QLA-EX2", name: "Mini Excavator Spare")
+        shootToDisk("c-checklist-reassigned")
+
+        // Back on the review: the new unit, unconfirmed; No Bucket still confirmed; STOP.
+        backToReview(app)
+        usleep(3_000_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaExc).unit.title"), "Mini Excavator Spare · #QLA-EX2", "the review shows the unit the checklist switched to")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaExc).unit.available"), "not confirmed", "Equipment A's confirmation did not transfer to Equipment B")
+        XCTAssertEqual(reviewValue(app, "assembly.\(qlaExc).option.POPT-ITM-EX-NOBKT.available"), "confirmed")
+        XCTAssertEqual(gateLabel(app), "STOP · 1 of 2 confirmed")
+        XCTAssertTrue(continueIsBlocked(app, qlaExc))
+        shootToDisk("c-review-after-checklist-reassign")
+
+        // Physically confirm the replacement → GO again.
+        confirm(app, "assembly.\(qlaExc).unit")
+        XCTAssertEqual(gateLabel(app), "GO · All 2 confirmed")
+        shootToDisk("c-review-replacement-confirmed")
     }
 }

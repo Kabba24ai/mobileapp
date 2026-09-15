@@ -43,6 +43,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // Phase 4 — local sync state overlaid on the server/cached items (Pending Sync / Sync Issue),
     // plus the freshness line that tells server-confirmed data from a saved list.
     private var syncOverlay = QueueLineLocalOverlay()
+    // Assembly Review (2026-09-14): this phone's durable availability confirmations,
+    // so a Not Available demotes a card BEFORE Laravel confirms (grouping itself is the server's).
+    private var assemblyOverlay = AssemblyLocalOverlay()
     private let freshnessLabel = UILabel()
     private var syncObserver: NSObjectProtocol?
 
@@ -106,7 +109,8 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     }
 
     private func updateFreshnessLine() {
-        freshnessLabel.text = KabbaQueueLineSync.freshnessLine(pendingCount: syncOverlay.pendingStage.count)
+        // Pending changes = staging Saves still syncing + availability / grouping decisions still syncing.
+        freshnessLabel.text = KabbaQueueLineSync.freshnessLine(pendingCount: syncOverlay.pendingStage.count + assemblyOverlay.pendingCount)
         freshnessLabel.textColor = KabbaQueueLineSync.lastRefreshFailed ? Palette.amber : Palette.subtle
     }
 
@@ -155,20 +159,20 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         // never reinsert it, because the evidence outlives the feed. Server
         // truth is never overwritten in the cache; this is display-time only.
         syncOverlay = KabbaQueueLineSync.overlay()
+        assemblyOverlay = KabbaAssemblySync.overlay()
         updateFreshnessLine()
-        func lane(_ item: QueueLineModel) -> String {
-            let product = item.itemOrderProductUniqueId
-            let server = (item.status ?? "") == "completed" || item.completed == true ? "completed" : (item.status ?? "pending")
-            if server == "completed" || syncOverlay.isCompletedLocally(product) { return "completed" }
-            if server == "staged" || syncOverlay.isStagedLocally(product) { return "staged" }
-            return "pending"
-        }
 
-        // Store AND Type, over the complete feed — the same scope on every tab.
+        // Assembly Review (2026-09-14): ONE card per Queue Line entity (a dependent
+        // assembly or a line on its own — the server's derived key). The
+        // lane is the assembly's DERIVED stage — its least-advanced visible
+        // member — so a bundle never moves to Staged because one member's
+        // checklist was saved, and a split-out member classifies on its own.
+        // Store AND Type apply per member, over the complete feed.
         let visible = filter.apply(arrQueueLine)
-        let pendingItems   = visible.filter { lane($0) == "pending" }
-        let stagedItems    = visible.filter { lane($0) == "staged" }
-        let completedItems = visible.filter { lane($0) == "completed" }
+        let groups = QueueLineBoardAssembly.groups(visible, queue: syncOverlay, assembly: assemblyOverlay)
+        let pendingItems   = groups.filter { $0.lane == "pending" }
+        let stagedItems    = groups.filter { $0.lane == "staged" }
+        let completedItems = groups.filter { $0.lane == "completed" }
 
         let pending = makeLaneContent(cards(for: pendingItems,
             empty: filter.emptyMessage(lane: "pending", storeName: filterStoreName)
@@ -250,35 +254,44 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         return card
     }
 
-    private func cards(for items: [QueueLineModel], empty: String) -> [UIView] {
-        guard !items.isEmpty else { return [makeEmptyState(empty)] }
-        return items.map { makeCard(for: $0) }
+    private func cards(for groups: [QueueLineBoardGroup], empty: String) -> [UIView] {
+        guard !groups.isEmpty else { return [makeEmptyState(empty)] }
+        return groups.map { makeCard(for: $0) }
     }
 
-    // MARK: - Update → the ONE Delivery Checklist (no mini-checklist, no popup)
+    // MARK: - Update → Assembly Review → the ONE Delivery Checklist
     //
-    // Checklist-driven staging (2026-09): a card's single Update action — for
-    // Pending AND Staged items — opens the SAME main Delivery Checklist every
-    // other entry point uses. A 100%-complete checklist + Save stages the item;
-    // Preview + customer signature + Complete delivers it (directly from Pending
-    // for walk-ins). Confirming or substituting the Equipment ID happens INSIDE
-    // that checklist (the unit the office picked is a default, not a lock), so
-    // the former three-dot "Confirm / Update Equipment" popup — a second,
-    // non-durable path to the same switch-equipment operation — was retired
-    // 2026-09-13 together with the small checklist icon.
+    // Assembly Review (2026-09-13): a card's single Update action — for Pending
+    // AND Staged assemblies, single-member ones included — opens the order's
+    // Assembly Review, where every member's unit, ordered Product Options,
+    // availability and checklist state sit together. Each member's "Continue to
+    // Checklist" opens the SAME main Delivery Checklist every other entry point
+    // uses; a 100%-complete checklist + Save is still the only road to Staged.
     @objc private func updateTapped(_ sender: QueueLineUpdateButton) {
         guard let item = sender.item, !isOpeningChecklist else { return }
         isOpeningChecklist = true
         inFlightUpdateButton = sender
         // Acknowledge the tap NOW (solid → hollow, disabled) …
         sender.beginLoading()
-        // … and let that frame render before the heavier checklist push begins.
+        // … and let that frame render before the push begins.
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            if !self.openDeliveryChecklist(for: item) {
+            if !self.openAssemblyReview(for: item) {
                 self.finishOpeningChecklist()
             }
         }
+    }
+
+    /// Opens the order's Assembly Review focused on the tapped member. Returns
+    /// false when nothing could be pushed so the caller can re-arm the button.
+    @discardableResult
+    private func openAssemblyReview(for item: QueueLineModel) -> Bool {
+        ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                          orderUniqueId: item.itemOrderUniqueId,
+                                          orderNumber: item.order_number ?? "",
+                                          focusOrderProductUniqueId: item.itemOrderProductUniqueId,
+                                          focusAssemblyKey: item.assemblyKey,
+                                          origin: .queueLine) != nil
     }
 
     /// Clears the in-flight state — also on every return to this screen.
@@ -286,30 +299,6 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         inFlightUpdateButton?.reset()
         inFlightUpdateButton = nil
         isOpeningChecklist = false
-    }
-
-    /// Opens the main Delivery Checklist for a Queue Line item. Returns false when nothing
-    /// could be pushed (no controller / no navigation stack) so the caller can re-arm.
-    /// Uses the same controller/identifiers Orders uses, so the screen stays independently usable.
-    ///
-    /// Phase 4: the EXACT Queue Line item identity travels with the navigation — order product,
-    /// assigned equipment, fulfillment leg and (when known) the checklist execution — so a
-    /// multi-line order can never open on the wrong product.
-    @discardableResult
-    private func openDeliveryChecklist(for item: QueueLineModel) -> Bool {
-        guard let nav = self.navigationController else { return false }
-        let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        guard let vc = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return false }
-        vc.isQueueLine = true
-        vc.isDeliveryType = true
-        vc.selectIndex = 0
-        vc.strOrderUniqueId = item.itemOrderUniqueId
-        vc.strOrderID = "\(item.order_number ?? "")"
-        vc.focusOrderProductUniqueId = item.itemOrderProductUniqueId
-        vc.queueLineEquipmentUniqueId = item.itemEquipmentUniqueId ?? ""
-        vc.queueLineChecklistExecutionId = item.deliveryChecklistExecutionId ?? ""
-        nav.pushViewController(vc, animated: true)
-        return true
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -754,8 +743,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         return label
     }
 
-    // MARK: - Card (data-driven)
-    private func makeCard(for item: QueueLineModel) -> UIView {
+    // MARK: - Card (data-driven) — one card per assembly; the primary member carries the imagery
+    private func makeCard(for group: QueueLineBoardGroup) -> UIView {
+        let item = group.primary
         let bold = GlobalMainConstants.APP_FONT_Roboto_Bold
         let medium = GlobalMainConstants.APP_FONT_Roboto_Medium
         let regular = GlobalMainConstants.APP_FONT_Roboto_Regular
@@ -840,6 +830,18 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         header.alignment = .center
         stack.addArrangedSubview(header)
 
+        // 1b) Assembly context (compact — the detail lives on Assembly Review):
+        //     how many items travel in this assembly, how many are past Pending,
+        //     the other members' names, and a "Split out" mark on a singleton.
+        if let line = QueueLineBoardAssembly.contextLine(for: group) {
+            let assemblyLabel = UILabel()
+            assemblyLabel.numberOfLines = 2
+            assemblyLabel.lineBreakMode = .byTruncatingTail
+            assemblyLabel.attributedText = labelValue("Assembly: ", line)
+            assemblyLabel.accessibilityIdentifier = "queueLineAssembly.\(group.key)"
+            stack.addArrangedSubview(assemblyLabel)
+        }
+
 
         // 2) Machine row: product image + name / equipment code / status badge
         let imageView = UIImageView()
@@ -864,8 +866,15 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         name.numberOfLines = 0
         name.attributedText = attr(item.product?.name ?? "", Palette.ink, rFont(bold, 18))
 
-        let eqName = item.equipment?.name ?? ""
-        let eqId = item.equipment?.display_id.map { "#\($0)" } ?? ""
+        // The unit as the yard names it — a machine switched on this phone through the
+        // canonical reassignment shows here before the feed catches up (same overlay
+        // Assembly Review reads; nothing is stored twice).
+        var eqName = item.equipment?.name ?? ""
+        var eqId = item.equipment?.display_id.map { "#\($0)" } ?? ""
+        if let local = syncOverlay.pendingEquipment(for: item.itemOrderProductUniqueId), local.uniqueId != item.equipment?.unique_id {
+            eqName = local.name ?? ""
+            eqId = local.displayId.map { "#\($0)" } ?? (local.name == nil ? "#\(local.uniqueId)" : "")
+        }
         let codeText = [eqName, eqId].filter { !$0.isEmpty }.joined(separator: "   ·   ")
         let code = UILabel()
         code.numberOfLines = 0
@@ -1132,6 +1141,79 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         s.append(NSAttributedString(string: b, attributes: [
             .foregroundColor: bc, .font: UIFont.systemFont(ofSize: size, weight: bw)]))
         return s
+    }
+}
+
+// MARK: - Board assemblies (dependent-assembly model, 2026-09-14)
+
+/// One board card: a Queue Line entity — a dependent assembly (persisted
+/// bundle / related-product edges) or a line on its own — with the members
+/// visible under the current filter.
+struct QueueLineBoardGroup {
+    let key: String
+    /// Visible members, feed order (urgency-sorted by the server).
+    let members: [QueueLineModel]
+    /// Each visible member's stage after the local overlays (parallel to `members`).
+    let memberStages: [AssemblyStage]
+    /// The assembly's stage = its least-advanced visible member.
+    let stage: AssemblyStage
+    /// Every member the server knows in this assembly, visible or not.
+    let totalMembers: Int
+
+    var lane: String { stage.lane }
+    /// The member the card leads with: the first one AT the assembly's stage —
+    /// i.e. what is holding the assembly back (a Pending rake on a Pending
+    /// assembly), so the card's imagery matches its lane.
+    var primary: QueueLineModel { members[memberStages.firstIndex(of: stage) ?? 0] }
+    var beyondPending: Int { memberStages.filter { $0 != .pending }.count }
+}
+
+enum QueueLineBoardAssembly {
+
+    /// A member's stage after this phone's durable evidence: the same rule the
+    /// Assembly Review uses (AssemblyPolicy.memberStage).
+    static func memberStage(_ item: QueueLineModel, queue: QueueLineLocalOverlay, assembly: AssemblyLocalOverlay) -> AssemblyStage {
+        AssemblyPolicy.memberStage(serverStage: item.lifecycleStage, product: item.itemOrderProductUniqueId,
+                                   queue: queue, assembly: assembly)
+    }
+
+    /// Groups the visible items into entities by the server's derived key —
+    /// the phone never regroups (true dependencies cannot be unbundled, and
+    /// independent lines are already independent). Separate orders never
+    /// merge. Card order = the feed order of each entity's first member.
+    static func groups(_ items: [QueueLineModel], queue: QueueLineLocalOverlay, assembly: AssemblyLocalOverlay) -> [QueueLineBoardGroup] {
+        var order: [String] = []
+        var members: [String: [(QueueLineModel, AssemblyStage)]] = [:]
+
+        for item in items {
+            let key = item.assemblyKey
+            if members[key] == nil { order.append(key) }
+            members[key, default: []].append((item, memberStage(item, queue: queue, assembly: assembly)))
+        }
+
+        return order.map { key in
+            let rows = members[key] ?? []
+            let items = rows.map(\.0)
+            let stages = rows.map(\.1)
+            let serverCount = items.map(\.assemblyMemberCount).max() ?? items.count
+            return QueueLineBoardGroup(key: key,
+                                       members: items,
+                                       memberStages: stages,
+                                       stage: AssemblyPolicy.stage(forMemberStages: stages),
+                                       totalMembers: max(serverCount, items.count))
+        }
+    }
+
+    /// The compact one-liner under the card header — nil for a line on its
+    /// own, so those cards look exactly as before.
+    static func contextLine(for group: QueueLineBoardGroup) -> String? {
+        guard group.totalMembers > 1 else { return nil }
+        var parts = ["\(group.totalMembers) items", "\(group.beyondPending) of \(group.totalMembers) staged"]
+        let lead = group.primary.itemOrderProductUniqueId
+        let others = group.members.filter { $0.itemOrderProductUniqueId != lead }.compactMap { $0.product?.name }.filter { !$0.isEmpty }
+        if !others.isEmpty { parts.append("with " + others.joined(separator: ", ")) }
+        if group.members.count < group.totalMembers { parts.append("showing \(group.members.count) of \(group.totalMembers)") }
+        return parts.joined(separator: " · ")
     }
 }
 

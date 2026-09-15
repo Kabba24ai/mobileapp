@@ -59,6 +59,67 @@ final class PreparationLifecycleTests: XCTestCase {
         XCTAssertEqual(payload["equipment_unique_id"]?.stringValue, "EQP-B")
     }
 
+    // ── Equipment identity — the ONE picker vocabulary (2026-09-14) ───────
+
+    func testEquipmentIdentityReadsNameThenTagAndThePickerRowIsTheChecklistsFormat() {
+        XCTAssertEqual(EquipmentIdentity.line(name: "Kubota SVL75", displayId: "1234"), "Kubota SVL75 · #1234")
+        XCTAssertEqual(EquipmentIdentity.line(name: "Kubota SVL75", displayId: nil), "Kubota SVL75")
+        XCTAssertEqual(EquipmentIdentity.line(name: "", displayId: "1234"), "#1234")
+        XCTAssertEqual(EquipmentIdentity.line(name: nil, displayId: nil), "")
+        XCTAssertEqual(EquipmentIdentity.pickerRow(name: "Kubota SVL75", displayId: "1234"), "Kubota SVL75    ||    1234")
+        XCTAssertEqual(EquipmentIdentity.displayId(fromPickerRow: "Kubota SVL75    ||    1234"), "1234")
+        let unit = EquipmentCandidate(uniqueId: "EQP-1", displayId: "5678", name: "SANY SW405K", statusLabel: "Available", requiresReason: true)
+        XCTAssertEqual(unit.identityLine, "SANY SW405K · #5678")
+        XCTAssertEqual(unit.pickerRow, "SANY SW405K    ||    5678")
+    }
+
+    func testThePickTriageIsTheChecklistsStatusRule() {
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Available"), .proceed)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("available"), .proceed)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Rented"), .refuseRented)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Maint. Hold"), .askAboutStatus("Maint. Hold"))
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Damaged"), .askAboutStatus("Damaged"))
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Off-Site"), .drop)
+        XCTAssertEqual(EquipmentPickTriage.forStatus(nil), .drop)
+    }
+
+    func testTheSubstitutionPayloadCarriesTheReplacementsIdentityForLocalReaders() {
+        var capture = EquipmentSubstitutionCapture(orderUniqueId: "ORD-1", orderProductUniqueId: "ORD-PRD-0001",
+                                                   supersededExecutionId: "EXE-1", previousEquipmentUniqueId: "EQP-A",
+                                                   replacementEquipmentUniqueId: "EQP-B", performedByUniqueId: "PER-YARD")
+        var payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertNil(payload["equipment_name"])
+        XCTAssertNil(payload["equipment_display_id"])
+        capture.replacementName = "SANY SW405K"
+        capture.replacementDisplayId = "5678"
+        payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertEqual(payload["equipment_name"]?.stringValue, "SANY SW405K")
+        XCTAssertEqual(payload["equipment_display_id"]?.stringValue, "5678")
+        XCTAssertEqual(payload["equipment_unique_id"]?.stringValue, "EQP-B", "the canonical field is unchanged")
+    }
+
+    func testAPendingSwitchNamesTheReplacementOnTheBoardOverlayAndARejectedOneDoesNot() {
+        let switchOp = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001",
+                          payload: .object(["order_product_unique_id": .string("ORD-PRD-0001"), "equipment_unique_id": .string("EQP-B"),
+                                            "equipment_name": .string("SANY SW405K"), "equipment_display_id": .string("5678")]))
+        let overlay = QueueLineLocalOverlay.from([switchOp])
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.uniqueId, "EQP-B")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.name, "SANY SW405K")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.displayId, "5678")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.isPendingSync, true)
+        XCTAssertNil(overlay.pendingEquipment(for: "ORD-PRD-0002"))
+
+        let synced = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001", state: .synced,
+                        payload: .object(["equipment_unique_id": .string("EQP-B")]))
+        XCTAssertEqual(QueueLineLocalOverlay.from([synced]).pendingEquipment(for: "ORD-PRD-0001")?.isPendingSync, false,
+                       "a synced switch still names the unit until the feed catches up")
+
+        let rejected = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001", state: .needsAttention,
+                          payload: .object(["equipment_unique_id": .string("EQP-B")]))
+        XCTAssertNil(QueueLineLocalOverlay.from([rejected]).pendingEquipment(for: "ORD-PRD-0001"),
+                     "Kabba refused the switch — the old unit is still the unit")
+    }
+
     // MARK: - Context builders (wire-shaped, so decoding is covered too)
 
     private func contextJSON(

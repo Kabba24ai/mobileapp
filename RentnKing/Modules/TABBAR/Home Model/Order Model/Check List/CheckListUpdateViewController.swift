@@ -579,14 +579,20 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     
                     NotificationCenter.default.post(name: .updateCheckList, object: nil, userInfo: ["checklist_data": self.arrOtherData, "index" : self.selectIndex, "type" : self.isDeliveryType] )
 
-                    if self.isOrderDetailsView{
-                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
-                            self.navigationController?.popToViewController(targetViewController, animated: true)
+                    // Back to the Assembly Review the checklist was entered from
+                    // (2026-09-14) — it refreshes checklist state, lifecycle and
+                    // STOP / GO; Back from there returns to the origin. Legacy
+                    // stacks without a review keep their old targets.
+                    ChecklistEntry.returnToReview(on: self.navigationController) {
+                        if self.isOrderDetailsView{
+                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
+                                self.navigationController?.popToViewController(targetViewController, animated: true)
+                            }
                         }
-                    }
-                    else{
-                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                            self.navigationController?.popToViewController(targetViewController, animated: true)
+                        else{
+                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                                self.navigationController?.popToViewController(targetViewController, animated: true)
+                            }
                         }
                     }
                     
