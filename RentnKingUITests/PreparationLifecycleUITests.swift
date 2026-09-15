@@ -1746,10 +1746,27 @@ final class PreparationLifecycleUITests: XCTestCase {
     // for 9302's Mini Excavator.
 
     /// Picks `row` ("<name>    ||    <code>") on the review's equipment wheel and taps Select.
+    /// The picker's "Search" pill → the search alert → a term → the wheel reloads with the
+    /// server's matches for the whole eligible fleet (name / Equipment ID).
+    private func searchOnPicker(_ app: XCUIApplication, _ term: String) {
+        let search = element(app, id: "equipmentPicker.search")
+        XCTAssertTrue(search.waitForExistence(timeout: 10), "the picker offers no search")
+        search.tap()
+        let field = element(app, id: "equipmentPicker.searchField")
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "no search field")
+        field.tap()
+        field.typeText(term)
+        app.alerts.buttons["Search"].firstMatch.tap()
+        usleep(2_500_000)
+    }
+
     private func pickOnWheel(_ app: XCUIApplication, _ row: String) {
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 10), "the equipment picker did not open")
-        XCTAssertTrue(textElement(app, "Select Equipment ID").exists, "it is the checklist's own Select Equipment ID picker")
+        // The checklist's own picker: its header pill reads "Select Equipment ID" (checklist host)
+        // or offers "Search name or Equipment ID" (review host, 1.0.21 (1007)) — same component.
+        XCTAssertTrue(element(app, id: "equipmentPicker.search").exists || textElement(app, "Select Equipment ID").exists,
+                      "it is the checklist's own Select Equipment ID picker")
         wheel.adjust(toPickerWheelValue: row)
         usleep(500_000)
         app.buttons["Select"].firstMatch.tap()
@@ -1793,7 +1810,15 @@ final class PreparationLifecycleUITests: XCTestCase {
         shootToDisk("a-review-assigned-go")
 
         // Reassign by tapping the identity → a NON-direct spare → the canonical reason sheet.
+        // The spare sorts beyond the first 25 prioritized candidates (the seed adds filler
+        // alternates ahead of it), so it is reached through the picker's search — the
+        // server searches the whole eligible fleet by name / ID; the direct spare still
+        // heads the initial wheel.
         tapReview(app, "assembly.\(qlaSkid2).unit.reassign")
+        let wheel = app.pickerWheels.firstMatch
+        XCTAssertTrue(wheel.waitForExistence(timeout: 10), "the equipment picker did not open")
+        XCTAssertFalse((wheel.value as? String ?? "").contains("QLA-ALT1"), "the alternate must sit beyond the prioritized first page")
+        searchOnPicker(app, "Other Machine")
         pickOnWheel(app, "Other Machine Spare    ||    QLA-ALT1")
         let reason = app.sheets.buttons["Customer request"].firstMatch
         XCTAssertTrue(reason.waitForExistence(timeout: 10), "a non-direct unit needs Laravel's reason — the same picklist as the checklist")

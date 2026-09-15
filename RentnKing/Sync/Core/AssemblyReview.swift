@@ -706,6 +706,15 @@ struct AssemblyLocalOverlay: Equatable {
 
 enum AssemblyPolicy {
 
+    /// The review's heading for an order number, with exactly one hash whatever the stored
+    /// value carries: production numbers are stored as "#4287", test and older rows as "4287".
+    /// Presentation only — the stored number is never touched.
+    static func orderHeading(_ orderNumber: String) -> String {
+        var digits = Substring(orderNumber.trimmingCharacters(in: .whitespacesAndNewlines))
+        while digits.first == "#" { digits = digits.dropFirst() }
+        return "Order #\(digits.trimmingCharacters(in: .whitespaces))"
+    }
+
     /// The assembly's stage is its least-advanced member (QueueLineAssembly::stageFor).
     static func stage(forMemberStages stages: [AssemblyStage]) -> AssemblyStage {
         stages.min(by: { $0.rank < $1.rank }) ?? .pending

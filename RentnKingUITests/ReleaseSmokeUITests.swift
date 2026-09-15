@@ -71,6 +71,9 @@ final class ReleaseSmokeUITests: XCTestCase {
         let review = app.descendants(matching: .any).matching(identifier: "assemblyReview.order").firstMatch
         XCTAssertTrue(review.waitForExistence(timeout: 30), "Update did not open the Assembly Review")
         usleep(2_000_000)
+        // 1.0.21 (1007): exactly one hash whatever the stored order number carries.
+        XCTAssertTrue(review.label.hasPrefix("Order #"), "heading '\(review.label)' should read 'Order #<number>'")
+        XCTAssertFalse(review.label.contains("##"), "heading '\(review.label)' doubles the hash")
         shoot("release-assembly-review")
         goBack(app)
         XCTAssertTrue(app.buttons["Pending"].firstMatch.waitForExistence(timeout: 20), "Back did not return to the board")

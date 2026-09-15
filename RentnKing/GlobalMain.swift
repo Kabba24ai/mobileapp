@@ -774,8 +774,15 @@ enum Url {
     /// Assembly Review (2026-09-13): every Queue Line assembly ONE order forms.
     /// The canonical unit candidates for ONE line (Laravel classifies each: direct / alternate,
     /// `requires_reason`), excluding rented units and the unit already assigned.
-    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String) -> NSURL {
-        return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates")
+    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String, search: String? = nil) -> NSURL {
+        let term = (search ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !term.isEmpty, let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates")
+        }
+        // The server searches the WHOLE eligible fleet by Equipment ID, name and brand
+        // (exact-ID match first, then direct matches, then by name) — the same rule
+        // the web board's picker uses.
+        return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates?search=\(encoded)")
     }
 
     static func queueLineAssembly(_ orderUniqueId: String) -> NSURL {

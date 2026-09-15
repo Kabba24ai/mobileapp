@@ -20,6 +20,19 @@ import XCTest
 
 final class AssemblyReviewTests: XCTestCase {
 
+    // MARK: Order heading — exactly one hash (1.0.21 (1007))
+
+    /// Production stores order numbers as "#4287", staging / older rows as "4287": the review
+    /// heading reads "Order #4287" for both — never "Order ##4287".
+    func testOrderHeadingCarriesExactlyOneHashWhateverTheStoredNumberHas() {
+        XCTAssertEqual(AssemblyPolicy.orderHeading("4287"), "Order #4287")
+        XCTAssertEqual(AssemblyPolicy.orderHeading("#4287"), "Order #4287")
+        XCTAssertEqual(AssemblyPolicy.orderHeading("##4287"), "Order #4287", "defensive: never more than one")
+        XCTAssertEqual(AssemblyPolicy.orderHeading(" #4287 "), "Order #4287")
+        XCTAssertEqual(AssemblyPolicy.orderHeading("9303"), "Order #9303")
+        XCTAssertEqual(AssemblyPolicy.orderHeading("#4287-2"), "Order #4287-2", "a suffixed reorder number keeps its suffix")
+    }
+
     private var dir: URL!
     private var client: FakeSyncHTTPClient!
 

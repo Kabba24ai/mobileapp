@@ -47,7 +47,25 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     /// Called on every dismissal (Cancel, Select, refusal) — the host restores scroll state.
     var onDismiss: (() -> Void)?
 
+    /// Server-backed candidate search (2026-09-15): `(term, deliver)` → the host asks
+    /// Laravel for the matches across the WHOLE eligible fleet (`?search=`) and delivers
+    /// them (nil = the request failed). Present only for hosts whose candidates come from
+    /// the canonical candidates read; the checklist's category-scoped fleet list is already
+    /// complete and passes none, so its picker is unchanged.
+    typealias CandidateSearch = (String, @escaping ([EquipmentCandidate]?) -> Void) -> Void
+    private var searchProvider: CandidateSearch?
+    /// The prioritized first page (direct matches first) the picker opened with.
+    private var baseCandidates: [EquipmentCandidate] = []
+    private(set) var currentSearchTerm = ""
+    private var titleButton: UIButton?
+    /// The wheel's rows right now (section headers included) — for tests.
+    var currentRows: [String] { rows }
+    var searchIsOffered: Bool { searchProvider != nil }
+    var searchPillTitle: String? { titleButton?.title(for: .normal) }
+    var searchPillIsInteractive: Bool { titleButton?.isUserInteractionEnabled ?? false }
+
     static let title = "Select Equipment ID"
+    static let searchTitle = "Search name or Equipment ID"
     private static let sectionPrefix = "Section: "
 
     init(host: UIViewController) {
@@ -124,7 +142,12 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         titleBtn.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
         titleBtn.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
         titleBtn.layer.cornerRadius = pillH / 2
-        titleBtn.isUserInteractionEnabled = false
+        titleBtn.isUserInteractionEnabled = false            // becomes the Search pill only when a provider is supplied
+        titleBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        titleBtn.titleLabel?.minimumScaleFactor = 0.75
+        titleBtn.accessibilityIdentifier = "equipmentPicker.search"
+        titleBtn.addTarget(self, action: #selector(searchTapped), for: .touchUpInside)
+        titleButton = titleBtn
         let leftMaxX = cancel.frame.maxX + 12
         let rightMinX = select.frame.minX - 12
         titleBtn.frame = CGRect(x: leftMaxX, y: y, width: max(0, rightMinX - leftMaxX), height: pillH)
@@ -142,11 +165,16 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     /// when it is in the list. `onPicked` fires only for a unit that passed the status
     /// triage (Available; damaged / maintenance after the employee agreed).
     func pick(from candidates: [EquipmentCandidate], preselectUniqueId: String? = nil,
+              search: CandidateSearch? = nil,
               onPicked: @escaping (EquipmentCandidate) -> Void) {
         guard let host = host else { return }
         installIfNeeded()
         self.candidates = candidates
+        self.baseCandidates = candidates
+        self.searchProvider = search
+        self.currentSearchTerm = ""
         self.onPicked = onPicked
+        updateSearchPill()
         rows = Self.rows(for: candidates)
         guard !rows.isEmpty else {
             showAlertMessage(strMessage: "No equipment found for the selected category.")
@@ -175,6 +203,109 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
             rows.append(contentsOf: items.map { $0.pickerRow })
         }
         return rows
+    }
+
+    // MARK: - Step 1b · search the whole eligible fleet (candidate discovery, not assignment)
+
+    /// The header pill: the plain title for a host without search; for a host with search,
+    /// the Search affordance showing the active term.
+    private func updateSearchPill() {
+        guard let pill = titleButton else { return }
+        guard searchProvider != nil else {
+            pill.isUserInteractionEnabled = false
+            pill.setTitle(Self.title, for: .normal)
+            pill.setTitleColor(UIColor(white: 0.65, alpha: 1.0), for: .normal)
+            pill.accessibilityLabel = Self.title
+            return
+        }
+        pill.isUserInteractionEnabled = true
+        pill.setTitle(currentSearchTerm.isEmpty ? "🔍 \(Self.searchTitle)" : "🔍 “\(currentSearchTerm)” · Show all", for: .normal)
+        pill.setTitleColor(.white, for: .normal)
+        pill.accessibilityLabel = currentSearchTerm.isEmpty ? Self.searchTitle : "Search: \(currentSearchTerm)"
+        pill.accessibilityValue = currentSearchTerm
+    }
+
+    /// Search pill → the term alert. The wheel steps aside while the alert's field has the
+    /// keyboard and comes back with the server's matches (or the first page again).
+    @objc private func searchTapped() {
+        guard searchProvider != nil, let host = host else { return }
+        hiddenField.resignFirstResponder()   // not a cancel: onDismiss is not called
+        let alert = UIAlertController(title: Self.searchTitle,
+                                      message: "Any eligible machine in the fleet can be found by its name or Equipment ID.",
+                                      preferredStyle: .alert)
+        alert.addTextField { [term = currentSearchTerm] field in
+            field.placeholder = "Name or Equipment ID"
+            field.text = term
+            field.autocapitalizationType = .none
+            field.autocorrectionType = .no
+            field.clearButtonMode = .whileEditing
+            field.returnKeyType = .search
+            field.accessibilityIdentifier = "equipmentPicker.searchField"
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.reopenWheel()
+        })
+        if !currentSearchTerm.isEmpty {
+            alert.addAction(UIAlertAction(title: "Show all", style: .default) { [weak self] _ in
+                self?.clearSearch()
+            })
+        }
+        alert.addAction(UIAlertAction(title: "Search", style: .default) { [weak self, weak alert] _ in
+            let term = alert?.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard let self = self else { return }
+            if term.isEmpty { self.clearSearch() } else { self.performSearch(term) }
+        })
+        host.present(alert, animated: true)
+    }
+
+    /// Asks the provider for `term` across the whole eligible fleet and reloads the wheel
+    /// with Laravel's matches, in Laravel's order (exact ID, direct matches, then name).
+    /// Nothing about eligibility is decided here. Callable directly (tests, return key).
+    func performSearch(_ term: String, completion: (() -> Void)? = nil) {
+        guard let provider = searchProvider else { completion?(); return }
+        indicatorShow()
+        provider(term) { [weak self] results in
+            DispatchQueue.main.async {
+                indicatorHide()
+                guard let self = self else { return }
+                guard let results = results else {
+                    showAlertMessage(strMessage: "Could not search the equipment list. Check the connection and try again.")
+                    self.reopenWheel(); completion?(); return
+                }
+                guard !results.isEmpty else {
+                    let alert = UIAlertController(title: Application.appName,
+                                                  message: "No eligible equipment matches “\(term)”. Try part of the name or the Equipment ID.",
+                                                  preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: str.ok, style: .default) { [weak self] _ in self?.reopenWheel() })
+                    self.host?.present(alert, animated: true)
+                    completion?(); return
+                }
+                self.currentSearchTerm = term
+                self.reload(with: results)
+                completion?()
+            }
+        }
+    }
+
+    /// Back to the prioritized first page the picker opened with.
+    func clearSearch() {
+        currentSearchTerm = ""
+        reload(with: baseCandidates)
+    }
+
+    private func reload(with list: [EquipmentCandidate]) {
+        candidates = list
+        rows = Self.rows(for: list)
+        updateSearchPill()
+        picker.reloadAllComponents()
+        selectedIndex = rows.firstIndex(where: { !$0.hasPrefix(Self.sectionPrefix) }) ?? 0
+        if !rows.isEmpty { picker.selectRow(selectedIndex, inComponent: 0, animated: false) }
+        reopenWheel()
+    }
+
+    private func reopenWheel() {
+        guard host?.view.window != nil else { return }
+        hiddenField.becomeFirstResponder()
     }
 
     @objc private func cancelTapped() {

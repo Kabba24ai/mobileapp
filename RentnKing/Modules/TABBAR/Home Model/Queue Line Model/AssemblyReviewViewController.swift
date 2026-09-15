@@ -222,7 +222,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     private func renderHeader() {
         headerStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let number = UILabel()
-        number.attributedText = attr("Order #\(review?.order.orderNumber ?? orderNumber)", Palette.cyan, rFont(GlobalMainConstants.APP_FONT_Roboto_Bold, 18))
+        number.attributedText = attr(AssemblyPolicy.orderHeading(review?.order.orderNumber ?? orderNumber), Palette.cyan, rFont(GlobalMainConstants.APP_FONT_Roboto_Bold, 18))
         number.accessibilityIdentifier = "assemblyReview.order"
         headerStack.addArrangedSubview(number)
         headerStack.addArrangedSubview(freshnessLabel)
@@ -692,18 +692,22 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             }
             let current = AssemblyPolicy.effectiveEquipment(member: member, queue: self.queueOverlay)
             self.equipmentFlow.onDismiss = nil
-            self.equipmentFlow.pick(from: candidates, preselectUniqueId: nil) { [weak self] candidate in
+            // The first page is Laravel's prioritized 25 (direct matches first); the picker's
+            // search asks the same endpoint with `?search=` so every eligible unit in the fleet
+            // stays discoverable — Laravel still decides what is eligible and how it is classified.
+            self.equipmentFlow.pick(from: candidates, preselectUniqueId: nil,
+                                    search: { [weak self] term, deliver in self?.loadCandidates(for: member, search: term, completion: deliver) ?? deliver(nil) }) { [weak self] candidate in
                 self?.applyAssignment(member, replacement: candidate, current: current, stage: stage)
             }
         }
     }
 
-    /// GET queue-line/{line}/equipment-candidates — Laravel's list, Laravel's classification.
-    private func loadCandidates(for member: AssemblyMember, completion: @escaping ([EquipmentCandidate]?) -> Void) {
+    /// GET queue-line/{line}/equipment-candidates[?search=] — Laravel's list, Laravel's classification.
+    private func loadCandidates(for member: AssemblyMember, search: String? = nil, completion: @escaping ([EquipmentCandidate]?) -> Void) {
         let webHelper = WebServiceHelper()
         webHelper.strMethodName = "queueLineEquipmentCandidates"
         webHelper.methodType = "get"
-        webHelper.strURL = Url.queueLineEquipmentCandidates(member.orderProductUniqueId).absoluteString ?? ""
+        webHelper.strURL = Url.queueLineEquipmentCandidates(member.orderProductUniqueId, search: search).absoluteString ?? ""
         webHelper.dictType = [:]
         webHelper.dictHeader = NSDictionary()
         webHelper.showLogForCallingAPI = true

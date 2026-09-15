@@ -42,9 +42,12 @@ final class AssemblyReviewPresentationTests: XCTestCase {
     /// A review built from the fixture member as a template: ONE dependent
     /// assembly (or several independent lines) whose Product Options cover the
     /// vocabulary the yard actually orders — labels exactly as stored.
-    private func review(groups specs: [[Spec]]) throws -> AssemblyReviewEnvelope {
+    private func review(groups specs: [[Spec]], orderNumber: String? = nil) throws -> AssemblyReviewEnvelope {
         var envelope = try JSONSerialization.jsonObject(with: fixture("queue_line_assembly")) as! [String: Any]
         var data = envelope["data"] as! [String: Any]
+        if let orderNumber = orderNumber {
+            var order = data["order"] as! [String: Any]; order["order_number"] = orderNumber; data["order"] = order
+        }
         let template = ((data["assemblies"] as! [[String: Any]])[0]["members"] as! [[String: Any]])[0]
 
         func member(_ s: Spec, key: String, count: Int) -> [String: Any] {
@@ -497,5 +500,59 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         ])
         XCTAssertEqual(rows, ["Section: Available", "Kubota SVL75    ||    1234", "Bobcat T66    ||    9012",
                               "Section: Maint. Hold", "SANY SW405K    ||    5678"])
+    }
+
+    // MARK: 1.0.21 (1007) · the heading carries exactly one hash
+
+    func testTheHeadingReadsOrderHashNumberWhetherTheStoredNumberHasAHashOrNot() throws {
+        for stored in ["4287", "#4287"] {
+            let vc = loaded(try review(groups: [[Spec(uid: "OP-A", name: "3 Ton", options: [], unitState: nil, equipment: false)]], orderNumber: stored))
+            XCTAssertEqual(label(vc, "assemblyReview.order"), "Order #4287", "stored as '\(stored)'")
+        }
+    }
+
+    // MARK: 1.0.21 (1007) · candidate discovery beyond the prioritized first page
+
+    /// The checklist host passes no provider and keeps its plain picker; the review host's
+    /// picker offers Search: the server's matches replace the wheel (in the server's order) and
+    /// "Show all" restores the prioritized first page. Nothing here decides eligibility.
+    func testThePickerOffersSearchOnlyWithAProviderAndSearchReplacesTheWheelWithTheServersMatches() {
+        let host = UIViewController()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        let flow = EquipmentAssignmentFlow(host: host)
+        let firstPage = [EquipmentCandidate(uniqueId: "D1", displayId: "QLA-SK3", name: "Skid Steer Spare", statusLabel: "Available", requiresReason: false)]
+            + (1...24).map { EquipmentCandidate(uniqueId: "F\($0)", displayId: String(format: "QLA-F%02d", $0), name: String(format: "A Filler %02d", $0), statusLabel: "Available", requiresReason: true) }
+        let beyond = EquipmentCandidate(uniqueId: "Z1", displayId: "QLA-ALT1", name: "Other Machine Spare", statusLabel: "Available", requiresReason: true)
+
+        // Checklist host: the category-scoped fleet list is complete → no search, the plain title.
+        flow.pick(from: firstPage) { _ in }
+        XCTAssertFalse(flow.searchIsOffered)
+        XCTAssertFalse(flow.searchPillIsInteractive)
+        XCTAssertEqual(flow.searchPillTitle, EquipmentAssignmentFlow.title)
+        XCTAssertEqual(flow.currentRows.count, 26, "25 units + the Available section header")
+
+        // Review host: the prioritized first page (direct spare first) plus Search.
+        var asked: [String] = []
+        flow.pick(from: firstPage, search: { term, deliver in asked.append(term); deliver(term == "Other Machine" ? [beyond] : []) }) { _ in }
+        XCTAssertTrue(flow.searchIsOffered)
+        XCTAssertTrue(flow.searchPillIsInteractive)
+        XCTAssertEqual(flow.searchPillTitle, "🔍 \(EquipmentAssignmentFlow.searchTitle)")
+        XCTAssertEqual(flow.currentRows.prefix(2), ["Section: Available", "Skid Steer Spare    ||    QLA-SK3"], "direct match still heads the wheel")
+        XCTAssertFalse(flow.currentRows.contains(beyond.pickerRow), "the alternate sits beyond the first page")
+
+        let searched = expectation(description: "search delivered")
+        flow.performSearch("Other Machine") { searched.fulfill() }
+        wait(for: [searched], timeout: 5)
+        XCTAssertEqual(asked, ["Other Machine"])
+        XCTAssertEqual(flow.currentRows, ["Section: Available", "Other Machine Spare    ||    QLA-ALT1"], "the wheel now holds the server's matches")
+        XCTAssertEqual(flow.currentSearchTerm, "Other Machine")
+        XCTAssertEqual(flow.searchPillTitle, "🔍 “Other Machine” · Show all")
+
+        flow.clearSearch()
+        XCTAssertEqual(flow.currentSearchTerm, "")
+        XCTAssertEqual(flow.currentRows.count, 26, "Show all restores the prioritized first page")
+        XCTAssertFalse(flow.currentRows.contains(beyond.pickerRow))
     }
 }
