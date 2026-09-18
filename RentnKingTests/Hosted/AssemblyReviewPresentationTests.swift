@@ -502,6 +502,118 @@ final class AssemblyReviewPresentationTests: XCTestCase {
                               "Section: Maint. Hold", "SANY SW405K    ||    5678"])
     }
 
+    /// 2026-09-18: the sections follow the operational order — Available, Maint. Hold, Damaged,
+    /// Rented — not the alphabet (which would put Damaged before Maint. Hold); within a section
+    /// the server's order (name, then Equipment ID) is kept verbatim.
+    func testThePickerSectionsReadAvailableHoldDamagedRentedWithTheServersOrderInsideEach() {
+        let unit = { (id: String, name: String, status: String) in EquipmentCandidate(uniqueId: id, displayId: id, name: name, statusLabel: status, requiresReason: false) }
+        let rows = EquipmentAssignmentFlow.rows(for: [
+            unit("ATT-SS-F-1", "Skid Steer - Forks", "Available"), unit("ATT-SS-F-4", "Skid Steer - Forks", "Available"), unit("ATT-SS-G-1", "Skid Steer - Grapple", "Available"),
+            unit("ATT-SS-F-7", "Skid Steer - Forks", "Maint. Hold"), unit("ATT-SS-T-1", "Skid Steer - Trencher", "Maint. Hold"),
+            unit("ATT-SS-B-1", "Skid Steer - Broom", "Damaged"), unit("ATT-SS-F-3", "Skid Steer - Forks", "Damaged"),
+            unit("ATT-SS-A-1", "Skid Steer - Auger", "Rented"), unit("ATT-SS-F-9", "Skid Steer - Forks", "Rented"),
+        ])
+        XCTAssertEqual(rows, [
+            "Section: Available", "Skid Steer - Forks    ||    ATT-SS-F-1", "Skid Steer - Forks    ||    ATT-SS-F-4", "Skid Steer - Grapple    ||    ATT-SS-G-1",
+            "Section: Maint. Hold", "Skid Steer - Forks    ||    ATT-SS-F-7", "Skid Steer - Trencher    ||    ATT-SS-T-1",
+            "Section: Damaged", "Skid Steer - Broom    ||    ATT-SS-B-1", "Skid Steer - Forks    ||    ATT-SS-F-3",
+            "Section: Rented", "Skid Steer - Auger    ||    ATT-SS-A-1", "Skid Steer - Forks    ||    ATT-SS-F-9",
+        ])
+    }
+
+    /// The review host's picker opens in the category Laravel resolved (the current unit's, else
+    /// the ordered product's), shows it on the Category pill above the Search pill, and every
+    /// re-read goes back to the server with (category, term): a search stays within the category,
+    /// a category change clears the term and refetches, "All categories" is the whole fleet. The
+    /// checklist host passes no source and keeps its one-row header. Nothing here decides eligibility.
+    func testThePickerOpensInTheServersCategoryChangingItRefetchesAndSearchStaysWithinIt() {
+        let host = UIViewController()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        let flow = EquipmentAssignmentFlow(host: host)
+        let att = EquipmentCategoryOption(uniqueId: "PCAT-ATT", title: "Attachments - Skid Steer")
+        let exc = EquipmentCategoryOption(uniqueId: "PCAT-EXC", title: "Excavators")
+        let unit = { (id: String, name: String, status: String) in EquipmentCandidate(uniqueId: id, displayId: id, name: name, statusLabel: status, requiresReason: true) }
+        let forks1 = unit("ATT-SS-F-1", "Skid Steer - Forks", "Available")
+        let forks7 = unit("ATT-SS-F-7", "Skid Steer - Forks", "Maint. Hold")
+        let broom = unit("ATT-SS-B-1", "Skid Steer - Broom", "Damaged")
+        let auger = unit("ATT-SS-A-1", "Skid Steer - Auger", "Rented")
+        let attUnits = [forks1, forks7, broom, auger]
+        let excavator = unit("EXC-1", "Mini Excavator", "Available")
+        var asked: [String] = []
+        let source = EquipmentAssignmentFlow.CandidateSource(
+            fetch: { category, term, deliver in
+                asked.append("\(category?.uniqueId ?? "all")|\(term)")
+                switch (category?.uniqueId, term) {
+                case ("PCAT-ATT", "Forks"): deliver([forks1, forks7])
+                case ("PCAT-ATT", _): deliver(attUnits)
+                case ("PCAT-EXC", _): deliver([excavator])
+                default: deliver(attUnits + [excavator])
+                }
+            },
+            categories: { deliver in deliver([att, exc]) })
+
+        // Opens scoped to Laravel's default, Category pill + Search pill, sections in operational order.
+        flow.pick(from: attUnits, category: att, source: source) { _ in }
+        XCTAssertTrue(flow.categoryIsOffered)
+        XCTAssertEqual(flow.categoryPillTitle, "Attachments - Skid Steer")
+        XCTAssertEqual(flow.currentCategory, att)
+        XCTAssertTrue(flow.searchIsOffered)
+        XCTAssertEqual(flow.searchPillTitle, "🔍 \(EquipmentAssignmentFlow.searchTitle)")
+        XCTAssertEqual(flow.currentRows, ["Section: Available", forks1.pickerRow, "Section: Maint. Hold", forks7.pickerRow,
+                                          "Section: Damaged", broom.pickerRow, "Section: Rented", auger.pickerRow])
+        XCTAssertEqual(asked, [], "the opening list came with the pick — no second read")
+
+        // Search stays within the category.
+        let searched = expectation(description: "searched")
+        flow.performSearch("Forks") { searched.fulfill() }
+        wait(for: [searched], timeout: 5)
+        XCTAssertEqual(asked, ["PCAT-ATT|Forks"])
+        XCTAssertEqual(flow.currentRows, ["Section: Available", forks1.pickerRow, "Section: Maint. Hold", forks7.pickerRow])
+        XCTAssertEqual(flow.searchPillTitle, "🔍 “Forks” · Show all")
+
+        // Changing the category clears the term and refetches that category whole.
+        let changed = expectation(description: "category changed")
+        flow.selectCategory(exc) { changed.fulfill() }
+        wait(for: [changed], timeout: 5)
+        XCTAssertEqual(asked.last, "PCAT-EXC|")
+        XCTAssertEqual(flow.currentCategory, exc)
+        XCTAssertEqual(flow.categoryPillTitle, "Excavators")
+        XCTAssertEqual(flow.currentSearchTerm, "")
+        XCTAssertEqual(flow.searchPillTitle, "🔍 \(EquipmentAssignmentFlow.searchTitle)")
+        XCTAssertEqual(flow.currentRows, ["Section: Available", excavator.pickerRow])
+
+        // Re-choosing the same category asks nothing; "All categories" is the whole eligible fleet.
+        let same = expectation(description: "same category")
+        flow.selectCategory(exc) { same.fulfill() }
+        wait(for: [same], timeout: 5)
+        XCTAssertEqual(asked.count, 2)
+        let all = expectation(description: "all categories")
+        flow.selectCategory(nil) { all.fulfill() }
+        wait(for: [all], timeout: 5)
+        XCTAssertEqual(asked.last, "all|")
+        XCTAssertNil(flow.currentCategory)
+        XCTAssertEqual(flow.categoryPillTitle, EquipmentCategoryOption.allTitle)
+        XCTAssertTrue(flow.currentRows.contains(excavator.pickerRow) && flow.currentRows.contains(auger.pickerRow))
+
+        // Show all after a search returns to the current category's full list.
+        let again = expectation(description: "searched again")
+        flow.performSearch("Forks") { again.fulfill() }
+        wait(for: [again], timeout: 5)
+        XCTAssertEqual(asked.last, "all|Forks")
+        flow.clearSearch()
+        XCTAssertEqual(flow.currentSearchTerm, "")
+        XCTAssertTrue(flow.currentRows.contains(excavator.pickerRow))
+
+        // Checklist host: no source → no Category pill, the plain one-row header.
+        flow.pick(from: attUnits) { _ in }
+        XCTAssertFalse(flow.categoryIsOffered)
+        XCTAssertNil(flow.categoryPillTitle)
+        XCTAssertFalse(flow.searchIsOffered)
+        XCTAssertEqual(flow.searchPillTitle, EquipmentAssignmentFlow.title)
+    }
+
     // MARK: 1.0.21 (1007) · the heading carries exactly one hash
 
     func testTheHeadingReadsOrderHashNumberWhetherTheStoredNumberHasAHashOrNot() throws {

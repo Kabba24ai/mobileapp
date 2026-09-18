@@ -678,36 +678,55 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         }
         isChangingEquipment = true
         indicatorShow()
-        loadCandidates(for: member) { [weak self] candidates in
+        // The picker opens in the canonical Product Category of the current unit (else of the
+        // ordered product): Laravel resolves it (`category=default`) and lists that category
+        // whole, in operational order. The picker's Category pill and search ask the same
+        // endpoint again — Laravel still decides what is eligible and how it is classified.
+        loadCandidates(for: member, category: "default") { [weak self] page in
             guard let self = self else { return }
             indicatorHide()
             self.isChangingEquipment = false
-            guard let candidates = candidates else {
+            guard let page = page else {
                 showAlertMessage(strMessage: "Could not load the equipment list. Check the connection and try again.")
                 return
             }
-            guard !candidates.isEmpty else {
+            // Nothing in the whole fleet → nothing to open. An empty CATEGORY still opens the
+            // picker: the employee changes the category or searches from there.
+            guard !page.candidates.isEmpty || page.category != nil else {
                 showAlertMessage(strMessage: "No equipment is available to assign right now.")
                 return
             }
             let current = AssemblyPolicy.effectiveEquipment(member: member, queue: self.queueOverlay)
             self.equipmentFlow.onDismiss = nil
-            // The first page is Laravel's prioritized 25 (direct matches first); the picker's
-            // search asks the same endpoint with `?search=` so every eligible unit in the fleet
-            // stays discoverable — Laravel still decides what is eligible and how it is classified.
-            self.equipmentFlow.pick(from: candidates, preselectUniqueId: nil,
-                                    search: { [weak self] term, deliver in self?.loadCandidates(for: member, search: term, completion: deliver) ?? deliver(nil) }) { [weak self] candidate in
+            let source = EquipmentAssignmentFlow.CandidateSource(
+                fetch: { [weak self] category, term, deliver in
+                    guard let self = self else { deliver(nil); return }
+                    self.loadCandidates(for: member, search: term, category: category?.uniqueId ?? "all") { deliver($0?.candidates) }
+                },
+                categories: { [weak self] deliver in
+                    guard let self = self else { deliver(nil); return }
+                    self.loadCategories(deliver)
+                })
+            self.equipmentFlow.pick(from: page.candidates, preselectUniqueId: nil, category: page.category, source: source) { [weak self] candidate in
                 self?.applyAssignment(member, replacement: candidate, current: current, stage: stage)
             }
         }
     }
 
-    /// GET queue-line/{line}/equipment-candidates[?search=] — Laravel's list, Laravel's classification.
-    private func loadCandidates(for member: AssemblyMember, search: String? = nil, completion: @escaping ([EquipmentCandidate]?) -> Void) {
+    /// One answer of the candidates read: Laravel's list and the category it is scoped to (nil = the whole fleet).
+    private struct CandidatePage {
+        let candidates: [EquipmentCandidate]
+        let category: EquipmentCategoryOption?
+    }
+
+    /// GET queue-line/{line}/equipment-candidates[?search=][&category=] — Laravel's list, Laravel's
+    /// classification, Laravel's category resolution (`meta.category`).
+    private func loadCandidates(for member: AssemblyMember, search: String? = nil, category: String? = nil,
+                                completion: @escaping (CandidatePage?) -> Void) {
         let webHelper = WebServiceHelper()
         webHelper.strMethodName = "queueLineEquipmentCandidates"
         webHelper.methodType = "get"
-        webHelper.strURL = Url.queueLineEquipmentCandidates(member.orderProductUniqueId, search: search).absoluteString ?? ""
+        webHelper.strURL = Url.queueLineEquipmentCandidates(member.orderProductUniqueId, search: search, category: category).absoluteString ?? ""
         webHelper.dictType = [:]
         webHelper.dictHeader = NSDictionary()
         webHelper.showLogForCallingAPI = true
@@ -721,7 +740,35 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
                     completion(nil)
                     return
                 }
-                completion(rows.compactMap { EquipmentCandidate(candidateJSON: $0) })
+                let meta = data["meta"] as? [String: Any]
+                completion(CandidatePage(candidates: rows.compactMap { EquipmentCandidate(candidateJSON: $0) },
+                                         category: EquipmentCategoryOption(metaJSON: meta?["category"] as? [String: Any])))
+            }
+        }
+    }
+
+    /// The canonical Product Category list for the picker's Category pill — the same cached
+    /// `product-categories` read the checklist's "Select Category ID" uses (CategoryListFile),
+    /// delivered once; nil when neither the cache nor the network has it.
+    private func loadCategories(_ deliver: @escaping ([EquipmentCategoryOption]?) -> Void) {
+        let cachedFirst = !getCatData().isEmpty
+        var calls = 0
+        var delivered = false
+        getCategoryList { list in
+            calls += 1
+            guard !delivered else { return }
+            let options = list.compactMap { category -> EquipmentCategoryOption? in
+                guard let uid = category.unique_id, !uid.isEmpty else { return nil }
+                // The cached list prefixes child categories with "--" for the checklist's wheel.
+                let title = (category.name ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "- ")).trimmingCharacters(in: .whitespaces)
+                return title.isEmpty ? nil : EquipmentCategoryOption(uniqueId: uid, title: title)
+            }
+            if !options.isEmpty {
+                delivered = true
+                DispatchQueue.main.async { deliver(options) }
+            } else if !cachedFirst || calls >= 2 {
+                delivered = true                      // the network read failed and there is no cache
+                DispatchQueue.main.async { deliver(nil) }
             }
         }
     }

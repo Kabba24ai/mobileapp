@@ -83,6 +83,31 @@ final class PreparationLifecycleTests: XCTestCase {
         XCTAssertEqual(EquipmentPickTriage.forStatus(nil), .drop)
     }
 
+    // ── Category + operational order (2026-09-18) ──────────────────────────
+
+    /// The picker's sections read the way the yard reads the fleet: what can be staged now,
+    /// then what is on hold, what is damaged, what is out with a customer. Rented is a SECTION
+    /// (visible), not a permission — the triage above still refuses it at Select.
+    func testThePickersStatusSectionsFollowTheOperationalOrderNotTheAlphabet() {
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Rented", "Damaged", "Available", "Maint. Hold", "Damaged"]),
+                       ["Available", "Maint. Hold", "Damaged", "Rented"])
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Damaged", "Available"]), ["Available", "Damaged"], "alphabetical would agree here")
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Maint. Hold", "Damaged"]), ["Maint. Hold", "Damaged"], "…and disagree here")
+        XCTAssertEqual([EquipmentStatusOrder.rank("available"), EquipmentStatusOrder.rank("Maint. Hold"), EquipmentStatusOrder.rank("Maintenance"),
+                        EquipmentStatusOrder.rank("Damaged"), EquipmentStatusOrder.rank("Rented")], [0, 1, 1, 2, 3])
+        // Nothing outside the four canonical statuses exists; were a label to appear, it follows, alphabetically.
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Zeta", "Rented", "Alpha"]), ["Rented", "Alpha", "Zeta"])
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Rented"), .refuseRented, "a visible rented unit is still not assignable")
+    }
+
+    func testTheCategoryOptionIsLaravelsCategoryNotAName() {
+        XCTAssertEqual(EquipmentCategoryOption(metaJSON: ["unique_id": "PCAT-QDSL-HWPL", "title": " Attachments - Skid Steer ", "source": "current_equipment"]),
+                       EquipmentCategoryOption(uniqueId: "PCAT-QDSL-HWPL", title: "Attachments - Skid Steer"))
+        XCTAssertNil(EquipmentCategoryOption(metaJSON: nil), "an unscoped list names no category")
+        XCTAssertNil(EquipmentCategoryOption(metaJSON: ["unique_id": "", "title": "Skid Steer"]))
+        XCTAssertEqual(EquipmentCategoryOption.allTitle, "All categories")
+    }
+
     func testTheSubstitutionPayloadCarriesTheReplacementsIdentityForLocalReaders() {
         var capture = EquipmentSubstitutionCapture(orderUniqueId: "ORD-1", orderProductUniqueId: "ORD-PRD-0001",
                                                    supersededExecutionId: "EXE-1", previousEquipmentUniqueId: "EQP-A",

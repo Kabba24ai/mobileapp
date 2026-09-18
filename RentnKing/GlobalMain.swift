@@ -774,15 +774,24 @@ enum Url {
     /// Assembly Review (2026-09-13): every Queue Line assembly ONE order forms.
     /// The canonical unit candidates for ONE line (Laravel classifies each: direct / alternate,
     /// `requires_reason`), excluding rented units and the unit already assigned.
-    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String, search: String? = nil) -> NSURL {
+    /// `category`: nil/"" → the legacy prioritized page; "default" → Laravel resolves the canonical
+    /// category of the current unit (else the ordered product) and lists it whole; "all" → the whole
+    /// eligible fleet; a PCAT unique_id → that category. `search` narrows within that scope by
+    /// Equipment ID, name and brand (exact-ID match first). Laravel decides eligibility and order.
+    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String, search: String? = nil, category: String? = nil) -> NSURL {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#")
+        var items: [String] = []
         let term = (search ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !term.isEmpty, let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates")
+        if !term.isEmpty, let encoded = term.addingPercentEncoding(withAllowedCharacters: allowed) {
+            items.append("search=\(encoded)")
         }
-        // The server searches the WHOLE eligible fleet by Equipment ID, name and brand
-        // (exact-ID match first, then direct matches, then by name) — the same rule
-        // the web board's picker uses.
-        return newAPI("queue-line/\(orderProductUniqueId)/equipment-candidates?search=\(encoded)")
+        let scope = (category ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !scope.isEmpty, let encoded = scope.addingPercentEncoding(withAllowedCharacters: allowed) {
+            items.append("category=\(encoded)")
+        }
+        let path = "queue-line/\(orderProductUniqueId)/equipment-candidates"
+        return newAPI(items.isEmpty ? path : "\(path)?\(items.joined(separator: "&"))")
     }
 
     static func queueLineAssembly(_ orderUniqueId: String) -> NSURL {

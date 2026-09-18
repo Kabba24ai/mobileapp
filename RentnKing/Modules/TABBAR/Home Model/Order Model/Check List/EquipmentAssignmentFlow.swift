@@ -9,6 +9,15 @@
 //  for a non-direct unit — lifted out of the checklist so Assembly Review invokes
 //  exactly the same capability instead of a second one.
 //
+//  Category + search (2026-09-18): for a host whose candidates come from the
+//  canonical candidates read, the header also carries the Category pill — the
+//  picker opens in the canonical Product Category Laravel resolved for the line
+//  (the current unit's, else the ordered product's) and the employee may change
+//  it; Category filter + search term go back to the server together, which
+//  answers with that category's units in operational order (Available, Maint.
+//  Hold, Damaged, Rented). Category is a filter of what the wheel shows — never
+//  an assignment restriction and never a rule of its own.
+//
 //  Nothing here is an assignment record. The only write is the canonical
 //  `queue_line.switch_equipment` operation (PreparationOperationBuilder), the
 //  same durable operation and endpoint the checklist and the web board use, which
@@ -37,6 +46,23 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         var performedByUniqueId: String?
     }
 
+    /// Where the picker's candidates come from when it has to ask again (2026-09-18):
+    /// `fetch(category, term, deliver)` → Laravel's list for that category (nil = every
+    /// category) and search term ("" = none), in Laravel's order — nil delivered = the request
+    /// failed; `categories(deliver)` → the canonical Product Category list for the Category pill
+    /// (nil = not offered: the host has no category dimension). Present only for hosts whose
+    /// candidates come from the canonical candidates read; the checklist's category-scoped
+    /// fleet list is already complete and passes none, so its picker is unchanged.
+    struct CandidateSource {
+        typealias Deliver = ([EquipmentCandidate]?) -> Void
+        var fetch: (_ category: EquipmentCategoryOption?, _ term: String, _ deliver: @escaping Deliver) -> Void
+        var categories: ((_ deliver: @escaping ([EquipmentCategoryOption]?) -> Void) -> Void)?
+    }
+
+    /// Server-backed candidate search (2026-09-15): `(term, deliver)` — kept for hosts that
+    /// offer search without a category dimension.
+    typealias CandidateSearch = (String, @escaping ([EquipmentCandidate]?) -> Void) -> Void
+
     private weak var host: UIViewController?
     private let hiddenField = UITextField(frame: .zero)
     private let picker = UIPickerView()
@@ -47,26 +73,39 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     /// Called on every dismissal (Cancel, Select, refusal) — the host restores scroll state.
     var onDismiss: (() -> Void)?
 
-    /// Server-backed candidate search (2026-09-15): `(term, deliver)` → the host asks
-    /// Laravel for the matches across the WHOLE eligible fleet (`?search=`) and delivers
-    /// them (nil = the request failed). Present only for hosts whose candidates come from
-    /// the canonical candidates read; the checklist's category-scoped fleet list is already
-    /// complete and passes none, so its picker is unchanged.
-    typealias CandidateSearch = (String, @escaping ([EquipmentCandidate]?) -> Void) -> Void
-    private var searchProvider: CandidateSearch?
-    /// The prioritized first page (direct matches first) the picker opened with.
+    private var source: CandidateSource?
+    /// The list the current category opened with (no search term) — "Show all" returns to it.
     private var baseCandidates: [EquipmentCandidate] = []
     private(set) var currentSearchTerm = ""
+    /// The category the wheel is scoped to (nil = every category) — Laravel's default on open.
+    private(set) var currentCategory: EquipmentCategoryOption?
+    private var categoryChoices: [EquipmentCategoryOption]?
+
+    // The header, laid out per pick (one row; two when a Category pill is offered).
+    private var hostView: UIView?
+    private var headerView: UIView?
+    private var cancelButton: UIButton?
+    private var selectButton: UIButton?
     private var titleButton: UIButton?
+    private var categoryButton: UIButton?
+
     /// The wheel's rows right now (section headers included) — for tests.
     var currentRows: [String] { rows }
-    var searchIsOffered: Bool { searchProvider != nil }
+    var searchIsOffered: Bool { source != nil }
     var searchPillTitle: String? { titleButton?.title(for: .normal) }
     var searchPillIsInteractive: Bool { titleButton?.isUserInteractionEnabled ?? false }
+    var categoryIsOffered: Bool { source?.categories != nil }
+    /// What the Category pill names: the scoped category, or "All categories"; nil when not offered.
+    var categoryPillTitle: String? { categoryIsOffered ? (currentCategory?.title ?? EquipmentCategoryOption.allTitle) : nil }
 
     static let title = "Select Equipment ID"
     static let searchTitle = "Search name or Equipment ID"
+    static let categoryTitle = "Select Category"
     private static let sectionPrefix = "Section: "
+    private static let headerRowHeight: CGFloat = 56
+    private static let categoryRowHeight: CGFloat = 44
+    private static let pickerHeight: CGFloat = 260
+    private static let pillHeight: CGFloat = 38
 
     init(host: UIViewController) {
         self.host = host
@@ -90,95 +129,148 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         hiddenField.iq.enableMode = .disabled
         view.addSubview(hiddenField)
 
-        let pickerHeight: CGFloat = 260
-        let headerHeight: CGFloat = 56
-        let hostView = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: headerHeight + pickerHeight))
+        let hostView = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: Self.headerRowHeight + Self.pickerHeight))
         hostView.backgroundColor = .black
         hostView.isOpaque = true
 
-        let header = buildHeader(width: view.bounds.width)
-        header.frame.origin = .zero
-        picker.frame = CGRect(x: 0, y: headerHeight, width: hostView.bounds.width, height: pickerHeight)
+        let header = buildHeader()
         picker.autoresizingMask = [.flexibleWidth]
-        picker.roundCornersView(onTopLeft: true, topRight: true, bottomLeft: false, bottomRight: false, radius: 15)
         hostView.addSubview(header)
         hostView.addSubview(picker)
+        self.hostView = hostView
+        self.headerView = header
         hiddenField.inputAccessoryView = nil
         hiddenField.inputView = hostView
+        layoutHeader()
     }
 
-    private func buildHeader(width: CGFloat) -> UIView {
-        let h: CGFloat = 56
-        let header = UIView(frame: CGRect(x: 0, y: 0, width: width, height: h))
+    private func pill(title: String, color: UIColor, textColor: UIColor, weight: UIFont.Weight, insets: CGFloat) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setTitle(title, for: .normal)
+        button.setTitleColor(textColor, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 16, weight: weight)
+        button.backgroundColor = color
+        button.layer.cornerRadius = Self.pillHeight / 2
+        button.contentEdgeInsets = UIEdgeInsets(top: 0, left: insets, bottom: 0, right: insets)
+        return button
+    }
+
+    private func buildHeader() -> UIView {
+        let header = UIView(frame: .zero)
         header.backgroundColor = .clear
         header.autoresizingMask = [.flexibleWidth]
-        let pillH: CGFloat = 38
-        let y = (h - pillH) / 2
 
-        let cancel = UIButton(type: .system)
-        cancel.setTitle("Cancel", for: .normal)
-        cancel.setTitleColor(.white, for: .normal)
-        cancel.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
-        cancel.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
-        cancel.layer.cornerRadius = pillH / 2
-        cancel.contentEdgeInsets = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
-        cancel.frame = CGRect(x: 14, y: y, width: 88, height: pillH)
+        let cancel = pill(title: "Cancel", color: UIColor(white: 0.16, alpha: 1.0), textColor: .white, weight: .medium, insets: 16)
         cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
 
-        let select = UIButton(type: .system)
-        select.setTitle("Select", for: .normal)
-        select.setTitleColor(.white, for: .normal)
-        select.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
-        select.backgroundColor = UIColor.systemBlue
-        select.layer.cornerRadius = pillH / 2
-        select.contentEdgeInsets = UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
-        select.frame = CGRect(x: header.bounds.width - 14 - 92, y: y, width: 92, height: pillH)
+        let select = pill(title: "Select", color: .systemBlue, textColor: .white, weight: .semibold, insets: 18)
         select.autoresizingMask = [.flexibleLeftMargin]
         select.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
 
-        let titleBtn = UIButton(type: .system)
-        titleBtn.setTitle(Self.title, for: .normal)
-        titleBtn.setTitleColor(UIColor(white: 0.65, alpha: 1.0), for: .normal)
+        // The title pill: the plain "Select Equipment ID" for the checklist host; the Search
+        // affordance for a host with a candidate source.
+        let titleBtn = pill(title: Self.title, color: UIColor(white: 0.12, alpha: 1.0), textColor: UIColor(white: 0.65, alpha: 1.0), weight: .semibold, insets: 0)
         titleBtn.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
-        titleBtn.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
-        titleBtn.layer.cornerRadius = pillH / 2
-        titleBtn.isUserInteractionEnabled = false            // becomes the Search pill only when a provider is supplied
+        titleBtn.isUserInteractionEnabled = false            // becomes the Search pill only when a source is supplied
         titleBtn.titleLabel?.adjustsFontSizeToFitWidth = true
         titleBtn.titleLabel?.minimumScaleFactor = 0.75
         titleBtn.accessibilityIdentifier = "equipmentPicker.search"
         titleBtn.addTarget(self, action: #selector(searchTapped), for: .touchUpInside)
-        titleButton = titleBtn
-        let leftMaxX = cancel.frame.maxX + 12
-        let rightMinX = select.frame.minX - 12
-        titleBtn.frame = CGRect(x: leftMaxX, y: y, width: max(0, rightMinX - leftMaxX), height: pillH)
         titleBtn.autoresizingMask = [.flexibleWidth]
 
+        // The Category pill (2026-09-18): the canonical Product Category the wheel is scoped to;
+        // tap to choose another (or every) category. Hidden for hosts without a category dimension.
+        let categoryBtn = pill(title: Self.categoryTitle, color: UIColor(white: 0.12, alpha: 1.0), textColor: .white, weight: .semibold, insets: 0)
+        categoryBtn.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        categoryBtn.titleLabel?.adjustsFontSizeToFitWidth = true
+        categoryBtn.titleLabel?.minimumScaleFactor = 0.7
+        categoryBtn.accessibilityIdentifier = "equipmentPicker.category"
+        categoryBtn.addTarget(self, action: #selector(categoryTapped), for: .touchUpInside)
+        categoryBtn.autoresizingMask = [.flexibleWidth]
+        categoryBtn.isHidden = true
+
         header.addSubview(cancel)
+        header.addSubview(categoryBtn)
         header.addSubview(titleBtn)
         header.addSubview(select)
+        cancelButton = cancel
+        selectButton = select
+        titleButton = titleBtn
+        categoryButton = categoryBtn
         return header
+    }
+
+    /// One header row (Cancel · title/Search · Select) — two when the Category pill is offered:
+    /// Cancel · Category · Select above, Search across below. The sheet's height follows.
+    private func layoutHeader() {
+        guard let hostView = hostView, let header = headerView,
+              let cancel = cancelButton, let select = selectButton, let title = titleButton, let category = categoryButton else { return }
+        let width = host?.view.bounds.width ?? hostView.bounds.width
+        let twoRows = categoryIsOffered
+        let headerHeight = Self.headerRowHeight + (twoRows ? Self.categoryRowHeight : 0)
+        header.frame = CGRect(x: 0, y: 0, width: width, height: headerHeight)
+
+        let y = (Self.headerRowHeight - Self.pillHeight) / 2
+        cancel.frame = CGRect(x: 14, y: y, width: 88, height: Self.pillHeight)
+        select.frame = CGRect(x: width - 14 - 92, y: y, width: 92, height: Self.pillHeight)
+        let leftMaxX = cancel.frame.maxX + 12
+        let rightMinX = select.frame.minX - 12
+        let middle = CGRect(x: leftMaxX, y: y, width: max(0, rightMinX - leftMaxX), height: Self.pillHeight)
+
+        category.isHidden = !twoRows
+        if twoRows {
+            category.frame = middle
+            title.frame = CGRect(x: 14, y: Self.headerRowHeight - 4, width: width - 28, height: Self.pillHeight)
+        } else {
+            title.frame = middle
+        }
+
+        picker.frame = CGRect(x: 0, y: headerHeight, width: width, height: Self.pickerHeight)
+        picker.roundCornersView(onTopLeft: true, topRight: true, bottomLeft: false, bottomRight: false, radius: 15)
+        hostView.frame = CGRect(x: 0, y: 0, width: width, height: headerHeight + Self.pickerHeight)
+        if hiddenField.isFirstResponder { hiddenField.reloadInputViews() }
     }
 
     // MARK: - Step 1 · pick a unit
 
     /// Shows the status-grouped wheel over `candidates`, preselecting `preselectUniqueId`
     /// when it is in the list. `onPicked` fires only for a unit that passed the status
-    /// triage (Available; damaged / maintenance after the employee agreed).
+    /// triage (Available; damaged / maintenance after the employee agreed). `search` offers
+    /// server-backed search without a category dimension.
     func pick(from candidates: [EquipmentCandidate], preselectUniqueId: String? = nil,
               search: CandidateSearch? = nil,
               onPicked: @escaping (EquipmentCandidate) -> Void) {
-        guard let host = host else { return }
+        let source = search.map { ask in CandidateSource(fetch: { _, term, deliver in ask(term, deliver) }, categories: nil) }
+        pick(from: candidates, preselectUniqueId: preselectUniqueId, category: nil, source: source, onPicked: onPicked)
+    }
+
+    /// The category-aware picker (2026-09-18): `candidates` is Laravel's list for `category`
+    /// (the resolved default; nil = every category), `source` answers category changes and
+    /// searches. Category is what the wheel shows, never a rule about what may be assigned.
+    func pick(from candidates: [EquipmentCandidate], preselectUniqueId: String? = nil,
+              category: EquipmentCategoryOption?, source: CandidateSource?,
+              onPicked: @escaping (EquipmentCandidate) -> Void) {
+        guard host != nil else { return }
         installIfNeeded()
         self.candidates = candidates
         self.baseCandidates = candidates
-        self.searchProvider = search
+        self.source = source
+        self.currentCategory = category
         self.currentSearchTerm = ""
+        self.categoryChoices = nil
         self.onPicked = onPicked
+        layoutHeader()
         updateSearchPill()
+        updateCategoryPill()
         rows = Self.rows(for: candidates)
-        guard !rows.isEmpty else {
-            showAlertMessage(strMessage: "No equipment found for the selected category.")
-            return
+        if rows.isEmpty {
+            // The checklist's complete fleet list has nothing → nothing to open. A category-scoped
+            // wheel still opens: the employee changes the category or searches from here.
+            guard source != nil else {
+                showAlertMessage(strMessage: "No equipment found for the selected category.")
+                return
+            }
+            rows = [Self.sectionPrefix + emptyScopeText()]
         }
         picker.reloadAllComponents()
         let firstUnit = rows.firstIndex(where: { !$0.hasPrefix(Self.sectionPrefix) }) ?? 0
@@ -190,28 +282,123 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         }
         selectedIndex = min(max(selectedIndex, 0), rows.count - 1)
         picker.selectRow(selectedIndex, inComponent: 0, animated: false)
-        _ = host
         hiddenField.becomeFirstResponder()
     }
 
-    /// Status sections (sorted), each followed by its units' rows — the checklist's layout.
+    /// Status sections in operational order (Available, Maint. Hold, Damaged, Rented), each
+    /// followed by its units' rows in the server's order — the checklist's layout.
     static func rows(for candidates: [EquipmentCandidate]) -> [String] {
         var rows: [String] = []
         let groups = Dictionary(grouping: candidates, by: { $0.statusLabel })
-        for (section, items) in groups.sorted(by: { $0.key < $1.key }) {
+        for section in EquipmentStatusOrder.sections(Array(groups.keys)) {
             rows.append(sectionPrefix + section)
-            rows.append(contentsOf: items.map { $0.pickerRow })
+            rows.append(contentsOf: (groups[section] ?? []).map { $0.pickerRow })
         }
         return rows
     }
 
-    // MARK: - Step 1b · search the whole eligible fleet (candidate discovery, not assignment)
+    private func emptyScopeText() -> String {
+        if let category = currentCategory { return "No equipment in \(category.title)" }
+        return "No equipment found"
+    }
 
-    /// The header pill: the plain title for a host without search; for a host with search,
+    // MARK: - Step 1a · the Category pill (candidate discovery, not assignment)
+
+    private func updateCategoryPill() {
+        guard let pill = categoryButton else { return }
+        let title = currentCategory?.title ?? EquipmentCategoryOption.allTitle
+        pill.setTitle("\(title)  ▾", for: .normal)
+        pill.accessibilityLabel = "Category: \(title)"
+        pill.accessibilityValue = currentCategory?.uniqueId ?? ""
+    }
+
+    /// Category pill → the canonical category list (fetched once per pick) as a sheet. The
+    /// wheel steps aside while the sheet is up and comes back scoped to the choice.
+    @objc private func categoryTapped() {
+        guard categoryIsOffered, let load = source?.categories else { return }
+        hiddenField.resignFirstResponder()   // not a cancel: onDismiss is not called
+        if let choices = categoryChoices {
+            presentCategorySheet(choices)
+            return
+        }
+        indicatorShow()
+        load { [weak self] list in
+            DispatchQueue.main.async {
+                indicatorHide()
+                guard let self = self else { return }
+                guard let list = list, !list.isEmpty else {
+                    showAlertMessage(strMessage: "Could not load the category list. Check the connection and try again.")
+                    self.reopenWheel()
+                    return
+                }
+                self.categoryChoices = list
+                self.presentCategorySheet(list)
+            }
+        }
+    }
+
+    private func presentCategorySheet(_ choices: [EquipmentCategoryOption]) {
+        guard let host = host else { return }
+        let sheet = UIAlertController(title: Self.categoryTitle,
+                                      message: "Any category can be chosen. The same assignment rules apply.",
+                                      preferredStyle: .actionSheet)
+        let mark: (Bool) -> String = { $0 ? "✓ " : "" }
+        sheet.addAction(UIAlertAction(title: mark(currentCategory == nil) + EquipmentCategoryOption.allTitle, style: .default) { [weak self] _ in
+            self?.selectCategory(nil)
+        })
+        for option in choices {
+            sheet.addAction(UIAlertAction(title: mark(option.uniqueId == currentCategory?.uniqueId) + option.title, style: .default) { [weak self] _ in
+                self?.selectCategory(option)
+            })
+        }
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in self?.reopenWheel() })
+        // iPad needs an anchor; on iPhone the sheet is the full-width bottom sheet (a source rect
+        // would turn a 30-row list into a narrow anchored popover).
+        if UIDevice.current.userInterfaceIdiom == .pad, let pop = sheet.popoverPresentationController, let view = host.view {
+            pop.sourceView = view
+            pop.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        }
+        host.present(sheet, animated: true)
+    }
+
+    /// Scopes the wheel to `category` (nil = every category): Laravel's list for it replaces
+    /// the wheel and any search term is cleared. Nothing about eligibility is decided here.
+    /// Callable directly (tests).
+    func selectCategory(_ category: EquipmentCategoryOption?, completion: (() -> Void)? = nil) {
+        guard let source = source else { completion?(); return }
+        if category?.uniqueId == currentCategory?.uniqueId {
+            reopenWheel()
+            completion?()
+            return
+        }
+        indicatorShow()
+        source.fetch(category, "") { [weak self] results in
+            DispatchQueue.main.async {
+                indicatorHide()
+                guard let self = self else { return }
+                guard let results = results else {
+                    showAlertMessage(strMessage: "Could not load that category's equipment. Check the connection and try again.")
+                    self.reopenWheel()
+                    completion?()
+                    return
+                }
+                self.currentCategory = category
+                self.currentSearchTerm = ""
+                self.baseCandidates = results
+                self.updateCategoryPill()
+                self.reload(with: results)
+                completion?()
+            }
+        }
+    }
+
+    // MARK: - Step 1b · search within the scope (candidate discovery, not assignment)
+
+    /// The header pill: the plain title for a host without a source; for a host with one,
     /// the Search affordance showing the active term.
     private func updateSearchPill() {
         guard let pill = titleButton else { return }
-        guard searchProvider != nil else {
+        guard source != nil else {
             pill.isUserInteractionEnabled = false
             pill.setTitle(Self.title, for: .normal)
             pill.setTitleColor(UIColor(white: 0.65, alpha: 1.0), for: .normal)
@@ -226,13 +413,13 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     }
 
     /// Search pill → the term alert. The wheel steps aside while the alert's field has the
-    /// keyboard and comes back with the server's matches (or the first page again).
+    /// keyboard and comes back with the server's matches (or the scope's full list again).
     @objc private func searchTapped() {
-        guard searchProvider != nil, let host = host else { return }
+        guard source != nil, let host = host else { return }
         hiddenField.resignFirstResponder()   // not a cancel: onDismiss is not called
-        let alert = UIAlertController(title: Self.searchTitle,
-                                      message: "Any eligible machine in the fleet can be found by its name or Equipment ID.",
-                                      preferredStyle: .alert)
+        let message = currentCategory.map { "Searches \($0.title) by name or Equipment ID. Change the category to look elsewhere." }
+            ?? "Any eligible machine in the fleet can be found by its name or Equipment ID."
+        let alert = UIAlertController(title: Self.searchTitle, message: message, preferredStyle: .alert)
         alert.addTextField { [term = currentSearchTerm] field in
             field.placeholder = "Name or Equipment ID"
             field.text = term
@@ -258,13 +445,13 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         host.present(alert, animated: true)
     }
 
-    /// Asks the provider for `term` across the whole eligible fleet and reloads the wheel
-    /// with Laravel's matches, in Laravel's order (exact ID, direct matches, then name).
-    /// Nothing about eligibility is decided here. Callable directly (tests, return key).
+    /// Asks the source for `term` within the current category (nil = the whole eligible fleet)
+    /// and reloads the wheel with Laravel's matches, in Laravel's order. Nothing about
+    /// eligibility is decided here. Callable directly (tests, return key).
     func performSearch(_ term: String, completion: (() -> Void)? = nil) {
-        guard let provider = searchProvider else { completion?(); return }
+        guard let source = source else { completion?(); return }
         indicatorShow()
-        provider(term) { [weak self] results in
+        source.fetch(currentCategory, term) { [weak self] results in
             DispatchQueue.main.async {
                 indicatorHide()
                 guard let self = self else { return }
@@ -273,8 +460,9 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
                     self.reopenWheel(); completion?(); return
                 }
                 guard !results.isEmpty else {
+                    let scope = self.currentCategory.map { " in \($0.title)" } ?? ""
                     let alert = UIAlertController(title: Application.appName,
-                                                  message: "No eligible equipment matches “\(term)”. Try part of the name or the Equipment ID.",
+                                                  message: "No eligible equipment matches “\(term)”\(scope). Try part of the name or the Equipment ID.",
                                                   preferredStyle: .alert)
                     alert.addAction(UIAlertAction(title: str.ok, style: .default) { [weak self] _ in self?.reopenWheel() })
                     self.host?.present(alert, animated: true)
@@ -287,7 +475,7 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         }
     }
 
-    /// Back to the prioritized first page the picker opened with.
+    /// Back to the current category's full list (the prioritized first page for the whole fleet).
     func clearSearch() {
         currentSearchTerm = ""
         reload(with: baseCandidates)
@@ -296,6 +484,7 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     private func reload(with list: [EquipmentCandidate]) {
         candidates = list
         rows = Self.rows(for: list)
+        if rows.isEmpty { rows = [Self.sectionPrefix + emptyScopeText()] }
         updateSearchPill()
         picker.reloadAllComponents()
         selectedIndex = rows.firstIndex(where: { !$0.hasPrefix(Self.sectionPrefix) }) ?? 0

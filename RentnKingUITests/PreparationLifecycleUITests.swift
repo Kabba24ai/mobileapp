@@ -1760,12 +1760,32 @@ final class PreparationLifecycleUITests: XCTestCase {
         usleep(2_500_000)
     }
 
+    /// The picker's Category pill → the category sheet → `title` → the wheel reloads with the
+    /// server's list for that category (search term cleared).
+    private func chooseCategory(_ app: XCUIApplication, _ title: String) {
+        let pill = element(app, id: "equipmentPicker.category")
+        XCTAssertTrue(pill.waitForExistence(timeout: 10), "the picker offers no Category pill")
+        pill.tap()
+        let choice = app.sheets.buttons[title].firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 10), "no category “\(title)” on the sheet")
+        choice.tap()
+        usleep(2_500_000)
+    }
+
+    /// What the Category pill names right now ("Category: <title>").
+    private func categoryPill(_ app: XCUIApplication) -> String {
+        let pill = element(app, id: "equipmentPicker.category")
+        XCTAssertTrue(pill.waitForExistence(timeout: 10), "the picker offers no Category pill")
+        return pill.label
+    }
+
     private func pickOnWheel(_ app: XCUIApplication, _ row: String) {
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 10), "the equipment picker did not open")
         // The checklist's own picker: its header pill reads "Select Equipment ID" (checklist host)
-        // or offers "Search name or Equipment ID" (review host, 1.0.21 (1007)) — same component.
-        XCTAssertTrue(element(app, id: "equipmentPicker.search").exists || textElement(app, "Select Equipment ID").exists,
+        // or offers "Search name or Equipment ID" + the Category pill (review host) — same component.
+        XCTAssertTrue(element(app, id: "equipmentPicker.search").exists || element(app, id: "equipmentPicker.category").exists
+                      || textElement(app, "Select Equipment ID").exists,
                       "it is the checklist's own Select Equipment ID picker")
         wheel.adjust(toPickerWheelValue: row)
         usleep(500_000)
@@ -1792,8 +1812,12 @@ final class PreparationLifecycleUITests: XCTestCase {
         XCTAssertTrue(gateLabel(app).hasPrefix("STOP"))
         shootToDisk("a-review-unassigned-assign")
 
-        // Assign → the checklist's own picker → a direct spare: no reason asked, no confirmation to discard.
+        // Assign → the checklist's own picker, opened in the ORDERED product's canonical category
+        // (no unit yet) → a direct spare: no reason asked, no confirmation to discard.
         tapReview(app, "assembly.\(qlaRake).unit.assign")
+        XCTAssertTrue(app.pickerWheels.firstMatch.waitForExistence(timeout: 10), "the equipment picker did not open")
+        XCTAssertEqual(categoryPill(app), "Category: Landscaping", "an unassigned line starts in its ordered product's category")
+        shootToDisk("a-picker-unassigned-default-category")
         pickOnWheel(app, "Harley Rake Spare    ||    QLA-HR1")
         XCTAssertFalse(app.sheets.firstMatch.exists, "a direct match never asks for a reason")
         XCTAssertEqual(reviewLabel(app, "assembly.\(qlaRake).unit.title"), "Harley Rake Spare · #QLA-HR1", "named the way the yard names it: name, then tag")
@@ -1809,16 +1833,29 @@ final class PreparationLifecycleUITests: XCTestCase {
         XCTAssertEqual(gateLabel(app), "GO · All 3 confirmed")
         shootToDisk("a-review-assigned-go")
 
-        // Reassign by tapping the identity → a NON-direct spare → the canonical reason sheet.
-        // The spare sorts beyond the first 25 prioritized candidates (the seed adds filler
-        // alternates ahead of it), so it is reached through the picker's search — the
-        // server searches the whole eligible fleet by name / ID; the direct spare still
-        // heads the initial wheel.
+        // Reassign by tapping the identity → the picker opens in the CURRENT unit's canonical
+        // category (Skid Steer), listed whole: the 30 filler units that pushed past the former
+        // first page are all on the wheel, and a search stays within the category. The
+        // NON-direct spare lives in another category (Landscaping): one category change away,
+        // then the canonical reason sheet.
         tapReview(app, "assembly.\(qlaSkid2).unit.reassign")
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 10), "the equipment picker did not open")
-        XCTAssertFalse((wheel.value as? String ?? "").contains("QLA-ALT1"), "the alternate must sit beyond the prioritized first page")
-        searchOnPicker(app, "Other Machine")
+        XCTAssertEqual(categoryPill(app), "Category: Skid Steer", "the current unit's category, resolved by the server")
+        shootToDisk("a-picker-current-unit-category")
+        XCTAssertFalse((wheel.value as? String ?? "").contains("QLA-ALT1"), "another category's unit is not in this list")
+        wheel.adjust(toPickerWheelValue: "A Filler 30    ||    QLA-F30")          // beyond the former 25 — the category is listed whole
+        XCTAssertTrue((wheel.value as? String ?? "").contains("QLA-F30"), "the whole category is on the wheel, no 25-row cut")
+        searchOnPicker(app, "Spare")
+        XCTAssertTrue((wheel.value as? String ?? "").contains("QLA-SK3"), "search within Skid Steer finds its spare")
+        XCTAssertFalse((wheel.value as? String ?? "").contains("QLA-ALT1"), "…and never leaves the category")
+        element(app, id: "equipmentPicker.category").tap()
+        XCTAssertTrue(app.sheets.buttons["Landscaping"].firstMatch.waitForExistence(timeout: 10), "the category sheet did not open")
+        shootToDisk("a-picker-category-sheet")
+        app.sheets.buttons["Landscaping"].firstMatch.tap()
+        usleep(2_500_000)
+        XCTAssertEqual(categoryPill(app), "Category: Landscaping")
+        shootToDisk("a-picker-other-category")
         pickOnWheel(app, "Other Machine Spare    ||    QLA-ALT1")
         let reason = app.sheets.buttons["Customer request"].firstMatch
         XCTAssertTrue(reason.waitForExistence(timeout: 10), "a non-direct unit needs Laravel's reason — the same picklist as the checklist")

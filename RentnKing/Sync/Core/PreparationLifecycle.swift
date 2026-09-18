@@ -256,6 +256,49 @@ enum EquipmentPickTriage: Equatable {
     static let rentedRefusal = "This equipment is currently rented and is not available to be assigned to this order."
 }
 
+/// A canonical Product Category as the picker names it — Laravel's `unique_id` and title
+/// (the `product_categories` row the fleet files a unit under). Never a phone-side taxonomy,
+/// never derived from an equipment or product name.
+struct EquipmentCategoryOption: Equatable {
+    var uniqueId: String
+    var title: String
+    /// The Category pill when the wheel is not scoped to one category.
+    static let allTitle = "All categories"
+}
+
+extension EquipmentCategoryOption {
+    /// The candidates read's `meta.category` (`{unique_id, title, source}`); nil when the list is not scoped.
+    /// (An extension, so the memberwise initializer stays available.)
+    init?(metaJSON dict: [String: Any]?) {
+        guard let dict = dict, let uid = dict["unique_id"] as? String, !uid.isEmpty else { return nil }
+        self.init(uniqueId: uid, title: (dict["title"] as? String ?? "").trimmingCharacters(in: .whitespaces))
+    }
+}
+
+/// The operational order of the picker's status sections (2026-09-18): what can be staged
+/// now first, then what is on hold, what is damaged, and what is out with a customer. Rented
+/// units are VISIBLE in that last section; whether one may be assigned stays the server's
+/// rule (and EquipmentPickTriage refuses it at Select). Any other label — none exists in the
+/// canonical status set — follows, alphabetically.
+enum EquipmentStatusOrder {
+    static func rank(_ statusLabel: String) -> Int {
+        let lower = statusLabel.trimmingCharacters(in: .whitespaces).lowercased()
+        if lower == "available" { return 0 }
+        if lower.contains("maint") { return 1 }
+        if lower.contains("damage") { return 2 }
+        if lower == "rented" { return 3 }
+        return 4
+    }
+
+    /// The distinct section labels in operational order.
+    static func sections(_ labels: [String]) -> [String] {
+        Array(Set(labels)).sorted { a, b in
+            let (ra, rb) = (rank(a), rank(b))
+            return ra == rb ? a < b : ra < rb
+        }
+    }
+}
+
 // MARK: - Durable operations
 
 /// One operator decision that discards a preparation cycle.
