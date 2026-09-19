@@ -44,6 +44,14 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.22", notes: [
+            "The equipment picker opens in the same Product Category as the machine already assigned — an unassigned line starts in the category of the product that was ordered",
+            "Change the category to take a machine from anywhere in the fleet; the same substitution and reason rules still apply",
+            "Search by name or Equipment ID within the category you are looking at",
+            "Equipment reads in working order: Available first, then Maintenance Hold, Damaged and Rented, alphabetical within each",
+            "Various fixes and refinements",
+        ]),
+
         AppRelease(version: "1.0.21", notes: [
             "Assembly Review: every outbound equipment checklist now starts with a review of the whole assembly — the machine, bundled and related items, and every ordered Product Option — with a STOP / GO gate before the checklist",
             "Assign or change equipment right from Assembly Review; a newly assigned machine always starts unconfirmed",
