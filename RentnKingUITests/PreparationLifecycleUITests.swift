@@ -1761,13 +1761,15 @@ final class PreparationLifecycleUITests: XCTestCase {
     }
 
     /// The picker's Category pill → the category sheet → `title` → the wheel reloads with the
-    /// server's list for that category (search term cleared).
+    /// server's list for that category (search term cleared). The sheet holds the WHOLE canonical
+    /// list (30 categories in production), so the row is scrolled into reach before it is tapped.
     private func chooseCategory(_ app: XCUIApplication, _ title: String) {
         let pill = element(app, id: "equipmentPicker.category")
         XCTAssertTrue(pill.waitForExistence(timeout: 10), "the picker offers no Category pill")
         pill.tap()
         let choice = app.sheets.buttons[title].firstMatch
         XCTAssertTrue(choice.waitForExistence(timeout: 10), "no category “\(title)” on the sheet")
+        XCTAssertTrue(scrollSheet(app, to: choice), "category “\(title)” could not be reached on the sheet")
         choice.tap()
         usleep(2_500_000)
     }
@@ -1850,9 +1852,11 @@ final class PreparationLifecycleUITests: XCTestCase {
         XCTAssertTrue((wheel.value as? String ?? "").contains("QLA-SK3"), "search within Skid Steer finds its spare")
         XCTAssertFalse((wheel.value as? String ?? "").contains("QLA-ALT1"), "…and never leaves the category")
         element(app, id: "equipmentPicker.category").tap()
-        XCTAssertTrue(app.sheets.buttons["Landscaping"].firstMatch.waitForExistence(timeout: 10), "the category sheet did not open")
+        let landscaping = app.sheets.buttons["Landscaping"].firstMatch
+        XCTAssertTrue(landscaping.waitForExistence(timeout: 10), "the category sheet did not open")
         shootToDisk("a-picker-category-sheet")
-        app.sheets.buttons["Landscaping"].firstMatch.tap()
+        XCTAssertTrue(scrollSheet(app, to: landscaping), "Landscaping could not be reached on the sheet")
+        landscaping.tap()
         usleep(2_500_000)
         XCTAssertEqual(categoryPill(app), "Category: Landscaping")
         shootToDisk("a-picker-other-category")
@@ -1884,6 +1888,79 @@ final class PreparationLifecycleUITests: XCTestCase {
         backToBoard(app)
         expectCard(app, tab: "Pending", anchor: "QLA-ALT1")
         shootToDisk("a-board-reassigned")
+    }
+
+    // MARK: 7b · The category sheet carries the WHOLE canonical list and scrolls to reach it
+
+    /// Production files equipment under 30 Product Categories — more rows than one screen of the
+    /// sheet. The whole canonical list has to be reachable: the sheet opens with the current
+    /// category ticked, scrolls from its first row to its last, and a category that starts below
+    /// the fold can be chosen, after which the wheel holds THAT category's equipment. Filtering
+    /// and assignment are untouched — the pick is cancelled, so the seeded world is left as it was.
+    func testTheCategorySheetScrollsTheWholeCanonicalListAndAnOffScreenCategoryCanBeSelected() {
+        XCTAssertFalse(qlaSkid2.isEmpty, "set KABBA_QLA_SKID2")
+        let app = makeApp()
+        login(app)
+        openQueueLine(app)
+        tapUpdate(app, anchor: "QLA-SK2")
+        XCTAssertTrue(reviewIsOpen(app))
+        usleep(2_500_000)
+
+        tapReview(app, "assembly.\(qlaSkid2).unit.reassign")
+        XCTAssertTrue(app.pickerWheels.firstMatch.waitForExistence(timeout: 10), "the equipment picker did not open")
+        XCTAssertEqual(categoryPill(app), "Category: Skid Steer", "the current unit's category")
+
+        element(app, id: "equipmentPicker.category").tap()
+        let sheet = app.sheets.firstMatch
+        XCTAssertTrue(sheet.waitForExistence(timeout: 10), "the category sheet did not open")
+
+        // It opens on the current category, ticked, with All categories heading the list.
+        XCTAssertTrue(sheet.buttons["✓ Skid Steer"].waitForExistence(timeout: 5), "the sheet does not tick the current category")
+        XCTAssertTrue(sheet.buttons["All categories"].exists)
+        shootToDisk("b-category-sheet-top")
+
+        // 30 categories do not fit on one screen: the late rows start out of reach.
+        let chippers = sheet.buttons["Wood Chippers"]
+        let lastAlphabetically = sheet.buttons["Zero Turn Mowers"]
+        XCTAssertFalse(chippers.isHittable, "Wood Chippers should start below the fold — seed more categories")
+        XCTAssertFalse(lastAlphabetically.isHittable)
+
+        // The list scrolls all the way down to the last category…
+        XCTAssertTrue(scrollSheet(app, to: lastAlphabetically), "the category sheet does not scroll to its last row")
+        shootToDisk("b-category-sheet-bottom")
+
+        // …and a category that began off-screen can be chosen.
+        XCTAssertTrue(scrollSheet(app, to: chippers), "Wood Chippers could not be reached by scrolling")
+        chippers.tap()
+        usleep(2_500_000)
+
+        // The picker reloaded with that category's equipment — the server's list, not a local filter.
+        XCTAssertEqual(categoryPill(app), "Category: Wood Chippers")
+        let wheel = app.pickerWheels.firstMatch
+        XCTAssertTrue((wheel.value as? String ?? "").contains("QLA-WC1"),
+                      "the wheel did not reload for the chosen category: \(wheel.value as? String ?? "")")
+        shootToDisk("b-picker-scrolled-category")
+
+        // Choosing a category assigns nothing: Cancel leaves the line on its own unit.
+        app.buttons["Cancel"].firstMatch.tap()
+        usleep(1_500_000)
+        XCTAssertEqual(reviewLabel(app, "assembly.\(qlaSkid2).unit.title"), "Skid Steer Unit · #QLA-SK2",
+                       "browsing categories never changes the assignment")
+    }
+
+    /// Drags inside the category sheet until `target` is hittable (or gives up). The sheet's own
+    /// coordinates are used, so the gesture can never land on the dimmed background behind it.
+    @discardableResult
+    private func scrollSheet(_ app: XCUIApplication, to target: XCUIElement) -> Bool {
+        let sheet = app.sheets.firstMatch
+        for _ in 0..<12 {
+            if target.exists && target.isHittable { return true }
+            sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+                .press(forDuration: 0.05,
+                       thenDragTo: sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.30)))
+            usleep(400_000)
+        }
+        return target.exists && target.isHittable
     }
 
     // MARK: 8 · Reassigning INSIDE the focused checklist returns the review to STOP with the new unit
