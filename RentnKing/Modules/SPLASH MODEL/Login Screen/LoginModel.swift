@@ -117,6 +117,8 @@ extension LoginViewController : WebServiceHelperDelegate{
                     if UserDefaults.standard.user != nil{
                         GlobalMainConstants.appDelegate?.updateToken(DeviceTokenParameater: AppDelegate.DeviceTokenParameater(device_token: strUUID, fcm_token: UserDefaults.standard.deviceToken ?? ""))
                     }
+                    // Dispatch offline (Phase 2): (re)register this installation for silent Dispatch wakes.
+                    GlobalMainConstants.appDelegate?.registerDispatchInstallation(trigger: .loginCompleted)
                     
                     
                     //MOVE TO TABBAR

@@ -69,10 +69,13 @@
 		5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */; };
 		5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
 		5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
+		5A5D000000000000000000F1 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
+		5A5D000000000000000000F2 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */; };
 		5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */; };
 		5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E7 /* ManualDispatchListCell.swift */; };
 		5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */; };
+		5A5D000000000000000000F4 /* DispatchWakeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F3 /* DispatchWakeTests.swift */; };
 		5A5C0000000000000000001C /* KabbaSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001B /* KabbaSync.swift */; };
 		5A5C0000000000000000001E /* SyncStatusUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001D /* SyncStatusUI.swift */; };
 		5A5C00000000000000000020 /* KabbaSyncAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000001F /* KabbaSyncAppearance.swift */; };
@@ -516,10 +519,12 @@
 		5A5C00000000000000000017 /* KabbaAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaAPIClient.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistSyncHandler.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E0 /* DispatchWorkload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkload.swift; sourceTree = "<group>"; };
+		5A5D000000000000000000F0 /* DispatchWake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWake.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchSyncHandler.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E7 /* ManualDispatchListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchListCell.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkloadTests.swift; sourceTree = "<group>"; };
+		5A5D000000000000000000F3 /* DispatchWakeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWakeTests.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001B /* KabbaSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSync.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001D /* SyncStatusUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusUI.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000001F /* KabbaSyncAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaSyncAppearance.swift; sourceTree = "<group>"; };
@@ -1961,6 +1966,7 @@
 				5A5C00000000000000000011 /* SyncDiagnostics.swift */,
 				5A5C00000000000000000013 /* InstallationIdentity.swift */,
 				5A5C000000000000000000E0 /* DispatchWorkload.swift */,
+				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
@@ -2059,6 +2065,7 @@
 			isa = PBXGroup;
 			children = (
 				5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */,
+				5A5D000000000000000000F3 /* DispatchWakeTests.swift */,
 				5A5C00000000000000000060 /* APIEnvelopeTests.swift */,
 				5A5C00000000000000000062 /* APIErrorClassifierTests.swift */,
 				5A5C00000000000000000064 /* AuthRecoveryTests.swift */,
@@ -2474,6 +2481,7 @@
 				5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */,
 				5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */,
 				5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */,
+				5A5D000000000000000000F1 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
@@ -2698,6 +2706,7 @@
 				5A5C00000000000000000061 /* APIEnvelopeTests.swift in Sources */,
 				5A5C00000000000000000063 /* APIErrorClassifierTests.swift in Sources */,
 				5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */,
+				5A5D000000000000000000F4 /* DispatchWakeTests.swift in Sources */,
 				5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */,
 				5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
@@ -2739,6 +2748,7 @@
 				5A5C000000000000000000BC /* APIEnvelope.swift in Sources */,
 				5A5C000000000000000000BD /* SyncOperation.swift in Sources */,
 				5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */,
+				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
 				5A5C000000000000000000C0 /* SyncRetryPolicy.swift in Sources */,

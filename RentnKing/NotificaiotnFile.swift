@@ -97,6 +97,37 @@ extension AppDelegate : MessagingDelegate{
         if UserDefaults.standard.user != nil{
             self.updateToken(DeviceTokenParameater: DeviceTokenParameater(device_token: strUUID, fcm_token: fcmToken ?? ""))
         }
+
+        // Dispatch offline (Phase 2): this callback fires at every launch and on each FCM token
+        // rotation — (re)register the installation for silent Dispatch wakes.
+        registerDispatchInstallation(trigger: .tokenRefresh)
+    }
+
+    /// Registers THIS installation (X-Device-Id, added by the API client) with its FCM token for
+    /// silent Dispatch wakes. Installation-scoped: logout / user switching never unregister, and
+    /// there is no unregister call. Needs a signed-in session; a no-op otherwise.
+    func registerDispatchInstallation(trigger: DispatchInstallationRegistration.Trigger) {
+        let fcmToken = UserDefaults.standard.deviceToken
+        guard let client = KabbaAPIClient.shared,
+              DispatchInstallationRegistration.shouldRegister(fcmToken: fcmToken, hasSession: !(client.configuration.accessToken() ?? "").isEmpty),
+              let token = fcmToken else {
+            return
+        }
+
+        let request = DispatchInstallationRegistration.request(
+            fcmToken: token,
+            operationId: "op-install-" + UUID().uuidString.lowercased()
+        )
+        client.perform(request) { result in
+            #if DEBUG
+            switch result {
+            case .response(let response):
+                print("[DispatchWake] registration (\(trigger.rawValue)): \(DispatchInstallationRegistration.outcome(of: response))")
+            case .failure(let error):
+                print("[DispatchWake] registration (\(trigger.rawValue)) failed: \(error)")
+            }
+            #endif
+        }
     }
     
     func application(application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
@@ -109,6 +140,13 @@ extension AppDelegate : MessagingDelegate{
       // If you are receiving a notification message while your app is in the background,
       // this callback will not be fired till the user taps on the notification launching the application.
       // TODO: Handle data of notification
+
+      // Dispatch offline (Phase 2): a silent Dispatch wake is invisible — no badge, no UI — and
+      // finishes promptly. Phase 3's reconciliation coordinator plugs in here.
+        if DispatchWake.isDispatchWake(userInfo) {
+            completionHandler(UIBackgroundFetchResult.noData)
+            return
+        }
 
       // With swizzling disabled you must let Messaging know about the message, for Analytics
       // Messaging.messaging().appDidReceiveMessage(userInfo)

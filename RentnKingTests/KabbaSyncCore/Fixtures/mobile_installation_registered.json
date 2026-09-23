@@ -1,0 +1,10 @@
+{
+    "success": true,
+    "message": "Installation registered.",
+    "data": {
+        "installation_id": "install-AAAAAAAA-0000-4000-8000-000000000001",
+        "registered": true,
+        "wake_enabled": false
+    },
+    "request_id": "c26ad226-5ad9-45bc-994b-71fad67516d4"
+}
