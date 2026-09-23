@@ -1,0 +1,413 @@
+# Dispatch Offline Phase 3 — iOS Durable Mission Cache + Reconciliation Coordinator — Implementation Plan
+
+> **Status: DRAFT for Gary's review (2026-09-23). Not approved. No Phase 3 product code has been written.**
+> **BLOCKED on backend contract gap G1 (§1).** Mobile tasks M3 onward consume the package field G1 adds, so no task runs until decision D1 (§2) is made.
+> Rules for execution: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, SSH, production data, feature flag, version/build bump, archive, or App Store upload.
+
+**Goal:** Every Kabba iPhone keeps a durable, company-wide offline Dispatch working set: all still-open overdue missions plus today and the next two calendar days, for all drivers. It reconciles that set against the Phase 1 manifest on every trigger (silent wake, launch, login, foreground, Dispatch open/refresh, network restoration), and the Dispatch screen renders from it immediately.
+
+**Spec:** `docs/superpowers/specs/2026-09-22-dispatch-offline-mission-cache-design.md`: §5, §7, §11–§14, §15, §16, §17 (iOS), §18 step 3, §19.
+
+**Builds on (local branches, no upstream):**
+- Backend `feature/dispatch-offline-phase-2` @ `098a68c64` (worktree `/Users/garyjezorski/Documents/kabba2_AI-dispatch-offline`). It contains Phase 1 (manifest and packages) and Phase 2 (installation registry, silent FCM wake).
+- Mobile `feature/dispatch-offline-phase-2` @ `f460081` (worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline`).
+- **This plan's branch:** mobile `feature/dispatch-offline-phase-3`, cut from `f460081`, worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p3`, no upstream.
+
+**Baseline (2026-09-23, Phase 3 worktree at `f460081`):** `swift test` passes **334/334**.
+
+---
+
+## 0. What the inspection found (the contracts Phase 3 builds on)
+
+| Contract | Actual shape (from the Phase 2 branches, not old `origin/main`) |
+|---|---|
+| Manifest | `GET dispatch/offline/manifest` (relative to `Application.BaseURL_NEW` = `…/api/admin/v1/`, from the login `api_url`). `data.revision` and each `missions[].revision` are **64-hex sha256 strings**, not the integers shown in the spec example. Each mission has `mission_key` = `order_product_unique_id:leg`, `order_product_unique_id`, `leg` (`delivery`\|`return`), and `effective_date` (Y-m-d). `horizon.through_date` = server today + 2 in the app timezone. The list is complete and unpaginated, and empty is a valid state. The endpoint is read-only. |
+| Packages | `POST dispatch/offline/packages` with body `{"missions":[{"order_product_unique_id","leg"}]}`, **1–100 per request** (`PackagesRequest::MAX_MISSIONS`). Returns `data.packages[]` and `data.not_active[]` (mission keys no longer in the live set). Each package: `mission_key`, `revision` (post-build), `order_product_unique_id`, `leg`, `dispatch` (stable summary, hashed into the revision), `checklist_context` (the canonical `ChecklistContext` shape plus `employee`/`server_time`), `terms` (`status`, `page_url`, `offline_content_available: false`). |
+| Package side effect | Each package runs `buildContext()`, which may mint a checklist execution. Only in the existing canonical backstop does it also supersede a prepared cycle whose unit changed and un-stage its Queue Line item. The online checklist-context endpoint behaves the same way. Background downloads can therefore trigger that backstop sooner than a person opening the checklist would. This is accepted Phase 1 behavior, not changed here. |
+| Silent wake | FCM data `type=dispatch_changed`, `dispatch_revision` = the settled **manifest revision** (the same value as manifest `data.revision`). Handled in `NotificaiotnFile.swift` `didReceiveRemoteNotification:fetchCompletionHandler:`, which currently returns `.noData` before the badge increment. |
+| Working-set rule (server) | Truck legs assigned to an active driver. Delivery: `delivery_status=Pending`. Return: `delivery_status=Completed` and `pickup_status=Pending`. So there is at most **one active mission per order product**, which matches the one-card-per-row Dispatch feed. |
+| Tenant | `UserDefaults.baseURL` is set from the login response's `api_url` and cleared on logout and on a real 401. The backend deployment is single-tenant, but one phone can sign in to different deployments (RentnKing and Kabba). **The phone-side tenant is the base URL.** |
+| Mobile durable-storage idiom | `<Application Support>/KabbaSync/…`, excluded from backup. `FileSyncOperationStore.ensureProtectedDirectory` and `writeProtected` do an atomic temp-file + rename with `completeUntilFirstUserAuthentication`, so background wakes after first unlock can read and write. `ChecklistContextStore` stores one JSON file per key under an `NSLock`. |
+| Dispatch screen today | `DispatchListViewController` renders `[SchedulesModel]` (the legacy `OrderProducts\ListResource` row, ObjectMapper) from `POST orders/schedules/dispatch` (paginated, per driver, per date filter, `include_manual=1`). It is cached in MMKV per `schedule_type × day × driver`, with `manual_jobs` riding on page 1. "All Drivers" sends an empty `driver_id`, which the server **scopes to the logged-in user** under `include_manual=1`. |
+
+### Test-infra finding (from Phase 2, fixed in M0)
+`Scripts/test-sync-core.sh` detects the toolchain with `$DEVELOPER_DIR/usr/bin/xcrun`, which does not exist on the installed Xcode (`xcrun` lives in `/usr/bin`). The script therefore always takes its `swiftc` fallback. That fallback cannot compile `DispatchWakeTests.swift` (Phase 2), because it is the only test file without the `#if canImport(KabbaSyncCore)` guard. `swift test` is unaffected (334/334). M0 fixes both in their own commit.
+
+---
+
+## 1. Backend contract gap G1 — STOP (needs Gary's decision D1)
+
+**Phase 3 cannot present the existing Dispatch card, or open the Driver Checklist, from a Phase 1 package.** The package's `dispatch` block is a compact summary. The Dispatch card, the Driver Checklist (Screen 2) and the Assign Driver screen all read the full legacy `SchedulesModel` row, and several of those values are absent or have different meanings:
+
+| Needed by the current UI (file) | Legacy feed row (`OrderProducts\ListResource`) | Phase 1 package `dispatch` |
+|---|---|---|
+| Green progress band, Start button colour, `DriverChecklistRouting`, Screen 2 restore (`hasSavedDriverProgress`, `DriverChecklistViewController`: `ready_to_go_at`, `arrived_at`, `is_arrived`, `equipment_fuel`, `equipment_key_location`, `equipment_driver_status`, `call_customer`, `driver_checks`) | `delivery_checklist{…}` / `pickup_checklist{…}` | **absent**, and not in the revision, so another phone's driver progress would never propagate |
+| Card header `#order.id` | `order.id` (DB id) | absent (only `order_number`, `unique_id`) |
+| Customer phone / call button | `order.customer_phone` (orders column) | `order.customer_phone` is the **shipping-address phone**, a different value |
+| Start / End Point store (`objEquipment.equipment_store.name`, "Pending" when none) | `equipment.equipment_store.store_name` | absent (`schedule.store_name` is the leg's delivery/pickup store, a different meaning) |
+| Displayed date/time | `delivery_date`/`pickup_date` = the **scheduled** date formatted with the env-driven `DATE_FORMAT`; time formatted with `api_time_format` | only the **effective** (dispatch-adjusted) Y-m-d and raw `H:i:s`; the phone cannot reproduce the env format |
+| Assign Driver screen (both employees), leg-membership predicate | `delivery_employee` **and** `pickup_employee` | only the active leg's driver |
+| Card icon | `delivery_transport_mode` (used for both legs) | the leg's own transport mode |
+| Product options on Screen 2 | `product_data.product_option_items` (via `transformProductData`) | `product.options` (raw) |
+| Category filter | server filters on `product.categories` | absent |
+| Row identity (`SchedulesModel.id`, dedupe) | `id` | absent |
+
+A mobile-only workaround would degrade or change the card. It would drop the green band and cross-phone driver progress, show a different phone number and store, and fill in the Assign Driver screen incorrectly. That violates "do not redesign the visual Dispatch UI" and the spec's rule that the package holds the data needed to finish the stop. The legacy feed cannot stand in for the cache either: it is paginated, per driver (an empty `driver_id` means the logged-in user), and has no revisions.
+
+### Proposed fix B0 — additive, gated on D1 (not started)
+Add **`dispatch.row`**: a stable subset of exactly the legacy `OrderProducts\ListResource` row, with the same keys and the same formatting helpers. The phone then maps it with the **unchanged** `SchedulesModel` ObjectMapper model. Because it sits inside `dispatch`, it is hashed into the mission revision automatically. Existing Phase 1 keys are untouched. Nothing from Phase 1 or 2 is deployed, so there are no migration concerns; every revision changes once, when B0 lands.
+
+`dispatch.row` keys:
+- Top level: `dispatch_source`, `dispatch_item_id`, `fulfillment_leg`, `sort_key`, `id`, `unique_id`, `product_name`, `product_data` (via `transformProductData`), `is_delivered`, `is_returned`, `equipment_id`, `is_soft_assigned`, and **`category_ids`** (new, additive: `product.categories` ids as ints).
+- Delivery: `delivery_status`, `delivery_transport_mode`, `delivery_by`, `delivery_priority`, `delivery_date`, `delivery_time`, `dispatch_delivery_date`, `is_early`, `is_late_delivery`, `delivery_notes`, `delivery_checklist{equipment_fuel, equipment_key_location, equipment_driver_status, ready_to_go_at, arrived_at, is_delivered, is_arrived, call_customer, driver_checks}`.
+- Pickup: `pickup_status`, `pickup_transport_mode`, `pickup_by`, `pickup_priority`, `pickup_date`, `pickup_time`, `dispatch_return_date`, `is_late_pickup`, `pickup_notes`, `pickup_checklist{same nine keys}`.
+- Nested: `order{id, unique_id, order_number, customer_name, customer_phone, delivery_address{first_name, last_name, full_address}}`, `equipment{id, unique_id, equipment_id, equipment_name, is_fuel, is_key, equipment_store{id, unique_id, store_name}}` (hard assignment first, else soft), `delivery_employee{id, unique_id, full_name}`, `pickup_employee{id, unique_id, full_name}`, `delivery_store{id, unique_id, store_name}`, `pickup_store{id, unique_id, store_name}`.
+
+Deliberately **excluded**, because they are volatile or not needed:
+- `is_delivery_overdue` and `is_pickup_overdue`. They depend on today, so they would churn every revision at midnight. The phone derives them from `effective_date` (§3.6).
+- Media and signature URLs and ids; pricing and totals; `assigned_by` and `assigned_at`; `equipment_location_detail`; `assigned_equipment`; `equipment_category`; `equipment_details`; cleaning and fuel charges.
+
+**Revision consequence (intended):** driver-checklist steps, a reassignment of either leg, and a change of the equipment's home store all bump the mission revision. After the Phase 2 debounce, that wakes phones, so driver progress propagates between phones.
+
+**B0 tasks** (backend, only after D1 is approved). Switch the existing backend worktree to a new branch from the Phase 2 HEAD, which leaves the Phase 2 branch intact: `git switch -c feature/dispatch-offline-phase-3 098a68c64`.
+- **B0.1 (red):** `tests/Feature/Dispatch/Offline/DispatchOfflineRowParityTest.php`. For a delivery mission and a return mission (hard-assigned and soft-assigned units), assert that every `dispatch.row` key equals the same key of `(new ListResource($row))->toArray(request())` for the same order product, loaded with `DispatchController`'s relations. Assert `category_ids`, and assert that none of the excluded keys are present.
+- **B0.2 (red):** revision tests in the existing revision-completeness test.
+  - Each of these bumps the revision: `delivery_ready_to_go_at`, `delivery_call_customer`, `dispatch_checklist.driver.delivery.checks`, a `pickup_by` change on a delivery mission, and a change to the equipment's `store_id`.
+  - Price changes do **not** bump it.
+  - Crossing midnight changes no revision, apart from horizon membership.
+- **B0.3 (green):** `DispatchOfflineMissionSerializer::dispatch()` gains `'row' => $this->row($row, $leg)`, built with `CustomHelper::formatDate` / `formatTime` exactly as `ListResource` does. `DispatchOfflineMissionSelector::WITH` gains `equipment.store` and `softAssignment.equipment.store`.
+- **B0.4:** the manifest query count at 50 missions stays within the Phase 1 cap of 450 statements, with no N+1 (3 missions vs 30 missions → equal per-set eager-load count). Regenerate `dispatch_offline_manifest.json` and `dispatch_offline_packages.json` with `WRITE_CONTRACT_FIXTURES=1` through `DispatchContractFixturesTest`, then commit.
+- **B0.5:** backend regression, one test process at a time. The suites are `tests/Feature/Dispatch`, `tests/Feature/Api/Mobile`, `tests/Feature/Mobile`, `tests/Unit/Push`, `tests/Feature/QueueLine`, `tests/Feature/WaitList`.
+  - Command: `cd /Users/garyjezorski/Documents/kabba2_AI-dispatch-offline && PHP_INI_SCAN_DIR=":$SCRATCH/php-ini" php artisan test <suite>`. `$SCRATCH/php-ini/memory.ini` contains `memory_limit=2G`.
+  - Expected: 1190 existing tests plus the new ones, 0 failures.
+- **Commit:** `Ship the Dispatch card row in offline mission packages`.
+
+---
+
+## 2. Decisions requiring Gary's approval
+
+| # | Decision | Recommendation |
+|---|---|---|
+| **D1** | Backend gap G1 | **Approve B0** (§1). This is the only backend change in Phase 3. Without it, Phase 3 stops at the Core cache (M1–M2) and cannot drive the Dispatch screen. |
+| **D2** | Order Details (Screen 3) for a **never-opened** order is network-only. `OrderDetailsViewController` fetches `OrdersListModel` and caches in MMKV only after an online open. Screen 3 is the only path from Dispatch to the equipment checklist, T&C and media. | **Assign this to Phase 4, explicitly.** "Unopened later checklists work offline" is impossible without Screen 3. Phase 4 must render Screen 3 offline, either from the package or from an order-details snapshot added to the package, as a Phase 4 backend item. Phase 3 does not touch Order Details. |
+| **D3** | Date filter "All". The legacy feed's "All" shows **all** future open work, while the offline set ends at today + 2. | **Split the sources. Pending + Today reads only from the cache, online and offline. Pending + All paints the cache immediately; online, the existing feed then replaces it exactly as today; offline, it stays on the cache with the offline freshness line.** Completed view and search stay on the existing online-only feed, unchanged. *Alternative:* "All" = the horizon only, from the cache (simpler, but a behavior change). |
+| **D4** | Manual Dispatch tasks (MDT) are not order legs and are not in the offline working set. | **Leave them on the existing mixed-feed path and MMKV cache.** When the cache supplies the order legs, the page-1 feed call is made with `per_page=1` and only its `manual_jobs` are used, which needs no backend change. Offline, a driver switch shows manual tasks only for drivers viewed before today (existing behavior). Putting manual tasks in the working set would be a later, separate backend decision. |
+| **D5** | "All Drivers" currently shows the **logged-in user's** jobs, because of server scoping under `include_manual`. | **With the cache, "All Drivers" shows the whole company working set**, as the spec and the label intend. Selecting a named driver filters locally. |
+| **D6** | Silent wake with no session, or with a 401 | **No session means no request and `.noData`. A 401 means `.failed`, and the cache is kept.** Like every other 401, `KabbaAPIClient` posts `.kabbaAuthenticationExpired`, and the app returns to Login (existing behavior for the Sync Engine too). The next login triggers repair. |
+| **D7** | Inactive package retention | **A package file is deleted only when the active index doesn't reference it AND no Sync Engine operation (in any state) has that `orderProductUniqueId`.** Sync Engine operations, assets, `ChecklistContextStore`, and `DriverChecklistLocalState` are never touched by Phase 3. |
+
+---
+
+## 3. Architecture
+
+### 3.1 Responsibilities (one sentence each)
+- **`DispatchOfflineContract`** (Core): Codable manifest and package-response types; request builders; strict validation.
+- **`DispatchOfflineMissionStore`** (Core): the durable, per-tenant package files and active index, with a crash-safe commit order.
+- **`DispatchOfflineDiff`** (Core, pure): manifest vs index → download / remove / unchanged.
+- **`DispatchOfflineReconciler`** (Core): the ONE coordinator. It serializes and coalesces triggers, fetches the manifest, downloads only changed packages in batches, commits per mission, and returns a result.
+- **`DispatchOfflineWorkingSet`** (Core, pure): presentation query over the store (driver, leg, Today/All, category, local completion overlay, sort), plus the not-downloaded state.
+- **`DispatchOfflineSync`** (App): bootstraps the store and reconciler per tenant; wires every trigger; handles background tasks and the push completion handler; posts `.kabbaDispatchOfflineChanged`.
+- **`DispatchOfflineRowAdapter`** (App): stored `dispatch.row` plus the derived overdue flags → `SchedulesModel` (ObjectMapper), with no change to `SchedulesModel`.
+- **`DispatchListViewController`** (App, modified): renders from the working set first and reconciles in the background. No visual redesign.
+
+### 3.2 On-disk layout (protected; inherits the `KabbaSync` root's backup exclusion)
+```
+<App Support>/KabbaSync/dispatch-offline/v1/<tenantKey>/
+    index.json                                   ← the ACTIVE index (atomic replace)
+    packages/<safeOPUID>__<leg>__<revision>.json ← immutable, one file per (mission, revision)
+    quarantine/                                  ← undecodable files moved aside (newest 20 kept)
+```
+- `tenantKey` = 16-hex FNV-1a-64 of the normalized base URL (lowercased scheme and host, no trailing slash). The normalized URL is also stored in `index.json`, and a mismatch on load is treated as "no cache". There is no CryptoKit: Core stays Foundation-only.
+- `safeOPUID` uses the same filename filter as `ChecklistContextStore.key` (alphanumerics, `-`, `_`).
+- A package file contains `{schema:1, tenant_key, mission_key, revision, cached_at, package:<the package object exactly as received>}`. The raw object is kept so Phase 4 and 5 can decode `checklist_context` and `terms` without downloading again.
+- `index.json` contains:
+  - `schema`, `tenant_key`, `base_url`
+  - `manifest_revision` (last applied), `through_date`
+  - `last_manifest_at` (last successful manifest fetch; drives freshness), `committed_at`
+  - `ever_committed` (`true` after the first successful commit, used for the not-downloaded state)
+  - `entries[]`, sorted by `mission_key`: `mission_key`, `order_product_unique_id`, `leg`, `effective_date`, `server_revision` (from the manifest), `ready_revision` (nil = not downloaded yet), `package_file`.
+
+### 3.3 Safe-apply order (per-mission atomicity)
+1. Fetch the manifest; decode and validate it. On any failure, stop and leave the store untouched.
+2. Diff against the index. **Adopt from disk** before using the network: if a valid file for `(mission, manifest revision)` already exists (left by an interrupted run), mark it ready with no download.
+3. Download the remaining keys in batches of ≤100, one batch at a time. Validate each package (§3.4) and write its file atomically. A new revision is a **new file**, so the previous valid package can never be overwritten.
+4. **After each batch**, commit the index atomically. The index is always one consistent view:
+   - Membership is exactly the manifest.
+   - Missions downloaded so far point to their new file.
+   - A mission whose download failed keeps its prior `ready_revision` and file (stale but valid), or stays `ready_revision=nil` if it never had one.
+   - `not_active` keys are dropped (the server says the mission became inactive after the manifest was built).
+   - Missions absent from the manifest are dropped from the index. Their files are left for step 5.
+5. After the final commit, run GC (D7): delete package files not referenced by the index whose order product has no Sync Engine operation.
+- **Crash at any point:** the index is either the old one or a new, fully consistent one (atomic rename). Orphaned files are adopted by step 2 or collected in step 5.
+- **Index names a missing or corrupt file:** that entry is treated as not ready. It is hidden from presentation, counted as pending, and downloaded again on the next run.
+
+### 3.4 Package validation (a failure affects only that mission)
+- `mission_key == "\(order_product_unique_id):\(leg)"` and the key was requested in this batch.
+- `leg` ∈ {delivery, return}; `revision` matches `^[0-9a-f]{64}$`.
+- `dispatch.order_product_unique_id` and `dispatch.leg` match.
+- `dispatch.row` is an object whose `unique_id` equals the order product.
+- `checklist_context.identity.order_product_unique_id` and `.leg` match; `terms` is an object.
+- `checklist_context` is otherwise **opaque in Phase 3**. Full `ChecklistContext` decoding is Phase 4's gate, so a checklist-schema problem cannot hide a Dispatch card.
+- If the package `revision` differs from the manifest's, the package's value is stored as `ready_revision`: the mission changed again between the two requests. The next manifest converges.
+
+### 3.5 Coalescing and trigger policy (`DispatchOfflineReconciler`, one internal serial queue)
+- `request(_ trigger: DispatchOfflineTrigger, completion:)`.
+- Triggers: `.wake(revision: String?)`, `.launch`, `.loginCompleted`, `.foreground`, `.dispatchScreenOpened`, `.manualRefresh`, `.networkRestored`.
+- **No session:** returns `.skipped(.noSession)` immediately, with no request.
+- **Wake already applied:** `.wake(r)` where `r == index.manifest_revision` and every entry is ready → `.unchanged` with **zero** requests.
+- **Freshness window:** `.foreground` and `.dispatchScreenOpened` within 20 s of the last successful manifest fetch → `.unchanged` with no request. This absorbs didBecomeActive and viewWillAppear firing together.
+- **Failure cooldown:** after a failed run, `.foreground` and `.dispatchScreenOpened` are skipped for 30 s, doubling per consecutive failure up to 300 s. `.wake`, `.manualRefresh`, `.networkRestored`, `.loginCompleted` and `.launch` bypass both the freshness window and the cooldown. The cooldown is not a timer: it only suppresses event-driven triggers.
+- **While a run is in flight**, new requests join its waiters and never start a parallel download. When it finishes, **one** follow-up run happens only if (a) the in-flight run failed and a trigger arrived during it, or (b) a coalesced `.wake` carries a revision different from the in-flight manifest's. Every coalesced completion receives the final result.
+- **There is no timer, polling, BGAppRefresh, GPS, or socket.**
+
+### 3.6 Presentation rules (`DispatchOfflineWorkingSet`)
+- **Source:** index entries with a valid ready package.
+- **Today:** `effective_date <= device today` (the feed uses `<= today()`). **All:** the whole horizon.
+- **Leg:** delivery missions show under Delivery, return missions under Return, and both under All.
+- **Driver:** `DispatchWorkload.orderRowBelongs(selectedDriverId:isDelivered:deliveryEmployeeId:pickupEmployeeId:)` on the row. No selection means everything (D5). A missing employee id is never hidden.
+- **Category:** `row.category_ids` contains the selection.
+- **Local completion:** `EffectiveFieldState.CompletionOverlay` hides a leg completed on this phone (existing rule).
+- **Overdue** is derived: `effective_date < device today` sets `is_delivery_overdue` or `is_pickup_overdue` on the row before mapping.
+- **Order:** `row.sort_key` ascending, then `mission_key` for stability. `sort_key` is the feed's own key.
+- **State:**
+  - `.notDownloaded`: `ever_committed == false`.
+  - `.ready(rows, freshness)`: freshness = `last_manifest_at`, plus counts of stale missions (`ready != server`) and not-yet-downloaded missions.
+- **An empty manifest is `.ready([])`**, which is a genuine "no Dispatch" state, not "not downloaded".
+
+### 3.7 Background result mapping (`DispatchOfflineReconcileResult.backgroundResult`)
+- `changed == true` (presentable set membership or any `ready_revision` changed) → `.newData`, including partial runs.
+- Otherwise a failure → `.failed`. Otherwise (unchanged, or skipped with no session) → `.noData`.
+- For a wake, the App layer holds the handler with a **25 s deadline**. If the deadline passes, it calls the handler once, with `.newData` if a commit already changed the set and `.failed` otherwise. The run itself may continue, because it is crash-safe. The handler is guarded to be called exactly once.
+
+### 3.8 Auth, logout, tenant
+- Logout and 401 never touch the store (tests 15 and 16). While logged out, the app shows Login, so nothing reads the cache. After the next login with the same `api_url`, the same tenant directory is used and `.loginCompleted` repairs freshness.
+- A different employee on the same tenant uses the same cache, because it is company-wide.
+- A different `api_url` uses a different directory.
+- A run binds to the tenant key captured at its start, so a mid-run tenant switch can never write one tenant's data into another tenant's store.
+- There is no unauthenticated Dispatch API.
+
+---
+
+## 4. File structure
+
+### Create — Sync Core (Foundation only; members of the app target AND the `KabbaSyncCoreTests` Xcode logic bundle; compiled by `swift test`)
+- `RentnKing/Sync/Core/DispatchOfflineContract.swift`: `DispatchOfflineManifest` (+ `Entry`, `Horizon`); `DispatchOfflinePackage` (typed `missionKey`, `revision`, `orderProductUniqueId`, `leg`, `row: JSONValue`, raw `object: JSONValue`); `DispatchOfflinePackagesResponse`; `DispatchOfflineAPI` (`manifestRequest()`, `packagesRequests(for:) -> [SyncHTTPRequest]` batched ≤100, a fresh `op-dispatch-offline-<uuid>` operationId per request); `DispatchOfflineValidation`.
+- `RentnKing/Sync/Core/DispatchOfflineMissionStore.swift`: `DispatchOfflineTenant.key(baseURL:)`, `DispatchOfflineIndex`, `DispatchOfflineMissionStore` (`loadIndex()`, `writePackage(_:)`, `existingValidPackage(missionKey:revision:)`, `loadPackage(entry:)`, `commit(_:)`, `collectGarbage(retainingOrderProducts:)`), and a test-only `faultInjection` hook (`failNextIndexCommit`, `failNextPackageWrite`).
+- `RentnKing/Sync/Core/DispatchOfflineReconciler.swift`: `DispatchOfflineTrigger`, `DispatchOfflineDiff`, `DispatchOfflineReconcileResult` (+ `backgroundResult`), `DispatchOfflineReconciler(httpClient:store:hasSession:retainedOrderProducts:now:)`.
+- `RentnKing/Sync/Core/DispatchOfflineWorkingSet.swift`: `DispatchOfflineQuery`, `DispatchOfflinePresentation`, `DispatchOfflineWorkingSet.present(store:query:operations:today:)`.
+
+### Create — App layer
+- `RentnKing/Sync/App/DispatchOfflineSync.swift`: `configure(rootDirectory:client:baseURL:hasSession:)`, `trigger(_:completion:)`, `handleWake(revision:completionHandler:)`, `presentation(for:)`, `Notification.Name.kabbaDispatchOfflineChanged`. Foreground-started runs are wrapped in `UIApplication.beginBackgroundTask`.
+- `RentnKing/Modules/TABBAR/Home Model/Dispatch Model/DispatchOfflineRowAdapter.swift`: `schedulesModel(from row: JSONValue, overdue: Bool) -> SchedulesModel?`.
+
+### Create — tests
+- `RentnKingTests/KabbaSyncCore/DispatchOfflineTestSupport.swift`: a fixture factory that clones the **shared** `dispatch_offline_packages.json` package and manifest entry, substituting `order_product_unique_id`, `leg`, `revision`, driver ids, `effective_date` and `category_ids`. It adds no parallel JSON shape. It also provides a scripted-response builder on top of the existing `FakeSyncHTTPClient`.
+- `RentnKingTests/KabbaSyncCore/DispatchOfflineContractTests.swift`
+- `RentnKingTests/KabbaSyncCore/DispatchOfflineMissionStoreTests.swift`
+- `RentnKingTests/KabbaSyncCore/DispatchOfflineReconcilerTests.swift`
+- `RentnKingTests/KabbaSyncCore/DispatchOfflineWorkingSetTests.swift`
+- `RentnKingTests/Hosted/DispatchOfflineRowAdapterTests.swift` (app-hosted; `@testable import RentnKing`, calls the adapter, reads the `SchedulesModel` properties, no ObjectMapper import needed)
+
+### Modify
+- `RentnKing/Sync/Core/DispatchWake.swift`: `Handling.reportsNewData` → replaced by `reportsReconciliationResult: true` (still `adjustsBadge=false`, `presentsUI=false`).
+- `RentnKingTests/KabbaSyncCore/DispatchWakeTests.swift`: add the `#if canImport(KabbaSyncCore)` guard (M0); update the handling assertion (M6).
+- `Scripts/test-sync-core.sh`: detect the SDK with `xcrun` from `PATH` (M0).
+- `RentnKing/Sync/App/KabbaSync.swift`: configure `DispatchOfflineSync` in `bootstrap` (same `root`, `client`, `hasSession`); trigger `.launch` at the end of bootstrap; trigger `.foreground` in the existing `didBecomeActive` observer.
+- `RentnKing/NotificaiotnFile.swift`: a Dispatch wake calls `DispatchOfflineSync.handleWake(revision:completionHandler:)`, still returning before the badge increment. Other pushes are unchanged.
+- `RentnKing/AppDelegate.swift`: `monitor.onNetworkRestored` → `.networkRestored` (inside the existing `user != nil` branch).
+- `RentnKing/Modules/SPLASH MODEL/Login Screen/LoginModel.swift`: after the Phase 2 registration line, trigger `.loginCompleted`.
+- `RentnKing/Modules/TABBAR/Home Model/Dispatch Model/DispatchListViewController.swift`: source selection (D3), cache-first render, `.kabbaDispatchOfflineChanged` observer, not-downloaded state, in-memory local-edit overlay, freshness line from `last_manifest_at`.
+- `RentnKing/Modules/TABBAR/Home Model/Dispatch Model/DispatchModel.swift`: a manual-only rider (`per_page=1`, reads `manual_jobs`, never writes the MMKV order slot) used when the cache supplies the order legs.
+- `RentnKing/Core/Other Views/EmptyDataView/EmptyDataView.swift`: `func dispatchNotDownloaded()`, which reuses `configure`. Title: "Dispatch isn't downloaded to this phone yet". Subtitle: "Connect to the internet once to download today's work."
+- `RentnKing.xcodeproj/project.pbxproj`: explicit membership, new IDs `5A5E000000000000000000A0…` (Core files → app + `KabbaSyncCoreTests`; Core tests → `KabbaSyncCoreTests`; App files → app; hosted test → `RentnKingHostedTests`).
+- `RentnKingTests/KabbaSyncCore/Fixtures/`: copy **only** `dispatch_offline_manifest.json` and `dispatch_offline_packages.json` by name, from the B0 branch. **Do not** run `Scripts/sync-contract-fixtures.sh`, because it copies every fixture and would silently change `dispatch_list_mixed.json`.
+
+### Not touched
+Sync Engine store and handlers, `ChecklistContextStore` (Phase 4), T&C flow (Phase 5), Order Details (D2 → Phase 4), Driver Checklist screen logic, Manual Dispatch screens, `SchedulesModel`, legacy feed behavior for Completed and search, Info.plist, entitlements, version and build.
+
+**`dispatch_list_mixed.json` (missing `assigned_equipment` from backend `56029fdbd`):** Phase 3 does **not** consume it. The cache path maps `dispatch.row`, and `DispatchWorkloadTests` reads only `manual_jobs` and the sort keys. It stays unchanged. If Gary wants it synced, that is a separate, standalone fixture-sync commit (copy that one file and rerun `DispatchWorkloadTests`), outside Phase 3.
+
+---
+
+## 5. Tasks
+
+Commands (Local Mac terminal, all from `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p3`):
+- Core, focused: `swift test --filter <TestClass>`. Core, full: `swift test`.
+- Hosted: `xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingHostedTests -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:RentnKingHostedTests/DispatchOfflineRowAdapterTests`
+- App build: `xcodebuild build -project RentnKing.xcodeproj -scheme RentnKing -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO`
+
+**M0 — Test-infra repair (no product code).**
+Add the `#if canImport(KabbaSyncCore)` guard to `DispatchWakeTests.swift`, and switch the script's detection to `xcrun --sdk macosx --show-sdk-path` from `PATH`.
+Verify: `Scripts/test-sync-core.sh` and `swift test` each report 334/334.
+Commit: `Test runner: detect Xcode via PATH xcrun; guard DispatchWakeTests import`.
+
+**M1 — Contract (red → green).** Copy the two B0 fixtures, then `DispatchOfflineContractTests`:
+- The manifest fixture decodes: 64-hex revisions, `mission_key == opuid:leg`, `through_date`.
+- An empty `missions` list decodes, and it is valid.
+- Duplicate keys, a bad leg, a non-hex revision, or a mismatched key are rejected as a whole-manifest failure.
+- The packages fixture decodes: `not_active`, a valid `row`, and the raw object round-trips byte-equal after re-serialization with sorted keys.
+- Each §3.4 rule rejects only that package.
+- 250 missions → 3 requests of ≤100; each is `POST dispatch/offline/packages` with the exact body; each has a distinct operationId; the manifest request is `GET dispatch/offline/manifest`.
+
+Commit: `Dispatch offline: manifest and package contract types`.
+
+**M2 — Durable store.** `DispatchOfflineMissionStoreTests`:
+- Write, then a new store instance on the same directory reads the same index and packages (**test 12**).
+- A new revision is a new file, and the old one stays until GC (**test 9**).
+- Injected `failNextIndexCommit` after the package writes → reload gives the previous index, and every referenced file exists (**test 10**).
+- Deleting a referenced file → the entry is reported not ready, and there is no crash.
+- A corrupt file is quarantined, not presented; the quarantine is capped at 20.
+- A base-URL mismatch in the index → treated as no cache; two tenant keys never share a directory.
+- GC keeps the files of order products that have a Sync Engine operation, and deletes other unreferenced files (D7).
+- On iOS, files are written with `.completeFileProtectionUntilFirstUserAuthentication` (asserted through the shared `writeProtected` path).
+
+Commit: `Dispatch offline: durable per-tenant mission store`.
+
+**M3 — Diff and reconciler core.** `DispatchOfflineReconcilerTests` (scripted `FakeSyncHTTPClient`, fixture factory, temp directories):
+- **test 1:** empty store + manifest with 3 missions → 1 manifest + 1 package request, all 3 ready.
+- **test 2:** identical second run → 1 manifest request, **0** package requests, `changed=false`.
+- **test 3:** one revision changes → exactly one mission requested.
+- **test 4:** new mission → added.
+- **test 5:** absent mission → removed from the index.
+- **test 6:** absent mission with pending, needs-attention and synced Sync Engine operations plus assets → `FileSyncOperationStore` records and asset files are byte-identical, `ChecklistContextStore` files are unchanged, and the package is retained by GC.
+- **test 8:** 3 changed missions, the batch returns 2 valid and 1 failing validation → 2 become ready, 1 keeps its prior revision.
+- **test 9:** a transport failure on the package batch → the prior packages are still presented and `ready_revision` is not advanced.
+- Package decode failure → that mission keeps its prior package, and the run is partial.
+- Manifest transport failure, 5xx, or undecodable manifest → the store is byte-identical.
+- Network lost after the manifest → removals applied, pending missions stay pending or stale, and the next run completes them.
+- A key in `not_active` → removed.
+- Package revision newer than the manifest → stored; the next identical manifest → 0 downloads.
+- Interrupted run (killed after the package write, before the index commit) → the next run adopts from disk with 0 downloads.
+- Empty manifest → an empty active set, `ever_committed=true`.
+- Previous-day cache (`through_date` yesterday) plus a new manifest → reconciled normally.
+- **test 15:** 401 on the manifest → store untouched, result `.failed(.unauthenticated)`.
+- 426 → `.failed(.updateRequired)`, store untouched.
+- Reinstall (empty directory) → `.notDownloaded` until the first commit.
+
+Commit: `Dispatch offline: selective reconciliation with per-mission atomic apply`.
+
+**M4 — Coalescing, trigger policy, background result.** Still `DispatchOfflineReconcilerTests`, using a latency-delayed fake:
+- **test 11:** `.foreground` and `.wake` requested concurrently → exactly 1 manifest request, and both completions get the same result.
+- A wake with a new revision arriving mid-run → exactly one follow-up run; the same revision → none.
+- A trigger during a failed run → one follow-up.
+- No session → 0 requests, `.skipped`.
+- A wake equal to the applied revision → 0 requests.
+- 20 s freshness window, and a cooldown sequence of 30/60/…/300 s, both bypassed by `.manualRefresh` / `.networkRestored` / `.loginCompleted` / `.wake`.
+- **test 16:** after `.failed(.offline)`, `.networkRestored` runs immediately; after `.failed(.unauthenticated)`, `.loginCompleted` runs and repairs.
+- **test 17:** `backgroundResult` table — changed → newData; unchanged → noData; skipped → noData; failed with no change → failed; partial with a change → newData.
+
+Commit: `Dispatch offline: one coalescing coordinator for every trigger`.
+
+**M5 — Working set.** `DispatchOfflineWorkingSetTests` (6 missions across 3 drivers, both legs, overdue / today / +1 / +2):
+- **test 7 and test 18:** switching the selected driver among All, Gary, Blake and Jerome issues **0** HTTP requests (the fake records none). The All set contains all three drivers, and Gary shows only Gary's active-leg cards.
+- Leg filter, Today vs All, category.
+- The local completion overlay hides the leg.
+- Overdue is derived; order follows `sort_key`.
+- Stale and pending counts.
+- Empty manifest → `.ready([])`; never-committed → `.notDownloaded` (**tests 13 and 14** at the Core level, both on a new store instance with an offline client).
+
+Commit: `Dispatch offline: local company-wide working set query`.
+
+**M6 — App wiring.** `DispatchOfflineSync`, and triggers in `KabbaSync.bootstrap` (launch), didBecomeActive (foreground), `onNetworkRestored`, `LoginModel` (login), and `NotificaiotnFile` (wake + completion handler, invisible). Update the `DispatchWake` handling and its test.
+Verify: `swift test` passes, and the app builds. A grep gate must show no `Timer`, `scheduledTimer`, `BGAppRefreshTaskRequest`, `CLLocationManager` or `URLSessionWebSocketTask` added by the diff; no package bytes in `UserDefaults` or MMKV; and the badge line is still unreachable for Dispatch wakes.
+Commit: `Dispatch offline: reconcile on wake, launch, login, foreground and network restore`.
+
+**M7 — Dispatch screen.**
+- Hosted `DispatchOfflineRowAdapterTests` maps the fixture row (delivery + a return clone) and asserts every §1 card field on `SchedulesModel`: `order.id`, `customer_phone`, `delivery_address.full_address`, `equipment.equipment_store.name`, `is_fuel`/`is_key`, both employees' `name`, `delivery_checklist.ready_to_go_at` etc., `product_data` options, `sort_key`, `is_delivered`, derived overdue.
+- Then the controller:
+  - Pending + Today renders from `DispatchOfflineSync.presentation` synchronously in `refreshList()` and triggers `.dispatchScreenOpened` (or `.manualRefresh` from pull-to-refresh).
+  - `.kabbaDispatchOfflineChanged` re-renders without a spinner.
+  - `.notDownloaded` shows the existing loading placeholder while online, and `dispatchNotDownloaded()` while offline.
+  - Pending + All paints the cache, then the existing feed replaces it while online (D3).
+  - Completed and search keep the existing path.
+  - The manual-only rider runs when online (D4).
+  - Local edits (`data_updateInCurrentDic`, `updateDriver`, row removal after `scheduleUpdate`) are kept in an in-memory overlay keyed by mission, re-applied on every re-render, and dropped when that mission's `ready_revision` changes.
+  - `persistOrderListAndRebuild()` does not write the MMKV order slot while the cache is the source.
+
+Commit: `Dispatch screen: render the durable working set first, reconcile behind it`.
+
+**M8 — Project membership and build.** Add the `pbxproj` entries (§4).
+Verify: the app builds for the simulator; the hosted adapter tests pass; `swift test` passes.
+Commit: `Xcode project: Dispatch offline Phase 3 files`. M1–M7 add their files to the project in the same commit that creates them; M8 is the verification checkpoint, and a separate commit only if a membership fix is needed.
+
+**M9 — Verification gate.**
+- Full `swift test` (expected: 334 plus the new tests, 0 failures) and `Scripts/test-sync-core.sh`.
+- Hosted suite: `RentnKingHostedTests`, all tests.
+- App simulator build.
+- The M6 grep gate.
+- Backend B0 regression totals (§1).
+- `git status` clean in both worktrees; no upstream on either Phase 3 branch; `main` untouched.
+
+---
+
+## 6. Required-test traceability
+| # | Requirement | Test (class · method prefix) |
+|---|---|---|
+| 1 | Empty store + manifest → all stored | Reconciler · `testEmptyStorePopulatedManifestStoresEveryPackage` |
+| 2 | Identical manifest → 0 downloads | Reconciler · `testIdenticalManifestDownloadsNothing` |
+| 3 | One revision changes → one package | Reconciler · `testOneChangedRevisionDownloadsExactlyThatMission` |
+| 4 | New mission → added | Reconciler · `testNewMissionIsAdded` |
+| 5 | Mission disappears → removed from active index | Reconciler · `testAbsentMissionLeavesTheActiveIndex` |
+| 6 | Disappears with pending work → work untouched | Reconciler · `testRemovalNeverTouchesSyncEngineWorkOrChecklistContexts` |
+| 7 | Offline driver switching → local only | WorkingSet · `testDriverSwitchingMakesNoRequest` |
+| 8 | One fetch fails → others ready | Reconciler · `testOneBadPackageDoesNotBlockTheOthers` |
+| 9 | Failed replacement keeps previous package | Store · `testNewRevisionNeverOverwritesPrevious`; Reconciler · `testFailedReplacementKeepsPriorPackage` |
+| 10 | Interrupted apply never points at missing files | Store · `testFailedIndexCommitKeepsPreviousConsistentIndex`, `testMissingReferencedFileIsNotReady` |
+| 11 | Concurrent foreground + push coalesce | Reconciler · `testConcurrentTriggersCoalesceIntoOneRun` |
+| 12 | Force quit / relaunch reads same set | Store · `testNewInstanceReadsTheSameActiveSet` |
+| 13 | Offline startup renders cache | WorkingSet · `testRelaunchOfflineRendersCachedSet` (+ physical P1) |
+| 14 | Empty cache + offline → not downloaded | WorkingSet · `testNeverCommittedIsNotDownloadedNotEmpty` (+ physical P2) |
+| 15 | 401 leaves cache intact | Reconciler · `testUnauthorizedLeavesStoreByteIdentical` |
+| 16 | Network/session restoration repairs | Reconciler · `testNetworkRestoredRunsImmediatelyAfterOffline`, `testLoginCompletedRepairsAfterUnauthorized` |
+| 17 | Background result newData/noData/failed | Reconciler · `testBackgroundResultMapping` |
+| 18 | Multi-driver company cache, offline filter no request | WorkingSet · `testCompanyCacheHoldsEveryDriver` |
+
+---
+
+## 7. Independent-review gate
+After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobile) and `098a68c64..HEAD` (backend B0) against this plan and the spec. It checks:
+- The safe-apply order and the crash windows.
+- No path that deletes or edits Sync Engine, `ChecklistContextStore` or `DriverChecklistLocalState` data.
+- Tenant isolation.
+- Coalescing races (the serial queue, completions called exactly once).
+- The push handler is invisible, and its completion is called exactly once within the deadline.
+- No polling, timers, GPS or sockets.
+- Revision churn from B0.
+- Card parity with the legacy row.
+- Test strength (each required test reds on the defect it names).
+
+**Phase 3 closes only with no remaining Critical or Important findings.** Critical and Important findings are fixed and re-verified; Minor ones may be documented for later.
+
+## 8. Physical iPhone acceptance boundary
+- **Phase 3 device smoke** (optional, local staging only: the staging harness with the B0 backend branch; never production):
+  - P1: download while online → force quit → airplane mode → relaunch → the Dispatch cards render, and driver switching works with no request.
+  - P2: fresh install + airplane mode → the "isn't downloaded" state.
+  - P3: an office reassignment → foreground → the card moves drivers.
+- **Deferred to Phase 6 (full acceptance, spec §17):** silent-wake delivery on real phones, which needs Firebase and production-like APNs; six missions across several drivers; multi-stop airplane-mode completion; idle background with no Dispatch requests; battery and network verification.
+
+## 9. Deferred scope (explicitly NOT in Phase 3)
+- **Phase 4:**
+  - Bridge `checklist_context` into the canonical `ChecklistContextStore`, preserving cycle and equipment identity.
+  - Full `ChecklistContext` validation of packages.
+  - **Offline Order Details (Screen 3) for never-opened orders (D2).**
+  - Prove that unopened later Delivery and Return checklists work offline.
+- **Phase 5:** versioned offline T&C snapshot (backend), local rendering, local signature acceptance through the Sync Engine, and durable sync. Phase 3 stores `terms` opaquely and never renders it.
+- **Phase 6:** the full physical acceptance in §8.
+- **Other:** later cosmetic and screen-flow changes; the final regression, version/build, archive and upload. Manual Dispatch tasks in the working set (D4). The `dispatch_list_mixed.json` sync. Anything production: deploy, flag enablement, preflight on the server.
+
+## 10. Self-review against the approved spec
+| Spec | Covered by |
+|---|---|
+| §5 company-wide, all drivers, removal ≠ field-work deletion | §3.3, §3.6, D5, D7, tests 5, 6, 18 |
+| §6.3 repair triggers (launch/login, foreground, Dispatch open/refresh, network restore) | §3.5, M6, test 16 |
+| §7 missing → download / newer → refresh / same → nothing / absent → remove | §3.3, tests 1–5 |
+| §11 one coordinator; serialize and coalesce; batch; validate; persist; atomic index; end promptly; idempotent | §3.3–3.5, §3.7, tests 2, 11, 17 |
+| §12 protected durable storage, tenant namespace, key, revision, payload, cached-at, schema, separate index; cleanup only without dependent work | §3.2, D7, M2 |
+| §13 cache ≠ Sync Engine | §4 "Not touched", test 6 |
+| §14 stale-data rules 1–6 | §3.3 (replace when there's no work; work never deleted), §3.6 (removed missions hidden, reassignment moves the card, no filter I/O) |
+| §15 no polling or GPS or keepalive; one manifest per run; only changed packages; backoff; prompt end | §3.5 (+ cooldown), §3.7, M6 grep gate |
+| §16 failure behaviors | M3 failure tests |
+| §17 iOS list (checklist and T&C items → Phase 4/5; wrong tenant → §3.8) | §6, §9 |
+| §19 release safety: nothing ships from this phase | status header, §9 |
+
+No placeholders. The one open item is the D1–D7 approval; B0 and M3 onward wait on D1.
