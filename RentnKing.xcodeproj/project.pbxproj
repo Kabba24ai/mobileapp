@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000AB /* DispatchOfflineMissionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */; };
+		5A5E000000000000000000A8 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */; };
+		5A5E000000000000000000A9 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */; };
 		5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */; };
 		5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */; };
 		5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A0 /* DispatchOfflineContract.swift */; };
@@ -469,6 +472,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStoreTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStore.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContractTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTestSupport.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000A0 /* DispatchOfflineContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContract.swift; sourceTree = "<group>"; };
@@ -1989,6 +1994,7 @@
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
 				5A5E000000000000000000A0 /* DispatchOfflineContract.swift */,
+				5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2058,6 +2064,7 @@
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 				5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */,
 				5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */,
+				5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2357,6 +2364,9 @@
 				5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */,
 				5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */,
 				5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */,
+				5A5E000000000000000000A8 /* DispatchOfflineMissionStore.swift in Sources */,
+				5A5E000000000000000000A9 /* DispatchOfflineMissionStore.swift in Sources */,
+				5A5E000000000000000000AB /* DispatchOfflineMissionStoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
