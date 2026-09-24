@@ -71,11 +71,12 @@ Add **`dispatch.row`**: a stable subset of exactly the legacy `OrderProducts\Lis
 - The light resources (`Users`, `Stores`, `OrderAddresses`) are pure column reads, so they are reused **as they are**, through `Arr::only(resource->resolve())`.
 - The offline row therefore adds no field logic of its own. It only chooses which shared keys it carries and drops the two day-dependent flags.
 
-`dispatch.row` keys:
-- Top level: `dispatch_source`, `dispatch_item_id`, `fulfillment_leg`, `sort_key`, `id`, `unique_id`, `product_name`, `product_data` (via `transformProductData`), `is_delivered`, `is_returned`, `equipment_id`, `is_soft_assigned`, and **`category_ids`** (new, additive: `product.categories` ids as ints).
-- Delivery: `delivery_status`, `delivery_transport_mode`, `delivery_by`, `delivery_priority`, `delivery_date`, `delivery_time`, `dispatch_delivery_date`, `is_early`, `is_late_delivery`, `delivery_notes`, `delivery_checklist{equipment_fuel, equipment_key_location, equipment_driver_status, ready_to_go_at, arrived_at, is_delivered, is_arrived, call_customer, driver_checks}`.
-- Pickup: `pickup_status`, `pickup_transport_mode`, `pickup_by`, `pickup_priority`, `pickup_date`, `pickup_time`, `dispatch_return_date`, `is_late_pickup`, `pickup_notes`, `pickup_checklist{same nine keys}`.
-- Nested: `order{id, unique_id, order_number, customer_name, customer_phone, delivery_address{first_name, last_name, full_address}}`, `equipment{id, unique_id, equipment_id, equipment_name, is_fuel, is_key, equipment_store{id, unique_id, store_name}}` (hard assignment first, else soft), `delivery_employee{id, unique_id, full_name}`, `pickup_employee{id, unique_id, full_name}`, `delivery_store{id, unique_id, store_name}`, `pickup_store{id, unique_id, store_name}`.
+`dispatch.row` keys (as implemented, `DispatchRowFields::offlineRow`):
+- Top level: `dispatch_source`, `dispatch_item_id`, `fulfillment_leg`, `sort_key`, `id`, `unique_id`, `product_name`, `product_data` (via the shared `productData()`), `is_delivered`, `is_returned`, and **`category_ids`** (new, additive: `product.categories` ids as ints, **sorted** so the revision never depends on load order).
+- Delivery: the shared `delivery()` group minus `is_delivery_overdue` — `delivery_status`, `delivery_transport_mode`, `delivery_store_id`, `delivery_by`, `delivery_priority`, `delivery_date`, `delivery_time`, `dispatch_delivery_date`, `is_early`, `is_late_delivery` — and `delivery_checklist{equipment_fuel, equipment_key_location, equipment_driver_status, ready_to_go_at, arrived_at, is_delivered, is_arrived, call_customer, driver_checks}`.
+- Pickup: the shared `pickup()` group minus `is_pickup_overdue` — `pickup_status`, `pickup_transport_mode`, `pickup_store_id`, `pickup_date`, `pickup_time`, `pickup_by`, `pickup_priority`, `dispatch_return_date`, `is_late_pickup` — and `pickup_checklist{same nine keys}`.
+- Nested: `order{id, unique_id, order_number, customer_name, customer_phone, delivery_address{the OrderAddresses resource as it is}}`, `equipment{id, unique_id, equipment_name, equipment_id, is_fuel, is_key, equipment_store{the Stores resource as it is}}` (hard assignment first, else soft; `null` when none — as the feed serializes a null resource), `delivery_employee` / `pickup_employee` (the Users resource as it is, or `null`).
+- Not carried (no consumer in `SchedulesModel`): `delivery_notes`, `pickup_notes`, top-level `equipment_id`, `is_soft_assigned`, `delivery_store`, `pickup_store`.
 
 Deliberately **excluded**, because they are volatile or not needed:
 - `is_delivery_overdue` and `is_pickup_overdue`. They depend on today, so they would churn every revision at midnight. The phone derives them from `effective_date` (§3.6).
@@ -111,7 +112,7 @@ Deliberately **excluded**, because they are volatile or not needed:
 | **D2** | **Order Details belongs to Phase 4. Locked Phase 4 acceptance requirement:** *a mission never opened online must later support cached Dispatch → Driver Checklist → Order Details → equipment checklist with the phone fully offline.* The current screen flow is preserved unless technical inspection proves it cannot be. Phase 3 does not touch Order Details. |
 | **D3** | **Pending + Today:** render the durable cache immediately. **Pending + All:** render the cached horizon immediately; when online, the current live All feed may expand or replace it. **Offline Pending + All:** cached horizon only, with the small factual line **`Offline — showing downloaded Dispatch through <date>`** (for example "Sep 25"). **Completed and Search stay online-only** during Phase 3. No Dispatch UI redesign. |
 | **D4** | **Manual Dispatch stays outside guaranteed offline scope,** on the existing feed. No Manual Dispatch offline subsystem. Previously loaded manual items remain best-effort, as today, and are **never described as offline-ready**. When the cache supplies the order legs, the manual tasks come from the existing feed's page 1 (`per_page=1`, `manual_jobs` only). |
-| **D5** | **"All Drivers" is truly company-wide.** The durable cache holds all drivers, and All Drivers renders all of them. Selecting a driver is local filtering only and makes no request. |
+| **D5** | **"All Drivers" is truly company-wide.** The durable cache holds all drivers, and All Drivers renders all of them. Selecting a driver is local filtering only and makes no request. *Applied with D3 (review I-3):* the mixed feed scopes a missing driver to the signed-in user, so under **All Drivers** Pending + All stays on the company-wide cache; the live All feed may replace the cached horizon only for a **named** driver. |
 | **D6** | **A silent wake with no authenticated session makes no network request, preserves the cache, and completes as `.noData`.** A 401 or expired session never clears the Dispatch cache or any Sync Engine work (like every 401, `KabbaAPIClient` still posts `.kabbaAuthenticationExpired`, which is existing app behavior). After a successful authentication, reconciliation runs automatically (`.loginCompleted`). No unauthenticated Dispatch API. |
 | **D7** | **Conservative cleanup.** A mission absent from the newest manifest leaves the active index immediately. Its package file is **physically purged only when both** (a) no Sync Engine operation, in any state, references that order product, **and** (b) it has been inactive (unreferenced by the active index) for a **7-day grace period**. Superseded older revisions of still-active missions follow the same rule. Cleanup never touches Sync Engine operations, media, signatures, checklist answers, `ChecklistContextStore`, `DriverChecklistLocalState`, or any other captured field work. |
 
@@ -178,6 +179,7 @@ Deliberately **excluded**, because they are volatile or not needed:
 - **No session:** returns `.skipped(.noSession)` immediately, with no request.
 - **Wake already applied:** `.wake(r)` where `r == index.manifest_revision` and every entry is ready → `.unchanged` with **zero** requests.
 - **Freshness window:** `.foreground` and `.dispatchScreenOpened` within 20 s of the last successful manifest fetch → `.unchanged` with no request. This absorbs didBecomeActive and viewWillAppear firing together.
+- **Partial runs (review M-4):** a partial run counts toward the cooldown below and is followed up only for repair triggers (wake, pull-to-refresh, login, network, launch).
 - **Failure cooldown:** after a failed run, `.foreground` and `.dispatchScreenOpened` are skipped for 30 s, doubling per consecutive failure up to 300 s. `.wake`, `.manualRefresh`, `.networkRestored`, `.loginCompleted` and `.launch` bypass both the freshness window and the cooldown. The cooldown is not a timer: it only suppresses event-driven triggers.
 - **While a run is in flight**, new requests join its waiters and never start a parallel download. When it finishes, **one** follow-up run happens only if (a) the in-flight run failed and a trigger arrived during it, or (b) a coalesced `.wake` carries a revision different from the in-flight manifest's. Every coalesced completion receives the final result.
 - **There is no timer, polling, BGAppRefresh, GPS, or socket.**
@@ -203,6 +205,8 @@ Deliberately **excluded**, because they are volatile or not needed:
 - For a wake, the App layer holds the handler with a **25 s deadline**. If the deadline passes, it calls the handler once, with `.newData` if a commit already changed the set and `.failed` otherwise. The run itself may continue, because it is crash-safe. The handler is guarded to be called exactly once.
 
 ### 3.8 Auth, logout, tenant
+
+**Session binding (review I-1, implemented).** `KabbaAPIClient` re-reads the base URL and token on every request, so a run is bound to the `DispatchOfflineSession` it started under: the tenant key plus an opaque FNV hash of the credential (the token itself is never stored). The run re-checks the current session before every request and when every answer arrives; on any change (logout, another company, another employee) it stops with no write, no cleanup and no follow-up. A session for another tenant counts as no session.
 - Logout and 401 never touch the store (tests 15 and 16). While logged out, the app shows Login, so nothing reads the cache. After the next login with the same `api_url`, the same tenant directory is used and `.loginCompleted` repairs freshness.
 - A different employee on the same tenant uses the same cache, because it is company-wide.
 - A different `api_url` uses a different directory.
@@ -345,7 +349,8 @@ Commit: `Dispatch offline: reconcile on wake, launch, login, foreground and netw
 - Then the controller:
   - Pending + Today renders from `DispatchOfflineSync.presentation` synchronously in `refreshList()` and triggers `.dispatchScreenOpened` (or `.manualRefresh` from pull-to-refresh).
   - `.kabbaDispatchOfflineChanged` re-renders without a spinner.
-  - `.notDownloaded` shows the existing loading placeholder while online, and `dispatchNotDownloaded()` while offline.
+  - `.notDownloaded` shows the existing loading placeholder while online, and `dispatchNotDownloaded()` while offline. If the first download fails online, the screen falls back to the live feed (review I-2) — never a permanent spinner.
+  - Every reconciliation outcome (any trigger) is broadcast (`.kabbaDispatchOfflineReconciled`): failed/partial → "showing the list saved at …"; success → no header (review I-2). The decisions live in `DispatchOfflineScreenPolicy` (unit-tested).
   - Offline Pending + All shows `Offline — showing downloaded Dispatch through <date>` (D3).
   - Pending + All paints the cache, then the existing feed replaces it while online (D3).
   - Completed and search keep the existing path.
