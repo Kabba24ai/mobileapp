@@ -29,6 +29,8 @@ struct DispatchOfflineRow: Equatable {
     let orderProductUniqueId: String
     let leg: ChecklistLeg
     let effectiveDate: String
+    /// The package revision this row was rendered from (local screen edits are keyed to it).
+    let revision: String
     let sortKey: String
     let isOverdue: Bool
     /// Shown from an older package while the newest one could not be downloaded yet.
@@ -88,6 +90,7 @@ enum DispatchOfflineWorkingSet {
 
             rows.append(DispatchOfflineRow(missionKey: entry.missionKey, orderProductUniqueId: entry.orderProductUniqueId,
                                            leg: entry.leg, effectiveDate: entry.effectiveDate,
+                                           revision: stored.revision,
                                            sortKey: row["sort_key"]?.stringValue ?? DispatchWorkload.openEndedSortKey,
                                            isOverdue: overdue, isStale: entry.isStale, row: row))
         }

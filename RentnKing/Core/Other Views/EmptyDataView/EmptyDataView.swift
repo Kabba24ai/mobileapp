@@ -80,6 +80,11 @@ extension EmptyDataView{
         configure(imageName: "", title: "No results found.", subtitle:"", tintColor: UIColor.primary)
     }
     
+    /// Dispatch offline (Phase 3): this phone has never downloaded Dispatch and is offline.
+    func dispatchNotDownloaded(){
+        configure(imageName: "", title: "Dispatch isn't downloaded to this phone yet", subtitle: "Connect to the internet once to download today's work.", tintColor: UIColor.primary)
+    }
+
     func noItemsFound(){
         configure(imageName: "", title: "No products in the cart.", subtitle:"", tintColor: UIColor.primary)
     }

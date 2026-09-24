@@ -200,6 +200,41 @@ extension DispatchListViewController :WebServiceHelperDelegate{
     
    
 
+    /// Dispatch offline (Phase 3, D4): when the durable offline cache supplies the order legs,
+    /// only the live feed's page-1 Manual Dispatch rider is fetched (per_page=1; its order row
+    /// is ignored and never written to the order cache slot). Manual tasks stay on the existing
+    /// feed + per-driver cache — best effort, NOT part of the guaranteed offline working set.
+    func callAPIforDispatchManualRider(DispatchParameater: DispatchParameater, completion: @escaping (Bool) -> Void) {
+        var params = DispatchParameater
+        params.page = "1"
+        params.per_page = "1"
+        // Web-board rule: manual tasks live in the Deliveries column — Return-only carries none.
+        guard params.schedule_type != "Return", let parameters = try? params.asDictionary() else {
+            completion(false)
+            return
+        }
+
+        let webHelper = WebServiceHelper()
+        webHelper.methodType = "post"
+        webHelper.strURL = "\(Url.dispatchList.absoluteString!)"
+        webHelper.dictType = parameters
+        webHelper.dictHeader = NSDictionary()
+        webHelper.showLogForCallingAPI = true
+        webHelper.serviceWithAlert = false
+        webHelper.indicatorShowOrHide = false
+
+        webHelper.callAPIwithCompletation { [weak self] data, arr, isDic, error in
+            guard let self = self, error == nil, data?.getStringForID(key: "success") == "1" else {
+                completion(false)
+                return
+            }
+            let manualSnapshot = (data?["manual_jobs"] as? [[String: Any]]).map(DispatchManualJob.decodeList(fromJSONArray:))
+            let reconciled = DispatchWorkload.reconciledManualList(cached: self.getDispatchManualData(), serverSnapshot: manualSnapshot)
+            SDKUserDefault.saveCodableArray(reconciled, for: self.manualCacheKey())
+            completion(true)
+        }
+    }
+
     func appDataDidSuccess(_ data: NSDictionary, request strRequest: String, index: Int, orderid: String, strChecklistType: String) {
         indicatorHide()
         self.isLoading = false
@@ -215,6 +250,7 @@ extension DispatchListViewController :WebServiceHelperDelegate{
 
                     //UPDATE ARRAY — persist + re-weave so the cached snapshot
                     //agrees with the screen (Dispatch parity, Phase 6A).
+                    self.rememberOfflineEdit(self.arrDispatchList[index], removed: true)
                     self.arrDispatchList.remove(at: index)
                     self.persistOrderListAndRebuild()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */; };
+		5A5E000000000000000000B9 /* DispatchOfflineRowAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */; };
 		5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B6 /* DispatchOfflineSync.swift */; };
 		5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */; };
 		5A5E000000000000000000B3 /* DispatchOfflineReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */; };
@@ -479,6 +481,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapterTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapter.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B6 /* DispatchOfflineSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineSync.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSetTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconcilerTests.swift; sourceTree = "<group>"; };
@@ -1726,6 +1730,7 @@
 				C53C13122FE41DCA0076E2D1 /* Driver Checklist */,
 				DD0001A52FE5000000000005 /* Warning Checklist */,
 				5A5C000000000000000000EB /* Manual Dispatch */,
+				5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */,
 			);
 			path = "Dispatch Model";
 			sourceTree = "<group>";
@@ -2077,6 +2082,7 @@
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
+				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2709,6 +2715,7 @@
 				5A5E000000000000000000A7 /* DispatchOfflineReconciler.swift in Sources */,
 				5A5E000000000000000000AA /* DispatchOfflineWorkingSet.swift in Sources */,
 				5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */,
+				5A5E000000000000000000B9 /* DispatchOfflineRowAdapter.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2829,6 +2836,7 @@
 				5A5CFADE0000000000000073 /* QueueLinePresentationTests.swift in Sources */,
 				5A5CFADE0000000000000077 /* QueueLineFilterTests.swift in Sources */,
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
+				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

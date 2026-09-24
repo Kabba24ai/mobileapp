@@ -194,6 +194,8 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
         XCTAssertEqual(freshness.pendingCount, 1)
         XCTAssertEqual(rows.count, 6, "the stale mission still shows; the undownloaded one cannot")
         XCTAssertTrue(rows.first { $0.orderProductUniqueId == "ORD-SCH-1" }!.isStale)
+        XCTAssertEqual(rows.first { $0.orderProductUniqueId == "ORD-SCH-1" }!.revision, F.revision("1"),
+                       "each row names the package revision it was rendered from")
     }
 
     func testTheOfflineAllLineNamesTheLastDownloadedDay() {

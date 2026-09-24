@@ -72,6 +72,23 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var lastDispatchServerSyncAt: Date?
     private let lblFreshness = UILabel()
 
+    // Dispatch offline (Phase 3): Pending order legs render from the durable company-wide
+    // working set (DispatchOfflineSync) — immediately, online or offline — while the one
+    // reconciliation coordinator refreshes it in the background. Driver / leg / date /
+    // category selection is local filtering over that cache and makes no request.
+    enum OrderSource { case offlineCache, cacheThenFeed, feed }
+    /// Package revision each rendered cache row came from (opuid → revision).
+    var offlineRevisions: [String: String] = [:]
+    /// This screen's local edits on top of a cached row (Ready to Go / Arrived, a driver
+    /// change, a removal after completion), kept until that mission's package revision
+    /// changes. Durable field truth stays in the Sync Engine / DriverChecklistLocalState.
+    var offlineEdits: [String: (revision: String, row: SchedulesModel?)] = [:]
+    var offlineThroughDate: String?
+    /// Online with nothing downloaded yet: show loading, not "no results".
+    var isAwaitingFirstDownload = false
+    /// Pending + All online: once the live feed answers it replaces the cached horizon (D3).
+    var feedReplacedCache = false
+
     var isLoading = true
     var bool_Load = false
     var pageCount = 1
@@ -120,7 +137,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         let refreshView = UIView(frame: CGRect(x: 0, y: view.window?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0, width: 0, height: 0))
         self.tblView.addSubview(refreshView)
         self.objRefresh?.tintColor = UIColor.primary
-        self.objRefresh?.addTarget(self, action: #selector(self.refreshList), for: .valueChanged)
+        self.objRefresh?.addTarget(self, action: #selector(self.pullToRefresh), for: .valueChanged)
         refreshView.addSubview(self.objRefresh!)
         
 
@@ -143,6 +160,11 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                                                name: .kabbaSyncQueueChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(self.syncStateDidChange),
                                                name: .updateCheckList, object: nil)
+
+        //DISPATCH OFFLINE (Phase 3) — the durable working set changed (a wake / repair
+        //reconciliation committed): re-render from local data, no spinner, no request.
+        NotificationCenter.default.addObserver(self, selector: #selector(self.offlineCacheDidChange),
+                                               name: .kabbaDispatchOfflineChanged, object: nil)
 
         //GET CATEGORY DATA
         getCategoryList { arr_data in
@@ -227,7 +249,87 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
   
     
     // MARK: - Refresh Action
+
+    /// Screen open (viewWillAppear) / child-screen callbacks: render, and ask for a repair.
     @objc func refreshList() {
+        self.reloadDispatch(reconcile: .dispatchScreenOpened)
+    }
+
+    /// Pull-to-refresh: an explicit repair that bypasses the freshness window.
+    @objc func pullToRefresh() {
+        self.reloadDispatch(reconcile: .manualRefresh)
+    }
+
+    /// Which source feeds the order legs (D3): Pending + Today = the durable cache only;
+    /// Pending + All = the cache first, then the live All feed when online; Completed and
+    /// Search = the existing online feed, unchanged.
+    var orderSource: OrderSource {
+        let search = (self.txtSearch?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard self.selectStatus == "1", search.isEmpty else { return .feed }
+        return self.strSelectDay == "Today" ? .offlineCache : .cacheThenFeed
+    }
+
+    var isShowingOfflineCache: Bool {
+        switch self.orderSource {
+        case .offlineCache:  return true
+        case .cacheThenFeed: return !self.feedReplacedCache
+        case .feed:          return false
+        }
+    }
+
+    func offlineQuery() -> DispatchOfflineQuery {
+        let legs: DispatchOfflineQuery.Legs
+        switch self.selectScheduleType() {
+        case "Delivery": legs = .delivery
+        case "Return":   legs = .return
+        default:         legs = .all
+        }
+        return DispatchOfflineQuery(selectedDriverId: Int(self.selectDriverID),
+                                    legs: legs,
+                                    dates: self.strSelectDay == "Today" ? .today : .all,
+                                    categoryId: Int(self.selectCategoryID))
+    }
+
+    /// `reconcile` nil = a pure filter change (driver, leg, day, category): local only.
+    func reloadDispatch(reconcile trigger: DispatchOfflineTrigger?) {
+        self.feedReplacedCache = false
+        let online = NetworkReachabilityManager()?.isReachable == true
+
+        if self.orderSource != .feed, let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) {
+            self.pageCount = 1
+            self.serverLastPage = 1
+            self.showOfflineCache(presentation)
+
+            if let trigger = trigger, online || trigger == .manualRefresh {
+                DispatchOfflineSync.trigger(trigger) { [weak self] _ in
+                    self?.objRefresh?.endRefreshing()
+                    self?.offlineCacheDidChange()
+                }
+            } else {
+                self.objRefresh?.endRefreshing()
+            }
+
+            if online {
+                if self.orderSource == .offlineCache {
+                    self.fetchManualRider()
+                } else {
+                    self.APICall() // D3: the live All feed may expand / replace the cached horizon
+                }
+            } else {
+                self.updateOfflineFreshnessLine()
+            }
+            return
+        }
+
+        // Completed / Search stay on the live feed; the working set is still repaired behind it.
+        if let trigger = trigger, online {
+            DispatchOfflineSync.trigger(trigger)
+        }
+        self.reloadFromFeed()
+    }
+
+    /// The pre-Phase-3 path (Completed, Search, or signed out): MMKV snapshot, then the feed.
+    func reloadFromFeed() {
         self.pageCount = 1
         self.serverLastPage = 1
         self.bool_Load = true
@@ -256,7 +358,100 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
     @objc func appDidBecomeActive() {
         guard self.viewIfLoaded?.window != nil else { return }
-        self.refreshList()
+        // KabbaSync already asks for a .foreground repair; this only re-renders.
+        self.reloadDispatch(reconcile: nil)
+    }
+
+    // MARK: - Dispatch offline (Phase 3)
+
+    /// Renders the durable working set: cached rows (with this screen's local edits),
+    /// the cached manual tasks, no pagination (the cache is complete).
+    func showOfflineCache(_ presentation: DispatchOfflinePresentation) {
+        switch presentation {
+        case .notDownloaded:
+            self.arrDispatchList = []
+            self.offlineRevisions = [:]
+            self.isAwaitingFirstDownload = NetworkReachabilityManager()?.isReachable == true
+            if self.isAwaitingFirstDownload {
+                self.emptyDataView.noDataFound()
+                self.startAnimatingView()
+            } else {
+                // Genuinely not downloaded — never pretend there is no Dispatch.
+                self.emptyDataView.dispatchNotDownloaded()
+            }
+        case .ready(let rows, let freshness):
+            self.isAwaitingFirstDownload = false
+            self.stopAnimatingView()
+            self.emptyDataView.noDataFound()
+            self.lastDispatchServerSyncAt = freshness.lastManifestAt
+            self.offlineThroughDate = freshness.throughDate
+
+            var list: [SchedulesModel] = []
+            var revisions: [String: String] = [:]
+            for row in rows {
+                guard let model = DispatchOfflineRowAdapter.schedulesModel(from: row.row) else { continue }
+                revisions[row.orderProductUniqueId] = row.revision
+                if let edit = self.offlineEdits[row.orderProductUniqueId] {
+                    if edit.revision == row.revision {
+                        if let local = edit.row { list.append(local) } // nil = removed on this screen
+                        continue
+                    }
+                    self.offlineEdits[row.orderProductUniqueId] = nil // newer server truth arrived
+                }
+                list.append(model)
+            }
+            self.offlineRevisions = revisions
+            self.arrDispatchList = list
+        }
+
+        self.arrManualList = self.getDispatchManualData()
+        self.bool_Load = true
+        self.isLoading = false
+        self.rebuildRows()
+        self.tblView.reloadData()
+        self.setTheView()
+    }
+
+    /// A reconciliation committed (or finished): re-render from local data only.
+    @objc func offlineCacheDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.viewIfLoaded?.window != nil, self.isShowingOfflineCache,
+                  let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) else { return }
+            self.showOfflineCache(presentation)
+            if NetworkReachabilityManager()?.isReachable != true {
+                self.updateOfflineFreshnessLine()
+            }
+        }
+    }
+
+    /// Offline: Today says when the list was saved; All names the last downloaded day (D3).
+    func updateOfflineFreshnessLine() {
+        let text: String? = self.strSelectDay == "All"
+            ? DispatchOfflineWorkingSet.offlineAllLine(throughDate: self.offlineThroughDate)
+            : nil
+        self.updateFreshnessLine(refreshFailed: true, text: text)
+    }
+
+    /// D4: manual tasks stay on the existing feed + cache (best effort, not offline-guaranteed).
+    func fetchManualRider() {
+        let params = DispatchParameater(page: "1", schedule_type: self.selectScheduleType(), schedule_status: "Pending",
+                                        category_id: self.selectCategoryID, search: "", transport_mode: self.selectDeliveryType,
+                                        date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+        self.callAPIforDispatchManualRider(DispatchParameater: params) { [weak self] saved in
+            DispatchQueue.main.async {
+                guard let self = self, saved, self.isShowingOfflineCache else { return }
+                self.arrManualList = self.getDispatchManualData()
+                self.rebuildRows()
+                self.emptyDataView.isHidden = self.arrRows.count != 0 || self.isAwaitingFirstDownload
+                self.tblView.reloadData()
+            }
+        }
+    }
+
+    /// Keeps a local change to a cached row until that mission's package revision changes.
+    func rememberOfflineEdit(_ row: SchedulesModel, removed: Bool = false) {
+        guard self.isShowingOfflineCache, let id = row.unique_id, let revision = self.offlineRevisions[id] else { return }
+        self.offlineEdits[id] = (revision, removed ? nil : row)
     }
 
     /// Re-applies the local completion filter to the already-loaded rows and
@@ -339,10 +534,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// Offline/stale indication (Phase 4 conventions): a cached list is never
     /// presented as current. Shown as a slim table header only when it says
     /// something (offline, or an aged snapshot).
-    func updateFreshnessLine(refreshFailed: Bool) {
-        let text = QueueLineFreshness.line(lastServerSyncAt: self.lastDispatchServerSyncAt,
-                                           lastRefreshFailed: refreshFailed,
-                                           pendingCount: 0)
+    func updateFreshnessLine(refreshFailed: Bool, text override: String? = nil) {
+        let text = override ?? QueueLineFreshness.line(lastServerSyncAt: self.lastDispatchServerSyncAt,
+                                                       lastRefreshFailed: refreshFailed,
+                                                       pendingCount: 0)
         let showsBanner = refreshFailed
 
         guard showsBanner else {
@@ -435,9 +630,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             self.stopLoading()
             self.isLoading = false
             
-            //NO DATA — the rendered mixed workday (orders + manual tasks)
+            //NO DATA — the rendered mixed workday (orders + manual tasks). Online with no
+            //offline Dispatch downloaded yet is "loading", not "no results".
             self.emptyDataView.isHidden = true
-            if self.arrRows.count == 0{
+            if self.arrRows.count == 0 && !self.isAwaitingFirstDownload {
                 self.emptyDataView.isHidden = false
             }
             
@@ -553,6 +749,12 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     }
     
     func callAPI(search: String){
+        // Dispatch offline (Phase 3): a filter change with no search re-renders the cache locally.
+        if search.isEmpty, self.orderSource != .feed {
+            self.reloadDispatch(reconcile: nil)
+            return
+        }
+
         //CALL API
         self.objSearchIndicator.isHidden = false
         self.objSearchIndicator.startAnimating()
@@ -617,7 +819,7 @@ extension DispatchListViewController {
         self.setTheType()
         
         //CALL API
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
     
     @IBAction func btnPickupClicked(_ sender: UIButton) {
@@ -632,7 +834,7 @@ extension DispatchListViewController {
         self.setTheType()
 
         //CALL API
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
     
     @IBAction func btnSelectTypeClicked(_ sender: UIButton) {
@@ -664,7 +866,7 @@ extension DispatchListViewController {
     
     @objc func segmentDayChanged(_ sender: UISegmentedControl) {
         self.strSelectDay = sender.selectedSegmentIndex == 0 ? "Today" : "All"
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
 
     @IBAction func btnSelectDriverClicked(_ sender: UIButton) {
@@ -690,8 +892,8 @@ extension DispatchListViewController {
             //SAVE SELECTED DRIVER FOR TODAY (auto-resets next day)
             self.saveSelectedDriverForToday(name: self.selectDriver, id: self.selectDriverID)
 
-            //RELOAD
-            self.refreshList()
+            //RELOAD — local filtering over the company-wide cache: no request (Phase 3)
+            self.reloadDispatch(reconcile: nil)
         }
     }
 }
@@ -783,6 +985,8 @@ extension DispatchListViewController{
 
                 // Manual tasks are a page-1 rider; re-read the reconciled cache.
                 self.arrManualList = self.getDispatchManualData()
+                // Pending + All online (D3): the live feed now owns the list.
+                if self.orderSource == .cacheThenFeed { self.feedReplacedCache = true }
                 self.rebuildRows()
 
                 // Pagination Control — the server's pagination block is
@@ -798,6 +1002,13 @@ extension DispatchListViewController{
                 self.updateFreshnessLine(refreshFailed: false)
             } else {
                 self.bool_Load = true
+                if self.orderSource == .cacheThenFeed, !self.feedReplacedCache,
+                   let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) {
+                    // The All feed failed: keep showing the cached horizon, not an empty list.
+                    self.showOfflineCache(presentation)
+                    self.updateOfflineFreshnessLine()
+                    return
+                }
                 self.updateFreshnessLine(refreshFailed: true)
             }
 
@@ -831,6 +1042,12 @@ extension DispatchListViewController{
     /// (checklist update, driver change, row removal) goes through, so the
     /// cache and the screen can never drift apart.
     func persistOrderListAndRebuild() {
+        // Dispatch offline (Phase 3): the durable cache is the source — never write the
+        // legacy MMKV slot from it (local edits live in offlineEdits).
+        if self.isShowingOfflineCache {
+            self.rebuildRows()
+            return
+        }
         SDKUserDefault.saveMappableArray(self.arrDispatchList, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(self.selectScheduleType())_\(self.strSelectDay)_\(self.selectDriverID)")
         self.rebuildRows()
     }
@@ -1395,6 +1612,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             self.arrDispatchList[index].pickup_checklist = dicCheckList
         }
 
+        self.rememberOfflineEdit(self.arrDispatchList[index])
         self.persistOrderListAndRebuild()
     }
     
@@ -1565,6 +1783,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             ? delivery_employee?.id
             : pickup_employee?.id
         let movedAway = scopedDriverId != nil && activeLegDriverId != scopedDriverId
+        // Kept with the NEW driver: it leaves this driver's view and shows under All Drivers.
+        self.rememberOfflineEdit(objData)
 
         DispatchQueue.main.async {
             if movedAway {
