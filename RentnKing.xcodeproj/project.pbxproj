@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */; };
+		5A5E000000000000000000B2 /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */; };
+		5A5E000000000000000000B3 /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */; };
 		5A5E000000000000000000B0 /* DispatchOfflineReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */; };
 		5A5E000000000000000000AD /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */; };
 		5A5E000000000000000000AE /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */; };
@@ -475,6 +478,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSetTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSet.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconcilerTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconciler.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStoreTests.swift; sourceTree = "<group>"; };
@@ -2001,6 +2006,7 @@
 				5A5E000000000000000000A0 /* DispatchOfflineContract.swift */,
 				5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */,
 				5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */,
+				5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2072,6 +2078,7 @@
 				5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */,
 				5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */,
 				5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */,
+				5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2377,6 +2384,9 @@
 				5A5E000000000000000000AD /* DispatchOfflineReconciler.swift in Sources */,
 				5A5E000000000000000000AE /* DispatchOfflineReconciler.swift in Sources */,
 				5A5E000000000000000000B0 /* DispatchOfflineReconcilerTests.swift in Sources */,
+				5A5E000000000000000000B2 /* DispatchOfflineWorkingSet.swift in Sources */,
+				5A5E000000000000000000B3 /* DispatchOfflineWorkingSet.swift in Sources */,
+				5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
