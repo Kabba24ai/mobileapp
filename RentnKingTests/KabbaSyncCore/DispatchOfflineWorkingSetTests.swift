@@ -46,7 +46,7 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
 
     private func download(_ missions: [M]) {
         server.missions = missions
-        let reconciler = DispatchOfflineReconciler(httpClient: server, store: store, hasSession: { true },
+        let reconciler = DispatchOfflineReconciler(httpClient: server, store: store, session: { [unowned self] in .of(self.store) },
                                                    retainedOrderProducts: { [] })
         let done = expectation(description: "download")
         reconciler.request(.launch) { _ in done.fulfill() }
@@ -209,5 +209,50 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
         let chicago = TimeZone(identifier: "America/Chicago")!
         let lateEvening = ISO8601DateFormatter().date(from: "2026-09-23T03:30:00Z")! // 22:30 Sep 22 in Chicago
         XCTAssertEqual(DispatchOfflineWorkingSet.localDateString(lateEvening, timeZone: chicago), "2026-09-22")
+    }
+}
+
+// MARK: - Dispatch screen policy (review I-2 / I-3)
+
+final class DispatchOfflineScreenPolicyTests: XCTestCase {
+
+    private typealias P = DispatchOfflineScreenPolicy
+
+    func testPendingTodayIsAlwaysTheDurableCache() {
+        XCTAssertEqual(P.source(pending: true, search: "", day: "Today", selectedDriverId: ""), .offlineCache)
+        XCTAssertEqual(P.source(pending: true, search: "", day: "Today", selectedDriverId: "4"), .offlineCache)
+    }
+
+    func testPendingAllUsesTheLiveFeedOnlyForANamedDriver() {
+        // D5: the mixed feed scopes a missing driver to the signed-in user — it can never stand in
+        // for the company-wide All Drivers set.
+        XCTAssertEqual(P.source(pending: true, search: "", day: "All", selectedDriverId: ""), .offlineCache)
+        XCTAssertEqual(P.source(pending: true, search: "", day: "All", selectedDriverId: "4"), .cacheThenFeed)
+    }
+
+    func testCompletedAndSearchStayOnTheOnlineFeed() {
+        XCTAssertEqual(P.source(pending: false, search: "", day: "Today", selectedDriverId: ""), .feed)
+        XCTAssertEqual(P.source(pending: true, search: "Cash", day: "Today", selectedDriverId: ""), .feed)
+        XCTAssertEqual(P.source(pending: true, search: "  ", day: "Today", selectedDriverId: ""), .offlineCache, "blank search is no search")
+    }
+
+    func testAReconciliationOutcomeAlwaysSettlesTheScreen() {
+        // Never downloaded: online failure falls back to the live feed (never a permanent spinner);
+        // offline says it is not downloaded.
+        XCTAssertEqual(P.outcome(notDownloaded: true, failed: true, online: true), .fallBackToFeed)
+        XCTAssertEqual(P.outcome(notDownloaded: true, failed: false, online: false), .showNotDownloaded)
+        XCTAssertEqual(P.outcome(notDownloaded: true, failed: true, online: false), .showNotDownloaded)
+        // Downloaded: a failed/partial run is never presented as current; success clears the header.
+        XCTAssertEqual(P.outcome(notDownloaded: false, failed: true, online: true), .flagNotCurrent)
+        XCTAssertEqual(P.outcome(notDownloaded: false, failed: false, online: false), .flagOffline)
+        XCTAssertEqual(P.outcome(notDownloaded: false, failed: false, online: true), .current)
+        // A successful first download renders normally.
+        XCTAssertEqual(P.outcome(notDownloaded: true, failed: false, online: true), .current)
+    }
+
+    func testOnlyAMissingDownloadForcesARequestOnAFilterChange() {
+        XCTAssertTrue(P.filterChangeNeedsFirstDownload(notDownloaded: true, online: true))
+        XCTAssertFalse(P.filterChangeNeedsFirstDownload(notDownloaded: true, online: false), "offline: zero requests")
+        XCTAssertFalse(P.filterChangeNeedsFirstDownload(notDownloaded: false, online: true), "downloaded: local filtering only")
     }
 }

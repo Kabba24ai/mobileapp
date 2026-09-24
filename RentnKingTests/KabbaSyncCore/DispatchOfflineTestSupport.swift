@@ -156,6 +156,8 @@ final class FakeDispatchServer: SyncHTTPClient {
     var latency: TimeInterval = 0
     /// Holds the NEXT manifest answer until the test signals it (deterministic concurrency).
     var holdNextManifest: DispatchSemaphore?
+    /// Holds the NEXT packages answer until the test signals it.
+    var holdNextPackages: DispatchSemaphore?
     private var manifestsAnswered = 0
 
     var manifestRequests: Int { lock.withLock { recorded.filter { $0.path == DispatchOfflineAPI.manifestPath }.count } }
@@ -176,9 +178,15 @@ final class FakeDispatchServer: SyncHTTPClient {
         lock.withLock { recorded.append(request) }
         beforeAnswer?(request)
         let gate: DispatchSemaphore? = lock.withLock {
-            guard request.path == DispatchOfflineAPI.manifestPath, let g = holdNextManifest else { return nil }
-            holdNextManifest = nil
-            return g
+            if request.path == DispatchOfflineAPI.manifestPath, let g = holdNextManifest {
+                holdNextManifest = nil
+                return g
+            }
+            if request.path == DispatchOfflineAPI.packagesPath, let g = holdNextPackages {
+                holdNextPackages = nil
+                return g
+            }
+            return nil
         }
         // The answer reflects the server at the moment the request arrived; a gate only delays delivery.
         let answer = self.answer(request)
@@ -243,4 +251,34 @@ final class FakeDispatchServer: SyncHTTPClient {
 
     func setOffline(_ value: Bool) { lock.withLock { offline = value } }
     func setMissions(_ value: [DispatchOfflineFixtures.Mission]) { lock.withLock { missions = value } }
+}
+
+/// Routes every request to the server of whichever tenant is signed in AT SEND TIME —
+/// exactly how KabbaAPIClient re-reads the base URL + token per request.
+final class TenantRoutingClient: SyncHTTPClient {
+    private let lock = NSLock()
+    private var servers: [String: FakeDispatchServer]
+    private var signedIn: String
+
+    init(servers: [String: FakeDispatchServer], signedIn: String) {
+        self.servers = servers
+        self.signedIn = signedIn
+    }
+
+    var tenant: String {
+        get { lock.withLock { signedIn } }
+        set { lock.withLock { signedIn = newValue } }
+    }
+
+    func perform(_ request: SyncHTTPRequest, completion: @escaping (SyncHTTPResult) -> Void) {
+        let server = lock.withLock { servers[signedIn]! }
+        server.perform(request, completion: completion)
+    }
+}
+
+extension DispatchOfflineSession {
+    /// A test session for `store`'s tenant.
+    static func of(_ store: DispatchOfflineMissionStore, credential: String = "cred-1") -> DispatchOfflineSession {
+        DispatchOfflineSession(tenantKey: store.tenantKey, credential: credential)
+    }
 }

@@ -136,3 +136,52 @@ private extension JSONValue {
         return .object(object)
     }
 }
+
+/// The Dispatch screen's decisions, kept pure so they are unit-tested (the view controller
+/// only applies them).
+enum DispatchOfflineScreenPolicy {
+    enum Source: Equatable {
+        /// Order legs from the durable cache only.
+        case offlineCache
+        /// The cached horizon first; online, the live All feed for a named driver replaces it (D3).
+        case cacheThenFeed
+        /// The existing online feed (Completed, Search).
+        case feed
+    }
+
+    static func source(pending: Bool, search: String, day: String, selectedDriverId: String) -> Source {
+        guard pending, search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .feed }
+        // All Drivers stays on the cache (D5): the mixed feed scopes a missing driver to the
+        // signed-in user and would replace the whole company with one person's jobs.
+        guard day == "All", !selectedDriverId.isEmpty else { return .offlineCache }
+        return .cacheThenFeed
+    }
+
+    enum Outcome: Equatable {
+        /// Never downloaded and the first download failed while online: use the live feed.
+        case fallBackToFeed
+        /// Never downloaded and offline: say so (never "no results").
+        case showNotDownloaded
+        /// The shown list is the last saved one — flag it.
+        case flagNotCurrent
+        /// Offline: flag the saved list (All names the last downloaded day).
+        case flagOffline
+        /// Reconciled: no header.
+        case current
+    }
+
+    static func outcome(notDownloaded: Bool, failed: Bool, online: Bool) -> Outcome {
+        if notDownloaded {
+            if !online { return .showNotDownloaded }
+            return failed ? .fallBackToFeed : .current
+        }
+        if !online { return .flagOffline }
+        return failed ? .flagNotCurrent : .current
+    }
+
+    /// A pure filter change makes no request — unless nothing was ever downloaded and the
+    /// phone is online (the first download settles the loading state).
+    static func filterChangeNeedsFirstDownload(notDownloaded: Bool, online: Bool) -> Bool {
+        notDownloaded && online
+    }
+}

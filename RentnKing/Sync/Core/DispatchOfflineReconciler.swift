@@ -26,6 +26,13 @@
 //  ends they receive its result — or, if it failed or a waiting wake names a
 //  different manifest revision, exactly ONE follow-up run serves them all.
 //
+//  Session binding: a run acts for the session (tenant + credential) it
+//  started under. The API client re-reads the base URL and token on every
+//  request, so before each request AND when each answer arrives the run
+//  re-checks the current session; on any change (logout, another company,
+//  another employee) it stops with no write and no follow-up. One tenant's
+//  data can never land in another tenant's store.
+//
 
 import Foundation
 
@@ -49,6 +56,15 @@ enum DispatchOfflineFailure: Equatable {
     case server(Int)
     case invalidManifest
     case storage
+    /// The signed-in session changed mid-run; the run stopped without writing.
+    case sessionChanged
+}
+
+/// Who a run acts for: the tenant (login api_url) AND the signed-in credential.
+struct DispatchOfflineSession: Equatable {
+    let tenantKey: String
+    /// Opaque identity of the credential (changes on every sign-in) — never the token itself.
+    let credential: String
 }
 
 /// The iOS background-fetch answer, without UIKit.
@@ -96,6 +112,10 @@ struct DispatchOfflineReconcileResult: Equatable {
         case .completed, .skipped: return false
         }
     }
+
+    var sessionChanged: Bool {
+        status == .failed(.sessionChanged) || packageFailure == .sessionChanged
+    }
 }
 
 final class DispatchOfflineReconciler {
@@ -112,7 +132,7 @@ final class DispatchOfflineReconciler {
 
     let store: DispatchOfflineMissionStore
     private let httpClient: SyncHTTPClient
-    private let hasSession: () -> Bool
+    private let session: () -> DispatchOfflineSession?
     private let retainedOrderProducts: () -> Set<String>
     private let now: () -> Date
 
@@ -126,14 +146,15 @@ final class DispatchOfflineReconciler {
     private var consecutiveFailures = 0
     private var lastFailureAt: Date?
 
+    /// `session` is nil when nobody is signed in; a session for another tenant counts as none.
     init(httpClient: SyncHTTPClient,
          store: DispatchOfflineMissionStore,
-         hasSession: @escaping () -> Bool,
+         session: @escaping () -> DispatchOfflineSession?,
          retainedOrderProducts: @escaping () -> Set<String>,
          now: @escaping () -> Date = Date.init) {
         self.httpClient = httpClient
         self.store = store
-        self.hasSession = hasSession
+        self.session = session
         self.retainedOrderProducts = retainedOrderProducts
         self.now = now
     }
@@ -144,8 +165,13 @@ final class DispatchOfflineReconciler {
         queue.async { self.enqueue(trigger, completion) }
     }
 
+    private var currentSession: DispatchOfflineSession? {
+        guard let current = session(), current.tenantKey == store.tenantKey else { return nil }
+        return current
+    }
+
     private func enqueue(_ trigger: DispatchOfflineTrigger, _ completion: Completion?) {
-        guard hasSession() else {
+        guard currentSession != nil else {
             // No authenticated session: no request, cache untouched (D6).
             completion?(DispatchOfflineReconcileResult(status: .skipped(.noSession)))
             return
@@ -184,11 +210,11 @@ final class DispatchOfflineReconciler {
         running = true
         logger?("[dispatch-offline] reconcile (\(trigger))")
         runOnce { result in
-            // On the queue.
-            if case .failed = result.status {
+            // On the queue. Failed AND partial runs back off throttled triggers (spec §15).
+            if result.isFailure, !result.sessionChanged {
                 self.consecutiveFailures += 1
                 self.lastFailureAt = self.now()
-            } else {
+            } else if !result.isFailure {
                 self.consecutiveFailures = 0
                 self.lastFailureAt = nil
             }
@@ -205,10 +231,14 @@ final class DispatchOfflineReconciler {
         }
     }
 
-    /// Triggers that arrived mid-run are served by that run — unless it failed, or a
-    /// wake names a manifest revision the run did not see.
+    /// Triggers that arrived mid-run are served by that run — unless it failed, a partial
+    /// run is followed by a repair trigger (wake, pull-to-refresh, login, network, launch),
+    /// or a wake names a manifest revision the run did not see. A run stopped by a session
+    /// change is never followed up: its waiters belonged to the old session.
     static func needsFollowUp(after result: DispatchOfflineReconcileResult, for triggers: [DispatchOfflineTrigger]) -> Bool {
-        if result.isFailure { return true }
+        if result.sessionChanged { return false }
+        if case .failed = result.status { return true }
+        if case .partial = result.status, triggers.contains(where: { !$0.isThrottled }) { return true }
         return triggers.contains { trigger in
             guard case .wake(let revision) = trigger else { return false }
             guard let revision = revision, !revision.isEmpty else { return true }
@@ -219,13 +249,23 @@ final class DispatchOfflineReconciler {
     // MARK: - One run (always on the queue)
 
     private func runOnce(_ finish: @escaping Completion) {
+        guard let owner = currentSession else {
+            return finish(.init(status: .failed(.sessionChanged)))
+        }
         let startIndex = store.loadIndex()
         httpClient.perform(DispatchOfflineAPI.manifestRequest()) { result in
-            self.queue.async { self.applyManifest(result, startIndex: startIndex, finish: finish) }
+            self.queue.async {
+                // The answer may belong to a session that has since ended — discard it unread.
+                guard self.currentSession == owner else {
+                    return finish(.init(status: .failed(.sessionChanged)))
+                }
+                self.applyManifest(result, owner: owner, startIndex: startIndex, finish: finish)
+            }
         }
     }
 
-    private func applyManifest(_ result: SyncHTTPResult, startIndex: DispatchOfflineIndex, finish: @escaping Completion) {
+    private func applyManifest(_ result: SyncHTTPResult, owner: DispatchOfflineSession,
+                               startIndex: DispatchOfflineIndex, finish: @escaping Completion) {
         let manifest: DispatchOfflineManifest
         switch result {
         case .failure(let error):
@@ -281,10 +321,11 @@ final class DispatchOfflineReconciler {
 
         let toDownload = manifest.missions.filter { index.entry($0.missionKey)?.readyRevision != $0.revision }
         let batches = DispatchOfflineAPI.packagesRequests(for: toDownload)
-        download(batches[...], index: index, startIndex: startIndex, outcome: outcome, finish: finish)
+        download(batches[...], owner: owner, index: index, startIndex: startIndex, outcome: outcome, finish: finish)
     }
 
     private func download(_ batches: ArraySlice<SyncHTTPRequest>,
+                          owner: DispatchOfflineSession,
                           index: DispatchOfflineIndex,
                           startIndex: DispatchOfflineIndex,
                           outcome: DispatchOfflineReconcileResult,
@@ -293,8 +334,15 @@ final class DispatchOfflineReconciler {
             return complete(index: index, startIndex: startIndex, outcome: outcome, finish: finish)
         }
         let requestedKeys = Self.requestedKeys(request)
+        // Never send a request for a session that has ended (the client would use the new one's URL + token).
+        guard currentSession == owner else {
+            return abortForSessionChange(startIndex: startIndex, outcome: outcome, finish: finish)
+        }
         httpClient.perform(request) { result in
             self.queue.async {
+                guard self.currentSession == owner else {
+                    return self.abortForSessionChange(startIndex: startIndex, outcome: outcome, finish: finish)
+                }
                 var index = index
                 var outcome = outcome
                 var stop = false
@@ -352,10 +400,22 @@ final class DispatchOfflineReconciler {
                 if stop {
                     self.complete(index: index, startIndex: startIndex, outcome: outcome, finish: finish)
                 } else {
-                    self.download(batches.dropFirst(), index: index, startIndex: startIndex, outcome: outcome, finish: finish)
+                    self.download(batches.dropFirst(), owner: owner, index: index, startIndex: startIndex, outcome: outcome, finish: finish)
                 }
             }
         }
+    }
+
+    /// The session changed mid-download: stop — no write, no cleanup, no follow-up.
+    private func abortForSessionChange(startIndex: DispatchOfflineIndex,
+                                       outcome: DispatchOfflineReconcileResult,
+                                       finish: Completion) {
+        var outcome = outcome
+        outcome.status = .partial
+        outcome.packageFailure = .sessionChanged
+        outcome.changed = startIndex.presentableSignature != store.loadIndex().presentableSignature
+        logger?("[dispatch-offline] stopped: the signed-in session changed")
+        finish(outcome)
     }
 
     private func complete(index: DispatchOfflineIndex,

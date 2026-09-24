@@ -34,7 +34,7 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
     private func makeReconciler() -> DispatchOfflineReconciler {
         DispatchOfflineReconciler(
             httpClient: server, store: store,
-            hasSession: { [unowned self] in self.session },
+            session: { [unowned self] in self.session ? .of(self.store) : nil },
             retainedOrderProducts: { [unowned self] in
                 Set(((try? self.engineStore.loadAll()) ?? []).compactMap { $0.identity.orderProductUniqueId })
             },
@@ -533,6 +533,136 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
 
         XCTAssertEqual(result.status, .completed)
         XCTAssertEqual(ready("ORD-SCH-A:delivery"), F.revision("a2"))
+    }
+
+    // MARK: - Session binding (review I-1)
+
+    private func twoTenants() -> (a: DispatchOfflineMissionStore, b: DispatchOfflineMissionStore,
+                                  serverA: FakeDispatchServer, serverB: FakeDispatchServer, client: TenantRoutingClient) {
+        let a = try! DispatchOfflineMissionStore(rootDirectory: root, baseURL: URL(string: "https://api.kabba.ai/api/admin/v1/")!)
+        let b = try! DispatchOfflineMissionStore(rootDirectory: root, baseURL: URL(string: "https://api.rentnking.com/api/admin/v1/")!)
+        let serverA = FakeDispatchServer(), serverB = FakeDispatchServer()
+        serverA.missions = [m("A1", "a1")]
+        serverB.missions = [m("B1", "b1")]
+        return (a, b, serverA, serverB, TenantRoutingClient(servers: ["A": serverA, "B": serverB], signedIn: "A"))
+    }
+
+    func testATenantSwitchWhileTheManifestIsInFlightWritesNothing() {
+        let t = twoTenants()
+        let reconcilerA = DispatchOfflineReconciler(httpClient: t.client, store: t.a,
+                                                    session: { t.client.tenant == "A" ? .of(t.a) : .of(t.b) },
+                                                    retainedOrderProducts: { [] })
+        let gate = DispatchSemaphore(value: 0)
+        t.serverA.holdNextManifest = gate
+        let done = expectation(description: "both")
+        done.expectedFulfillmentCount = 2
+        var results: [DispatchOfflineReconcileResult] = []
+        let lock = NSLock()
+
+        reconcilerA.request(.launch) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        waitUntil { t.serverA.manifestRequests == 1 }
+        reconcilerA.request(.wake(revision: "queued-behind-the-run")) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        t.client.tenant = "B" // logout of A, login to B before A's answer lands
+        gate.signal()
+        wait(for: [done], timeout: 5)
+
+        // The run itself stops as sessionChanged; the queued wake either joins it (same result) or,
+        // if it reaches the reconciler after the switch, is refused as no session. Never a request.
+        XCTAssertTrue(results.contains { $0.status == .failed(.sessionChanged) })
+        XCTAssertTrue(results.allSatisfy { $0.status == .failed(.sessionChanged) || $0.status == .skipped(.noSession) })
+        XCTAssertEqual(t.serverA.manifestRequests, 1, "no follow-up run for the old session")
+        XCTAssertEqual(t.serverB.requestCount, 0, "nothing of A's run (or its follow-up) reaches B")
+        XCTAssertFalse(t.a.loadIndex().everCommitted, "A's answer is discarded — nothing written")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: t.a.packagesDirectory.path), [])
+    }
+
+    func testATenantSwitchWhilePackagesAreInFlightStopsBeforeAnyForeignWrite() {
+        let t = twoTenants()
+        let reconcilerA = DispatchOfflineReconciler(httpClient: t.client, store: t.a,
+                                                    session: { t.client.tenant == "A" ? .of(t.a) : .of(t.b) },
+                                                    retainedOrderProducts: { [] })
+        t.serverA.missions = (1...150).map { m("A\($0)", "a\($0)") } // two package batches
+        let gate = DispatchSemaphore(value: 0)
+        t.serverA.holdNextPackages = gate
+        let done = expectation(description: "run")
+        var result: DispatchOfflineReconcileResult?
+
+        reconcilerA.request(.launch) { result = $0; done.fulfill() }
+        waitUntil { t.serverA.packageRequests.count == 1 }
+        t.client.tenant = "B"
+        gate.signal()
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(result?.packageFailure, .sessionChanged)
+        XCTAssertEqual(t.serverA.packageRequests.count, 1, "the second batch is never sent")
+        XCTAssertEqual(t.serverB.requestCount, 0)
+        XCTAssertTrue(t.a.loadIndex().entries.allSatisfy { $0.readyRevision == nil }, "the in-flight answer is discarded")
+        XCTAssertFalse(t.b.loadIndex().everCommitted)
+    }
+
+    func testSigningInAgainMidRunAbortsTheOldSessionsRun() {
+        var credential = "cred-1"
+        let reconciler = DispatchOfflineReconciler(httpClient: server, store: store,
+                                                   session: { [unowned self] in .of(self.store, credential: credential) },
+                                                   retainedOrderProducts: { [] })
+        server.missions = [m("A", "a1")]
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextManifest = gate
+        let done = expectation(description: "run")
+        var result: DispatchOfflineReconcileResult?
+
+        reconciler.request(.launch) { result = $0; done.fulfill() }
+        waitUntil { self.server.manifestRequests == 1 }
+        credential = "cred-2" // a different employee signed in
+        gate.signal()
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(result?.status, .failed(.sessionChanged))
+        XCTAssertFalse(store.loadIndex().everCommitted)
+        XCTAssertEqual(reconcile(.loginCompleted, on: reconciler).status, .completed, "the new session reconciles normally")
+    }
+
+    func testAnotherTenantsSessionIsNoSessionForThisStore() {
+        let other = try! DispatchOfflineMissionStore(rootDirectory: root, baseURL: URL(string: "https://api.rentnking.com/api/admin/v1/")!)
+        let reconciler = DispatchOfflineReconciler(httpClient: server, store: store, session: { .of(other) },
+                                                   retainedOrderProducts: { [] })
+        XCTAssertEqual(reconcile(.launch, on: reconciler).status, .skipped(.noSession))
+        XCTAssertEqual(server.requestCount, 0)
+    }
+
+    // MARK: - Partial runs back off (review M-4)
+
+    func testAPartialRunCoolsDownAndOnlyRepairTriggersFollowUp() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        server.packageOverrides["ORD-SCH-B:delivery"] = F.package(m("B", "b1")).setting(["dispatch", "row"], .null) // B never validates
+        XCTAssertEqual(reconcile(.launch).status, .partial)
+        XCTAssertEqual(server.manifestRequests, 1)
+
+        clock = clock.addingTimeInterval(DispatchOfflineReconciler.freshnessWindow + 1)
+        XCTAssertEqual(reconcile(.foreground).status, .skipped(.coolingDown), "a permanently bad package is not re-requested on every foreground")
+
+        // During a partial run: a foreground joins it without a follow-up; a network restoration gets one.
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextManifest = gate
+        let done = expectation(description: "coalesced")
+        done.expectedFulfillmentCount = 2
+        reconciler.request(.manualRefresh) { _ in done.fulfill() }
+        waitUntil { self.server.manifestRequests == 2 }
+        reconciler.request(.foreground) { _ in done.fulfill() }
+        gate.signal()
+        wait(for: [done], timeout: 5)
+        XCTAssertEqual(server.manifestRequests, 2, "a throttled trigger does not re-run a partial reconciliation")
+
+        let gate2 = DispatchSemaphore(value: 0)
+        server.holdNextManifest = gate2
+        let done2 = expectation(description: "repair")
+        done2.expectedFulfillmentCount = 2
+        reconciler.request(.manualRefresh) { _ in done2.fulfill() }
+        waitUntil { self.server.manifestRequests == 3 }
+        reconciler.request(.networkRestored) { _ in done2.fulfill() }
+        gate2.signal()
+        wait(for: [done2], timeout: 5)
+        XCTAssertEqual(server.manifestRequests, 4, "a repair trigger gets one follow-up")
     }
 
     // MARK: - Background result (test 17)
