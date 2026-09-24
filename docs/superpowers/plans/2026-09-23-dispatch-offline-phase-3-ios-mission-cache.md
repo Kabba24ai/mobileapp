@@ -172,6 +172,7 @@ Deliberately **excluded**, because they are volatile or not needed:
 - `checklist_context.identity.order_product_unique_id` and `.leg` match; `terms` is an object.
 - `checklist_context` is otherwise **opaque in Phase 3**. Full `ChecklistContext` decoding is Phase 4's gate, so a checklist-schema problem cannot hide a Dispatch card.
 - If the package `revision` differs from the manifest's, the package's value is stored as `ready_revision`: the mission changed again between the two requests. The next manifest converges.
+- **A package the server could not build (review 3, Minor #3):** the backend builds each requested package on its own. An active mission whose package throws is reported in the additive `data.failed` collection — `{order_product_unique_id, leg, code: "package_build_failed"}`, never the exception — while its siblings are still returned, and it is **never** put in `not_active`. The phone decodes it as `unavailable` and treats the mission exactly like any other package that did not arrive: incomplete, the previous valid package kept (stale) or not ready, retried on the next run; unrelated successful packages are committed.
 
 ### 3.5 Coalescing and trigger policy (`DispatchOfflineReconciler`, one internal serial queue)
 - `request(_ trigger: DispatchOfflineTrigger, completion:)`.
@@ -195,10 +196,10 @@ Deliberately **excluded**, because they are volatile or not needed:
 - **Order:** `row.sort_key` ascending, then `mission_key` for stability. `sort_key` is the feed's own key.
 - **Offline All line (D3):** `DispatchOfflinePresentation.offlineAllLine(throughDate:)` → `Offline — showing downloaded Dispatch through Sep 25`, from the index `through_date` formatted `MMM d` (en_US_POSIX). The App shows it as the existing slim freshness header when the view is Pending + All and the phone is offline.
 - **State:**
-  - `.notDownloaded`: `ever_committed == false`.
+  - `.notDownloaded`: `ever_committed == false`, **or** the manifest lists active missions and not one of them has a presentable package (review 3: a manifest alone is not usable Dispatch — the first download failed or is still running). Online this falls back to the live feed (never "No results found."); offline it says "Dispatch isn't downloaded to this phone yet"; a filter change online still asks for the download. Once a later run makes the working set presentable, the screen leaves the live-feed fallback for the normal cached Dispatch.
   - `.ready(rows, freshness)`: freshness = `last_manifest_at`, plus counts of stale missions (`ready != server`) and missing missions (never downloaded, or the file is unreadable), across the whole working set.
 - **Never current while incomplete (review F1):** `DispatchOfflineScreenPolicy.outcome(presentation:failed:online:)` flags the list as not current whenever the last answer failed (failed, partial, cooling down, no session) **or** any active mission is missing or stale — whatever the last answer said. Only a complete working set after a non-failing answer clears the saved-list header.
-- **An empty manifest is `.ready([])`**, which is a genuine "no Dispatch" state, not "not downloaded".
+- **An empty manifest is `.ready([])`**, which is a genuine "no Dispatch" state, not "not downloaded" — and not a failed download.
 
 ### 3.7 Background result mapping (`DispatchOfflineReconcileResult.backgroundResult`)
 - `changed == true` (presentable set membership or any `ready_revision` changed) → `.newData`, including partial runs.
@@ -221,6 +222,7 @@ Deliberately **excluded**, because they are volatile or not needed:
 - **Rule:** durable local action → immediate effective state → later server confirmation. Load Map & Go (`On My Way`) and Arrived are `driver_checklist.update` operations the Sync Engine already keeps on disk (retained after sync). `DriverStageOverlay` (Sync Core, `EffectiveFieldState.swift`) derives the stage for one order product + leg from them over the row's server copy. There is **no second store** for the stage.
 - **Readers:** Screen 2 (`DriverChecklistViewController.getReadyToGo_ArrivedStatus`) derives it itself from `KabbaSync.engine.snapshot()`; the Dispatch card and its button colour use `DriverStagePresentation.applying` (app, `DispatchOfflineRowAdapter.swift`). Leaving Dispatch, force-quit and relaunch offline keep the stage.
 - **Server confirmation:** a local step stands while it is unconfirmed (pending, syncing, needs attention); once synced it stands only until the screen shows a copy of the row the server was **asked for after** that confirmation (package `server_observed_at` = the package request's send time; feed rows = the feed request's send time; an MMKV snapshot = unknown, so the step stands). Then server truth wins — e.g. the office recalled the trip. The server's stage is never downgraded.
+- **Reconfirmed revisions (review 3, Minor #2):** each index entry records `confirmed_at` — when the server was last asked for the mission and answered with exactly its ready revision (its package download, or a later manifest confirming that revision). A row's observed time is the later of its package's `server_observed_at` and `confirmed_at`, so a revision the server returns to (A → B → A, the A file reused from disk) is server truth as of the new manifest, never its old download time. A stale entry keeps its last confirmation. Metadata only — the package file is not rewritten.
 - **No duplicates:** `recordsDeparture` only before the leg departed and `recordsArrival` only once; Screen 2's buttons are gated the same way (Arrived becomes Continue).
 
 ### 3.10 Live-feed and Manual Dispatch request binding (review F4)
@@ -411,7 +413,7 @@ Commit: `Xcode project: Dispatch offline Phase 3 files`. M1–M7 add their files
 | 17 | Background result newData/noData/failed | Reconciler · `testBackgroundResultMapping` |
 | 18 | Multi-driver company cache, offline filter no request | WorkingSet · `testCompanyCacheHoldsEveryDriver` |
 
-Second-review corrections (each written red first, then green):
+Review corrections (each written red first, then green; F = second review, R3 = third review):
 
 | Finding | Requirement | Test (class · method) |
 |---|---|---|
@@ -419,6 +421,9 @@ Second-review corrections (each written red first, then green):
 | F2 | Offline Load Map & Go / Arrived survive reopen and relaunch; no duplicate step | DriverTripStage · `testLoadMapAndGoSavedOnThisPhoneIsOnMyWayImmediately`, `testArrivedSavedOnThisPhoneIsArrived`, `testEveryRetainedStateCountsUntilTheServerIsSeenAfterConfirmation`, `testServerTruthIsKeptAndNeverDowngraded`; DriverTripStageDurability · `testTheStageSurvivesReopenAndRelaunchOfflineWithoutDuplicates`; WorkingSet · `testEveryRowNamesWhenTheServerWasAskedForIt`; Hosted · `testLoadMapAndGoSavedOfflineShowsOnTheCachedCard`, `testAnotherLegsOrProductsStageNeverShows` |
 | F3 | Same company: old answer discarded, one prompt follow-up; cross company: zero writes, no follow-up | Reconciler · `testASameCompanySignInMidRunDiscardsTheOldAnswerAndRepairsUnderTheNewSession`, `testASameCompanyLoginDuringTheRunCoalescesIntoExactlyOneFollowUp`, `testASignOutMidRunStillStopsWithoutAFollowUp`, `testACrossCompanySwitchLeavesTheOldStoreAloneWhileTheNewCompanyReconcilesItsOwn`; ScreenPolicy · `testOnlyARealOutcomeForTheSignedInCompanySettlesTheScreen` |
 | F4 | A driver switch or any non-driver filter change while a request is in flight discards its answer | FeedRequests · `testADriverSwitchWhileARequestIsInFlightDiscardsItsAnswer`, `testEveryNonDriverFilterChangeObsoletesAnInFlightRequest`, `testARefreshOfTheSameScopeObsoletesTheOlderRequest`, `testTheNextPageOfTheSameListIsAccepted`; Hosted · `testEveryRequestParameterIsPartOfTheRequestsScope` |
+| R3 Important | Manifest OK + packages fail on a fresh store → live feed online, "not downloaded" offline; empty manifest = normal empty Dispatch; first download in progress never an empty list; a later success returns to the cache | Reconciler · `testAFirstDownloadWhosePackagesFailFallsBackToTheLiveFeedOnline`, `testTheSameFailedFirstDownloadOfflineSaysDispatchIsNotDownloaded`, `testAGenuinelyEmptyManifestIsANormalEmptyDispatch`, `testAFirstDownloadInProgressNeverRendersAFalseEmptyList`, `testALaterSuccessfulPackageRunTurnsTheFallbackIntoTheNormalCache`, `testOnlyAStaleButShowableWorkingSetIsStillDownloaded` |
+| R3 Minor #2 | A → B → A: the reconfirmed A row is server truth as of the new manifest; a confirmed local On My Way yields, an unconfirmed one stands | Reconciler · `testARevisionConfirmedAgainByANewManifestIsServerTruthAsOfThatManifest` |
+| R3 Minor #3 | Middle package fails to build → siblings returned and ready, failed one stale/not ready with its previous package kept, never `not_active` | Backend · `DispatchOfflinePackagesTest::test_one_mission_whose_package_fails_to_build_never_fails_its_siblings`, `::test_a_failed_build_is_reported_apart_from_not_active_work`, `DispatchContractFixturesTest::test_dispatch_offline_packages_fixture`; Mobile · Contract `testAPackageTheServerCouldNotBuildIsUnavailableNeverInactive`, `testTheSharedPackagesFixtureDecodes`; Reconciler `testOneMissionWhosePackageCannotBeBuiltNeverFailsItsSiblings`, `testOnAFirstDownloadTheSiblingsOfAnUnbuildablePackageStillBecomeReady` |
 
 ---
 
@@ -454,6 +459,11 @@ After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobil
   - F12 (Nit) — an online driver switch still sends the D4 Manual Dispatch rider request, and the D3 live All feed for a named driver.
   - F13 (Nit) — Pending + All with a named driver repaints the cache before the feed replaces it.
   - F14 (Nit) — `removed` also counts `not_active` keys that were not in the index.
+- **Third review (2026-09-24):** I-1, I-3 and F1–F4 confirmed fixed; no backend extraction drift. Findings, fixed in the final correction pass unless marked:
+  - **Important:** a first download whose manifest succeeded but whose packages failed showed "No results found." instead of the live feed → §3.6 `.notDownloaded` rule.
+  - **Minor #2:** an exact revision round trip (A → B → A) reused A's file with its old observation time, so a confirmed local On My Way could override the recalled trip → §3.9 reconfirmed revisions.
+  - **Minor #3:** one package that failed to build failed its whole batch (backend) → §3.4 per-mission isolation and the `failed` collection.
+  - **Not fixed (Nits, per the product owner):** #4 A → B → A company switch inside one run can leave two reconcilers on A's directory (recoverable, no cross-tenant write); #5 a cross-company switch between the pre-request check and the client reading the URL can send A's ids to B's server (answer discarded; B treats them as not active); #6 after a failed run online the header still says "Offline · showing the list saved at …"; #7 no Core test that a reassignment moves a mission between driver filters.
 
 ## 8. Physical iPhone acceptance boundary
 - **Phase 3 device smoke** (optional, local staging only: the staging harness with the B0 backend branch; never production):
