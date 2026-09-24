@@ -15,10 +15,12 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEV="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 export DEVELOPER_DIR="$DEV"
 
-if "$DEV/usr/bin/xcrun" --sdk macosx --show-sdk-path >/dev/null 2>&1; then
+# xcrun lives in /usr/bin (it is not under $DEVELOPER_DIR/usr/bin on current Xcode) and
+# resolves `swift` inside the selected toolchain.
+if xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1 && xcrun --find swift >/dev/null 2>&1; then
     echo "▶ Xcode toolchain available — running: swift test"
     cd "$ROOT"
-    exec "$DEV/usr/bin/swift" test
+    exec xcrun swift test
 fi
 
 echo "▶ xcodebuild unavailable (Xcode license not accepted?) — building the XCTest bundle directly"

@@ -5,7 +5,9 @@
 //
 
 import XCTest
+#if canImport(KabbaSyncCore)
 @testable import KabbaSyncCore
+#endif
 
 final class DispatchWakeTests: XCTestCase {
 
