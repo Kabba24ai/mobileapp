@@ -8,16 +8,16 @@
 
 /* Begin PBXBuildFile section */
 		5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */; };
-		5A5E000000000000000000B2 /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */; };
-		5A5E000000000000000000B3 /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */; };
-		5A5E000000000000000000B0 /* DispatchOfflineReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */; };
-		5A5E000000000000000000AD /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */; };
-		5A5E000000000000000000AE /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */; };
-		5A5E000000000000000000AB /* DispatchOfflineMissionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */; };
-		5A5E000000000000000000A8 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */; };
-		5A5E000000000000000000A9 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */; };
-		5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */; };
-		5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */; };
+		5A5E000000000000000000B3 /* DispatchOfflineReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */; };
+		5A5E000000000000000000B1 /* DispatchOfflineMissionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B0 /* DispatchOfflineMissionStoreTests.swift */; };
+		5A5E000000000000000000AF /* DispatchOfflineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AE /* DispatchOfflineContractTests.swift */; };
+		5A5E000000000000000000AD /* DispatchOfflineTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000AC /* DispatchOfflineTestSupport.swift */; };
+		5A5E000000000000000000AA /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A9 /* DispatchOfflineWorkingSet.swift */; };
+		5A5E000000000000000000AB /* DispatchOfflineWorkingSet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A9 /* DispatchOfflineWorkingSet.swift */; };
+		5A5E000000000000000000A7 /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A6 /* DispatchOfflineReconciler.swift */; };
+		5A5E000000000000000000A8 /* DispatchOfflineReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A6 /* DispatchOfflineReconciler.swift */; };
+		5A5E000000000000000000A4 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A3 /* DispatchOfflineMissionStore.swift */; };
+		5A5E000000000000000000A5 /* DispatchOfflineMissionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A3 /* DispatchOfflineMissionStore.swift */; };
 		5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A0 /* DispatchOfflineContract.swift */; };
 		5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A0 /* DispatchOfflineContract.swift */; };
 		5A5C00000000000000000022 /* ChecklistContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000021 /* ChecklistContext.swift */; };
@@ -479,13 +479,13 @@
 
 /* Begin PBXFileReference section */
 		5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSetTests.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSet.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconcilerTests.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconciler.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStoreTests.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStore.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContractTests.swift; sourceTree = "<group>"; };
-		5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTestSupport.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconcilerTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000B0 /* DispatchOfflineMissionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStoreTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000AE /* DispatchOfflineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContractTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000AC /* DispatchOfflineTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTestSupport.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A9 /* DispatchOfflineWorkingSet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSet.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A6 /* DispatchOfflineReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconciler.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A3 /* DispatchOfflineMissionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStore.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000A0 /* DispatchOfflineContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContract.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000021 /* ChecklistContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContext.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000023 /* ChecklistContextStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContextStore.swift; sourceTree = "<group>"; };
@@ -2004,9 +2004,9 @@
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
 				5A5E000000000000000000A0 /* DispatchOfflineContract.swift */,
-				5A5E000000000000000000A7 /* DispatchOfflineMissionStore.swift */,
-				5A5E000000000000000000AC /* DispatchOfflineReconciler.swift */,
-				5A5E000000000000000000B1 /* DispatchOfflineWorkingSet.swift */,
+				5A5E000000000000000000A3 /* DispatchOfflineMissionStore.swift */,
+				5A5E000000000000000000A6 /* DispatchOfflineReconciler.swift */,
+				5A5E000000000000000000A9 /* DispatchOfflineWorkingSet.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2074,11 +2074,6 @@
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
-				5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */,
-				5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */,
-				5A5E000000000000000000AA /* DispatchOfflineMissionStoreTests.swift */,
-				5A5E000000000000000000AF /* DispatchOfflineReconcilerTests.swift */,
-				5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2128,6 +2123,11 @@
 				5A5C00000000000000000088 /* TestSupport.swift */,
 				5A5C00000000000000000105 /* SharedKeychainCredentialStoreTests.swift */,
 				5A5C000000000000000000CB /* Fixtures */,
+				5A5E000000000000000000AC /* DispatchOfflineTestSupport.swift */,
+				5A5E000000000000000000AE /* DispatchOfflineContractTests.swift */,
+				5A5E000000000000000000B0 /* DispatchOfflineMissionStoreTests.swift */,
+				5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */,
+				5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -2374,19 +2374,6 @@
 				C51AF5EF2AD178220042589E /* Roboto-Bold.ttf in Resources */,
 				C5E06B4D2CCBBFDB00FDF876 /* AddNoteView.xib in Resources */,
 				C51AF5D72AD178220042589E /* AlertPopUp.xib in Resources */,
-				5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */,
-				5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */,
-				5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */,
-				5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */,
-				5A5E000000000000000000A8 /* DispatchOfflineMissionStore.swift in Sources */,
-				5A5E000000000000000000A9 /* DispatchOfflineMissionStore.swift in Sources */,
-				5A5E000000000000000000AB /* DispatchOfflineMissionStoreTests.swift in Sources */,
-				5A5E000000000000000000AD /* DispatchOfflineReconciler.swift in Sources */,
-				5A5E000000000000000000AE /* DispatchOfflineReconciler.swift in Sources */,
-				5A5E000000000000000000B0 /* DispatchOfflineReconcilerTests.swift in Sources */,
-				5A5E000000000000000000B2 /* DispatchOfflineWorkingSet.swift in Sources */,
-				5A5E000000000000000000B3 /* DispatchOfflineWorkingSet.swift in Sources */,
-				5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2714,6 +2701,10 @@
 				C51AF6052AD178220042589E /* SpreadsheetView+UIScrollView.swift in Sources */,
 				C51AF5F62AD178220042589E /* Placeholder.swift in Sources */,
 				C5D00B2A2FA38C5E00911139 /* SignupViewController.swift in Sources */,
+				5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */,
+				5A5E000000000000000000A4 /* DispatchOfflineMissionStore.swift in Sources */,
+				5A5E000000000000000000A7 /* DispatchOfflineReconciler.swift in Sources */,
+				5A5E000000000000000000AA /* DispatchOfflineWorkingSet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2814,6 +2805,15 @@
 				5A5C00000000000000000104 /* SharedKeychainCredentialStore.swift in Sources */,
 				5A5C00000000000000000106 /* SharedKeychainCredentialStoreTests.swift in Sources */,
 				5A5C000000000000000000C7 /* SyncEngine.swift in Sources */,
+				5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */,
+				5A5E000000000000000000A5 /* DispatchOfflineMissionStore.swift in Sources */,
+				5A5E000000000000000000A8 /* DispatchOfflineReconciler.swift in Sources */,
+				5A5E000000000000000000AB /* DispatchOfflineWorkingSet.swift in Sources */,
+				5A5E000000000000000000AD /* DispatchOfflineTestSupport.swift in Sources */,
+				5A5E000000000000000000AF /* DispatchOfflineContractTests.swift in Sources */,
+				5A5E000000000000000000B1 /* DispatchOfflineMissionStoreTests.swift in Sources */,
+				5A5E000000000000000000B3 /* DispatchOfflineReconcilerTests.swift in Sources */,
+				5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
