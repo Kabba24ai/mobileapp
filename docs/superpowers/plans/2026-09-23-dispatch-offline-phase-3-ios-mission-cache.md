@@ -1,8 +1,16 @@
 # Dispatch Offline Phase 3 — iOS Durable Mission Cache + Reconciliation Coordinator — Implementation Plan
 
-> **Status: DRAFT for Gary's review (2026-09-23). Not approved. No Phase 3 product code has been written.**
-> **BLOCKED on backend contract gap G1 (§1).** Mobile tasks M3 onward consume the package field G1 adds, so no task runs until decision D1 (§2) is made.
+> **Status: APPROVED with locked decisions D1–D7 (Gary, 2026-09-23); see §2.** Gap G1 is resolved by B0 (§1), which runs first on the backend branch.
 > Rules for execution: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, SSH, production data, feature flag, version/build bump, archive, or App Store upload.
+> **Phase 3 closes only after all of these pass:**
+> - B0 backend parity and revision tests;
+> - all 18 planned mobile cache/reconciliation scenarios (§6);
+> - the complete affected backend regression;
+> - the complete mobile core suite (`swift test`);
+> - the simulator build;
+> - a fresh independent reviewer reporting no Critical or Important issues.
+>
+> Then stop before Phase 4.
 
 **Goal:** Every Kabba iPhone keeps a durable, company-wide offline Dispatch working set: all still-open overdue missions plus today and the next two calendar days, for all drivers. It reconciles that set against the Phase 1 manifest on every trigger (silent wake, launch, login, foreground, Dispatch open/refresh, network restoration), and the Dispatch screen renders from it immediately.
 
@@ -35,7 +43,7 @@
 
 ---
 
-## 1. Backend contract gap G1 — STOP (needs Gary's decision D1)
+## 1. Backend contract gap G1 — resolved by B0 (D1 approved)
 
 **Phase 3 cannot present the existing Dispatch card, or open the Driver Checklist, from a Phase 1 package.** The package's `dispatch` block is a compact summary. The Dispatch card, the Driver Checklist (Screen 2) and the Assign Driver screen all read the full legacy `SchedulesModel` row, and several of those values are absent or have different meanings:
 
@@ -54,8 +62,14 @@
 
 A mobile-only workaround would degrade or change the card. It would drop the green band and cross-phone driver progress, show a different phone number and store, and fill in the Assign Driver screen incorrectly. That violates "do not redesign the visual Dispatch UI" and the spec's rule that the package holds the data needed to finish the stop. The legacy feed cannot stand in for the cache either: it is paginated, per driver (an empty `driver_id` means the logged-in user), and has no revisions.
 
-### Proposed fix B0 — additive, gated on D1 (not started)
-Add **`dispatch.row`**: a stable subset of exactly the legacy `OrderProducts\ListResource` row, with the same keys and the same formatting helpers. The phone then maps it with the **unchanged** `SchedulesModel` ObjectMapper model. Because it sits inside `dispatch`, it is hashed into the mission revision automatically. Existing Phase 1 keys are untouched. Nothing from Phase 1 or 2 is deployed, so there are no migration concerns; every revision changes once, when B0 lands.
+### Fix B0 — additive (APPROVED as D1)
+Add **`dispatch.row`**: a stable subset of exactly the legacy `OrderProducts\ListResource` row, with the same keys and values. The phone then maps it with the **unchanged** `SchedulesModel` ObjectMapper model. Because it sits inside `dispatch`, it is hashed into the mission revision automatically. Existing Phase 1 keys are untouched. Nothing from Phase 1 or 2 is deployed, so there are no migration concerns; every revision changes once, when B0 lands.
+
+**One business mapping, not a second contract (D1 lock).** The legacy feed and `dispatch.row` are both generated from the same code:
+- **New `App\Http\Resources\Api\Admin\V1\OrderProducts\DispatchRowFields`** (final, static) holds the Dispatch row logic that used to live inline in `OrderProducts\ListResource`: `identity()` (active leg, `dispatch_item_id`, `sort_key`), `delivery()` / `pickup()` (status, transport, by, priority, formatted dates and times, dispatch dates, overdue/early/late), `deliveryChecklist()` / `pickupChecklist()` (the nine driver-checklist keys), `productData()` (the former `transformProductData`), `resolvedEquipment()` (hard assignment first, then soft). **`ListResource::toArray()` is rewritten to call these**, so the legacy feed's values come from the shared methods. Its key set and values are unchanged, which `MobileDispatchParityTest`, `DispatchContractFixturesTest` and the new parity test prove.
+- The heavy `Orders\ListResource` and `Equipment\ListResource` (payment summaries, location lookups) gain a static `dispatchCardFields()` for exactly the card keys, and their own `toArray()` uses it for those keys.
+- The light resources (`Users`, `Stores`, `OrderAddresses`) are pure column reads, so they are reused **as they are**, through `Arr::only(resource->resolve())`.
+- The offline row therefore adds no field logic of its own. It only chooses which shared keys it carries and drops the two day-dependent flags.
 
 `dispatch.row` keys:
 - Top level: `dispatch_source`, `dispatch_item_id`, `fulfillment_leg`, `sort_key`, `id`, `unique_id`, `product_name`, `product_data` (via `transformProductData`), `is_delivered`, `is_returned`, `equipment_id`, `is_soft_assigned`, and **`category_ids`** (new, additive: `product.categories` ids as ints).
@@ -69,14 +83,19 @@ Deliberately **excluded**, because they are volatile or not needed:
 
 **Revision consequence (intended):** driver-checklist steps, a reassignment of either leg, and a change of the equipment's home store all bump the mission revision. After the Phase 2 debounce, that wakes phones, so driver progress propagates between phones.
 
-**B0 tasks** (backend, only after D1 is approved). Switch the existing backend worktree to a new branch from the Phase 2 HEAD, which leaves the Phase 2 branch intact: `git switch -c feature/dispatch-offline-phase-3 098a68c64`.
-- **B0.1 (red):** `tests/Feature/Dispatch/Offline/DispatchOfflineRowParityTest.php`. For a delivery mission and a return mission (hard-assigned and soft-assigned units), assert that every `dispatch.row` key equals the same key of `(new ListResource($row))->toArray(request())` for the same order product, loaded with `DispatchController`'s relations. Assert `category_ids`, and assert that none of the excluded keys are present.
+**B0 tasks.** Switch the existing backend worktree to a new branch from the completed Phase 2 HEAD, **never from `main` or `origin/main`**. This leaves the Phase 2 branch intact: `git switch -c feature/dispatch-offline-phase-3 098a68c64`.
+- **B0.1 (red):** `tests/Feature/Dispatch/Mobile/DispatchOfflineRowParityTest.php`.
+  - For a delivery mission, a return mission, a hard-assigned unit and a soft-assigned unit, assert that **every field the Dispatch card, Driver Checklist and Assign Driver flow consume** (the §1 table, listed explicitly in the test as `CONSUMED`) is equal in `dispatch.row` and in the legacy feed row. The legacy row comes from a real `POST orders/schedules/dispatch` response for the same order product, so the comparison runs against the live feed, not a re-implementation.
+  - Also assert that every `dispatch.row` key is a legacy row key (except the additive `category_ids`), assert `category_ids`, and assert that none of the excluded keys are present.
 - **B0.2 (red):** revision tests in the existing revision-completeness test.
   - Each of these bumps the revision: `delivery_ready_to_go_at`, `delivery_call_customer`, `dispatch_checklist.driver.delivery.checks`, a `pickup_by` change on a delivery mission, and a change to the equipment's `store_id`.
   - Price changes do **not** bump it.
   - Crossing midnight changes no revision, apart from horizon membership.
-- **B0.3 (green):** `DispatchOfflineMissionSerializer::dispatch()` gains `'row' => $this->row($row, $leg)`, built with `CustomHelper::formatDate` / `formatTime` exactly as `ListResource` does. `DispatchOfflineMissionSelector::WITH` gains `equipment.store` and `softAssignment.equipment.store`.
-- **B0.4:** the manifest query count at 50 missions stays within the Phase 1 cap of 450 statements, with no N+1 (3 missions vs 30 missions → equal per-set eager-load count). Regenerate `dispatch_offline_manifest.json` and `dispatch_offline_packages.json` with `WRITE_CONTRACT_FIXTURES=1` through `DispatchContractFixturesTest`, then commit.
+- **B0.3 (green):**
+  - Extract `DispatchRowFields` and the two `dispatchCardFields()` methods, and rewrite `OrderProducts\ListResource` (and the Orders and Equipment resources, for the card keys) to call them. The existing `MobileDispatchParityTest`, `DispatchContractFixturesTest::test_mixed_dispatch_feed_fixture` and the Dispatch feed tests must stay green **without** fixture regeneration.
+  - `DispatchOfflineMissionSerializer::dispatch()` gains `'row' => DispatchRowFields::offlineRow($row)`.
+  - `DispatchOfflineMissionSelector::WITH` gains `equipment.store` and `softAssignment.equipment.store`.
+- **B0.4:** the manifest query count at 50 missions stays within the Phase 1 cap of 450 statements, with no N+1 (3 missions vs 30 missions → equal per-set eager-load count). Regenerate **only** `dispatch_offline_manifest.json` and `dispatch_offline_packages.json`: `WRITE_CONTRACT_FIXTURES=1 php artisan test --filter 'test_dispatch_offline_(manifest|packages)_fixture'`. That filter leaves `dispatch_list_mixed.json` untouched. Then commit.
 - **B0.5:** backend regression, one test process at a time. The suites are `tests/Feature/Dispatch`, `tests/Feature/Api/Mobile`, `tests/Feature/Mobile`, `tests/Unit/Push`, `tests/Feature/QueueLine`, `tests/Feature/WaitList`.
   - Command: `cd /Users/garyjezorski/Documents/kabba2_AI-dispatch-offline && PHP_INI_SCAN_DIR=":$SCRATCH/php-ini" php artisan test <suite>`. `$SCRATCH/php-ini/memory.ini` contains `memory_limit=2G`.
   - Expected: 1190 existing tests plus the new ones, 0 failures.
@@ -84,19 +103,17 @@ Deliberately **excluded**, because they are volatile or not needed:
 
 ---
 
-## 2. Decisions requiring Gary's approval
+## 2. Locked decisions (Gary, 2026-09-23)
 
-| # | Decision | Recommendation |
-|---|---|---|
-| **D1** | Backend gap G1 | **Approve B0** (§1). This is the only backend change in Phase 3. Without it, Phase 3 stops at the Core cache (M1–M2) and cannot drive the Dispatch screen. |
-| **D2** | Order Details (Screen 3) for a **never-opened** order is network-only. `OrderDetailsViewController` fetches `OrdersListModel` and caches in MMKV only after an online open. Screen 3 is the only path from Dispatch to the equipment checklist, T&C and media. | **Assign this to Phase 4, explicitly.** "Unopened later checklists work offline" is impossible without Screen 3. Phase 4 must render Screen 3 offline, either from the package or from an order-details snapshot added to the package, as a Phase 4 backend item. Phase 3 does not touch Order Details. |
-| **D3** | Date filter "All". The legacy feed's "All" shows **all** future open work, while the offline set ends at today + 2. | **Split the sources. Pending + Today reads only from the cache, online and offline. Pending + All paints the cache immediately; online, the existing feed then replaces it exactly as today; offline, it stays on the cache with the offline freshness line.** Completed view and search stay on the existing online-only feed, unchanged. *Alternative:* "All" = the horizon only, from the cache (simpler, but a behavior change). |
-| **D4** | Manual Dispatch tasks (MDT) are not order legs and are not in the offline working set. | **Leave them on the existing mixed-feed path and MMKV cache.** When the cache supplies the order legs, the page-1 feed call is made with `per_page=1` and only its `manual_jobs` are used, which needs no backend change. Offline, a driver switch shows manual tasks only for drivers viewed before today (existing behavior). Putting manual tasks in the working set would be a later, separate backend decision. |
-| **D5** | "All Drivers" currently shows the **logged-in user's** jobs, because of server scoping under `include_manual`. | **With the cache, "All Drivers" shows the whole company working set**, as the spec and the label intend. Selecting a named driver filters locally. |
-| **D6** | Silent wake with no session, or with a 401 | **No session means no request and `.noData`. A 401 means `.failed`, and the cache is kept.** Like every other 401, `KabbaAPIClient` posts `.kabbaAuthenticationExpired`, and the app returns to Login (existing behavior for the Sync Engine too). The next login triggers repair. |
-| **D7** | Inactive package retention | **A package file is deleted only when the active index doesn't reference it AND no Sync Engine operation (in any state) has that `orderProductUniqueId`.** Sync Engine operations, assets, `ChecklistContextStore`, and `DriverChecklistLocalState` are never touched by Phase 3. |
-
----
+| # | Decision (LOCKED) |
+|---|---|
+| **D1** | **B0 approved** (§1). `dispatch.row` is generated from the same business mapping as the legacy feed; there is no hand-duplicated second contract. Parity tests prove every consumed field matches the legacy row. `dispatch.row` is part of the mission revision, so driver progress and card changes invalidate cached packages. The backend Phase 3 branch is cut from the completed Phase 2 HEAD `098a68c64`, never from `main` or `origin/main`. |
+| **D2** | **Order Details belongs to Phase 4. Locked Phase 4 acceptance requirement:** *a mission never opened online must later support cached Dispatch → Driver Checklist → Order Details → equipment checklist with the phone fully offline.* The current screen flow is preserved unless technical inspection proves it cannot be. Phase 3 does not touch Order Details. |
+| **D3** | **Pending + Today:** render the durable cache immediately. **Pending + All:** render the cached horizon immediately; when online, the current live All feed may expand or replace it. **Offline Pending + All:** cached horizon only, with the small factual line **`Offline — showing downloaded Dispatch through <date>`** (for example "Sep 25"). **Completed and Search stay online-only** during Phase 3. No Dispatch UI redesign. |
+| **D4** | **Manual Dispatch stays outside guaranteed offline scope,** on the existing feed. No Manual Dispatch offline subsystem. Previously loaded manual items remain best-effort, as today, and are **never described as offline-ready**. When the cache supplies the order legs, the manual tasks come from the existing feed's page 1 (`per_page=1`, `manual_jobs` only). |
+| **D5** | **"All Drivers" is truly company-wide.** The durable cache holds all drivers, and All Drivers renders all of them. Selecting a driver is local filtering only and makes no request. |
+| **D6** | **A silent wake with no authenticated session makes no network request, preserves the cache, and completes as `.noData`.** A 401 or expired session never clears the Dispatch cache or any Sync Engine work (like every 401, `KabbaAPIClient` still posts `.kabbaAuthenticationExpired`, which is existing app behavior). After a successful authentication, reconciliation runs automatically (`.loginCompleted`). No unauthenticated Dispatch API. |
+| **D7** | **Conservative cleanup.** A mission absent from the newest manifest leaves the active index immediately. Its package file is **physically purged only when both** (a) no Sync Engine operation, in any state, references that order product, **and** (b) it has been inactive (unreferenced by the active index) for a **7-day grace period**. Superseded older revisions of still-active missions follow the same rule. Cleanup never touches Sync Engine operations, media, signatures, checklist answers, `ChecklistContextStore`, `DriverChecklistLocalState`, or any other captured field work. |
 
 ## 3. Architecture
 
@@ -126,6 +143,7 @@ Deliberately **excluded**, because they are volatile or not needed:
   - `last_manifest_at` (last successful manifest fetch; drives freshness), `committed_at`
   - `ever_committed` (`true` after the first successful commit, used for the not-downloaded state)
   - `entries[]`, sorted by `mission_key`: `mission_key`, `order_product_unique_id`, `leg`, `effective_date`, `server_revision` (from the manifest), `ready_revision` (nil = not downloaded yet), `package_file`.
+  - `retired[]`: package files no longer referenced by `entries` (removed missions and superseded revisions), each with `package_file`, `order_product_unique_id`, and `retired_at`, the moment it first became unreferenced (D7).
 
 ### 3.3 Safe-apply order (per-mission atomicity)
 1. Fetch the manifest; decode and validate it. On any failure, stop and leave the store untouched.
@@ -137,7 +155,11 @@ Deliberately **excluded**, because they are volatile or not needed:
    - A mission whose download failed keeps its prior `ready_revision` and file (stale but valid), or stays `ready_revision=nil` if it never had one.
    - `not_active` keys are dropped (the server says the mission became inactive after the manifest was built).
    - Missions absent from the manifest are dropped from the index. Their files are left for step 5.
-5. After the final commit, run GC (D7): delete package files not referenced by the index whose order product has no Sync Engine operation.
+5. After the final commit, run GC (D7).
+   - Every file that just became unreferenced is added to `retired[]` with `retired_at = now`. A file that becomes active again leaves `retired[]`.
+   - A retired file is **purged only when** `now − retired_at ≥ 7 days` **and** no Sync Engine operation, in any state, has its `order_product_unique_id`.
+   - Unreferenced files that aren't recorded anywhere (orphans from a crash) are recorded as retired now, never deleted on sight.
+   - GC runs only on the store's own `packages/` directory and never opens any other directory.
 - **Crash at any point:** the index is either the old one or a new, fully consistent one (atomic rename). Orphaned files are adopted by step 2 or collected in step 5.
 - **Index names a missing or corrupt file:** that entry is treated as not ready. It is hidden from presentation, counted as pending, and downloaded again on the next run.
 
@@ -169,6 +191,7 @@ Deliberately **excluded**, because they are volatile or not needed:
 - **Local completion:** `EffectiveFieldState.CompletionOverlay` hides a leg completed on this phone (existing rule).
 - **Overdue** is derived: `effective_date < device today` sets `is_delivery_overdue` or `is_pickup_overdue` on the row before mapping.
 - **Order:** `row.sort_key` ascending, then `mission_key` for stability. `sort_key` is the feed's own key.
+- **Offline All line (D3):** `DispatchOfflinePresentation.offlineAllLine(throughDate:)` → `Offline — showing downloaded Dispatch through Sep 25`, from the index `through_date` formatted `MMM d` (en_US_POSIX). The App shows it as the existing slim freshness header when the view is Pending + All and the phone is offline.
 - **State:**
   - `.notDownloaded`: `ever_committed == false`.
   - `.ready(rows, freshness)`: freshness = `last_manifest_at`, plus counts of stale missions (`ready != server`) and not-yet-downloaded missions.
@@ -258,7 +281,12 @@ Commit: `Dispatch offline: manifest and package contract types`.
 - Deleting a referenced file → the entry is reported not ready, and there is no crash.
 - A corrupt file is quarantined, not presented; the quarantine is capped at 20.
 - A base-URL mismatch in the index → treated as no cache; two tenant keys never share a directory.
-- GC keeps the files of order products that have a Sync Engine operation, and deletes other unreferenced files (D7).
+- GC (D7):
+  - A removed mission's file is still on disk at day 0 and at day 6.
+  - It is purged at day 7 when no operation references its order product, and kept at day 30 while an operation (pending, synced or needs-attention) references it.
+  - A superseded revision follows the same rule.
+  - An orphan file is recorded as retired, not deleted.
+  - Sync Engine operation files and assets are byte-identical after GC.
 - On iOS, files are written with `.completeFileProtectionUntilFirstUserAuthentication` (asserted through the shared `writeProtected` path).
 
 Commit: `Dispatch offline: durable per-tenant mission store`.
@@ -318,6 +346,7 @@ Commit: `Dispatch offline: reconcile on wake, launch, login, foreground and netw
   - Pending + Today renders from `DispatchOfflineSync.presentation` synchronously in `refreshList()` and triggers `.dispatchScreenOpened` (or `.manualRefresh` from pull-to-refresh).
   - `.kabbaDispatchOfflineChanged` re-renders without a spinner.
   - `.notDownloaded` shows the existing loading placeholder while online, and `dispatchNotDownloaded()` while offline.
+  - Offline Pending + All shows `Offline — showing downloaded Dispatch through <date>` (D3).
   - Pending + All paints the cache, then the existing feed replaces it while online (D3).
   - Completed and search keep the existing path.
   - The manual-only rider runs when online (D4).
@@ -389,11 +418,11 @@ After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobil
 - **Phase 4:**
   - Bridge `checklist_context` into the canonical `ChecklistContextStore`, preserving cycle and equipment identity.
   - Full `ChecklistContext` validation of packages.
-  - **Offline Order Details (Screen 3) for never-opened orders (D2).**
+  - **Offline Order Details (Screen 3) for never-opened orders (D2).** **Locked Phase 4 acceptance:** a mission never opened online must later support cached Dispatch → Driver Checklist → Order Details → equipment checklist with the phone fully offline, preserving the current screen flow unless inspection proves it cannot be preserved.
   - Prove that unopened later Delivery and Return checklists work offline.
 - **Phase 5:** versioned offline T&C snapshot (backend), local rendering, local signature acceptance through the Sync Engine, and durable sync. Phase 3 stores `terms` opaquely and never renders it.
 - **Phase 6:** the full physical acceptance in §8.
-- **Other:** later cosmetic and screen-flow changes; the final regression, version/build, archive and upload. Manual Dispatch tasks in the working set (D4). The `dispatch_list_mixed.json` sync. Anything production: deploy, flag enablement, preflight on the server.
+- **Other:** later cosmetic and screen-flow changes; the final regression, version/build, archive and upload. Manual Dispatch offline readiness (D4: outside guaranteed scope; no offline subsystem). The `dispatch_list_mixed.json` sync. Anything production: deploy, flag enablement, preflight on the server.
 
 ## 10. Self-review against the approved spec
 | Spec | Covered by |
@@ -410,4 +439,4 @@ After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobil
 | §17 iOS list (checklist and T&C items → Phase 4/5; wrong tenant → §3.8) | §6, §9 |
 | §19 release safety: nothing ships from this phase | status header, §9 |
 
-No placeholders. The one open item is the D1–D7 approval; B0 and M3 onward wait on D1.
+No placeholders or open decisions (D1–D7 locked 2026-09-23).
