@@ -154,6 +154,8 @@ final class FakeDispatchServer: SyncHTTPClient {
     /// Called (on the request thread) before answering — tests use it to block or mutate.
     var beforeAnswer: ((SyncHTTPRequest) -> Void)?
     var latency: TimeInterval = 0
+    /// Holds the NEXT manifest answer until the test signals it (deterministic concurrency).
+    var holdNextManifest: DispatchSemaphore?
     private var manifestsAnswered = 0
 
     var manifestRequests: Int { lock.withLock { recorded.filter { $0.path == DispatchOfflineAPI.manifestPath }.count } }
@@ -173,7 +175,20 @@ final class FakeDispatchServer: SyncHTTPClient {
     func perform(_ request: SyncHTTPRequest, completion: @escaping (SyncHTTPResult) -> Void) {
         lock.withLock { recorded.append(request) }
         beforeAnswer?(request)
+        let gate: DispatchSemaphore? = lock.withLock {
+            guard request.path == DispatchOfflineAPI.manifestPath, let g = holdNextManifest else { return nil }
+            holdNextManifest = nil
+            return g
+        }
+        // The answer reflects the server at the moment the request arrived; a gate only delays delivery.
         let answer = self.answer(request)
+        if let gate = gate {
+            DispatchQueue.global().async {
+                gate.wait()
+                completion(answer)
+            }
+            return
+        }
         if latency > 0 {
             DispatchQueue.global().asyncAfter(deadline: .now() + latency) { completion(answer) }
         } else {
