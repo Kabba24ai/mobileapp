@@ -10,6 +10,10 @@
 //   • connectivity restored (AppDelegate)     • a new operation was enqueued
 //   • BGAppRefreshTask (opportunistic)        • login completed (sessionDidStart)
 //
+//  Dispatch offline (Phase 3): the same launch / app-active moments also ask the
+//  one Dispatch reconciliation coordinator (DispatchOfflineSync) to repair the
+//  durable Dispatch working set. It never polls.
+//
 
 import UIKit
 import BackgroundTasks
@@ -96,6 +100,9 @@ enum KabbaSync {
             KabbaSync.contextStore = contextStore
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
 
+            // Dispatch offline (Phase 3): the company-wide durable Dispatch working set.
+            DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, hasSession: hasSession)
+
             engine.logger = { line in
                 #if DEBUG
                 print(line)
@@ -137,6 +144,8 @@ enum KabbaSync {
                 inFlight.forEach { engine.holdForExternalTransfer(operationId: $0) }
                 engine.kick(reason: "launch")
             }
+
+            DispatchOfflineSync.trigger(.launch)
         } catch {
             // The engine stays nil; legacy code paths keep working exactly as before.
             #if DEBUG
@@ -226,6 +235,7 @@ enum KabbaSync {
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
             kick("didBecomeActive")
+            DispatchOfflineSync.trigger(.foreground)
         })
         observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             scheduleBackgroundRefresh()

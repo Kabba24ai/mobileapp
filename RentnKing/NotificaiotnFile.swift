@@ -141,10 +141,11 @@ extension AppDelegate : MessagingDelegate{
       // this callback will not be fired till the user taps on the notification launching the application.
       // TODO: Handle data of notification
 
-      // Dispatch offline (Phase 2): a silent Dispatch wake is invisible — no badge, no UI — and
-      // finishes promptly. Phase 3's reconciliation coordinator plugs in here.
-        if DispatchWake.isDispatchWake(userInfo) {
-            completionHandler(UIBackgroundFetchResult.noData)
+      // Dispatch offline: a silent Dispatch wake is invisible — no badge, no UI. Phase 3 reconciles
+      // the durable working set and answers iOS exactly once (newData / noData / failed) within
+      // the background budget.
+        if let trigger = DispatchWake.trigger(fromPushUserInfo: userInfo) {
+            DispatchOfflineSync.handleWake(trigger, completionHandler: completionHandler)
             return
         }
 

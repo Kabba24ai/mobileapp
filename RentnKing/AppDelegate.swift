@@ -209,6 +209,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 syncDeliveryPickupInputsWithAPI()
                 self.uploadAllData()          // retry pending media when connectivity returns
                 KabbaSync.kick("network restored", ignoreBackoff: true)
+                DispatchOfflineSync.trigger(.networkRestored)   // Dispatch offline (Phase 3): repair the working set
             }
         }
     }

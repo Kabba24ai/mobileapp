@@ -10,6 +10,9 @@
 //   • DispatchWake — recognises a silent Dispatch wake among incoming pushes. The
 //     payload is only a hint; reconciliation (Phase 3) always reads the live
 //     manifest. A wake is invisible: no badge, no UI.
+//   • DispatchWakeCompletion (Phase 3) — answers iOS's background-fetch handler
+//     exactly once: with the reconciliation's result, or at the deadline with
+//     newData if a commit already changed the working set, else failed.
 //
 
 import Foundation
@@ -60,14 +63,23 @@ enum DispatchInstallationRegistration {
 enum DispatchWake {
     static let messageType = "dispatch_changed"
 
-    /// How a Dispatch wake is handled: invisible, and "no data" until Phase 3 reconciles.
+    /// How a Dispatch wake is handled: invisible; the fetch result is the reconciliation's (Phase 3).
     struct Handling: Equatable {
         let adjustsBadge: Bool
         let presentsUI: Bool
-        let reportsNewData: Bool
+        let reportsReconciliationResult: Bool
     }
 
-    static let handling = Handling(adjustsBadge: false, presentsUI: false, reportsNewData: false)
+    static let handling = Handling(adjustsBadge: false, presentsUI: false, reportsReconciliationResult: true)
+
+    /// iOS gives a background push about 30 s; answer before then.
+    static let backgroundDeadline: TimeInterval = 25
+
+    /// The reconciliation a push asks for (nil for every other push). An empty hint carries no revision.
+    static func trigger(fromPushUserInfo userInfo: [AnyHashable: Any]) -> DispatchOfflineTrigger? {
+        guard let revision = revision(fromPushUserInfo: userInfo) else { return nil }
+        return .wake(revision: revision.isEmpty ? nil : revision)
+    }
 
     /// The wake's manifest revision when `userInfo` is a silent Dispatch wake (empty if the
     /// hint carries none); nil for every other push.
@@ -78,5 +90,44 @@ enum DispatchWake {
 
     static func isDispatchWake(_ userInfo: [AnyHashable: Any]) -> Bool {
         revision(fromPushUserInfo: userInfo) != nil
+    }
+}
+
+/// Calls the background-fetch completion exactly once — the reconciliation's own result,
+/// or at the deadline (newData if a commit already changed the set, else failed). The run
+/// itself may continue after the deadline: it is crash-safe.
+final class DispatchWakeCompletion {
+    private let lock = NSLock()
+    private var delivered = false
+    private var changed = false
+    private let deliver: (DispatchOfflineBackgroundResult) -> Void
+
+    init(deadline: TimeInterval,
+         schedule: (TimeInterval, @escaping () -> Void) -> Void,
+         deliver: @escaping (DispatchOfflineBackgroundResult) -> Void) {
+        self.deliver = deliver
+        // Strong on purpose: the deadline must fire even if nothing else holds this object.
+        schedule(deadline) { self.expire() }
+    }
+
+    func noteChanged() { lock.withLock { changed = true } }
+
+    func finish(_ result: DispatchOfflineBackgroundResult) {
+        guard claim() else { return }
+        deliver(result)
+    }
+
+    private func expire() {
+        let changedSoFar = lock.withLock { changed }
+        guard claim() else { return }
+        deliver(changedSoFar ? .newData : .failed)
+    }
+
+    private func claim() -> Bool {
+        lock.withLock {
+            guard !delivered else { return false }
+            delivered = true
+            return true
+        }
     }
 }

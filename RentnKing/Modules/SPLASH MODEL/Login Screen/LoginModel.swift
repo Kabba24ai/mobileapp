@@ -119,6 +119,8 @@ extension LoginViewController : WebServiceHelperDelegate{
                     }
                     // Dispatch offline (Phase 2): (re)register this installation for silent Dispatch wakes.
                     GlobalMainConstants.appDelegate?.registerDispatchInstallation(trigger: .loginCompleted)
+                    // Dispatch offline (Phase 3): a new session repairs the durable Dispatch working set.
+                    DispatchOfflineSync.trigger(.loginCompleted)
                     
                     
                     //MOVE TO TABBAR

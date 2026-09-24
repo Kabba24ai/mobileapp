@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B6 /* DispatchOfflineSync.swift */; };
 		5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */; };
 		5A5E000000000000000000B3 /* DispatchOfflineReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */; };
 		5A5E000000000000000000B1 /* DispatchOfflineMissionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B0 /* DispatchOfflineMissionStoreTests.swift */; };
@@ -478,6 +479,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000B6 /* DispatchOfflineSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineSync.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSetTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B2 /* DispatchOfflineReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReconcilerTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B0 /* DispatchOfflineMissionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineMissionStoreTests.swift; sourceTree = "<group>"; };
@@ -2054,6 +2056,7 @@
 				5A5C0000000000000000001B /* KabbaSync.swift */,
 				5A5C0000000000000000001D /* SyncStatusUI.swift */,
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
+				5A5E000000000000000000B6 /* DispatchOfflineSync.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2705,6 +2708,7 @@
 				5A5E000000000000000000A4 /* DispatchOfflineMissionStore.swift in Sources */,
 				5A5E000000000000000000A7 /* DispatchOfflineReconciler.swift in Sources */,
 				5A5E000000000000000000AA /* DispatchOfflineWorkingSet.swift in Sources */,
+				5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

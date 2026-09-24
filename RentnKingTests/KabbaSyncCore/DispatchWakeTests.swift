@@ -99,9 +99,63 @@ final class DispatchWakeTests: XCTestCase {
         XCTAssertEqual(DispatchWake.revision(fromPushUserInfo: ["type": "dispatch_changed"]), "")
     }
 
-    func testAWakeIsNeverVisible() {
-        // Handling a Dispatch wake must not touch the badge or present anything, and it
-        // finishes the background fetch as "no data" until Phase 3 reconciles.
-        XCTAssertEqual(DispatchWake.handling, .init(adjustsBadge: false, presentsUI: false, reportsNewData: false))
+    func testAWakeIsNeverVisibleAndReportsTheReconciliation() {
+        // Handling a Dispatch wake never touches the badge or presents anything. Since Phase 3
+        // it reconciles and reports newData / noData / failed from that reconciliation.
+        XCTAssertEqual(DispatchWake.handling, .init(adjustsBadge: false, presentsUI: false, reportsReconciliationResult: true))
+    }
+
+    // MARK: - Phase 3: wake → reconciliation trigger
+
+    func testAWakeBecomesAReconciliationTriggerCarryingItsRevision() {
+        let revision = String(repeating: "a", count: 64)
+        XCTAssertEqual(DispatchWake.trigger(fromPushUserInfo: ["type": "dispatch_changed", "dispatch_revision": revision]),
+                       .wake(revision: revision))
+        XCTAssertEqual(DispatchWake.trigger(fromPushUserInfo: ["type": "dispatch_changed"]), .wake(revision: nil),
+                       "a hint without a revision still reconciles")
+        XCTAssertNil(DispatchWake.trigger(fromPushUserInfo: ["type": "order_update"]))
+    }
+
+    // MARK: - Phase 3: the background completion handler
+
+    private final class ManualClock {
+        var scheduled: [(TimeInterval, () -> Void)] = []
+        func schedule(_ delay: TimeInterval, _ work: @escaping () -> Void) { scheduled.append((delay, work)) }
+        func fire() { scheduled.forEach { $0.1() } }
+    }
+
+    func testTheCompletionHandlerIsCalledExactlyOnceWithTheReconciliationResult() {
+        let clock = ManualClock()
+        var delivered: [DispatchOfflineBackgroundResult] = []
+        let completion = DispatchWakeCompletion(deadline: DispatchWake.backgroundDeadline, schedule: clock.schedule) { delivered.append($0) }
+
+        completion.finish(.newData)
+        completion.finish(.failed)
+        clock.fire()
+
+        XCTAssertEqual(delivered, [.newData])
+        XCTAssertEqual(clock.scheduled.first?.0, 25)
+    }
+
+    func testTheDeadlineAnswersFailedWhenNothingChangedYet() {
+        let clock = ManualClock()
+        var delivered: [DispatchOfflineBackgroundResult] = []
+        let completion = DispatchWakeCompletion(deadline: 25, schedule: clock.schedule) { delivered.append($0) }
+
+        clock.fire()           // iOS is about to suspend us
+        completion.finish(.noData)
+
+        XCTAssertEqual(delivered, [.failed])
+    }
+
+    func testTheDeadlineAnswersNewDataWhenACommitAlreadyChangedTheSet() {
+        let clock = ManualClock()
+        var delivered: [DispatchOfflineBackgroundResult] = []
+        let completion = DispatchWakeCompletion(deadline: 25, schedule: clock.schedule) { delivered.append($0) }
+
+        completion.noteChanged() // the first batch committed before the deadline
+        clock.fire()
+
+        XCTAssertEqual(delivered, [.newData])
     }
 }
