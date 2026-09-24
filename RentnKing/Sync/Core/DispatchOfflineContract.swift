@@ -150,6 +150,10 @@ struct DispatchOfflinePackagesResponse: Equatable {
     let rejected: [Rejection]
     /// Requested missions the server says are no longer active.
     let notActive: [String]
+    /// Requested ACTIVE missions whose package the server could not build this time
+    /// (mission key → stable code). Never "not active": the phone keeps any previous
+    /// package for them and retries on the next reconciliation.
+    let unavailable: [String: String]
 
     static func decode(envelope body: Data?, requested: Set<String>) throws -> DispatchOfflinePackagesResponse {
         guard let root = JSONValue.parse(body) else { throw DispatchOfflineContractError.notJSON }
@@ -171,7 +175,17 @@ struct DispatchOfflinePackagesResponse: Equatable {
             }
         }
         let notActive = (data["not_active"]?.arrayValue ?? []).compactMap(\.stringValue).filter { requested.contains($0) }
-        return DispatchOfflinePackagesResponse(packages: packages, rejected: rejected, notActive: notActive)
+        var unavailable: [String: String] = [:]
+        for failure in data["failed"]?.arrayValue ?? [] {
+            guard let opuid = failure["order_product_unique_id"]?.stringValue, !opuid.isEmpty,
+                  let leg = failure["leg"]?.stringValue.flatMap(ChecklistLeg.init(rawValue:)) else { continue }
+            let key = DispatchOfflineValidation.missionKey(orderProductUniqueId: opuid, leg: leg)
+            // Only requested missions that did not arrive (a delivered package wins).
+            guard requested.contains(key), !seen.contains(key), !notActive.contains(key) else { continue }
+            unavailable[key] = failure["code"]?.stringValue ?? "unavailable"
+        }
+        return DispatchOfflinePackagesResponse(packages: packages, rejected: rejected, notActive: notActive,
+                                               unavailable: unavailable)
     }
 }
 

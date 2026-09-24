@@ -35,8 +35,9 @@ struct DispatchOfflineRow: Equatable {
     let isOverdue: Bool
     /// Shown from an older package while the newest one could not be downloaded yet.
     let isStale: Bool
-    /// When the server was asked for this row's package (nil = unknown) — local driver actions
-    /// the server confirmed after it are not reflected in the row yet (review F2).
+    /// When the server was last asked for this mission and answered with exactly this content —
+    /// its package download, or a later manifest confirming the same revision (nil = unknown).
+    /// Local driver actions the server confirmed after it are not in the row yet (review F2).
     let serverObservedAt: Date?
     /// The legacy Dispatch feed row (dispatch.row) plus the derived overdue flags —
     /// exactly what SchedulesModel maps.
@@ -57,6 +58,7 @@ enum DispatchOfflinePresentation: Equatable {
         var isComplete: Bool { staleCount == 0 && pendingCount == 0 }
     }
 
+    /// Never downloaded, or active missions without one presentable package yet.
     case notDownloaded
     case ready(rows: [DispatchOfflineRow], freshness: Freshness)
 }
@@ -106,8 +108,14 @@ enum DispatchOfflineWorkingSet {
                                            revision: stored.revision,
                                            sortKey: row["sort_key"]?.stringValue ?? DispatchWorkload.openEndedSortKey,
                                            isOverdue: overdue, isStale: entry.isStale,
-                                           serverObservedAt: stored.serverObservedAt, row: row))
+                                           serverObservedAt: [stored.serverObservedAt, entry.confirmedAt].compactMap { $0 }.max(),
+                                           row: row))
         }
+        // Review 3: a manifest by itself is not usable Dispatch. Active missions with not one
+        // presentable package = still not downloaded (the first download failed or is running),
+        // never an empty downloaded list. A genuinely empty manifest IS a real empty Dispatch.
+        if !index.entries.isEmpty, missing == index.entries.count { return .notDownloaded }
+
         rows.sort { ($0.sortKey, $0.missionKey) < ($1.sortKey, $1.missionKey) }
 
         return .ready(rows: rows, freshness: .init(lastManifestAt: index.lastManifestAt,
@@ -194,6 +202,13 @@ enum DispatchOfflineScreenPolicy {
         }
         if !online { return .flagOffline }
         return (failed || !freshness.isComplete) ? .flagNotCurrent : .current
+    }
+
+    /// The screen fell back to the live feed because nothing was downloaded; once the working set
+    /// is presentable it returns to the normal cached Dispatch (review 3).
+    static func leavesFeedFallback(presentation: DispatchOfflinePresentation) -> Bool {
+        if case .ready = presentation { return true }
+        return false
     }
 
     /// Whether an answer means the list may not be current: a failed or partial run, or a

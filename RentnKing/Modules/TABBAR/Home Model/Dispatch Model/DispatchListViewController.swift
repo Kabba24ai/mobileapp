@@ -89,6 +89,9 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// The live feed owns the list this time: Pending + All with a named driver once the feed
     /// answered (D3), or the fallback when this phone never downloaded and the download failed.
     var feedReplacedCache = false
+    /// That replacement is the first-download fallback (nothing usable was downloaded yet):
+    /// the screen returns to the cache as soon as the working set becomes presentable.
+    var isFeedFallback = false
     /// When the server was asked for each rendered cache row (opuid → time), and for the feed
     /// rows shown (nil = an MMKV snapshot of unknown age): a driver step the server confirmed
     /// after that is not in the row yet (review F2).
@@ -306,6 +309,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     func reloadDispatch(reconcile trigger: DispatchOfflineTrigger?) {
         self.feedRequests.restart() // F4: every answer still in flight describes an older list
         self.feedReplacedCache = false
+        self.isFeedFallback = false
         self.isAwaitingFirstDownload = false
         let online = NetworkReachabilityManager()?.isReachable == true
 
@@ -443,7 +447,16 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// A reconciliation committed (or finished): re-render from local data only.
     @objc func offlineCacheDidChange() {
         DispatchQueue.main.async { [weak self] in
-            guard let self = self, self.viewIfLoaded?.window != nil, self.isShowingOfflineCache,
+            guard let self = self, self.viewIfLoaded?.window != nil else { return }
+            // The first download finally produced usable Dispatch: leave the live-feed fallback for
+            // the normal cached working set (its outcome notification then settles the header).
+            if self.isFeedFallback, self.orderSource != .feed,
+               let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()),
+               DispatchOfflineScreenPolicy.leavesFeedFallback(presentation: presentation) {
+                self.reloadDispatch(reconcile: nil)
+                return
+            }
+            guard self.isShowingOfflineCache,
                   let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) else { return }
             self.showOfflineCache(presentation)
             if NetworkReachabilityManager()?.isReachable != true {
@@ -477,6 +490,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             self.isAwaitingFirstDownload = false
             self.stopAnimatingView()
             self.feedReplacedCache = true
+            self.isFeedFallback = true
             self.reloadFromFeed()
         case .showNotDownloaded:
             self.showOfflineCache(presentation) // "isn't downloaded to this phone yet"

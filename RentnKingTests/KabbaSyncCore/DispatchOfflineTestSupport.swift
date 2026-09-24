@@ -112,10 +112,17 @@ enum DispatchOfflineFixtures {
         revision(missions.map { $0.key + $0.revision }.joined(separator: ","))
     }
 
-    static func packagesBody(_ packages: [JSONValue], notActive: [String] = []) -> Data {
+    /// `failed` = mission keys ("opuid:leg") whose package the server could not build.
+    static func packagesBody(_ packages: [JSONValue], notActive: [String] = [], failed: [String] = []) -> Data {
+        let failures: [JSONValue] = failed.map { key in
+            let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+            return .object(["order_product_unique_id": .string(parts[0]), "leg": .string(parts.count > 1 ? parts[1] : ""),
+                            "code": .string("package_build_failed")])
+        }
         let body: JSONValue = .object([
             "success": .bool(true), "message": .string("Dispatch offline packages."),
-            "data": .object(["packages": .array(packages), "not_active": .array(notActive.map { .string($0) })]),
+            "data": .object(["packages": .array(packages), "not_active": .array(notActive.map { .string($0) }),
+                             "failed": .array(failures)]),
             "request_id": .string("srv-packages"),
         ])
         return try! body.serialized()
@@ -144,6 +151,8 @@ final class FakeDispatchServer: SyncHTTPClient {
     var notActive: Set<String> = []
     /// Requested keys the server silently omits (neither package nor not_active).
     var omitted: Set<String> = []
+    /// Requested keys whose package fails to BUILD on the server (reported in `failed`).
+    var buildFailures: Set<String> = []
     var offline = false
     var manifestStatus = 200
     var packagesStatus = 200
@@ -231,10 +240,12 @@ final class FakeDispatchServer: SyncHTTPClient {
             }
             var packages: [JSONValue] = []
             var inactive: [String] = []
+            var failed: [String] = []
             lock.withLock {
                 for key in asked {
                     if notActive.contains(key) { inactive.append(key); continue }
                     if omitted.contains(key) { continue }
+                    if buildFailures.contains(key) { failed.append(key); continue }
                     if let override = packageOverrides[key] { packages.append(override); continue }
                     if let m = state.missions.first(where: { $0.key == key }) {
                         packages.append(DispatchOfflineFixtures.package(m))
@@ -243,7 +254,8 @@ final class FakeDispatchServer: SyncHTTPClient {
                     }
                 }
             }
-            return .response(SyncHTTPResponse(statusCode: 200, headers: [:], body: DispatchOfflineFixtures.packagesBody(packages, notActive: inactive)))
+            return .response(SyncHTTPResponse(statusCode: 200, headers: [:],
+                                              body: DispatchOfflineFixtures.packagesBody(packages, notActive: inactive, failed: failed)))
         default:
             return .response(SyncHTTPResponse(statusCode: 404, headers: [:], body: nil))
         }

@@ -851,6 +851,204 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
         XCTAssertEqual(screenOutcome(after: open), .flagNotCurrent)
     }
 
+    // MARK: - A manifest alone is not downloaded Dispatch (review 3, Important)
+
+    private var presentation: DispatchOfflinePresentation {
+        DispatchOfflineWorkingSet.present(store: store, query: DispatchOfflineQuery(dates: .all), operations: [], today: "2026-09-22")
+    }
+
+    private func outcome(_ result: DispatchOfflineReconcileResult, online: Bool) -> DispatchOfflineScreenPolicy.Outcome {
+        DispatchOfflineScreenPolicy.outcome(presentation: presentation,
+                                            failed: DispatchOfflineScreenPolicy.indicatesFailure(result), online: online)
+    }
+
+    func testAFirstDownloadWhosePackagesFailFallsBackToTheLiveFeedOnline() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        server.packagesStatus = 500
+
+        let first = reconcile(.launch)
+
+        XCTAssertEqual(first.status, .partial)
+        XCTAssertTrue(index.everCommitted, "the manifest itself was applied")
+        XCTAssertEqual(presentation, .notDownloaded, "missions but no usable package: NOT an empty downloaded Dispatch")
+        XCTAssertEqual(outcome(first, online: true), .fallBackToFeed, "never 'No results found.' — the live feed")
+        XCTAssertTrue(DispatchOfflineScreenPolicy.filterChangeNeedsFirstDownload(notDownloaded: presentation == .notDownloaded, online: true),
+                      "the committed manifest does not suppress the next attempt")
+
+        // The next Dispatch open is cooling down — it still lands on the live feed.
+        clock = clock.addingTimeInterval(5)
+        let open = reconcile(.dispatchScreenOpened)
+        XCTAssertEqual(open.status, .skipped(.coolingDown))
+        XCTAssertEqual(outcome(open, online: true), .fallBackToFeed)
+    }
+
+    func testTheSameFailedFirstDownloadOfflineSaysDispatchIsNotDownloaded() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        server.packagesStatus = 500
+        let first = reconcile(.launch)
+
+        XCTAssertEqual(outcome(first, online: false), .showNotDownloaded)
+        XCTAssertFalse(DispatchOfflineScreenPolicy.filterChangeNeedsFirstDownload(notDownloaded: true, online: false), "offline: zero requests")
+    }
+
+    func testAGenuinelyEmptyManifestIsANormalEmptyDispatch() {
+        server.missions = []
+
+        let result = reconcile(.launch)
+
+        XCTAssertEqual(result.status, .completed)
+        guard case .ready(let rows, let freshness) = presentation else { return XCTFail("an empty manifest is downloaded, empty Dispatch") }
+        XCTAssertEqual(rows, [])
+        XCTAssertTrue(freshness.isComplete)
+        XCTAssertEqual(outcome(result, online: true), .current, "not a failed download")
+        XCTAssertFalse(DispatchOfflineScreenPolicy.filterChangeNeedsFirstDownload(notDownloaded: presentation == .notDownloaded, online: true))
+    }
+
+    func testAFirstDownloadInProgressNeverRendersAFalseEmptyList() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextPackages = gate
+        let done = expectation(description: "first download")
+
+        reconciler.request(.launch) { _ in done.fulfill() }
+        waitUntil { self.server.packageRequests.count == 1 }
+
+        XCTAssertTrue(index.everCommitted, "the manifest is committed while its packages are in flight")
+        XCTAssertEqual(presentation, .notDownloaded, "still the first download — loading, never an empty list")
+
+        gate.signal()
+        wait(for: [done], timeout: 5)
+        guard case .ready(let rows, _) = presentation else { return XCTFail() }
+        XCTAssertEqual(rows.count, 2)
+    }
+
+    func testALaterSuccessfulPackageRunTurnsTheFallbackIntoTheNormalCache() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        server.packagesStatus = 500
+        XCTAssertEqual(reconcile(.launch).status, .partial)
+        XCTAssertFalse(DispatchOfflineScreenPolicy.leavesFeedFallback(presentation: presentation))
+
+        server.packagesStatus = 200
+        let repair = reconcile(.manualRefresh)
+
+        XCTAssertEqual(repair.status, .completed)
+        guard case .ready(let rows, _) = presentation else { return XCTFail() }
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(outcome(repair, online: true), .current)
+        XCTAssertTrue(DispatchOfflineScreenPolicy.leavesFeedFallback(presentation: presentation),
+                      "the screen leaves the live-feed fallback for the normal cached working set")
+    }
+
+    func testOnlyAStaleButShowableWorkingSetIsStillDownloaded() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        XCTAssertEqual(reconcile(.launch).status, .completed)
+        server.missions = [m("A", "a2"), m("B", "b2")]
+        server.packagesStatus = 500
+        let failed = reconcile(.manualRefresh)
+
+        guard case .ready(let rows, let freshness) = presentation else { return XCTFail("the previous packages are still usable") }
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(freshness.staleCount, 2)
+        XCTAssertEqual(outcome(failed, online: true), .flagNotCurrent)
+    }
+
+    // MARK: - Exact revision round trip (review 3, Minor #2)
+
+    func testARevisionConfirmedAgainByANewManifestIsServerTruthAsOfThatManifest() {
+        let t0 = clock
+        let revisionA = m("A", "content-a")
+        let revisionB = m("A", "content-b")
+        server.missions = [revisionA]
+        XCTAssertEqual(reconcile(.launch).status, .completed)          // A (not started) downloaded at t0
+
+        // Offline Load Map & Go → a durable On My Way; it syncs later (acknowledged at t0+100).
+        var departure = SyncOperation(type: EffectiveFieldState.driverChecklistType, capturedAt: t0.addingTimeInterval(60),
+                                      identity: SyncBusinessIdentity(orderProductUniqueId: revisionA.opuid),
+                                      payload: .object(["order_product_unique_id": .string(revisionA.opuid),
+                                                        "checklist_type": .string("delivery"),
+                                                        "equipment_driver_status": .string("On My Way")]))
+        departure.state = .synced
+        departure.acknowledgment = SyncAcknowledgment(acknowledgedAt: t0.addingTimeInterval(100), statusCode: 200, requestId: nil,
+                                                      replayed: false, serverReceivedAt: nil, data: nil)
+
+        // The server records it: revision B carries the stage.
+        clock = t0.addingTimeInterval(200)
+        server.missions = [revisionB]
+        server.packageOverrides[revisionA.key] = F.package(revisionB)
+            .setting(["dispatch", "row", "delivery_checklist", "ready_to_go_at"], .string("2026-09-22 08:01:00"))
+        XCTAssertEqual(reconcile(.manualRefresh).status, .completed)
+        XCTAssertEqual(ready(revisionA.key), revisionB.revision)
+
+        // The office recalls the trip: the content returns EXACTLY to revision A, whose file is still on disk.
+        clock = t0.addingTimeInterval(1200)
+        server.packageOverrides = [:]
+        server.missions = [revisionA]
+        let back = reconcile(.manualRefresh)
+        XCTAssertEqual(back.adopted, 1)
+        XCTAssertEqual(server.packageRequests.count, 2, "A is reused from disk, not downloaded again")
+
+        guard case .ready(let rows, _) = presentation, let row = rows.first else { return XCTFail() }
+        XCTAssertEqual(row.revision, revisionA.revision)
+        XCTAssertGreaterThanOrEqual(row.serverObservedAt ?? .distantPast, t0.addingTimeInterval(1200),
+                                    "confirmed current by the new manifest — not the file's old download time")
+        let serverStage = DriverStageServerState(readyToGoAt: row.row["delivery_checklist"]?["ready_to_go_at"]?.stringValue,
+                                                 arrivedAt: row.row["delivery_checklist"]?["arrived_at"]?.stringValue,
+                                                 isArrived: row.row["delivery_checklist"]?["is_arrived"]?.boolValue ?? false)
+        XCTAssertNil(serverStage.readyToGoAt, "revision A has no stage")
+        XCTAssertEqual(DriverStageOverlay.from([departure]).effective(orderProductUniqueId: revisionA.opuid, leg: "delivery",
+                                                                      server: serverStage, serverObservedAt: row.serverObservedAt).stage,
+                       .notStarted, "the recalled trip (server truth) wins over the already-confirmed local step")
+
+        // An UNCONFIRMED local step still stands — only confirmed steps yield to later server truth.
+        var pending = departure
+        pending.state = .pending
+        pending.acknowledgment = nil
+        XCTAssertEqual(DriverStageOverlay.from([pending]).effective(orderProductUniqueId: revisionA.opuid, leg: "delivery",
+                                                                    server: serverStage, serverObservedAt: row.serverObservedAt).stage,
+                       .onMyWay)
+    }
+
+    // MARK: - One package that cannot be built (review 3, Minor #3)
+
+    func testOneMissionWhosePackageCannotBeBuiltNeverFailsItsSiblings() {
+        let missions = [m("A", "a1"), m("B", "b1"), m("C", "c1")]
+        server.missions = missions
+        XCTAssertEqual(reconcile(.launch).status, .completed)
+
+        // All three change; the MIDDLE package fails to build on the server this time.
+        server.missions = [m("A", "a2"), m("B", "b2"), m("C", "c2")]
+        server.buildFailures = ["ORD-SCH-B:delivery"]
+        let result = reconcile(.manualRefresh)
+
+        XCTAssertEqual(result.status, .partial, "one bad mission is not a failed download")
+        XCTAssertEqual(result.failedMissionKeys, ["ORD-SCH-B:delivery"])
+        XCTAssertEqual(ready("ORD-SCH-A:delivery"), F.revision("a2"))
+        XCTAssertEqual(ready("ORD-SCH-C:delivery"), F.revision("c2"))
+        XCTAssertEqual(ready("ORD-SCH-B:delivery"), F.revision("b1"), "the previous valid package is preserved")
+        XCTAssertTrue(index.entry("ORD-SCH-B:delivery")!.isStale)
+        XCTAssertNotNil(store.readyPackage(for: index.entry("ORD-SCH-B:delivery")!))
+        XCTAssertEqual(index.entries.count, 3, "a build failure is never 'not active'")
+        guard case .ready(let rows, let freshness) = presentation else { return XCTFail() }
+        XCTAssertEqual(rows.count, 3)
+        XCTAssertEqual(freshness.staleCount, 1)
+        XCTAssertEqual(outcome(result, online: true), .flagNotCurrent)
+    }
+
+    func testOnAFirstDownloadTheSiblingsOfAnUnbuildablePackageStillBecomeReady() {
+        server.missions = [m("A", "a1"), m("B", "b1"), m("C", "c1")]
+        server.buildFailures = ["ORD-SCH-B:delivery"]
+
+        let result = reconcile(.launch)
+
+        XCTAssertEqual(result.status, .partial)
+        XCTAssertNotNil(ready("ORD-SCH-A:delivery"))
+        XCTAssertNotNil(ready("ORD-SCH-C:delivery"))
+        XCTAssertNil(ready("ORD-SCH-B:delivery"), "not ready — and still active")
+        guard case .ready(let rows, let freshness) = presentation else { return XCTFail("two usable missions: downloaded Dispatch") }
+        XCTAssertEqual(rows.map(\.orderProductUniqueId).sorted(), ["ORD-SCH-A", "ORD-SCH-C"])
+        XCTAssertEqual(freshness.pendingCount, 1)
+    }
+
     // MARK: - Background result (test 17)
 
     func testBackgroundResultMapping() {
@@ -882,6 +1080,9 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
     private func indexBytesWithoutTimestamps() -> JSONValue? {
         guard var value = JSONValue.parse(indexBytes) else { return nil }
         value = value.setting(["last_manifest_at"], .null).setting(["committed_at"], .null).setting(["last_current_at"], .null)
+        if case .array(let entries)? = value["entries"] {
+            value = value.setting(["entries"], .array(entries.map { $0.setting(["confirmed_at"], .null) }))
+        }
         return value
     }
 

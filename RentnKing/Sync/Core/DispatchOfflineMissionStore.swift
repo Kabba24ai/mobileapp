@@ -60,6 +60,10 @@ struct DispatchOfflineIndex: Codable, Equatable {
         /// The revision of the package on disk (nil = not downloaded yet).
         var readyRevision: String?
         var packageFile: String?
+        /// When the server was last asked for this mission and answered with exactly the ready
+        /// revision (a manifest confirming it, or its package download) — its content is server
+        /// truth at least that new, even when the file on disk is older (review 3 #2).
+        var confirmedAt: Date? = nil
 
         var isReady: Bool { readyRevision != nil && packageFile != nil }
         /// Presented from an older package while the newer one could not be downloaded yet.
@@ -69,7 +73,7 @@ struct DispatchOfflineIndex: Codable, Equatable {
         enum CodingKeys: String, CodingKey {
             case missionKey = "mission_key", orderProductUniqueId = "order_product_unique_id", leg
             case effectiveDate = "effective_date", serverRevision = "server_revision"
-            case readyRevision = "ready_revision", packageFile = "package_file"
+            case readyRevision = "ready_revision", packageFile = "package_file", confirmedAt = "confirmed_at"
         }
     }
 

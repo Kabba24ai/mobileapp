@@ -63,7 +63,11 @@ final class DispatchOfflineContractTests: XCTestCase {
         let template = F.packageTemplate
         let key = template["mission_key"]!.stringValue!
         let fixtureNotActive = JSONValue.parse(raw)!["data"]!["not_active"]!.arrayValue!.compactMap(\.stringValue)
-        let response = try DispatchOfflinePackagesResponse.decode(envelope: raw, requested: Set([key] + fixtureNotActive))
+        let fixtureFailed = (JSONValue.parse(raw)!["data"]!["failed"]?.arrayValue ?? []).compactMap { f -> String? in
+            guard let id = f["order_product_unique_id"]?.stringValue, let leg = f["leg"]?.stringValue else { return nil }
+            return "\(id):\(leg)"
+        }
+        let response = try DispatchOfflinePackagesResponse.decode(envelope: raw, requested: Set([key] + fixtureNotActive + fixtureFailed))
 
         XCTAssertEqual(response.packages.count, 1)
         XCTAssertEqual(response.rejected, [])
@@ -79,6 +83,12 @@ final class DispatchOfflineContractTests: XCTestCase {
         XCTAssertNil(package.row["is_delivery_overdue"], "day-dependent flags are derived on the phone")
         XCTAssertEqual(response.notActive, fixtureNotActive)
         XCTAssertEqual(fixtureNotActive, [package.orderProductUniqueId + ":return"])
+        // Review 3 #3: a mission whose package could not be built is reported apart from not_active.
+        XCTAssertEqual(fixtureFailed.count, 1, "the shared fixture pins the failed-entry shape")
+        if let failedKey = fixtureFailed.first {
+            XCTAssertEqual(response.unavailable, [failedKey: "package_build_failed"])
+            XCTAssertFalse(fixtureNotActive.contains(failedKey))
+        }
 
         // The raw package object is kept losslessly (checklist_context / terms for Phases 4–5).
         XCTAssertEqual(package.object, template)
@@ -112,6 +122,23 @@ final class DispatchOfflineContractTests: XCTestCase {
             XCTAssertEqual(response.packages.map(\.missionKey), [good.key], "\(label): the good package still decodes")
             XCTAssertEqual(response.rejected.count, 1, "\(label): exactly that package is rejected")
         }
+    }
+
+    func testAPackageTheServerCouldNotBuildIsUnavailableNeverInactive() throws {
+        let good = F.Mission(opuid: "ORD-SCH-GOOD", revision: F.revision("good"))
+        let requested: Set<String> = [good.key, "ORD-SCH-BAD:delivery", "ORD-SCH-GONE:delivery"]
+        let body = F.packagesBody([F.package(good)], notActive: ["ORD-SCH-GONE:delivery"],
+                                  failed: ["ORD-SCH-BAD:delivery", "ORD-SCH-NOT-ASKED:delivery", good.key])
+
+        let response = try DispatchOfflinePackagesResponse.decode(envelope: body, requested: requested)
+
+        XCTAssertEqual(response.packages.map(\.missionKey), [good.key], "the sibling package is kept")
+        XCTAssertEqual(response.unavailable, ["ORD-SCH-BAD:delivery": "package_build_failed"],
+                       "only requested missions that were not delivered")
+        XCTAssertEqual(response.notActive, ["ORD-SCH-GONE:delivery"], "not_active keeps its own meaning")
+        let olderServer = try JSONValue.parse(F.packagesBody([F.package(good)]))!.setting(["data", "failed"], .null).serialized()
+        XCTAssertEqual(try DispatchOfflinePackagesResponse.decode(envelope: olderServer, requested: requested).unavailable,
+                       [:], "a server without the field")
     }
 
     func testAChecklistContextIsOpaqueInPhase3() throws {

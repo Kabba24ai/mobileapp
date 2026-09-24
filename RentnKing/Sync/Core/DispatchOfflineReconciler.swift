@@ -275,18 +275,19 @@ final class DispatchOfflineReconciler {
             return finish(.init(status: .failed(.sessionChanged)))
         }
         let startIndex = store.loadIndex()
+        let askedAt = now() // the manifest reflects server truth at least this new
         httpClient.perform(DispatchOfflineAPI.manifestRequest()) { result in
             self.queue.async {
                 // The answer may belong to a session that has since ended — discard it unread.
                 guard self.currentSession == owner else {
                     return finish(.init(status: .failed(.sessionChanged)))
                 }
-                self.applyManifest(result, owner: owner, startIndex: startIndex, finish: finish)
+                self.applyManifest(result, askedAt: askedAt, owner: owner, startIndex: startIndex, finish: finish)
             }
         }
     }
 
-    private func applyManifest(_ result: SyncHTTPResult, owner: DispatchOfflineSession,
+    private func applyManifest(_ result: SyncHTTPResult, askedAt: Date, owner: DispatchOfflineSession,
                                startIndex: DispatchOfflineIndex, finish: @escaping Completion) {
         let manifest: DispatchOfflineManifest
         switch result {
@@ -318,17 +319,25 @@ final class DispatchOfflineReconciler {
                                                    leg: m.leg, effectiveDate: m.effectiveDate, serverRevision: m.revision,
                                                    readyRevision: nil, packageFile: nil)
             // Keep the previous valid package (it stays presentable while a newer one is pending).
-            if let old = startIndex.entry(m.missionKey), store.readyPackage(for: old) != nil {
+            let old = startIndex.entry(m.missionKey)
+            if let old = old, store.readyPackage(for: old) != nil {
                 entry.readyRevision = old.readyRevision
                 entry.packageFile = old.packageFile
             }
-            // An interrupted run may already have written exactly this revision.
+            // An interrupted run — or a revision the server has returned to — may already be on disk.
             if entry.readyRevision != m.revision,
                let file = store.validPackageFile(missionKey: m.missionKey, orderProductUniqueId: m.orderProductUniqueId,
                                                  leg: m.leg, revision: m.revision) {
                 entry.readyRevision = m.revision
                 entry.packageFile = file
                 outcome.adopted += 1
+            }
+            // Review 3 #2: this manifest confirms the content on disk is current server truth NOW,
+            // however old its file — a reused revision is never "observed" at its download time.
+            if entry.readyRevision == m.revision {
+                entry.confirmedAt = askedAt
+            } else if let old = old, old.readyRevision == entry.readyRevision {
+                entry.confirmedAt = old.confirmedAt // stale: last confirmed then
             }
             return entry
         }
@@ -386,6 +395,10 @@ final class DispatchOfflineReconciler {
                     }
                 case .response(let response):
                     if let decoded = try? DispatchOfflinePackagesResponse.decode(envelope: response.body, requested: Set(requestedKeys)) {
+                        if !decoded.unavailable.isEmpty {
+                            // Review 3 #3: built-per-mission on the server; these stay active and incomplete.
+                            self.logger?("[dispatch-offline] \(decoded.unavailable.count) package(s) could not be built this time")
+                        }
                         var satisfied = Set<String>()
                         for package in decoded.packages {
                             do {
@@ -395,6 +408,7 @@ final class DispatchOfflineReconciler {
                                     index.entries[i].readyRevision = package.revision
                                     index.entries[i].serverRevision = package.revision
                                     index.entries[i].packageFile = file
+                                    index.entries[i].confirmedAt = askedAt
                                     outcome.downloaded += 1
                                     satisfied.insert(package.missionKey)
                                 }
