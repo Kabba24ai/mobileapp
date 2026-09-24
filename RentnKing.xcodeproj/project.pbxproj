@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */; };
+		5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */; };
+		5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A0 /* DispatchOfflineContract.swift */; };
+		5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000A0 /* DispatchOfflineContract.swift */; };
 		5A5C00000000000000000022 /* ChecklistContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000021 /* ChecklistContext.swift */; };
 		5A5C00000000000000000024 /* ChecklistContextStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000023 /* ChecklistContextStore.swift */; };
 		5A5C00000000000000000026 /* SyncMultipartBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000025 /* SyncMultipartBuilder.swift */; };
@@ -465,6 +469,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContractTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTestSupport.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000A0 /* DispatchOfflineContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineContract.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000021 /* ChecklistContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContext.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000023 /* ChecklistContextStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContextStore.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000025 /* SyncMultipartBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMultipartBuilder.swift; sourceTree = "<group>"; };
@@ -1981,6 +1988,7 @@
 				5A5C00000000000000000047 /* DeprecatedEndpoints.swift */,
 				5A5C00000000000000000101 /* SharedKeychainCredentialStore.swift */,
 				5A5C00000000000000000015 /* SyncEngine.swift */,
+				5A5E000000000000000000A0 /* DispatchOfflineContract.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2048,6 +2056,8 @@
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
+				5A5E000000000000000000A3 /* DispatchOfflineTestSupport.swift */,
+				5A5E000000000000000000A5 /* DispatchOfflineContractTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2343,6 +2353,10 @@
 				C51AF5EF2AD178220042589E /* Roboto-Bold.ttf in Resources */,
 				C5E06B4D2CCBBFDB00FDF876 /* AddNoteView.xib in Resources */,
 				C51AF5D72AD178220042589E /* AlertPopUp.xib in Resources */,
+				5A5E000000000000000000A1 /* DispatchOfflineContract.swift in Sources */,
+				5A5E000000000000000000A2 /* DispatchOfflineContract.swift in Sources */,
+				5A5E000000000000000000A4 /* DispatchOfflineTestSupport.swift in Sources */,
+				5A5E000000000000000000A6 /* DispatchOfflineContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

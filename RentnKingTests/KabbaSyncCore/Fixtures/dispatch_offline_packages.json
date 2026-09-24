@@ -1,0 +1,314 @@
+{
+    "success": true,
+    "message": "Dispatch offline packages.",
+    "data": {
+        "packages": [
+            {
+                "mission_key": "ORD-SCH-LFLZ-KXHO:delivery",
+                "revision": "3897bcd663d7c278ef4131fe5e8a018e7259b150ba9cda5c0bbdb507692c7a68",
+                "order_product_unique_id": "ORD-SCH-LFLZ-KXHO",
+                "leg": "delivery",
+                "dispatch": {
+                    "order_product_unique_id": "ORD-SCH-LFLZ-KXHO",
+                    "leg": "delivery",
+                    "order": {
+                        "unique_id": "ORD-PNNF-RLVQ",
+                        "order_number": "1650",
+                        "customer_name": "Cody Cash",
+                        "customer_phone": "555-0100",
+                        "company_name": "",
+                        "terms_status": "Pending"
+                    },
+                    "address": {
+                        "full_address": "12 Farm Road, Clarksville, TN, 37040",
+                        "address": "12 Farm Road",
+                        "city": "Clarksville",
+                        "state": "TN",
+                        "zip_code": "37040",
+                        "phone": "555-0100"
+                    },
+                    "product": {
+                        "name": "Skid Steer",
+                        "options": []
+                    },
+                    "equipment": {
+                        "unique_id": "EQP-EEUU-7SZX",
+                        "equipment_id": "EQP-OFFLINE-7",
+                        "name": "Skid Steer 7",
+                        "power_source_type": "diesel",
+                        "key_starting_mechanism": "",
+                        "is_fuel": true,
+                        "is_key": false
+                    },
+                    "schedule": {
+                        "date": "2026-09-24",
+                        "time": "09:00:00",
+                        "status": "Pending",
+                        "transport_mode": "Truck",
+                        "priority": 1,
+                        "driver": {
+                            "id": 4,
+                            "name": "Gary Driver"
+                        },
+                        "store_name": "HQ"
+                    },
+                    "row": {
+                        "dispatch_source": "order",
+                        "dispatch_item_id": "order:ORD-SCH-LFLZ-KXHO:delivery",
+                        "fulfillment_leg": "delivery",
+                        "sort_key": "2026-09-24|00001",
+                        "id": 2,
+                        "unique_id": "ORD-SCH-LFLZ-KXHO",
+                        "product_name": "Skid Steer",
+                        "product_data": {
+                            "product_type": "Rental",
+                            "product_option_items": []
+                        },
+                        "delivery_status": "Pending",
+                        "delivery_transport_mode": "Truck",
+                        "delivery_store_id": 2,
+                        "delivery_by": 4,
+                        "delivery_priority": 1,
+                        "delivery_date": "24/09/2026",
+                        "delivery_time": "09:00",
+                        "dispatch_delivery_date": "",
+                        "is_early": false,
+                        "is_late_delivery": false,
+                        "delivery_checklist": {
+                            "equipment_fuel": "Full",
+                            "equipment_key_location": null,
+                            "equipment_driver_status": null,
+                            "ready_to_go_at": null,
+                            "arrived_at": null,
+                            "is_delivered": false,
+                            "is_arrived": false,
+                            "call_customer": "Yes",
+                            "driver_checks": [
+                                1,
+                                2
+                            ]
+                        },
+                        "pickup_status": "Pending",
+                        "pickup_transport_mode": "Truck",
+                        "pickup_store_id": "",
+                        "pickup_date": "27/09/2026",
+                        "pickup_time": "",
+                        "pickup_by": 5,
+                        "pickup_priority": null,
+                        "dispatch_return_date": "",
+                        "is_late_pickup": false,
+                        "pickup_checklist": {
+                            "equipment_fuel": null,
+                            "equipment_key_location": null,
+                            "equipment_driver_status": null,
+                            "ready_to_go_at": null,
+                            "arrived_at": null,
+                            "is_delivered": false,
+                            "is_arrived": false,
+                            "call_customer": null,
+                            "driver_checks": null
+                        },
+                        "is_delivered": false,
+                        "is_returned": false,
+                        "order": {
+                            "id": 2,
+                            "unique_id": "ORD-PNNF-RLVQ",
+                            "order_number": "1650",
+                            "customer_name": "Cody Cash",
+                            "customer_phone": "555-0199",
+                            "delivery_address": {
+                                "id": 2,
+                                "order_id": 2,
+                                "type": "Shipping",
+                                "first_name": "Cody",
+                                "last_name": "Cash",
+                                "full_name": "Cody Cash",
+                                "full_address": "12 Farm Road, Clarksville, TN, 37040",
+                                "email": "",
+                                "phone": "555-0100",
+                                "address": "12 Farm Road",
+                                "city": "Clarksville",
+                                "state": "TN",
+                                "state_id": 0,
+                                "zip_code": "37040"
+                            }
+                        },
+                        "equipment": {
+                            "id": 1,
+                            "unique_id": "EQP-EEUU-7SZX",
+                            "equipment_name": "Skid Steer 7",
+                            "equipment_id": "EQP-OFFLINE-7",
+                            "is_fuel": true,
+                            "is_key": false,
+                            "equipment_store": {
+                                "id": 2,
+                                "unique_id": "STO-TRFB-WWSL",
+                                "store_name": "HQ",
+                                "phone": "",
+                                "email": "",
+                                "address": "",
+                                "state_id": 0,
+                                "city": "",
+                                "zip_code": "",
+                                "is_primary": "Yes",
+                                "status": "Active",
+                                "full_address": ""
+                            }
+                        },
+                        "delivery_employee": {
+                            "id": 4,
+                            "unique_id": "PER-WHT3-RIXV",
+                            "full_name": "Gary Driver",
+                            "email": "drv_6ab47847d5119@example.com",
+                            "status": "Active"
+                        },
+                        "pickup_employee": {
+                            "id": 5,
+                            "unique_id": "PER-XK0M-IOVY",
+                            "full_name": "Blake Driver",
+                            "email": "drv_6ab47847d8535@example.com",
+                            "status": "Active"
+                        },
+                        "category_ids": [
+                            1
+                        ]
+                    }
+                },
+                "checklist_context": {
+                    "identity": {
+                        "checklist_execution_id": "ORD-CHK-KI7H-RV5L",
+                        "cycle": 1,
+                        "status": "open",
+                        "leg": "delivery",
+                        "order_unique_id": "ORD-PNNF-RLVQ",
+                        "order_number": "1650",
+                        "order_product_unique_id": "ORD-SCH-LFLZ-KXHO",
+                        "product_name": "Skid Steer"
+                    },
+                    "equipment": {
+                        "assignment": "soft",
+                        "equipment_unique_id": "EQP-EEUU-7SZX",
+                        "equipment_code": "EQP-OFFLINE-7",
+                        "equipment_name": "Skid Steer 7",
+                        "current_status": "available",
+                        "power_source_type": "diesel",
+                        "has_def": "No",
+                        "hour_tracking": "",
+                        "overage_rate": "",
+                        "diesel_tank_capacity": "",
+                        "gas_tank_capacity": "",
+                        "def_tank_capacity": "",
+                        "equipment_hours": ""
+                    },
+                    "template": {
+                        "template_id": "CATQS-6S0C-5HF5",
+                        "template_name": "Skid Steer Checklist",
+                        "revision": "dca280aa27c423bb",
+                        "question_source": "equipment_template"
+                    },
+                    "requirements": {
+                        "signature_required": true,
+                        "employee_required": true,
+                        "store_required": false,
+                        "equipment_required": true,
+                        "required_question_ids": [
+                            "CAQST-BXFC-FM8O"
+                        ]
+                    },
+                    "questions": [
+                        {
+                            "question_id": "CAQST-BXFC-FM8O",
+                            "question_name": "Body damage",
+                            "text": "Any body damage?",
+                            "delivery_text": "Any body damage?",
+                            "return_text": "Any body damage?",
+                            "category": {
+                                "category_id": "CACAT-NTJQ-EXST",
+                                "category_name": "Condition"
+                            },
+                            "required": true,
+                            "answer_type": "single_choice",
+                            "index": 1,
+                            "answers": [
+                                {
+                                    "answer_id": "CAANS-VM8N-JCGR",
+                                    "text": "No damage",
+                                    "delivery_text": "No damage",
+                                    "return_text": "No damage",
+                                    "amount": 0,
+                                    "delivery_amount": 0,
+                                    "return_amount": 0,
+                                    "is_damaged": false,
+                                    "sync_texts": true,
+                                    "index": 1
+                                }
+                            ],
+                            "previous_answer_id": null,
+                            "previous_return_answer_id": null,
+                            "prepared_answer_id": null
+                        }
+                    ],
+                    "operational": {
+                        "hour_tracking": false,
+                        "is_product_clean": false,
+                        "rental_prepaid_cleaning": 0,
+                        "start_hours": 0,
+                        "end_hours": 0,
+                        "fuel_initial_reading": "",
+                        "fuel_final_reading": "",
+                        "delivery_clean_id": "",
+                        "return_clean_id": "",
+                        "delivery_notes": "",
+                        "pickup_notes": "",
+                        "delivery_by": 4,
+                        "pickup_by": 5,
+                        "pickup_store_id": null
+                    },
+                    "server_state": {
+                        "is_delivered": false,
+                        "is_returned": false,
+                        "delivery_status": "Pending",
+                        "pickup_status": "Pending",
+                        "queue_staged": false,
+                        "in_transit": false,
+                        "delivery_signature_present": false,
+                        "return_signature_present": false,
+                        "execution_status": "open",
+                        "prepared_at": null,
+                        "completed_at": null,
+                        "captured_at": null,
+                        "can_complete": true,
+                        "blocked_reason": null,
+                        "delivery_video_present": false,
+                        "delivery_media_present": false,
+                        "stage_blockers": [
+                            {
+                                "code": "unit_unconfirmed",
+                                "subject_type": "unit",
+                                "subject_key": "EQP-EEUU-7SZX",
+                                "order_product_unique_id": "ORD-SCH-LFLZ-KXHO",
+                                "product_name": "Skid Steer",
+                                "label": "Skid Steer 7 has not been confirmed Available."
+                            }
+                        ]
+                    },
+                    "employee": {
+                        "user_id": 4,
+                        "unique_id": "PER-WHT3-RIXV",
+                        "full_name": "Gary Driver"
+                    },
+                    "server_time": "2026-09-24T01:09:27+00:00"
+                },
+                "terms": {
+                    "status": "Pending",
+                    "page_url": "http://kabba.local/terms-and-conditions/ORD-PNNF-RLVQ/mobile",
+                    "offline_content_available": false
+                }
+            }
+        ],
+        "not_active": [
+            "ORD-SCH-LFLZ-KXHO:return"
+        ]
+    },
+    "request_id": "effcf1b0-6e09-4483-aaf9-bbb9f5204117"
+}

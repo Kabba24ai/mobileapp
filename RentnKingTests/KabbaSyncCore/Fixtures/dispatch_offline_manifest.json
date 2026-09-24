@@ -1,0 +1,22 @@
+{
+    "success": true,
+    "message": "Dispatch offline manifest.",
+    "data": {
+        "revision": "dd58a659f2244821b3dc496f0cabff428eb035071d78bf538c210e124b119605",
+        "generated_at": "2026-09-24T01:09:27.786473Z",
+        "horizon": {
+            "includes_open_overdue": true,
+            "through_date": "2026-09-26"
+        },
+        "missions": [
+            {
+                "mission_key": "ORD-SCH-I5XQ-RZHX:delivery",
+                "order_product_unique_id": "ORD-SCH-I5XQ-RZHX",
+                "leg": "delivery",
+                "effective_date": "2026-09-24",
+                "revision": "e84e25db7139b80a56fa1c17d7934a71f30f0e82dff5bc000418ac7f006bb7f6"
+            }
+        ]
+    },
+    "request_id": "b2b7fcae-a291-4d84-b34f-bb6381e471ed"
+}
