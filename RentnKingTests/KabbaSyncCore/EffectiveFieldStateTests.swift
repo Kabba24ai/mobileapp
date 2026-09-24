@@ -183,3 +183,188 @@ final class EffectiveFieldStateTests: XCTestCase {
                        "an empty identity never matches")
     }
 }
+
+// MARK: - Driver trip stage (review F2): Load Map & Go / On My Way / Arrived
+//
+// durable local action → immediate effective state → later server confirmation.
+// The stage Screen 2 and the Dispatch card show is derived from the SAME durable
+// driver_checklist.update operations the Sync Engine already keeps — never from a
+// view controller or a row instance that a reopen or relaunch throws away.
+
+final class DriverTripStageTests: XCTestCase {
+
+    private let t0 = Date(timeIntervalSince1970: 1_790_000_000)
+    private let noServerStage = DriverStageServerState(readyToGoAt: nil, arrivedAt: nil, isArrived: false)
+
+    private func stageOp(_ status: String, product: String = "P1", leg: String = "delivery",
+                         state: SyncState = .pending, captured: Date? = nil, ackedAt: Date? = nil) -> SyncOperation {
+        var op = SyncOperation(type: EffectiveFieldState.driverChecklistType, capturedAt: captured ?? t0,
+                               identity: SyncBusinessIdentity(orderProductUniqueId: product),
+                               payload: .object(["order_product_unique_id": .string(product),
+                                                 "checklist_type": .string(leg),
+                                                 "equipment_driver_status": .string(status)]))
+        op.state = state
+        if let ackedAt {
+            op.acknowledgment = SyncAcknowledgment(acknowledgedAt: ackedAt, statusCode: 200, requestId: nil,
+                                                   replayed: false, serverReceivedAt: nil, data: nil)
+        }
+        return op
+    }
+
+    private func stage(_ ops: [SyncOperation], product: String = "P1", leg: String = "delivery",
+                       server: DriverStageServerState? = nil, observedAt: Date? = nil) -> DriverStageEffective {
+        DriverStageOverlay.from(ops).effective(orderProductUniqueId: product, leg: leg,
+                                               server: server ?? noServerStage, serverObservedAt: observedAt)
+    }
+
+    func testLoadMapAndGoSavedOnThisPhoneIsOnMyWayImmediately() {
+        let ops = [stageOp("On My Way", captured: t0)]
+        let effective = stage(ops)
+
+        XCTAssertEqual(effective.stage, .onMyWay)
+        XCTAssertEqual(effective.readyToGoAt, DriverStageOverlay.stamp(t0))
+        XCTAssertNil(effective.arrivedAt)
+        XCTAssertFalse(effective.recordsDeparture, "Load Map & Go is never recorded twice")
+        XCTAssertTrue(effective.recordsArrival)
+        // Scoped to order product + leg, like every other driver-checklist state.
+        XCTAssertEqual(stage(ops, leg: "pickup").stage, .notStarted)
+        XCTAssertEqual(stage(ops, product: "P2").stage, .notStarted)
+    }
+
+    func testArrivedSavedOnThisPhoneIsArrived() {
+        let arrived = t0.addingTimeInterval(600)
+        let effective = stage([stageOp("On My Way", captured: t0), stageOp("Arrived", captured: arrived)])
+
+        XCTAssertEqual(effective.stage, .arrived)
+        XCTAssertEqual(effective.readyToGoAt, DriverStageOverlay.stamp(t0))
+        XCTAssertEqual(effective.arrivedAt, DriverStageOverlay.stamp(arrived))
+        XCTAssertFalse(effective.recordsDeparture)
+        XCTAssertFalse(effective.recordsArrival, "Arrived is never recorded twice — the button only continues")
+    }
+
+    func testAPartialSaveIsNotAStageButALegacyReadyToGoIs() {
+        XCTAssertEqual(stage([stageOp("")]).stage, .notStarted, "answers without a transition")
+        XCTAssertTrue(stage([stageOp("")]).recordsDeparture)
+        // The server stamps ready_to_go_at for Ready to Go too — Screen 2 treats both alike.
+        XCTAssertEqual(stage([stageOp("Ready to Go")]).stage, .onMyWay)
+    }
+
+    func testEveryRetainedStateCountsUntilTheServerIsSeenAfterConfirmation() {
+        let acked = t0.addingTimeInterval(100)
+        for state in [SyncState.pending, .syncing, .needsAttention] {
+            XCTAssertEqual(stage([stageOp("On My Way", state: state)], observedAt: acked.addingTimeInterval(3600)).stage, .onMyWay,
+                           "\(state): the server has not confirmed it, so no server row can supersede it")
+        }
+        let synced = stageOp("On My Way", state: .synced, ackedAt: acked)
+        XCTAssertEqual(stage([synced]).stage, .onMyWay, "server truth for the row never observed")
+        XCTAssertEqual(stage([synced], observedAt: acked.addingTimeInterval(-1)).stage, .onMyWay,
+                       "the shown row was asked for before the server confirmed")
+        XCTAssertEqual(stage([synced], observedAt: acked.addingTimeInterval(1)).stage, .notStarted,
+                       "server truth asked for AFTER it confirmed wins — e.g. the office recalled the trip")
+        let serverDeparted = DriverStageServerState(readyToGoAt: "2026-09-22 08:00:00", arrivedAt: nil, isArrived: false)
+        XCTAssertEqual(stage([synced], server: serverDeparted, observedAt: acked.addingTimeInterval(1)).stage, .onMyWay)
+    }
+
+    func testServerTruthIsKeptAndNeverDowngraded() {
+        let serverArrived = DriverStageServerState(readyToGoAt: "2026-09-22 08:00:00", arrivedAt: "2026-09-22 09:00:00", isArrived: true)
+        let arrivedOnServer = stage([stageOp("On My Way")], server: serverArrived)
+        XCTAssertEqual(arrivedOnServer.stage, .arrived)
+        XCTAssertEqual(arrivedOnServer.readyToGoAt, "2026-09-22 08:00:00")
+        XCTAssertEqual(arrivedOnServer.arrivedAt, "2026-09-22 09:00:00")
+
+        let serverDeparted = DriverStageServerState(readyToGoAt: "2026-09-22 08:00:00", arrivedAt: nil, isArrived: false)
+        let arrivedHere = stage([stageOp("Arrived", captured: t0)], server: serverDeparted)
+        XCTAssertEqual(arrivedHere.stage, .arrived)
+        XCTAssertEqual(arrivedHere.readyToGoAt, "2026-09-22 08:00:00")
+        XCTAssertEqual(arrivedHere.arrivedAt, DriverStageOverlay.stamp(t0))
+
+        XCTAssertEqual(stage([], server: serverDeparted).stage, .onMyWay)
+        XCTAssertEqual(stage([]).stage, .notStarted)
+    }
+}
+
+/// The same rule end to end over a REAL durable queue: reopen, force-quit/relaunch
+/// offline, and replayed taps — the stage holds and nothing is enqueued twice.
+final class DriverTripStageDurabilityTests: XCTestCase {
+
+    private struct DriverChecklistTestHandler: SyncOperationHandler {
+        var operationType: String { EffectiveFieldState.driverChecklistType }
+        func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
+            SyncHTTPRequest(method: "POST", path: "orders/schedules/driver-checklist",
+                            headers: ["X-Operation-Id": operation.id], jsonBody: operation.payload, operationId: operation.id)
+        }
+    }
+
+    private var dir: URL!
+    private let product = "ORD-SCH-1"
+    /// The cached row was downloaded before any of this happened (and never since — offline).
+    private let rowObservedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+    override func setUp() {
+        super.setUp()
+        dir = Fixtures.tempDirectory()
+    }
+
+    override func tearDown() {
+        try? FileManager.default.removeItem(at: dir)
+        super.tearDown()
+    }
+
+    /// A new app process with no network: a new engine over the same durable queue.
+    private func launchOffline() throws -> SyncEngine {
+        makeEngine(store: try FileSyncOperationStore(rootDirectory: dir), client: FakeSyncHTTPClient(),
+                   handler: DriverChecklistTestHandler())
+    }
+
+    /// What Screen 2 derives when it opens for the cached row (no stage on the server copy).
+    private func screen2(_ engine: SyncEngine) -> DriverStageEffective {
+        DriverStageOverlay.from(engine.snapshot()).effective(
+            orderProductUniqueId: product, leg: "delivery",
+            server: DriverStageServerState(readyToGoAt: nil, arrivedAt: nil, isArrived: false),
+            serverObservedAt: rowObservedAt)
+    }
+
+    /// Screen 2's two buttons, gated exactly as the screen gates them.
+    private func tapLoadMapAndGo(_ engine: SyncEngine) throws {
+        guard screen2(engine).recordsDeparture else { return }
+        try record("On My Way", on: engine)
+    }
+
+    private func tapArrived(_ engine: SyncEngine) throws {
+        guard screen2(engine).recordsArrival else { return } // "Continue": navigates only
+        try record("Arrived", on: engine)
+    }
+
+    private func record(_ status: String, on engine: SyncEngine) throws {
+        _ = try engine.enqueue(type: EffectiveFieldState.driverChecklistType,
+                               payload: .object(["order_product_unique_id": .string(product),
+                                                 "checklist_type": .string("delivery"),
+                                                 "equipment_driver_status": .string(status)]),
+                               identity: SyncBusinessIdentity(orderProductUniqueId: product),
+                               capturedAt: Date())
+    }
+
+    func testTheStageSurvivesReopenAndRelaunchOfflineWithoutDuplicates() throws {
+        var app = try launchOffline()
+        XCTAssertEqual(screen2(app).stage, .notStarted)
+
+        try tapLoadMapAndGo(app)                                  // offline Load Map & Go
+        XCTAssertEqual(screen2(app).stage, .onMyWay, "leave Dispatch and reopen: still On My Way")
+        try tapLoadMapAndGo(app)                                  // navigation back into Screen 2
+
+        app = try launchOffline()                                 // force-quit, relaunch offline
+        XCTAssertEqual(screen2(app).stage, .onMyWay, "after relaunch: still On My Way")
+        try tapLoadMapAndGo(app)
+
+        try tapArrived(app)                                       // Arrived offline
+        XCTAssertEqual(screen2(app).stage, .arrived, "reopen: still Arrived")
+
+        app = try launchOffline()
+        XCTAssertEqual(screen2(app).stage, .arrived, "after relaunch: still Arrived")
+        try tapArrived(app)
+        try tapLoadMapAndGo(app)
+
+        let statuses = app.snapshot().compactMap { $0.payload["equipment_driver_status"]?.stringValue }
+        XCTAssertEqual(statuses.sorted(), ["Arrived", "On My Way"], "exactly one On My Way and one Arrived were ever queued")
+    }
+}

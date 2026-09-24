@@ -90,8 +90,12 @@ struct DispatchOfflineIndex: Codable, Equatable {
     /// The manifest revision last applied.
     var manifestRevision: String?
     var throughDate: String?
-    /// Last successful manifest fetch (freshness).
+    /// Last successful manifest fetch (the "list saved at" time).
     var lastManifestAt: Date?
+    /// The manifest time of the last run that left EVERY active mission at its manifest
+    /// revision — the only marker that makes a later foreground / Dispatch open "fresh".
+    /// A partial or failed run never advances it (review F1).
+    var lastCurrentAt: Date?
     var committedAt: Date?
     /// True once a reconciliation has committed at least once for this tenant.
     var everCommitted: Bool
@@ -100,7 +104,7 @@ struct DispatchOfflineIndex: Codable, Equatable {
 
     static func empty(tenantKey: String, baseURL: String) -> DispatchOfflineIndex {
         DispatchOfflineIndex(schema: currentSchema, tenantKey: tenantKey, baseURL: baseURL, manifestRevision: nil,
-                             throughDate: nil, lastManifestAt: nil, committedAt: nil, everCommitted: false,
+                             throughDate: nil, lastManifestAt: nil, lastCurrentAt: nil, committedAt: nil, everCommitted: false,
                              entries: [], retired: [])
     }
 
@@ -116,7 +120,8 @@ struct DispatchOfflineIndex: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case schema, tenantKey = "tenant_key", baseURL = "base_url", manifestRevision = "manifest_revision"
-        case throughDate = "through_date", lastManifestAt = "last_manifest_at", committedAt = "committed_at"
+        case throughDate = "through_date", lastManifestAt = "last_manifest_at", lastCurrentAt = "last_current_at"
+        case committedAt = "committed_at"
         case everCommitted = "ever_committed", entries, retired
     }
 }
@@ -131,6 +136,10 @@ struct DispatchOfflineStoredPackage: Codable, Equatable {
     let orderProductUniqueId: String
     let leg: ChecklistLeg
     let cachedAt: Date
+    /// When the server was ASKED for this package: its server truth is at least that new.
+    /// A driver action the server confirmed after this moment is not reflected in it yet
+    /// (review F2). nil for files written before the field existed.
+    let serverObservedAt: Date?
     /// The package exactly as Laravel served it.
     let package: JSONValue
 
@@ -138,7 +147,8 @@ struct DispatchOfflineStoredPackage: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case schema, tenantKey = "tenant_key", missionKey = "mission_key", revision
-        case orderProductUniqueId = "order_product_unique_id", leg, cachedAt = "cached_at", package
+        case orderProductUniqueId = "order_product_unique_id", leg, cachedAt = "cached_at"
+        case serverObservedAt = "server_observed_at", package
     }
 }
 
@@ -230,13 +240,13 @@ final class DispatchOfflineMissionStore {
     }
 
     @discardableResult
-    func writePackage(_ package: DispatchOfflinePackage, cachedAt: Date) throws -> String {
+    func writePackage(_ package: DispatchOfflinePackage, cachedAt: Date, serverObservedAt: Date? = nil) throws -> String {
         let name = DispatchOfflineMissionStore.packageFileName(orderProductUniqueId: package.orderProductUniqueId,
                                                                leg: package.leg, revision: package.revision)
         let stored = DispatchOfflineStoredPackage(schema: DispatchOfflineStoredPackage.currentSchema, tenantKey: tenantKey,
                                                   missionKey: package.missionKey, revision: package.revision,
                                                   orderProductUniqueId: package.orderProductUniqueId, leg: package.leg,
-                                                  cachedAt: cachedAt, package: package.object)
+                                                  cachedAt: cachedAt, serverObservedAt: serverObservedAt, package: package.object)
         let data = try encoder.encode(stored)
         try lock.withLock {
             if failNextPackageWrite {

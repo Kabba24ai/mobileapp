@@ -89,6 +89,15 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// The live feed owns the list this time: Pending + All with a named driver once the feed
     /// answered (D3), or the fallback when this phone never downloaded and the download failed.
     var feedReplacedCache = false
+    /// When the server was asked for each rendered cache row (opuid → time), and for the feed
+    /// rows shown (nil = an MMKV snapshot of unknown age): a driver step the server confirmed
+    /// after that is not in the row yet (review F2).
+    var offlineObservedAt: [String: Date] = [:]
+    var feedObservedAt: Date?
+    /// The driver's trip stage from durable Sync Engine steps (Load Map & Go / Arrived), per render.
+    var driverStageOverlay = DriverStageOverlay.from([])
+    /// Review F4: every live-feed / Manual Dispatch request is bound to the scope that started it.
+    let feedRequests = DispatchFeedRequests()
 
     var isLoading = true
     var bool_Load = false
@@ -295,6 +304,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
     /// `reconcile` nil = a pure filter change (driver, leg, day, category): local only.
     func reloadDispatch(reconcile trigger: DispatchOfflineTrigger?) {
+        self.feedRequests.restart() // F4: every answer still in flight describes an older list
         self.feedReplacedCache = false
         self.isAwaitingFirstDownload = false
         let online = NetworkReachabilityManager()?.isReachable == true
@@ -314,8 +324,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                     self.objRefresh?.endRefreshing()
                     // A run's outcome arrives via .kabbaDispatchOfflineReconciled; a skipped
                     // request has none, so settle the screen here.
-                    if case .skipped(let why) = result.status {
-                        self.applyReconcileOutcome(failed: why == .coolingDown || why == .noSession)
+                    if case .skipped = result.status {
+                        self.applyReconcileOutcome(failed: DispatchOfflineScreenPolicy.indicatesFailure(result))
                     }
                 }
             } else {
@@ -343,6 +353,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
     /// The pre-Phase-3 path (Completed, Search, or signed out): MMKV snapshot, then the feed.
     func reloadFromFeed() {
+        self.feedRequests.restart()
+        self.feedObservedAt = nil // the MMKV snapshot below is of unknown age
         self.pageCount = 1
         self.serverLastPage = 1
         self.bool_Load = true
@@ -401,9 +413,11 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
             var list: [SchedulesModel] = []
             var revisions: [String: String] = [:]
+            var observed: [String: Date] = [:]
             for row in rows {
                 guard let model = DispatchOfflineRowAdapter.schedulesModel(from: row.row) else { continue }
                 revisions[row.orderProductUniqueId] = row.revision
+                observed[row.orderProductUniqueId] = row.serverObservedAt
                 if let edit = self.offlineEdits[row.orderProductUniqueId] {
                     if edit.revision == row.revision {
                         if let local = edit.row { list.append(local) } // nil = removed on this screen
@@ -414,6 +428,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                 list.append(model)
             }
             self.offlineRevisions = revisions
+            self.offlineObservedAt = observed
             self.arrDispatchList = list
         }
 
@@ -438,19 +453,26 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     }
 
     @objc func offlineReconcileDidFinish(_ note: Notification) {
-        let failed = (note.userInfo?["failed"] as? Bool) ?? false
-        DispatchQueue.main.async { [weak self] in self?.applyReconcileOutcome(failed: failed) }
+        let failed = (note.userInfo?["failed"] as? Bool) ?? true
+        let tenant = note.userInfo?["tenantKey"] as? String
+        DispatchQueue.main.async { [weak self] in
+            // Review F3: another company's outcome (a sign-out/sign-in race) never settles this one.
+            guard DispatchOfflineScreenPolicy.appliesReconcileOutcome(
+                fromTenant: tenant, currentTenant: DispatchOfflineSync.currentSession()?.tenantKey) else { return }
+            self?.applyReconcileOutcome(failed: failed)
+        }
     }
 
     /// Settles the screen after a reconciliation: a failure (or offline) is flagged, a success
-    /// clears the header. Never downloaded + the download failed online → the live feed, as
-    /// before Phase 3 (the screen never sits on a spinner).
+    /// clears the header — but never while any active mission is missing or stale (review F1).
+    /// Never downloaded + the download failed online → the live feed, as before Phase 3 (the
+    /// screen never sits on a spinner).
     func applyReconcileOutcome(failed: Bool) {
         guard self.viewIfLoaded?.window != nil, self.isShowingOfflineCache,
               let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) else { return }
         let online = NetworkReachabilityManager()?.isReachable == true
 
-        switch DispatchOfflineScreenPolicy.outcome(notDownloaded: presentation == .notDownloaded, failed: failed, online: online) {
+        switch DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: online) {
         case .fallBackToFeed:
             self.isAwaitingFirstDownload = false
             self.stopAnimatingView()
@@ -480,12 +502,12 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
     /// D4: manual tasks stay on the existing feed + cache (best effort, not offline-guaranteed).
     func fetchManualRider() {
-        let params = DispatchParameater(page: "1", schedule_type: self.selectScheduleType(), schedule_status: "Pending",
-                                        category_id: self.selectCategoryID, search: "", transport_mode: self.selectDeliveryType,
-                                        date_filter: self.strSelectDay, driver_id: self.selectDriverID)
-        self.callAPIforDispatchManualRider(DispatchParameater: params) { [weak self] saved in
+        let params = self.currentFeedParams(page: "1", search: "")
+        let ticket = self.feedRequests.ticket(for: params.feedScope)
+        self.callAPIforDispatchManualRider(DispatchParameater: params, ticket: ticket) { [weak self] saved in
             DispatchQueue.main.async {
-                guard let self = self, saved, self.isShowingOfflineCache else { return }
+                // F4: another driver's (or day's, category's…) manual tasks never land on this view.
+                guard let self = self, saved, self.isShowingOfflineCache, self.isCurrent(ticket) else { return }
                 self.arrManualList = self.getDispatchManualData()
                 self.rebuildRows()
                 self.emptyDataView.isHidden = self.arrRows.count != 0 || self.isAwaitingFirstDownload
@@ -533,8 +555,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // stays intact — and the overlay outlives a page-1 feed replace, so the
         // row can never reinsert. Completed view stays unfiltered (retained
         // synced ops must not hide genuinely completed rows there).
+        let operations = KabbaSync.engine?.snapshot() ?? []
+        self.driverStageOverlay = DriverStageOverlay.from(operations)
         if self.selectStatus == "1" {
-            let overlay = EffectiveFieldState.CompletionOverlay.from(KabbaSync.engine?.snapshot() ?? [])
+            let overlay = EffectiveFieldState.CompletionOverlay.from(operations)
             if !overlay.isEmpty {
                 rows = rows.filter { row in
                     guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
@@ -563,6 +587,19 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             }
         }
         self.arrRows = rows
+    }
+
+    /// The row as the card shows it: its copy with the driver's durable trip stage (Load Map &
+    /// Go / Arrived saved on this phone) applied — review F2.
+    func presentedRow(_ index: Int) -> SchedulesModel {
+        let row = self.arrDispatchList[index]
+        return DriverStagePresentation.applying(self.driverStageOverlay, to: row,
+                                                serverObservedAt: self.serverObservedAt(for: row))
+    }
+
+    /// When the server was asked for the data this row shows (nil = unknown).
+    func serverObservedAt(for row: SchedulesModel) -> Date? {
+        self.isShowingOfflineCache ? self.offlineObservedAt[row.unique_id ?? ""] : self.feedObservedAt
     }
 
     /// Row → index into arrDispatchList, when the row is an order leg.
@@ -613,7 +650,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
      
     func APICall() {
-        let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: self.txtSearch.text ?? "", transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+        let params = self.currentFeedParams(page: "\(self.pageCount)")
         self.fetchDispatchOrders(DispatchParameater: params, overrideLocal: true)
     }
     
@@ -802,6 +839,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         }
 
         //CALL API
+        self.feedRequests.restart() // F4: a new search / filter obsoletes every answer in flight
+        self.feedObservedAt = nil
         self.objSearchIndicator.isHidden = false
         self.objSearchIndicator.startAnimating()
         self.pageCount = 1
@@ -812,7 +851,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.selectDeliveryType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
         
         
-        let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: search, transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+        let params = self.currentFeedParams(page: "\(self.pageCount)", search: search)
         self.fetchDispatchOrders(DispatchParameater: params, overrideLocal: true)
 
         
@@ -1003,22 +1042,24 @@ extension DispatchListViewController{
     func fetchDispatchOrders(DispatchParameater : DispatchParameater, overrideLocal: Bool = false) {
         
         let params = DispatchParameater
-        callAPIforGetDispatchList(DispatchParameater: params) { [weak self] isSaved in
+        let ticket = self.feedRequests.ticket(for: params.feedScope)
+        callAPIforGetDispatchList(DispatchParameater: params, ticket: ticket) { [weak self] isSaved in
             guard let self = self else { return }
-            // A late answer for a filter the employee has already left (e.g. an All or
-            // Completed response landing after switching back to Today) must not replace
-            // what is on screen now.
-            guard self.isCurrentFeedRequest(params) else { return }
+            // Review F4: a late answer for a scope the employee has left — another driver, day,
+            // leg, status, category, search or transport mode, or an older request generation —
+            // never replaces what is on screen now. The feed must also still own the view.
+            guard self.isCurrent(ticket), !self.isShowingOfflineCache || self.orderSource == .cacheThenFeed else { return }
             self.isAwaitingFirstDownload = false
             
             self.isLoading = false
             self.stopAnimatingView()
             self.objRefresh?.endRefreshing()
-            if self.pageCount == 1{
+            if params.page == "1" {
                 self.arrDispatchList = []
             }
             
             if isSaved {
+                if params.page == "1" { self.feedObservedAt = ticket.startedAt }
                 let localData = self.getDispatchOrderData(schedule_type: DispatchParameater.schedule_type)
 
                 if overrideLocal {
@@ -1069,13 +1110,19 @@ extension DispatchListViewController{
         }
     }
         
-    /// The feed request still describes what the screen shows (and the feed owns that view).
-    func isCurrentFeedRequest(_ params: DispatchParameater) -> Bool {
-        guard !self.isShowingOfflineCache || self.orderSource == .cacheThenFeed else { return false }
-        return params.date_filter == self.strSelectDay
-            && params.driver_id == self.selectDriverID
-            && params.schedule_type == self.selectScheduleType()
-            && params.schedule_status == (self.selectStatus == "1" ? "Pending" : "Completed")
+    /// The parameters for the list the screen shows now — ONE builder for every feed request
+    /// (first page, next page, search, the Manual Dispatch rider) and for the current scope.
+    func currentFeedParams(page: String, search: String? = nil) -> DispatchParameater {
+        DispatchParameater(page: page, schedule_type: self.selectScheduleType(),
+                           schedule_status: self.selectStatus == "1" ? "Pending" : "Completed",
+                           category_id: self.selectCategoryID, search: search ?? (self.txtSearch?.text ?? ""),
+                           transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay,
+                           driver_id: self.selectDriverID)
+    }
+
+    /// Review F4: the answer still belongs to the scope on screen, in the current request generation.
+    func isCurrent(_ ticket: DispatchFeedRequests.Ticket) -> Bool {
+        self.feedRequests.accepts(ticket, currentScope: self.currentFeedParams(page: "1").feedScope)
     }
 
     // MARK: - Get Local Data
@@ -1090,11 +1137,21 @@ extension DispatchListViewController{
     /// keyed by schedule_type: the manual set is one list; the Delivery /
     /// Return rendering rule is applied at weave time.
     func manualCacheKey() -> String {
-        return "kDispatchManualList_\(self.strSelectDay)_\(self.selectDriverID)"
+        return self.manualCacheKey(dateFilter: self.strSelectDay, driverId: self.selectDriverID)
+    }
+
+    /// The slot for one request's scope (F4: an answer is written where IT belongs, never
+    /// wherever the screen happens to be when it lands).
+    func manualCacheKey(dateFilter: String, driverId: String) -> String {
+        return "kDispatchManualList_\(dateFilter)_\(driverId)"
     }
 
     func getDispatchManualData() -> [DispatchManualJob] {
-        return SDKUserDefault.getCodableArray(DispatchManualJob.self, for: self.manualCacheKey()) ?? []
+        return self.getDispatchManualData(key: self.manualCacheKey())
+    }
+
+    func getDispatchManualData(key: String) -> [DispatchManualJob] {
+        return SDKUserDefault.getCodableArray(DispatchManualJob.self, for: key) ?? []
     }
 
     /// Persists the in-memory order list back to its cache slot and re-weaves
@@ -1236,8 +1293,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             //START LOADING
             startAnimatingView()
             
-            //CALL API
-            let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: self.txtSearch.text ?? "", transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+            //CALL API — the next page of the SAME list (same scope, same request generation)
+            let params = self.currentFeedParams(page: "\(self.pageCount)")
             self.fetchDispatchOrders(DispatchParameater: params)
 
         }
@@ -1286,8 +1343,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 return cell
             }
 
-            //GET DATA
-            let objData = self.arrDispatchList[orderIndex]
+            //GET DATA — with the driver's durable trip stage (F2)
+            let objData = self.presentedRow(orderIndex)
 
             //OVERDUE FLAG — delivery rows use is_delivery_overdue, pickup rows use is_pickup_overdue
             let isRowOverdue = (objData.is_delivered == false) ? (objData.is_delivery_overdue ?? false) : (objData.is_pickup_overdue ?? false)
@@ -1562,7 +1619,9 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         if self.arrDispatchList.count == 0{
             return
         }
-        let objData = self.arrDispatchList[sender.tag]
+        guard sender.tag < self.arrDispatchList.count else { return }
+        // F2: the stage (button colour, Screen 2) comes from durable Sync Engine steps too.
+        let objData = self.presentedRow(sender.tag)
         var isDriverAssign : Bool = false
         var checklistType : String = ""
         if objData.is_delivered == false {
@@ -1626,7 +1685,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
                     newViewController.delegate_Data = self
                     newViewController.buttonColour = buttonColour
-                    newViewController.objDispatch = objData
+                    newViewController.objDispatch = self.arrDispatchList[sender.tag]
+                    newViewController.serverObservedAt = self.serverObservedAt(for: objData)
                     newViewController.selectIndex = sender.tag
                     newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
                     newViewController.strOrderID = "\(objData.order?.order_number ?? "")"

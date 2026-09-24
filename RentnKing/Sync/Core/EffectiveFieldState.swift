@@ -222,3 +222,129 @@ enum EffectiveFieldState {
         )
     }
 }
+
+// MARK: - Driver trip stage (Load Map & Go / On My Way / Arrived) — review F2
+//
+// The same local-first rule, for the driver's trip on one order product + leg:
+//
+//     durable local action → immediate effective state → later server confirmation
+//
+// Load Map & Go and Arrived are driver_checklist.update operations the Sync Engine
+// keeps on disk (pending → synced, retained). Screen 2 and the Dispatch card derive
+// the stage from them over the row's server copy, so leaving Dispatch, a force-quit
+// or a relaunch offline can never forget a departure or an arrival — and never
+// offers the step again. There is no second store for the stage.
+
+/// The driver's trip stage as Screen 2 shows it.
+enum DriverTripStage: Int, Comparable {
+    /// The Driver Checklist; Load Map & Go not yet tapped.
+    case notStarted = 0
+    /// Departed ("On My Way"): the server stamps ready_to_go_at.
+    case onMyWay = 1
+    case arrived = 2
+
+    static func < (a: DriverTripStage, b: DriverTripStage) -> Bool { a.rawValue < b.rawValue }
+}
+
+/// What the row's own checklist block says — server truth as last downloaded.
+struct DriverStageServerState: Equatable {
+    var readyToGoAt: String?
+    var arrivedAt: String?
+    var isArrived: Bool
+}
+
+struct DriverStageEffective: Equatable {
+    var stage: DriverTripStage
+    /// "yyyy-MM-dd HH:mm:ss" — the server's stamp, else when the driver did it on this phone.
+    var readyToGoAt: String?
+    var arrivedAt: String?
+
+    /// Load Map & Go records a departure only before the leg departed.
+    var recordsDeparture: Bool { stage == .notStarted }
+    /// Arrived records an arrival only once — afterwards the button only continues.
+    var recordsArrival: Bool { stage != .arrived }
+}
+
+/// Durable local evidence of every driver trip on this phone, from engine.snapshot().
+struct DriverStageOverlay: Equatable {
+
+    /// Statuses the server stamps ready_to_go_at for (On My Way back-fills it).
+    static let departureStatuses: Set<String> = ["On My Way", "Ready to Go"]
+    static let arrivalStatus = "Arrived"
+
+    struct Step: Equatable {
+        let isArrival: Bool
+        let capturedAt: Date
+        /// When the server confirmed it; nil while it is not confirmed (pending, syncing, needs attention).
+        let confirmedAt: Date?
+    }
+
+    /// "order product|leg" → its trip steps.
+    private let steps: [String: [Step]]
+
+    static func from(_ operations: [SyncOperation]) -> DriverStageOverlay {
+        var steps: [String: [Step]] = [:]
+        for op in operations where op.type == EffectiveFieldState.driverChecklistType
+            && EffectiveFieldState.countsAsDurableEvidence(op.state) {
+            guard let product = op.payload["order_product_unique_id"]?.stringValue, !product.isEmpty,
+                  let leg = op.payload["checklist_type"]?.stringValue, !leg.isEmpty,
+                  let status = op.payload["equipment_driver_status"]?.stringValue else { continue }
+            let isArrival = status == arrivalStatus
+            // A partial save carries answers only — it is no stage.
+            guard isArrival || departureStatuses.contains(status) else { continue }
+            steps[key(product, leg), default: []].append(
+                Step(isArrival: isArrival, capturedAt: op.capturedAt,
+                     confirmedAt: op.state == .synced ? op.acknowledgment?.acknowledgedAt : nil))
+        }
+        return DriverStageOverlay(steps: steps)
+    }
+
+    /// The stage for one order product + leg (`leg` = the driver checklist_type:
+    /// "delivery" | "pickup"). The furthest of server truth and every local step the server
+    /// has not yet been OBSERVED to supersede: a step stands while unconfirmed, and once
+    /// confirmed only until a copy of the row asked for after that confirmation is shown
+    /// (the office may have recalled the trip since). `serverObservedAt` = when the server
+    /// was asked for the row shown; nil = unknown, so every local step stands.
+    func effective(orderProductUniqueId: String, leg: String, server: DriverStageServerState,
+                   serverObservedAt: Date?) -> DriverStageEffective {
+        let serverReady = server.readyToGoAt.flatMap { $0.isEmpty ? nil : $0 }
+        let serverArrived = server.arrivedAt.flatMap { $0.isEmpty ? nil : $0 }
+        var stage: DriverTripStage = server.isArrived ? .arrived : (serverReady != nil ? .onMyWay : .notStarted)
+        var readyToGoAt = serverReady
+        var arrivedAt = server.isArrived ? serverArrived : nil
+
+        let standing = (steps[Self.key(orderProductUniqueId, leg)] ?? []).filter { step in
+            guard let confirmed = step.confirmedAt, let observed = serverObservedAt else { return true }
+            return observed < confirmed
+        }
+        // Like the server: the first departure stamps ready_to_go_at, the latest Arrived wins.
+        let departure = standing.filter { !$0.isArrival }.min { $0.capturedAt < $1.capturedAt }
+        let arrival = standing.filter(\.isArrival).max { $0.capturedAt < $1.capturedAt }
+        if arrival != nil {
+            stage = max(stage, .arrived)
+        } else if departure != nil {
+            stage = max(stage, .onMyWay)
+        }
+        if stage >= .onMyWay, readyToGoAt == nil {
+            readyToGoAt = (departure ?? arrival).map { Self.stamp($0.capturedAt) }
+        }
+        if stage == .arrived, arrivedAt == nil {
+            arrivedAt = arrival.map { Self.stamp($0.capturedAt) }
+        }
+        return DriverStageEffective(stage: stage, readyToGoAt: readyToGoAt, arrivedAt: arrivedAt)
+    }
+
+    /// The row format ("yyyy-MM-dd HH:mm:ss", phone time zone) Screen 2 already stamps and parses.
+    static func stamp(_ date: Date) -> String {
+        stampFormatter.string(from: date)
+    }
+
+    private static let stampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
+    }()
+
+    private static func key(_ product: String, _ leg: String) -> String { "\(product)|\(leg)" }
+}

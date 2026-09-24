@@ -80,6 +80,9 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     var selectIndex : Int = 0
     var productUniqueId : String = "" //USER THIS ID FOR order_product_unique_id
     var checklistType : String = ""
+    /// When the server was asked for objDispatch's data (nil = unknown): a Load Map & Go /
+    /// Arrived the server confirmed after that is not in the row yet (review F2).
+    var serverObservedAt: Date?
 
     // 2026-09 workflow correction — persistent, editable checklist state.
     /// The state Laravel last received. Leaving the screen with anything newer
@@ -150,22 +153,16 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     
     
     func getReadyToGo_ArrivedStatus() {
-        var ready_to_go_at: String = ""
-        var arrived_at: String = ""
-        var is_arrived: Bool = false
-
-        if self.objDispatch?.is_delivered == false {
-            //DELIVERY CASE
-            ready_to_go_at = self.objDispatch?.delivery_checklist?.ready_to_go_at ?? ""
-            arrived_at = self.objDispatch?.delivery_checklist?.arrived_at ?? ""
-            is_arrived = self.objDispatch?.delivery_checklist?.is_arrived ?? false
-        }
-        else{
-            //PICKUP CASE
-            ready_to_go_at = self.objDispatch?.pickup_checklist?.ready_to_go_at ?? ""
-            arrived_at = self.objDispatch?.pickup_checklist?.arrived_at ?? ""
-            is_arrived = self.objDispatch?.pickup_checklist?.is_arrived ?? false
-        }
+        // Review F2: the stage is DERIVED from the durable Sync Engine steps (Load Map & Go /
+        // Arrived saved on this phone) over the row's server copy — leaving Dispatch, a
+        // force-quit or a relaunch offline can never forget it, or offer the step again.
+        let checklist = self.objDispatch?.is_delivered == false ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
+        let effective = DriverStageOverlay.from(KabbaSync.engine?.snapshot() ?? []).effective(
+            orderProductUniqueId: self.productUniqueId, leg: self.checklistType,
+            server: DriverStagePresentation.serverState(checklist), serverObservedAt: self.serverObservedAt)
+        let ready_to_go_at: String = effective.readyToGoAt ?? ""
+        let arrived_at: String = effective.arrivedAt ?? ""
+        let is_arrived: Bool = effective.stage == .arrived
 
         if is_arrived {
             // ALREADY ARRIVED. Screen 2 still opens (routing is absolute) and
@@ -877,6 +874,9 @@ extension DriverChecklistViewController {
     }
     
     @IBAction func btnReadytoGo_Action(_ sender: UIButton) {
+        // F2: a departure is recorded once — a replayed tap or stale screen never queues another.
+        guard !passedChecklistStage, !alreadyArrived else { return }
+
         //        let alert = UIAlertController(title: "Ready to go", message: "Are you sure you're ready to go?", preferredStyle: .alert)
         //
         //        alert.addAction(UIAlertAction(title: str.no, style: .cancel))

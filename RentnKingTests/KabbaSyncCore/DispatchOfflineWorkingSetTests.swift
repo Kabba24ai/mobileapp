@@ -198,6 +198,34 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
                        "each row names the package revision it was rendered from")
     }
 
+    func testAnUnreadablePackageCountsAsMissing() throws {
+        download(fleet)
+        let entry = store.loadIndex().entry("ORD-SCH-3:delivery")!
+        try Data("not json".utf8).write(to: store.packagesDirectory.appendingPathComponent(entry.packageFile!))
+        let reopened = makeStore() // a new process: nothing decoded in memory
+
+        guard case .ready(let rows, let freshness) = DispatchOfflineWorkingSet.present(
+            store: reopened, query: DispatchOfflineQuery(dates: .all), operations: [], today: today) else { return XCTFail() }
+        XCTAssertFalse(ids(rows).contains("ORD-SCH-3"))
+        XCTAssertEqual(freshness.pendingCount, 1, "a mission the phone cannot show is missing, never current")
+        XCTAssertFalse(freshness.isComplete)
+    }
+
+    func testEveryRowNamesWhenTheServerWasAskedForIt() {
+        let asked = Date(timeIntervalSince1970: 1_790_000_000)
+        server.missions = fleet
+        let reconciler = DispatchOfflineReconciler(httpClient: server, store: store, session: { [unowned self] in .of(self.store) },
+                                                   retainedOrderProducts: { [] }, now: { asked })
+        let done = expectation(description: "download")
+        reconciler.request(.launch) { _ in done.fulfill() }
+        wait(for: [done], timeout: 5)
+
+        let all = rows(DispatchOfflineQuery(dates: .all))
+        XCTAssertEqual(all.count, 6)
+        XCTAssertTrue(all.allSatisfy { $0.serverObservedAt == asked },
+                      "server truth in a package is at least as new as its request (F2: later server confirmation)")
+    }
+
     func testTheOfflineAllLineNamesTheLastDownloadedDay() {
         XCTAssertEqual(DispatchOfflineWorkingSet.offlineAllLine(throughDate: "2026-09-25"),
                        "Offline — showing downloaded Dispatch through Sep 25")
@@ -236,23 +264,142 @@ final class DispatchOfflineScreenPolicyTests: XCTestCase {
         XCTAssertEqual(P.source(pending: true, search: "  ", day: "Today", selectedDriverId: ""), .offlineCache, "blank search is no search")
     }
 
+    private func downloaded(stale: Int = 0, pending: Int = 0) -> DispatchOfflinePresentation {
+        .ready(rows: [], freshness: .init(lastManifestAt: Date(), throughDate: "2026-09-24", staleCount: stale, pendingCount: pending))
+    }
+
     func testAReconciliationOutcomeAlwaysSettlesTheScreen() {
         // Never downloaded: online failure falls back to the live feed (never a permanent spinner);
         // offline says it is not downloaded.
-        XCTAssertEqual(P.outcome(notDownloaded: true, failed: true, online: true), .fallBackToFeed)
-        XCTAssertEqual(P.outcome(notDownloaded: true, failed: false, online: false), .showNotDownloaded)
-        XCTAssertEqual(P.outcome(notDownloaded: true, failed: true, online: false), .showNotDownloaded)
+        XCTAssertEqual(P.outcome(presentation: .notDownloaded, failed: true, online: true), .fallBackToFeed)
+        XCTAssertEqual(P.outcome(presentation: .notDownloaded, failed: false, online: false), .showNotDownloaded)
+        XCTAssertEqual(P.outcome(presentation: .notDownloaded, failed: true, online: false), .showNotDownloaded)
         // Downloaded: a failed/partial run is never presented as current; success clears the header.
-        XCTAssertEqual(P.outcome(notDownloaded: false, failed: true, online: true), .flagNotCurrent)
-        XCTAssertEqual(P.outcome(notDownloaded: false, failed: false, online: false), .flagOffline)
-        XCTAssertEqual(P.outcome(notDownloaded: false, failed: false, online: true), .current)
+        XCTAssertEqual(P.outcome(presentation: downloaded(), failed: true, online: true), .flagNotCurrent)
+        XCTAssertEqual(P.outcome(presentation: downloaded(), failed: false, online: false), .flagOffline)
+        XCTAssertEqual(P.outcome(presentation: downloaded(), failed: false, online: true), .current)
         // A successful first download renders normally.
-        XCTAssertEqual(P.outcome(notDownloaded: true, failed: false, online: true), .current)
+        XCTAssertEqual(P.outcome(presentation: .notDownloaded, failed: false, online: true), .current)
+    }
+
+    func testTheCacheIsNeverCurrentWhileAnyMissionIsStaleOrMissing() {
+        // Review F1: whatever the last answer said, an incomplete working set is flagged.
+        XCTAssertEqual(P.outcome(presentation: downloaded(stale: 1), failed: false, online: true), .flagNotCurrent)
+        XCTAssertEqual(P.outcome(presentation: downloaded(pending: 1), failed: false, online: true), .flagNotCurrent)
+        XCTAssertEqual(P.outcome(presentation: downloaded(stale: 2, pending: 3), failed: true, online: true), .flagNotCurrent)
+        XCTAssertEqual(P.outcome(presentation: downloaded(pending: 1), failed: false, online: false), .flagOffline)
+        XCTAssertEqual(P.outcome(presentation: downloaded(), failed: false, online: true), .current)
+    }
+
+    func testWhichAnswersMeanTheListMayNotBeCurrent() {
+        typealias R = DispatchOfflineReconcileResult
+        XCTAssertFalse(P.indicatesFailure(R(status: .completed)))
+        XCTAssertTrue(P.indicatesFailure(R(status: .partial)))
+        XCTAssertTrue(P.indicatesFailure(R(status: .failed(.offline))))
+        XCTAssertTrue(P.indicatesFailure(R(status: .skipped(.coolingDown))), "skipped because the last run failed")
+        XCTAssertTrue(P.indicatesFailure(R(status: .skipped(.noSession))))
+        XCTAssertFalse(P.indicatesFailure(R(status: .skipped(.fresh))))
+        XCTAssertFalse(P.indicatesFailure(R(status: .skipped(.alreadyCurrent))))
+    }
+
+    func testOnlyARealOutcomeForTheSignedInCompanySettlesTheScreen() {
+        typealias R = DispatchOfflineReconcileResult
+        // Review F3: a run stopped by a session change is an outcome for nobody.
+        XCTAssertFalse(P.postsReconcileOutcome(R(status: .failed(.sessionChanged))))
+        XCTAssertFalse(P.postsReconcileOutcome(R(status: .partial, packageFailure: .sessionChanged)))
+        XCTAssertFalse(P.postsReconcileOutcome(R(status: .skipped(.fresh))))
+        XCTAssertTrue(P.postsReconcileOutcome(R(status: .completed)))
+        XCTAssertTrue(P.postsReconcileOutcome(R(status: .partial, packageFailure: .offline)))
+        XCTAssertTrue(P.postsReconcileOutcome(R(status: .failed(.offline))))
+        // …and only the company it belongs to applies it.
+        XCTAssertTrue(P.appliesReconcileOutcome(fromTenant: "aaaa", currentTenant: "aaaa"))
+        XCTAssertFalse(P.appliesReconcileOutcome(fromTenant: "aaaa", currentTenant: "bbbb"))
+        XCTAssertFalse(P.appliesReconcileOutcome(fromTenant: "aaaa", currentTenant: nil))
+        XCTAssertFalse(P.appliesReconcileOutcome(fromTenant: nil, currentTenant: "aaaa"))
     }
 
     func testOnlyAMissingDownloadForcesARequestOnAFilterChange() {
         XCTAssertTrue(P.filterChangeNeedsFirstDownload(notDownloaded: true, online: true))
         XCTAssertFalse(P.filterChangeNeedsFirstDownload(notDownloaded: true, online: false), "offline: zero requests")
         XCTAssertFalse(P.filterChangeNeedsFirstDownload(notDownloaded: false, online: true), "downloaded: local filtering only")
+    }
+}
+
+// MARK: - Live feed / Manual Dispatch request binding (review F4)
+
+final class DispatchFeedRequestsTests: XCTestCase {
+
+    private let gary = DispatchFeedScope(pending: true, scheduleType: "All", dateFilter: "All", driverId: "4",
+                                         categoryId: "", search: "", transportMode: "Truck")
+
+    func testADriverSwitchWhileARequestIsInFlightDiscardsItsAnswer() {
+        let requests = DispatchFeedRequests()
+        requests.restart()
+        let garysRequest = requests.ticket(for: gary)
+
+        // The employee switches Gary → Blake before Gary's answer lands.
+        var blake = gary
+        blake.driverId = "7"
+        requests.restart()
+        let blakesRequest = requests.ticket(for: blake)
+
+        XCTAssertFalse(requests.accepts(garysRequest, currentScope: blake), "Gary's answer never replaces Blake's view")
+        XCTAssertTrue(requests.accepts(blakesRequest, currentScope: blake))
+    }
+
+    func testEveryNonDriverFilterChangeObsoletesAnInFlightRequest() {
+        let changes: [(String, (inout DispatchFeedScope) -> Void)] = [
+            ("category", { $0.categoryId = "11" }),
+            ("date", { $0.dateFilter = "Today" }),
+            ("leg type", { $0.scheduleType = "Delivery" }),
+            ("status", { $0.pending = false }),
+            ("search", { $0.search = "Cash" }),
+            ("transport", { $0.transportMode = "Store" }),
+        ]
+        for (what, change) in changes {
+            let requests = DispatchFeedRequests()
+            let inFlight = requests.ticket(for: gary)
+            var now = gary
+            change(&now)
+            // Even without a restart (defence in depth), a different scope is never applied.
+            XCTAssertFalse(requests.accepts(inFlight, currentScope: now), "\(what) change")
+            requests.restart()
+            XCTAssertFalse(requests.accepts(inFlight, currentScope: now), "\(what) change, after restart")
+            XCTAssertTrue(requests.accepts(requests.ticket(for: now), currentScope: now))
+        }
+    }
+
+    func testARefreshOfTheSameScopeObsoletesTheOlderRequest() {
+        let requests = DispatchFeedRequests()
+        let older = requests.ticket(for: gary)
+        requests.restart() // pull-to-refresh / screen reopen: a new request generation
+        XCTAssertFalse(requests.accepts(older, currentScope: gary))
+    }
+
+    func testTheNextPageOfTheSameListIsAccepted() {
+        let requests = DispatchFeedRequests()
+        requests.restart()
+        let page1 = requests.ticket(for: gary)
+        let page2 = requests.ticket(for: gary) // pagination: same generation, same scope
+        XCTAssertTrue(requests.accepts(page1, currentScope: gary))
+        XCTAssertTrue(requests.accepts(page2, currentScope: gary))
+    }
+
+    func testTheSearchScopeIgnoresSurroundingWhitespace() {
+        var padded = gary
+        padded.search = "  Cash "
+        var trimmed = gary
+        trimmed.search = "Cash"
+        XCTAssertEqual(DispatchFeedScope(pending: true, scheduleType: "All", dateFilter: "All", driverId: "4",
+                                         categoryId: "", search: "  Cash ", transportMode: "Truck").search, "Cash")
+        XCTAssertEqual(DispatchFeedScope(pending: padded.pending, scheduleType: padded.scheduleType, dateFilter: padded.dateFilter,
+                                         driverId: padded.driverId, categoryId: padded.categoryId, search: padded.search,
+                                         transportMode: padded.transportMode), trimmed)
+    }
+
+    func testATicketRemembersWhenItsRequestWasSent() {
+        let requests = DispatchFeedRequests()
+        let sent = Date(timeIntervalSince1970: 1_790_000_000)
+        XCTAssertEqual(requests.ticket(for: gary, at: sent).startedAt, sent)
     }
 }

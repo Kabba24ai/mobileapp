@@ -600,10 +600,72 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
         XCTAssertFalse(t.b.loadIndex().everCommitted)
     }
 
-    func testSigningInAgainMidRunAbortsTheOldSessionsRun() {
+    // MARK: - Same-company session change (review F3)
+
+    /// A reconciler whose session is `credential` for this store's company, recording the
+    /// manifest revision of every commit it makes.
+    private func sameCompanyReconciler(_ credential: @escaping () -> String) -> (DispatchOfflineReconciler, () -> [String?]) {
+        let r = DispatchOfflineReconciler(httpClient: server, store: store,
+                                          session: { [unowned self] in .of(self.store, credential: credential()) },
+                                          retainedOrderProducts: { [] }, now: { [unowned self] in self.clock })
+        let lock = NSLock()
+        var commits: [String?] = []
+        r.onCommit = { index in lock.withLock { commits.append(index.manifestRevision) } }
+        return (r, { lock.withLock { commits } })
+    }
+
+    func testASameCompanySignInMidRunDiscardsTheOldAnswerAndRepairsUnderTheNewSession() {
         var credential = "cred-1"
+        let (reconciler, commits) = sameCompanyReconciler { credential }
+        let old = [m("A", "a1")]
+        server.missions = old
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextManifest = gate
+        let done = expectation(description: "run")
+        var result: DispatchOfflineReconcileResult?
+
+        reconciler.request(.launch) { result = $0; done.fulfill() }
+        waitUntil { self.server.manifestRequests == 1 }
+        credential = "cred-2"                 // another employee of the SAME company signs in
+        server.setMissions([m("A", "a2")])    // what the server says for the new session
+        gate.signal()                         // the old session's answer (a1) lands after the change
+        wait(for: [done], timeout: 5)
+
+        XCTAssertFalse(commits().contains(F.manifestRevision(old)), "the old credential's answer is never written")
+        XCTAssertEqual(server.manifestRequests, 2, "one follow-up under the new session, with no other trigger")
+        XCTAssertEqual(result?.status, .completed, "the waiter is served by the new session's run")
+        XCTAssertEqual(ready("ORD-SCH-A:delivery"), F.revision("a2"))
+        XCTAssertEqual(index.manifestRevision, F.manifestRevision([m("A", "a2")]))
+    }
+
+    func testASameCompanyLoginDuringTheRunCoalescesIntoExactlyOneFollowUp() {
+        var credential = "cred-1"
+        let (reconciler, _) = sameCompanyReconciler { credential }
+        server.missions = (1...150).map { m("A\($0)", "a\($0)") } // two package batches
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextPackages = gate
+        let done = expectation(description: "both")
+        done.expectedFulfillmentCount = 2
+        let lock = NSLock()
+        var results: [DispatchOfflineReconcileResult] = []
+
+        reconciler.request(.launch) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        waitUntil { self.server.packageRequests.count == 1 }
+        credential = "cred-2"
+        reconciler.request(.loginCompleted) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        gate.signal()
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(server.manifestRequests, 2, "the login trigger and the aborted run share ONE follow-up")
+        XCTAssertTrue(results.allSatisfy { $0.status == .completed }, "\(results.map(\.status))")
+        XCTAssertTrue(index.isFullyCurrent)
+        XCTAssertEqual(index.entries.count, 150)
+    }
+
+    func testASignOutMidRunStillStopsWithoutAFollowUp() {
+        var signedIn = true
         let reconciler = DispatchOfflineReconciler(httpClient: server, store: store,
-                                                   session: { [unowned self] in .of(self.store, credential: credential) },
+                                                   session: { [unowned self] in signedIn ? .of(self.store) : nil },
                                                    retainedOrderProducts: { [] })
         server.missions = [m("A", "a1")]
         let gate = DispatchSemaphore(value: 0)
@@ -613,13 +675,41 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
 
         reconciler.request(.launch) { result = $0; done.fulfill() }
         waitUntil { self.server.manifestRequests == 1 }
-        credential = "cred-2" // a different employee signed in
+        signedIn = false
         gate.signal()
         wait(for: [done], timeout: 5)
 
         XCTAssertEqual(result?.status, .failed(.sessionChanged))
-        XCTAssertFalse(store.loadIndex().everCommitted)
-        XCTAssertEqual(reconcile(.loginCompleted, on: reconciler).status, .completed, "the new session reconciles normally")
+        XCTAssertEqual(server.manifestRequests, 1, "nobody is signed in: nothing to repair, no request (D6)")
+        XCTAssertFalse(index.everCommitted)
+        XCTAssertFalse(DispatchOfflineScreenPolicy.postsReconcileOutcome(result!), "an aborted run is no outcome for any screen")
+    }
+
+    func testACrossCompanySwitchLeavesTheOldStoreAloneWhileTheNewCompanyReconcilesItsOwn() {
+        let t = twoTenants()
+        let session: () -> DispatchOfflineSession = { t.client.tenant == "A" ? .of(t.a) : .of(t.b) }
+        let reconcilerA = DispatchOfflineReconciler(httpClient: t.client, store: t.a, session: session, retainedOrderProducts: { [] })
+        let reconcilerB = DispatchOfflineReconciler(httpClient: t.client, store: t.b, session: session, retainedOrderProducts: { [] })
+        let gate = DispatchSemaphore(value: 0)
+        t.serverA.holdNextManifest = gate
+        let aDone = expectation(description: "A")
+        var aResult: DispatchOfflineReconcileResult?
+
+        reconcilerA.request(.launch) { aResult = $0; aDone.fulfill() }
+        waitUntil { t.serverA.manifestRequests == 1 }
+        t.client.tenant = "B"                                  // sign out of A, sign in to B
+        let bResult = reconcile(.loginCompleted, on: reconcilerB) // B's own reconciler, promptly
+        gate.signal()
+        wait(for: [aDone], timeout: 5)
+
+        XCTAssertEqual(bResult.status, .completed)
+        XCTAssertEqual(t.b.loadIndex().entries.map(\.missionKey), ["ORD-SCH-B1:delivery"])
+        XCTAssertEqual(aResult?.status, .failed(.sessionChanged))
+        XCTAssertEqual(t.serverA.manifestRequests, 1, "A's run is never followed up under B")
+        XCTAssertFalse(t.a.loadIndex().everCommitted, "zero writes to A")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: t.a.packagesDirectory.path), [])
+        XCTAssertFalse(DispatchOfflineScreenPolicy.postsReconcileOutcome(aResult!), "A's abort never settles B's screen")
+        XCTAssertTrue(DispatchOfflineScreenPolicy.postsReconcileOutcome(bResult))
     }
 
     func testAnotherTenantsSessionIsNoSessionForThisStore() {
@@ -665,6 +755,102 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
         XCTAssertEqual(server.manifestRequests, 4, "a repair trigger gets one follow-up")
     }
 
+    // MARK: - Partial runs stay visibly not current (review F1)
+
+    /// What the Dispatch screen would show for the store right now (online).
+    private func screenOutcome(after result: DispatchOfflineReconcileResult) -> DispatchOfflineScreenPolicy.Outcome {
+        let presentation = DispatchOfflineWorkingSet.present(store: store, query: DispatchOfflineQuery(dates: .all),
+                                                            operations: [], today: "2026-09-22")
+        return DispatchOfflineScreenPolicy.outcome(presentation: presentation,
+                                                   failed: DispatchOfflineScreenPolicy.indicatesFailure(result),
+                                                   online: true)
+    }
+
+    private func invalid(_ mission: M) -> JSONValue {
+        F.package(mission).setting(["dispatch", "row"], .null) // never validates
+    }
+
+    func testAPartialLaunchIsNeverFreshForTheNextDispatchOpen() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        XCTAssertEqual(reconcile(.launch).status, .completed)
+        clock = clock.addingTimeInterval(120)
+        server.missions = [m("A", "a2"), m("B", "b2")]
+        server.packageOverrides["ORD-SCH-B:delivery"] = invalid(m("B", "b2"))
+
+        XCTAssertEqual(reconcile(.launch).status, .partial)       // one package fails
+        clock = clock.addingTimeInterval(5)                        // the driver opens Dispatch ~5 s later
+        let open = reconcile(.dispatchScreenOpened)
+
+        XCTAssertNotEqual(open.status, .skipped(.fresh), "a partial run never counts as fresh")
+        XCTAssertEqual(screenOutcome(after: open), .flagNotCurrent, "the saved-list indication stays visible")
+        let noFailureReported = DispatchOfflineReconcileResult(status: .skipped(.fresh))
+        XCTAssertEqual(screenOutcome(after: noFailureReported), .flagNotCurrent,
+                       "while any mission is stale or missing, nothing can present the cache as current")
+
+        // A later fully successful reconciliation clears it.
+        server.packageOverrides = [:]
+        let repair = reconcile(.manualRefresh)
+        XCTAssertEqual(repair.status, .completed)
+        XCTAssertEqual(screenOutcome(after: repair), .current)
+        clock = clock.addingTimeInterval(5)
+        XCTAssertEqual(reconcile(.dispatchScreenOpened).status, .skipped(.fresh), "fully current again → fresh again")
+    }
+
+    func testADispatchOpenCoalescedIntoAPartialLaunchIsNotCurrent() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        server.packageOverrides["ORD-SCH-B:delivery"] = invalid(m("B", "b1"))
+        let gate = DispatchSemaphore(value: 0)
+        server.holdNextPackages = gate
+        let done = expectation(description: "both")
+        done.expectedFulfillmentCount = 2
+        let lock = NSLock()
+        var results: [DispatchOfflineReconcileResult] = []
+
+        reconciler.request(.launch) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        waitUntil { self.server.packageRequests.count == 1 }
+        reconciler.request(.dispatchScreenOpened) { r in lock.withLock { results.append(r) }; done.fulfill() }
+        gate.signal()
+        wait(for: [done], timeout: 5)
+
+        XCTAssertEqual(results.map(\.status), [.partial, .partial], "the open joins the launch run")
+        XCTAssertEqual(server.manifestRequests, 1)
+        XCTAssertTrue(results.allSatisfy { screenOutcome(after: $0) == .flagNotCurrent })
+    }
+
+    func testAPartialRunNeverAdvancesTheDurableFreshMarker() {
+        server.missions = [m("A", "a1"), m("B", "b1")]
+        XCTAssertEqual(reconcile(.launch).status, .completed)
+        let currentAt = index.lastCurrentAt
+        XCTAssertNotNil(currentAt, "a fully current run records when it was current")
+
+        clock = clock.addingTimeInterval(2)
+        server.missions = [m("A", "a2"), m("B", "b2")]
+        server.packageOverrides["ORD-SCH-B:delivery"] = invalid(m("B", "b2"))
+        XCTAssertEqual(reconcile(.manualRefresh).status, .partial)
+        XCTAssertEqual(index.lastCurrentAt, currentAt, "a partial run never advances the fresh marker")
+
+        // Relaunch inside the window: no in-memory failure count, only the durable index.
+        clock = clock.addingTimeInterval(5)
+        let relaunched = makeReconciler()
+        XCTAssertNotEqual(reconcile(.dispatchScreenOpened, on: relaunched).status, .skipped(.fresh))
+        XCTAssertEqual(server.manifestRequests, 3, "the incomplete cache is reconciled, not suppressed")
+    }
+
+    func testAFailedRunAfterASuccessIsNotFreshEither() {
+        server.missions = [m("A", "a1")]
+        XCTAssertEqual(reconcile(.launch).status, .completed)
+        clock = clock.addingTimeInterval(3)
+        server.manifestStatus = 500
+        XCTAssertEqual(reconcile(.manualRefresh).status, .failed(.server(500)))
+        clock = clock.addingTimeInterval(3)
+
+        let open = reconcile(.dispatchScreenOpened)
+
+        XCTAssertEqual(open.status, .skipped(.coolingDown), "the last run failed: back off, never 'fresh'")
+        XCTAssertTrue(DispatchOfflineScreenPolicy.indicatesFailure(open))
+        XCTAssertEqual(screenOutcome(after: open), .flagNotCurrent)
+    }
+
     // MARK: - Background result (test 17)
 
     func testBackgroundResultMapping() {
@@ -695,7 +881,7 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
 
     private func indexBytesWithoutTimestamps() -> JSONValue? {
         guard var value = JSONValue.parse(indexBytes) else { return nil }
-        value = value.setting(["last_manifest_at"], .null).setting(["committed_at"], .null)
+        value = value.setting(["last_manifest_at"], .null).setting(["committed_at"], .null).setting(["last_current_at"], .null)
         return value
     }
 

@@ -87,12 +87,90 @@ final class DispatchOfflineRowAdapterTests: XCTestCase {
         XCTAssertNil(DispatchOfflineRowAdapter.schedulesModel(from: .array([])))
     }
 
+    // MARK: - Review F2: the durable driver trip stage on the card
+
+    /// An offline Sync Engine over a fresh directory, with the app's REAL driver-checklist handler.
+    private func offlineEngine() throws -> SyncEngine {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("stage-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return SyncEngine(store: try FileSyncOperationStore(rootDirectory: dir), httpClient: OfflineClient(),
+                          handlers: [DriverChecklistSyncHandler(hasSession: { true })],
+                          policy: SyncRetryPolicy(backoffSchedule: [600]))
+    }
+
+    private func record(_ status: kDriverCheckListStatus, product: String, leg: String, on engine: SyncEngine) throws {
+        try DriverChecklistSyncHandler.enqueue(into: engine, orderProductUniqueId: product, orderUniqueId: nil,
+                                               equipmentFuel: "", callCustomer: "", equipmentKeyLocation: "",
+                                               equipmentDriverStatus: status.rawValue, checklistType: leg)
+    }
+
+    func testLoadMapAndGoSavedOfflineShowsOnTheCachedCard() throws {
+        let model = try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: try fixtureRow()))
+        let product = try XCTUnwrap(model.unique_id)
+        let engine = try offlineEngine()
+        XCTAssertNil(DriverStagePresentation.applying(DriverStageOverlay.from(engine.snapshot()), to: model, serverObservedAt: nil)
+            .delivery_checklist?.ready_to_go_at, "nothing saved yet → the row as served")
+
+        // The payload the app's handler really writes is what the overlay reads.
+        try record(.kOnMyWay, product: product, leg: DriverChecklistLocalState.legDelivery, on: engine)
+        let departed = DriverStagePresentation.applying(DriverStageOverlay.from(engine.snapshot()), to: model, serverObservedAt: nil)
+        XCTAssertNotNil(departed.delivery_checklist?.ready_to_go_at, "green band / dark icon: On My Way")
+        XCTAssertEqual(departed.delivery_checklist?.is_arrived, false)
+
+        try record(.kArrived, product: product, leg: DriverChecklistLocalState.legDelivery, on: engine)
+        let arrived = DriverStagePresentation.applying(DriverStageOverlay.from(engine.snapshot()), to: model, serverObservedAt: nil)
+        XCTAssertEqual(arrived.delivery_checklist?.is_arrived, true)
+        XCTAssertNotNil(arrived.delivery_checklist?.arrived_at)
+        XCTAssertEqual(arrived.delivery_checklist?.call_customer, model.delivery_checklist?.call_customer,
+                       "only the stage is overlaid; the rest of the row is untouched")
+    }
+
+    func testAnotherLegsOrProductsStageNeverShows() throws {
+        let model = try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: try fixtureRow()))
+        let engine = try offlineEngine()
+        try record(.kOnMyWay, product: try XCTUnwrap(model.unique_id), leg: DriverChecklistLocalState.legPickup, on: engine)
+        try record(.kArrived, product: "ORD-SCH-SOMEONE-ELSE", leg: DriverChecklistLocalState.legDelivery, on: engine)
+
+        let shown = DriverStagePresentation.applying(DriverStageOverlay.from(engine.snapshot()), to: model, serverObservedAt: nil)
+        XCTAssertNil(shown.delivery_checklist?.ready_to_go_at)
+        XCTAssertEqual(shown.delivery_checklist?.is_arrived, false)
+    }
+
+    // MARK: - Review F4: every request parameter is part of its scope
+
+    func testEveryRequestParameterIsPartOfTheRequestsScope() {
+        typealias P = DispatchListViewController.DispatchParameater
+        let base = P(page: "1", schedule_type: "All", schedule_status: "Pending", category_id: "", search: "",
+                     transport_mode: "Truck", date_filter: "All", driver_id: "4")
+        var nextPage = base
+        nextPage.page = "2"
+        XCTAssertEqual(nextPage.feedScope, base.feedScope, "the next page is the same list")
+
+        let changes: [(String, (inout P) -> Void)] = [
+            ("driver", { $0.driver_id = "7" }), ("date", { $0.date_filter = "Today" }),
+            ("category", { $0.category_id = "11" }), ("search", { $0.search = "Cash" }),
+            ("transport", { $0.transport_mode = "Store" }), ("leg type", { $0.schedule_type = "Return" }),
+            ("status", { $0.schedule_status = "Completed" }),
+        ]
+        for (what, change) in changes {
+            var changed = base
+            change(&changed)
+            XCTAssertNotEqual(changed.feedScope, base.feedScope, what)
+        }
+    }
+
     func testTheNotDownloadedStateSaysSoInsteadOfNoResults() {
         let view = EmptyDataView(frame: CGRect(x: 0, y: 0, width: 320, height: 200))
         view.dispatchNotDownloaded()
         let labels = view.allSubviewLabels().compactMap(\.text)
         XCTAssertTrue(labels.contains("Dispatch isn't downloaded to this phone yet"))
         XCTAssertFalse(labels.contains("No results found."))
+    }
+}
+
+private final class OfflineClient: SyncHTTPClient {
+    func perform(_ request: SyncHTTPRequest, completion: @escaping (SyncHTTPResult) -> Void) {
+        completion(.failure(APIError.transport(.offline, description: "hosted test: offline")))
     }
 }
 

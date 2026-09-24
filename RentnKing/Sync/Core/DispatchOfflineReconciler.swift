@@ -30,8 +30,14 @@
 //  started under. The API client re-reads the base URL and token on every
 //  request, so before each request AND when each answer arrives the run
 //  re-checks the current session; on any change (logout, another company,
-//  another employee) it stops with no write and no follow-up. One tenant's
-//  data can never land in another tenant's store.
+//  another employee) it stops with no write. One tenant's data can never land
+//  in another tenant's store. When the new sign-in is the SAME company, ONE
+//  follow-up run under the new session serves every waiter at once, so the
+//  cache is repaired without waiting for an unrelated trigger.
+//
+//  Freshness: only a run that left every active mission at its manifest
+//  revision makes a later foreground / Dispatch open "fresh". A partial or
+//  failed run backs those triggers off instead and never counts as current.
 //
 
 import Foundation
@@ -196,12 +202,15 @@ final class DispatchOfflineReconciler {
         }
         guard trigger.isThrottled else { return nil }
         let at = now()
-        if let last = index.lastManifestAt, at.timeIntervalSince(last) < Self.freshnessWindow, at >= last {
-            return .fresh
-        }
+        // A failed or partial run backs throttled triggers off first — it is never "fresh" (review F1).
         if consecutiveFailures > 0, let failedAt = lastFailureAt,
            at.timeIntervalSince(failedAt) < Self.cooldown(afterFailures: consecutiveFailures) {
             return .coolingDown
+        }
+        // Fresh only when the last run left every active mission current, moments ago.
+        if consecutiveFailures == 0, index.isFullyCurrent, let current = index.lastCurrentAt,
+           at >= current, at.timeIntervalSince(current) < Self.freshnessWindow {
+            return .fresh
         }
         return nil
     }
@@ -210,6 +219,18 @@ final class DispatchOfflineReconciler {
         running = true
         logger?("[dispatch-offline] reconcile (\(trigger))")
         runOnce { result in
+            // Review F3: another sign-in of the SAME company stopped this run before it wrote the
+            // old session's answer. Repair under the new session now — every waiter, and any
+            // trigger that arrived meanwhile, is served by that ONE run. Signed out, or another
+            // company (I-1): stop; that company's own reconciler serves its sign-in.
+            if result.sessionChanged, self.currentSession != nil {
+                let followers = self.pending
+                self.pending = []
+                self.logger?("[dispatch-offline] signed in again within the company — reconciling under the new session")
+                self.start(trigger: followers.first?.trigger ?? trigger, waiters: waiters + followers.map(\.completion))
+                return
+            }
+
             // On the queue. Failed AND partial runs back off throttled triggers (spec §15).
             if result.isFailure, !result.sessionChanged {
                 self.consecutiveFailures += 1
@@ -234,7 +255,8 @@ final class DispatchOfflineReconciler {
     /// Triggers that arrived mid-run are served by that run — unless it failed, a partial
     /// run is followed by a repair trigger (wake, pull-to-refresh, login, network, launch),
     /// or a wake names a manifest revision the run did not see. A run stopped by a session
-    /// change is never followed up: its waiters belonged to the old session.
+    /// change is never followed up here: a same-company sign-in is repaired in start(), and
+    /// otherwise nobody (or another company) is signed in.
     static func needsFollowUp(after result: DispatchOfflineReconcileResult, for triggers: [DispatchOfflineTrigger]) -> Bool {
         if result.sessionChanged { return false }
         if case .failed = result.status { return true }
@@ -338,6 +360,7 @@ final class DispatchOfflineReconciler {
         guard currentSession == owner else {
             return abortForSessionChange(startIndex: startIndex, outcome: outcome, finish: finish)
         }
+        let askedAt = now() // each package reflects server truth at least this new (review F2)
         httpClient.perform(request) { result in
             self.queue.async {
                 guard self.currentSession == owner else {
@@ -366,7 +389,7 @@ final class DispatchOfflineReconciler {
                         var satisfied = Set<String>()
                         for package in decoded.packages {
                             do {
-                                let file = try self.store.writePackage(package, cachedAt: self.now())
+                                let file = try self.store.writePackage(package, cachedAt: self.now(), serverObservedAt: askedAt)
                                 if let i = index.entries.firstIndex(where: { $0.missionKey == package.missionKey }) {
                                     // A package newer than the manifest is the newest known truth.
                                     index.entries[i].readyRevision = package.revision
@@ -423,14 +446,19 @@ final class DispatchOfflineReconciler {
                           outcome: DispatchOfflineReconcileResult,
                           finish: Completion) {
         var outcome = outcome
-        let collected = store.collectGarbage(index, retainingOrderProducts: retainedOrderProducts(), now: now())
-        var final = index
-        if collected != index, (try? store.commit(collected)) != nil {
-            final = collected
-        }
         outcome.failedMissionKeys = Array(Set(outcome.failedMissionKeys)).sorted()
         if !outcome.failedMissionKeys.isEmpty || outcome.packageFailure != nil {
             outcome.status = .partial
+        }
+        var final = store.collectGarbage(index, retainingOrderProducts: retainedOrderProducts(), now: now())
+        // Review F1: ONLY a run that left every active mission at its manifest revision advances
+        // the fresh marker; after a partial run the previous marker stands (and the screen keeps
+        // the saved-list indication until a later complete run).
+        if outcome.status == .completed, final.isFullyCurrent {
+            final.lastCurrentAt = index.lastManifestAt
+        }
+        if final != index, (try? store.commit(final)) == nil {
+            final = index
         }
         outcome.changed = startIndex.presentableSignature != final.presentableSignature
         logger?("[dispatch-offline] done: \(outcome.status) changed=\(outcome.changed) downloaded=\(outcome.downloaded) adopted=\(outcome.adopted) removed=\(outcome.removed) failed=\(outcome.failedMissionKeys.count)")

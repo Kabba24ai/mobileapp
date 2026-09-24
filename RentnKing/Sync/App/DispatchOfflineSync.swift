@@ -22,8 +22,10 @@ import UIKit
 extension Notification.Name {
     /// Posted on the main queue when the presentable offline Dispatch working set changed on disk.
     static let kabbaDispatchOfflineChanged = Notification.Name("ai.kabba.dispatchOffline.changed")
-    /// Posted on the main queue when any reconciliation run finished (whatever triggered it).
-    /// userInfo: ["failed": Bool] — failed or partial means the shown list may not be current.
+    /// Posted on the main queue when a reconciliation run finished (whatever triggered it) —
+    /// never for a skip, never for a run stopped by a session change (review F3).
+    /// userInfo: ["failed": Bool, "tenantKey": String] — failed or partial means the shown list
+    /// may not be current; only the company signed in NOW applies it.
     static let kabbaDispatchOfflineReconciled = Notification.Name("ai.kabba.dispatchOffline.reconciled")
 }
 
@@ -69,12 +71,14 @@ enum DispatchOfflineSync {
 
         // A run started while the app is in use keeps going briefly if the employee leaves the app.
         let task = BackgroundTask.begin()
+        let tenantKey = reconciler.store.tenantKey
         reconciler.request(trigger) { result in
             DispatchQueue.main.async {
                 task.end()
-                if case .skipped = result.status {} else {
+                if DispatchOfflineScreenPolicy.postsReconcileOutcome(result) {
                     NotificationCenter.default.post(name: .kabbaDispatchOfflineReconciled, object: nil,
-                                                    userInfo: ["failed": result.isFailure])
+                                                    userInfo: ["failed": DispatchOfflineScreenPolicy.indicatesFailure(result),
+                                                               "tenantKey": tenantKey])
                 }
                 completion?(result)
             }

@@ -72,6 +72,14 @@ struct DispatchUpdateStatusParameter: Codable {
     var schedule_status: String  // "Completed"
 }
 
+extension DispatchListViewController.DispatchParameater {
+    /// Review F4: the presentation scope this request describes.
+    var feedScope: DispatchFeedScope {
+        DispatchFeedScope(pending: schedule_status == "Pending", scheduleType: schedule_type, dateFilter: date_filter,
+                          driverId: driver_id, categoryId: category_id, search: search, transportMode: transport_mode)
+    }
+}
+
 // MARK: - API Calls (extension on DispatchListViewController)
 extension DispatchListViewController :WebServiceHelperDelegate{
     
@@ -105,7 +113,10 @@ extension DispatchListViewController :WebServiceHelperDelegate{
         var include_manual : String = "1"
     }
 
-    func callAPIforGetDispatchList(DispatchParameater: DispatchParameater, completion: @escaping (Bool) -> Void) {
+    /// `ticket` binds the answer to the scope that asked (review F4): an obsolete answer writes
+    /// nothing — no order slot, no manual list, no pagination — and completes as not saved.
+    func callAPIforGetDispatchList(DispatchParameater: DispatchParameater, ticket: DispatchFeedRequests.Ticket,
+                                   completion: @escaping (Bool) -> Void) {
         
         guard let parameters = try? DispatchParameater.asDictionary() else {
             showAlertMessage(strMessage: str.invalidRequestParamater)
@@ -126,7 +137,11 @@ extension DispatchListViewController :WebServiceHelperDelegate{
         
         webHelper.callAPIwithCompletation { [weak self] data, arr, isDic, error in
             guard let self = self else { return }
-            
+            guard self.isCurrent(ticket) else {
+                completion(false)
+                return
+            }
+
             indicatorHide()
             self.isLoading = false
             
@@ -153,7 +168,7 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                 }
 
                 // Manage local storage
-                if self.pageCount == 1 {
+                if DispatchParameater.page == "1" {
                     // Overwrite old data — a fresh page-1 snapshot REPLACES the
                     // cached server truth (jobs reassigned away disappear here).
                     SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(DispatchParameater.date_filter)_\(DispatchParameater.driver_id)")
@@ -167,11 +182,12 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                     // so it must not wipe the cache either.
                     if DispatchParameater.schedule_type != "Return" {
                         let manualSnapshot = (data?["manual_jobs"] as? [[String: Any]]).map(DispatchManualJob.decodeList(fromJSONArray:))
+                        let key = self.manualCacheKey(dateFilter: DispatchParameater.date_filter, driverId: DispatchParameater.driver_id)
                         let reconciled = DispatchWorkload.reconciledManualList(
-                            cached: self.getDispatchManualData(),
+                            cached: self.getDispatchManualData(key: key),
                             serverSnapshot: manualSnapshot
                         )
-                        SDKUserDefault.saveCodableArray(reconciled, for: self.manualCacheKey())
+                        SDKUserDefault.saveCodableArray(reconciled, for: key)
                     }
 
                     self.lastDispatchServerSyncAt = Date()
@@ -204,7 +220,8 @@ extension DispatchListViewController :WebServiceHelperDelegate{
     /// only the live feed's page-1 Manual Dispatch rider is fetched (per_page=1; its order row
     /// is ignored and never written to the order cache slot). Manual tasks stay on the existing
     /// feed + per-driver cache — best effort, NOT part of the guaranteed offline working set.
-    func callAPIforDispatchManualRider(DispatchParameater: DispatchParameater, completion: @escaping (Bool) -> Void) {
+    func callAPIforDispatchManualRider(DispatchParameater: DispatchParameater, ticket: DispatchFeedRequests.Ticket,
+                                       completion: @escaping (Bool) -> Void) {
         var params = DispatchParameater
         params.page = "1"
         params.per_page = "1"
@@ -224,13 +241,16 @@ extension DispatchListViewController :WebServiceHelperDelegate{
         webHelper.indicatorShowOrHide = false
 
         webHelper.callAPIwithCompletation { [weak self] data, arr, isDic, error in
-            guard let self = self, error == nil, data?.getStringForID(key: "success") == "1" else {
+            // Review F4: an answer for a scope the screen has left is discarded unwritten.
+            guard let self = self, self.isCurrent(ticket), error == nil, data?.getStringForID(key: "success") == "1" else {
                 completion(false)
                 return
             }
             let manualSnapshot = (data?["manual_jobs"] as? [[String: Any]]).map(DispatchManualJob.decodeList(fromJSONArray:))
-            let reconciled = DispatchWorkload.reconciledManualList(cached: self.getDispatchManualData(), serverSnapshot: manualSnapshot)
-            SDKUserDefault.saveCodableArray(reconciled, for: self.manualCacheKey())
+            // Written under the REQUEST's driver + day, never whichever the screen shows now.
+            let key = self.manualCacheKey(dateFilter: params.date_filter, driverId: params.driver_id)
+            let reconciled = DispatchWorkload.reconciledManualList(cached: self.getDispatchManualData(key: key), serverSnapshot: manualSnapshot)
+            SDKUserDefault.saveCodableArray(reconciled, for: key)
             completion(true)
         }
     }

@@ -35,6 +35,9 @@ struct DispatchOfflineRow: Equatable {
     let isOverdue: Bool
     /// Shown from an older package while the newest one could not be downloaded yet.
     let isStale: Bool
+    /// When the server was asked for this row's package (nil = unknown) — local driver actions
+    /// the server confirmed after it are not reflected in the row yet (review F2).
+    let serverObservedAt: Date?
     /// The legacy Dispatch feed row (dispatch.row) plus the derived overdue flags —
     /// exactly what SchedulesModel maps.
     let row: JSONValue
@@ -45,8 +48,13 @@ enum DispatchOfflinePresentation: Equatable {
         let lastManifestAt: Date?
         /// Last calendar day the downloaded working set covers.
         let throughDate: String?
+        /// Active missions shown from an older package (the newer one is not downloaded yet).
         let staleCount: Int
+        /// Active missions the phone cannot show: never downloaded, or the file is unreadable.
         let pendingCount: Int
+
+        /// Every active mission is shown at its manifest revision (review F1).
+        var isComplete: Bool { staleCount == 0 && pendingCount == 0 }
     }
 
     case notDownloaded
@@ -64,8 +72,13 @@ enum DispatchOfflineWorkingSet {
 
         let overlay = EffectiveFieldState.CompletionOverlay.from(operations)
         var rows: [DispatchOfflineRow] = []
+        var stale = 0, missing = 0
         for entry in index.entries {
-            guard let stored = store.readyPackage(for: entry), var row = stored.row, case .object = row else { continue }
+            guard let stored = store.readyPackage(for: entry), var row = stored.row, case .object = row else {
+                missing += 1 // counted across the whole working set, whatever the filters show
+                continue
+            }
+            if entry.isStale { stale += 1 }
             let isDelivery = entry.leg == .delivery
 
             switch query.legs {
@@ -92,14 +105,15 @@ enum DispatchOfflineWorkingSet {
                                            leg: entry.leg, effectiveDate: entry.effectiveDate,
                                            revision: stored.revision,
                                            sortKey: row["sort_key"]?.stringValue ?? DispatchWorkload.openEndedSortKey,
-                                           isOverdue: overdue, isStale: entry.isStale, row: row))
+                                           isOverdue: overdue, isStale: entry.isStale,
+                                           serverObservedAt: stored.serverObservedAt, row: row))
         }
         rows.sort { ($0.sortKey, $0.missionKey) < ($1.sortKey, $1.missionKey) }
 
         return .ready(rows: rows, freshness: .init(lastManifestAt: index.lastManifestAt,
                                                    throughDate: index.throughDate,
-                                                   staleCount: index.entries.filter(\.isStale).count,
-                                                   pendingCount: index.entries.filter { !$0.isReady }.count))
+                                                   staleCount: stale,
+                                                   pendingCount: missing))
     }
 
     /// "YYYY-MM-DD" of the phone's calendar day — the Today filter's "today".
@@ -170,18 +184,95 @@ enum DispatchOfflineScreenPolicy {
         case current
     }
 
-    static func outcome(notDownloaded: Bool, failed: Bool, online: Bool) -> Outcome {
-        if notDownloaded {
+    /// How the screen settles for what is on disk now and the last answer. A failed or partial
+    /// run — or ANY active mission missing, stale or failed to download, whatever the last
+    /// answer said — is never presented as current (review F1).
+    static func outcome(presentation: DispatchOfflinePresentation, failed: Bool, online: Bool) -> Outcome {
+        guard case .ready(_, let freshness) = presentation else {
             if !online { return .showNotDownloaded }
             return failed ? .fallBackToFeed : .current
         }
         if !online { return .flagOffline }
-        return failed ? .flagNotCurrent : .current
+        return (failed || !freshness.isComplete) ? .flagNotCurrent : .current
+    }
+
+    /// Whether an answer means the list may not be current: a failed or partial run, or a
+    /// request skipped because the last run failed (cooling down) or nobody is signed in.
+    static func indicatesFailure(_ result: DispatchOfflineReconcileResult) -> Bool {
+        switch result.status {
+        case .failed, .partial: return true
+        case .completed: return false
+        case .skipped(let why): return why == .coolingDown || why == .noSession
+        }
+    }
+
+    /// Whether a finished run is an outcome a Dispatch screen should settle on: never a skip
+    /// (the requester settles those itself), never a run stopped by a session change (it is
+    /// the old session's — review F3).
+    static func postsReconcileOutcome(_ result: DispatchOfflineReconcileResult) -> Bool {
+        if case .skipped = result.status { return false }
+        return !result.sessionChanged
+    }
+
+    /// Only the company that is signed in now applies an outcome (review F3).
+    static func appliesReconcileOutcome(fromTenant: String?, currentTenant: String?) -> Bool {
+        guard let from = fromTenant, let current = currentTenant else { return false }
+        return from == current
     }
 
     /// A pure filter change makes no request — unless nothing was ever downloaded and the
     /// phone is online (the first download settles the loading state).
     static func filterChangeNeedsFirstDownload(notDownloaded: Bool, online: Bool) -> Bool {
         notDownloaded && online
+    }
+}
+
+/// Review F4: the presentation scope a live-feed / Manual Dispatch request was made for —
+/// everything that decides which rows the screen shows.
+struct DispatchFeedScope: Equatable {
+    var pending: Bool
+    var scheduleType: String
+    var dateFilter: String
+    var driverId: String
+    var categoryId: String
+    /// Trimmed: surrounding whitespace is no different search.
+    var search: String
+    var transportMode: String
+
+    init(pending: Bool, scheduleType: String, dateFilter: String, driverId: String,
+         categoryId: String, search: String, transportMode: String) {
+        self.pending = pending
+        self.scheduleType = scheduleType
+        self.dateFilter = dateFilter
+        self.driverId = driverId
+        self.categoryId = categoryId
+        self.search = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.transportMode = transportMode
+    }
+}
+
+/// Review F4: binds every live-feed / Manual Dispatch request to the scope AND request
+/// generation that started it. A new list (screen open, refresh, any filter or search
+/// change) restarts the generation, so every answer still in flight becomes obsolete; later
+/// pages of the same list share it. An obsolete answer is discarded — it never writes a cache
+/// slot and never replaces the scope on screen. Main thread only (the Dispatch screen).
+final class DispatchFeedRequests {
+    struct Ticket: Equatable {
+        let generation: Int
+        let scope: DispatchFeedScope
+        /// When the request was sent: the answer's server truth is at least this new (F2).
+        let startedAt: Date
+    }
+
+    private(set) var generation = 0
+
+    func restart() { generation += 1 }
+
+    func ticket(for scope: DispatchFeedScope, at startedAt: Date = Date()) -> Ticket {
+        Ticket(generation: generation, scope: scope, startedAt: startedAt)
+    }
+
+    func accepts(_ ticket: Ticket, currentScope: DispatchFeedScope) -> Bool {
+        ticket.generation == generation && ticket.scope == currentScope
     }
 }
