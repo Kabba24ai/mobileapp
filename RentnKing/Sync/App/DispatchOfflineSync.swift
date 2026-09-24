@@ -22,6 +22,9 @@ import UIKit
 extension Notification.Name {
     /// Posted on the main queue when the presentable offline Dispatch working set changed on disk.
     static let kabbaDispatchOfflineChanged = Notification.Name("ai.kabba.dispatchOffline.changed")
+    /// Posted on the main queue when any reconciliation run finished (whatever triggered it).
+    /// userInfo: ["failed": Bool] — failed or partial means the shown list may not be current.
+    static let kabbaDispatchOfflineReconciled = Notification.Name("ai.kabba.dispatchOffline.reconciled")
 }
 
 enum DispatchOfflineSync {
@@ -29,20 +32,30 @@ enum DispatchOfflineSync {
     private static var rootDirectory: URL?
     private static var client: SyncHTTPClient?
     private static var baseURL: () -> URL? = { nil }
-    private static var hasSession: () -> Bool = { false }
+    private static var accessToken: () -> String? = { nil }
 
     private static let lock = NSLock()
     private static var current: (tenantKey: String, reconciler: DispatchOfflineReconciler)?
 
     /// Called once from KabbaSync.bootstrap (same protected root and API client as the Sync Engine).
     static func configure(rootDirectory: URL, client: SyncHTTPClient,
-                          baseURL: @escaping () -> URL?, hasSession: @escaping () -> Bool) {
+                          baseURL: @escaping () -> URL?, accessToken: @escaping () -> String?) {
         lock.withLock {
             self.rootDirectory = rootDirectory
             self.client = client
             self.baseURL = baseURL
-            self.hasSession = hasSession
+            self.accessToken = accessToken
         }
+    }
+
+    /// The signed-in session as the reconciler binds it: the tenant (api_url) and an opaque
+    /// hash of the credential — a run started under one session never writes after another
+    /// begins (logout, another company, another employee). The token itself is never kept.
+    static func currentSession() -> DispatchOfflineSession? {
+        let (url, token) = lock.withLock { (baseURL(), accessToken()) }
+        guard let url = url, let host = url.host, !host.isEmpty, let token = token, !token.isEmpty else { return nil }
+        return DispatchOfflineSession(tenantKey: DispatchOfflineTenant.key(baseURL: url),
+                                      credential: String(format: "%016llx", DispatchOfflineTenant.fnv1a64(token)))
     }
 
     // MARK: - Triggers
@@ -59,6 +72,10 @@ enum DispatchOfflineSync {
         reconciler.request(trigger) { result in
             DispatchQueue.main.async {
                 task.end()
+                if case .skipped = result.status {} else {
+                    NotificationCenter.default.post(name: .kabbaDispatchOfflineReconciled, object: nil,
+                                                    userInfo: ["failed": result.isFailure])
+                }
                 completion?(result)
             }
         }
@@ -113,7 +130,7 @@ enum DispatchOfflineSync {
             let reconciler = DispatchOfflineReconciler(
                 httpClient: client,
                 store: store,
-                hasSession: hasSession,
+                session: { DispatchOfflineSync.currentSession() },
                 // D7: an order product with ANY Sync Engine operation keeps its package on disk.
                 retainedOrderProducts: {
                     Set((KabbaSync.engine?.snapshot() ?? []).compactMap { $0.identity.orderProductUniqueId })

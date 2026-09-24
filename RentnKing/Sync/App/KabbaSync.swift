@@ -101,7 +101,7 @@ enum KabbaSync {
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
 
             // Dispatch offline (Phase 3): the company-wide durable Dispatch working set.
-            DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, hasSession: hasSession)
+            DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, accessToken: accessToken)
 
             engine.logger = { line in
                 #if DEBUG

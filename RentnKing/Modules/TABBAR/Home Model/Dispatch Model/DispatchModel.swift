@@ -156,7 +156,7 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                 if self.pageCount == 1 {
                     // Overwrite old data — a fresh page-1 snapshot REPLACES the
                     // cached server truth (jobs reassigned away disappear here).
-                    SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)")
+                    SDKUserDefault.saveMappableArray(newOrders, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(DispatchParameater.date_filter)_\(DispatchParameater.driver_id)")
 
                     // Manual Dispatch tasks ride along on page 1 (mixed
                     // contract). The server snapshot replaces the cached one;
@@ -185,7 +185,7 @@ extension DispatchListViewController :WebServiceHelperDelegate{
                     }
 
                     existing.append(contentsOf: filteredNew)
-                    SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)")
+                    SDKUserDefault.saveMappableArray(existing, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(DispatchParameater.schedule_type)_\(DispatchParameater.date_filter)_\(DispatchParameater.driver_id)")
 
                 }
 
