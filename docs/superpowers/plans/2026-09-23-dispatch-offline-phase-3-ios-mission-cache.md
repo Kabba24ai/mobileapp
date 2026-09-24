@@ -178,10 +178,10 @@ Deliberately **excluded**, because they are volatile or not needed:
 - Triggers: `.wake(revision: String?)`, `.launch`, `.loginCompleted`, `.foreground`, `.dispatchScreenOpened`, `.manualRefresh`, `.networkRestored`.
 - **No session:** returns `.skipped(.noSession)` immediately, with no request.
 - **Wake already applied:** `.wake(r)` where `r == index.manifest_revision` and every entry is ready → `.unchanged` with **zero** requests.
-- **Freshness window:** `.foreground` and `.dispatchScreenOpened` within 20 s of the last successful manifest fetch → `.unchanged` with no request. This absorbs didBecomeActive and viewWillAppear firing together.
+- **Freshness window (review F1):** `.foreground` and `.dispatchScreenOpened` within 20 s of the last run that left **every** active mission at its manifest revision → `.skipped(.fresh)` with no request. This absorbs didBecomeActive and viewWillAppear firing together. The marker is the index's `last_current_at`, which only a complete run advances; a partial or failed run never does, and after one the cooldown below is checked first, so such a run is never "fresh" (not even after a relaunch, because the index is not fully current).
 - **Partial runs (review M-4):** a partial run counts toward the cooldown below and is followed up only for repair triggers (wake, pull-to-refresh, login, network, launch).
 - **Failure cooldown:** after a failed run, `.foreground` and `.dispatchScreenOpened` are skipped for 30 s, doubling per consecutive failure up to 300 s. `.wake`, `.manualRefresh`, `.networkRestored`, `.loginCompleted` and `.launch` bypass both the freshness window and the cooldown. The cooldown is not a timer: it only suppresses event-driven triggers.
-- **While a run is in flight**, new requests join its waiters and never start a parallel download. When it finishes, **one** follow-up run happens only if (a) the in-flight run failed and a trigger arrived during it, or (b) a coalesced `.wake` carries a revision different from the in-flight manifest's. Every coalesced completion receives the final result.
+- **While a run is in flight**, new requests join its waiters and never start a parallel download. When it finishes, **one** follow-up run happens only if (a) the in-flight run failed and a trigger arrived during it, (b) a coalesced `.wake` carries a revision different from the in-flight manifest's, or (c) a sign-in of the **same company** stopped it (review F3, §3.8). Every coalesced completion receives the final result.
 - **There is no timer, polling, BGAppRefresh, GPS, or socket.**
 
 ### 3.6 Presentation rules (`DispatchOfflineWorkingSet`)
@@ -196,7 +196,8 @@ Deliberately **excluded**, because they are volatile or not needed:
 - **Offline All line (D3):** `DispatchOfflinePresentation.offlineAllLine(throughDate:)` → `Offline — showing downloaded Dispatch through Sep 25`, from the index `through_date` formatted `MMM d` (en_US_POSIX). The App shows it as the existing slim freshness header when the view is Pending + All and the phone is offline.
 - **State:**
   - `.notDownloaded`: `ever_committed == false`.
-  - `.ready(rows, freshness)`: freshness = `last_manifest_at`, plus counts of stale missions (`ready != server`) and not-yet-downloaded missions.
+  - `.ready(rows, freshness)`: freshness = `last_manifest_at`, plus counts of stale missions (`ready != server`) and missing missions (never downloaded, or the file is unreadable), across the whole working set.
+- **Never current while incomplete (review F1):** `DispatchOfflineScreenPolicy.outcome(presentation:failed:online:)` flags the list as not current whenever the last answer failed (failed, partial, cooling down, no session) **or** any active mission is missing or stale — whatever the last answer said. Only a complete working set after a non-failing answer clears the saved-list header.
 - **An empty manifest is `.ready([])`**, which is a genuine "no Dispatch" state, not "not downloaded".
 
 ### 3.7 Background result mapping (`DispatchOfflineReconcileResult.backgroundResult`)
@@ -206,12 +207,26 @@ Deliberately **excluded**, because they are volatile or not needed:
 
 ### 3.8 Auth, logout, tenant
 
-**Session binding (review I-1, implemented).** `KabbaAPIClient` re-reads the base URL and token on every request, so a run is bound to the `DispatchOfflineSession` it started under: the tenant key plus an opaque FNV hash of the credential (the token itself is never stored). The run re-checks the current session before every request and when every answer arrives; on any change (logout, another company, another employee) it stops with no write, no cleanup and no follow-up. A session for another tenant counts as no session.
+**Session binding (review I-1, implemented).** `KabbaAPIClient` re-reads the base URL and token on every request, so a run is bound to the `DispatchOfflineSession` it started under: the tenant key plus an opaque FNV hash of the credential (the token itself is never stored). The run re-checks the current session before every request and when every answer arrives; on any change (logout, another company, another employee) it stops with no write and no cleanup. A session for another tenant counts as no session.
+- **Same company, another sign-in (review F3):** the old credential's answer is still discarded unwritten, but the reconciler immediately runs **one** follow-up under the new session, serving the aborted run's waiters and every trigger that arrived meanwhile (a `.loginCompleted` joins it). It never waits for an unrelated later trigger.
+- **Signed out, or another company:** no follow-up (I-1). The new company's own tenant-bound reconciler serves its `.loginCompleted`; zero writes reach the old company's store.
+- **Outcome notifications:** `.kabbaDispatchOfflineReconciled` is posted only for real outcomes (never a skip, never a run stopped by a session change) and carries the `tenantKey`; the Dispatch screen applies it only when that company is the one signed in now.
 - Logout and 401 never touch the store (tests 15 and 16). While logged out, the app shows Login, so nothing reads the cache. After the next login with the same `api_url`, the same tenant directory is used and `.loginCompleted` repairs freshness.
 - A different employee on the same tenant uses the same cache, because it is company-wide.
 - A different `api_url` uses a different directory.
 - A run binds to the tenant key captured at its start, so a mid-run tenant switch can never write one tenant's data into another tenant's store.
 - There is no unauthenticated Dispatch API.
+
+### 3.9 Driver trip stage (review F2)
+- **Rule:** durable local action → immediate effective state → later server confirmation. Load Map & Go (`On My Way`) and Arrived are `driver_checklist.update` operations the Sync Engine already keeps on disk (retained after sync). `DriverStageOverlay` (Sync Core, `EffectiveFieldState.swift`) derives the stage for one order product + leg from them over the row's server copy. There is **no second store** for the stage.
+- **Readers:** Screen 2 (`DriverChecklistViewController.getReadyToGo_ArrivedStatus`) derives it itself from `KabbaSync.engine.snapshot()`; the Dispatch card and its button colour use `DriverStagePresentation.applying` (app, `DispatchOfflineRowAdapter.swift`). Leaving Dispatch, force-quit and relaunch offline keep the stage.
+- **Server confirmation:** a local step stands while it is unconfirmed (pending, syncing, needs attention); once synced it stands only until the screen shows a copy of the row the server was **asked for after** that confirmation (package `server_observed_at` = the package request's send time; feed rows = the feed request's send time; an MMKV snapshot = unknown, so the step stands). Then server truth wins — e.g. the office recalled the trip. The server's stage is never downgraded.
+- **No duplicates:** `recordsDeparture` only before the leg departed and `recordsArrival` only once; Screen 2's buttons are gated the same way (Arrived becomes Continue).
+
+### 3.10 Live-feed and Manual Dispatch request binding (review F4)
+- Every live-feed page and Manual Dispatch rider request takes a `DispatchFeedRequests.Ticket`: its full `DispatchFeedScope` (status, leg type, date, driver, category, trimmed search, transport mode) plus the request generation. One builder (`currentFeedParams`) makes every request and the current scope.
+- Every new list (screen open, refresh, any filter or search change, the feed fallback) restarts the generation; later pages of the same list share it.
+- An answer whose ticket no longer matches is discarded **before any write**: no order slot, no manual list, no pagination, no screen change. The manual list is always written under the request's own driver + day key.
 
 ---
 
@@ -396,6 +411,15 @@ Commit: `Xcode project: Dispatch offline Phase 3 files`. M1–M7 add their files
 | 17 | Background result newData/noData/failed | Reconciler · `testBackgroundResultMapping` |
 | 18 | Multi-driver company cache, offline filter no request | WorkingSet · `testCompanyCacheHoldsEveryDriver` |
 
+Second-review corrections (each written red first, then green):
+
+| Finding | Requirement | Test (class · method) |
+|---|---|---|
+| F1 | A partial launch + Dispatch open within 20 s stays not current; a later complete run clears it | Reconciler · `testAPartialLaunchIsNeverFreshForTheNextDispatchOpen`, `testADispatchOpenCoalescedIntoAPartialLaunchIsNotCurrent`, `testAPartialRunNeverAdvancesTheDurableFreshMarker`, `testAFailedRunAfterASuccessIsNotFreshEither`; ScreenPolicy · `testTheCacheIsNeverCurrentWhileAnyMissionIsStaleOrMissing`, `testWhichAnswersMeanTheListMayNotBeCurrent`; WorkingSet · `testAnUnreadablePackageCountsAsMissing` |
+| F2 | Offline Load Map & Go / Arrived survive reopen and relaunch; no duplicate step | DriverTripStage · `testLoadMapAndGoSavedOnThisPhoneIsOnMyWayImmediately`, `testArrivedSavedOnThisPhoneIsArrived`, `testEveryRetainedStateCountsUntilTheServerIsSeenAfterConfirmation`, `testServerTruthIsKeptAndNeverDowngraded`; DriverTripStageDurability · `testTheStageSurvivesReopenAndRelaunchOfflineWithoutDuplicates`; WorkingSet · `testEveryRowNamesWhenTheServerWasAskedForIt`; Hosted · `testLoadMapAndGoSavedOfflineShowsOnTheCachedCard`, `testAnotherLegsOrProductsStageNeverShows` |
+| F3 | Same company: old answer discarded, one prompt follow-up; cross company: zero writes, no follow-up | Reconciler · `testASameCompanySignInMidRunDiscardsTheOldAnswerAndRepairsUnderTheNewSession`, `testASameCompanyLoginDuringTheRunCoalescesIntoExactlyOneFollowUp`, `testASignOutMidRunStillStopsWithoutAFollowUp`, `testACrossCompanySwitchLeavesTheOldStoreAloneWhileTheNewCompanyReconcilesItsOwn`; ScreenPolicy · `testOnlyARealOutcomeForTheSignedInCompanySettlesTheScreen` |
+| F4 | A driver switch or any non-driver filter change while a request is in flight discards its answer | FeedRequests · `testADriverSwitchWhileARequestIsInFlightDiscardsItsAnswer`, `testEveryNonDriverFilterChangeObsoletesAnInFlightRequest`, `testARefreshOfTheSameScopeObsoletesTheOlderRequest`, `testTheNextPageOfTheSameListIsAccepted`; Hosted · `testEveryRequestParameterIsPartOfTheRequestsScope` |
+
 ---
 
 ## 7. Independent-review gate
@@ -412,6 +436,25 @@ After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobil
 
 **Phase 3 closes only with no remaining Critical or Important findings.** Critical and Important findings are fixed and re-verified; Minor ones may be documented for later.
 
+### Review record
+- **First review (2026-09-23):** I-1 (tenant leak), I-2 (online failures ignored), I-3 (All Drivers replaced by the signed-in user's feed) — fixed in `24b222e` and `6ac3724` (§3.5, §3.8, D3/D5 note).
+- **Second review (2026-09-24):** no drift in the shared backend `DispatchRowFields` extraction; I-1 and I-3 confirmed fixed. Two Important and two Minor findings, all fixed in the correction pass:
+  - **F1 (Important):** a partial run's saved-list header was cleared by a `.fresh` skip → §3.5 freshness marker + §3.6 never-current-while-incomplete.
+  - **F2 (Important):** offline Load Map & Go / Arrived on cached rows lived only in the screen's memory → §3.9.
+  - **F3 (Minor):** a same-company sign-in mid-run waited for an unrelated trigger; an aborted run's outcome could settle another company's screen → §3.8.
+  - **F4 (Minor):** live-feed / Manual Dispatch answers were bound to driver, day, leg and status only, and the manual list was keyed at answer time → §3.10.
+- **Deferred Phase 3 Minor/Nit findings (second review; not fixed in this phase):**
+  - F5 (Minor) — the store's in-memory package cache is never evicted, and the first run after a cold launch decodes every package file.
+  - F6 (Minor) — offline + never downloaded + Pending + All shows the "Offline — showing downloaded Dispatch" header above "Dispatch isn't downloaded to this phone yet". To be handled with the later cosmetic / screen-flow pass.
+  - F7 (Minor) — "Today" uses the phone's time zone, not the app's (accepted in §3.6).
+  - F8 (Nit) — `equipment.store.state` is lazy-loaded (bounded by the number of stores, not missions).
+  - F9 (Nit) — the row adapter would map a whole-number JSON value to nil for a `Double?` model field (no consumed field is `Double` today).
+  - F10 (Nit) — the hosted adapter tests load the fixture via `#filePath` (Simulator only).
+  - F11 (Nit) — file protection has no dedicated store test (it relies on the shared `writeProtected`).
+  - F12 (Nit) — an online driver switch still sends the D4 Manual Dispatch rider request, and the D3 live All feed for a named driver.
+  - F13 (Nit) — Pending + All with a named driver repaints the cache before the feed replaces it.
+  - F14 (Nit) — `removed` also counts `not_active` keys that were not in the index.
+
 ## 8. Physical iPhone acceptance boundary
 - **Phase 3 device smoke** (optional, local staging only: the staging harness with the B0 backend branch; never production):
   - P1: download while online → force quit → airplane mode → relaunch → the Dispatch cards render, and driver switching works with no request.
@@ -427,6 +470,7 @@ After M9, a **fresh** reviewer (no prior context) reviews `f460081..HEAD` (mobil
   - Prove that unopened later Delivery and Return checklists work offline.
 - **Phase 5:** versioned offline T&C snapshot (backend), local rendering, local signature acceptance through the Sync Engine, and durable sync. Phase 3 stores `terms` opaquely and never renders it.
 - **Phase 6:** the full physical acceptance in §8.
+- **Deferred Phase 3 review findings F5–F14** (§7 review record); F6 goes with the cosmetic / screen-flow pass.
 - **Other:** later cosmetic and screen-flow changes; the final regression, version/build, archive and upload. Manual Dispatch offline readiness (D4: outside guaranteed scope; no offline subsystem). The `dispatch_list_mixed.json` sync. Anything production: deploy, flag enablement, preflight on the server.
 
 ## 10. Self-review against the approved spec
