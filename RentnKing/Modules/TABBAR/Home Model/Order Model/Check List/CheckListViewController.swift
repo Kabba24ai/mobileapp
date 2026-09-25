@@ -584,10 +584,9 @@ extension CheckListViewController{
     @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
-        if let blocked = productsNeedingConnection() {
-            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
-            return
-        }
+        // P4-D4, per product: a line whose checklist needs a connection is left out below (it has no
+        // usable context); every other line of the order still saves and stages.
+        let blocked = productsNeedingConnection()
 
         // 1) The durable draft — the FULL screen state, so reopening restores
         //    every product exactly as left (partial or complete).
@@ -605,7 +604,8 @@ extension CheckListViewController{
 
         if let engine = KabbaSync.engine {
             for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
-                guard let uid = product.unique_id, let context = self.checklistContexts[uid],
+                guard let uid = product.unique_id, !self.contextsNeedingConnection.contains(uid),
+                      let context = self.checklistContexts[uid],
                       product.objMachine != nil,
                       !checkQuestionsIsBlank(objProduct: product) else { continue }
 
@@ -727,8 +727,14 @@ extension CheckListViewController{
         }
 
         if progressCount > 0 {
-            showAlertMessage(strMessage: "Progress saved. The equipment remains Pending until every required checklist item is complete and saved.")
+            let saved = "Progress saved. The equipment remains Pending until every required checklist item is complete and saved."
+            showAlertMessage(strMessage: [saved, blocked.map { needsConnectionMessage(for: $0) }].compactMap { $0 }.joined(separator: "\n\n"))
             if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
+            return
+        }
+
+        if let blocked = blocked {
+            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
             return
         }
 
@@ -864,20 +870,22 @@ extension CheckListViewController{
 
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
-        if let blocked = productsNeedingConnection() {
-            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
+
+        // P4-D4, per product: a line whose checklist needs a connection is never submitted (it has no
+        // usable context and must not fall back to the legacy submission); the other lines complete.
+        let scoped = Self.excludingProductsNeedingConnection(self.objOrderData, other: self.arrOtherData,
+                                                             needingConnection: self.contextsNeedingConnection)
+        if !scoped.excluded.isEmpty, scoped.order?.arrProduct.isEmpty ?? true {
+            showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded))
             return
         }
 
         //CEHCK DATA
-        var objTempOrderData = self.objOrderData
-        var arrTempOtherData = self.arrOtherData
-        for i in 0..<self.objOrderData.arrProduct.count{
-            let obj = self.objOrderData.arrProduct[i]
-            if obj.objMachine == nil{
-                objTempOrderData?.arrProduct.remove(at: i)
-                arrTempOtherData.remove(at: i)
-            }
+        var objTempOrderData = scoped.order
+        var arrTempOtherData = scoped.other
+        for i in (0..<(objTempOrderData?.arrProduct.count ?? 0)).reversed() where objTempOrderData?.arrProduct[i].objMachine == nil {
+            objTempOrderData?.arrProduct.remove(at: i)
+            if i < arrTempOtherData.count { arrTempOtherData.remove(at: i) }
         }
         
         //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
@@ -3018,6 +3026,22 @@ extension CheckListViewController {
         let names = uids.compactMap { uid in self.objOrderData?.arrProduct.first { $0.unique_id == uid }?.product_name }
         let what = names.isEmpty ? "This unit" : names.joined(separator: ", ")
         return "\(what): this unit's checklist needs a connection. What you did is saved on this phone — connect to the internet to load the checklist for the current unit."
+    }
+
+    /// The order without the lines whose checklist needs a connection (their `other` rows too, kept
+    /// aligned) — what Submit hands on. `excluded` lists the lines left out, in screen order.
+    static func excludingProductsNeedingConnection(_ order: OrdersModel?, other: [NoteModel], needingConnection: Set<String>)
+        -> (order: OrdersModel?, other: [NoteModel], excluded: [String]) {
+        guard var scoped = order, !needingConnection.isEmpty else { return (order, other, []) }
+        var rows = other
+        var excluded: [String] = []
+        for index in scoped.arrProduct.indices.reversed() {
+            guard let uid = scoped.arrProduct[index].unique_id, needingConnection.contains(uid) else { continue }
+            scoped.arrProduct.remove(at: index)
+            if index < rows.count { rows.remove(at: index) }
+            excluded.insert(uid, at: 0)
+        }
+        return (scoped, rows, excluded)
     }
 
     /// Products on screen whose checklist needs a connection (nil when none).

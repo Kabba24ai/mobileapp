@@ -236,6 +236,33 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         XCTAssertEqual(loadContext(offlineChecklistClient(contexts), unit: "EQP-PICKED-LOCALLY"), .failure(.unavailableOffline))
     }
 
+    /// Re-review finding: one line needing a connection (e.g. an unassigned sibling) must never stop the
+    /// order's OTHER lines from saving / completing offline, and is never handed to Submit (which would
+    /// send a context-less product through the legacy submission).
+    func testALineNeedingAConnectionIsLeftOutWhileTheOtherLinesGoAhead() throws {
+        let order = try XCTUnwrap(OrdersModel(JSON: ["order_products": [
+            ["unique_id": "LINE-ASSIGNED", "product_name": "Skid Steer"],
+            ["unique_id": "LINE-UNASSIGNED", "product_name": "Bucket"],
+            ["unique_id": "LINE-OTHER", "product_name": "Trailer"],
+        ]]))
+        let other = [NoteModel(), NoteModel(), NoteModel()]
+
+        let scoped = CheckListViewController.excludingProductsNeedingConnection(order, other: other, needingConnection: ["LINE-UNASSIGNED"])
+
+        XCTAssertEqual(scoped.order?.arrProduct.map { $0.unique_id ?? "" }, ["LINE-ASSIGNED", "LINE-OTHER"])
+        XCTAssertEqual(scoped.other.count, 2)
+        XCTAssertTrue(scoped.other[0] === other[0] && scoped.other[1] === other[2], "each line keeps its own employee / signature rows")
+        XCTAssertEqual(scoped.excluded, ["LINE-UNASSIGNED"])
+
+        let untouched = CheckListViewController.excludingProductsNeedingConnection(order, other: other, needingConnection: [])
+        XCTAssertEqual(untouched.order?.arrProduct.count, 3)
+        XCTAssertEqual(untouched.excluded, [])
+
+        let allBlocked = CheckListViewController.excludingProductsNeedingConnection(
+            order, other: other, needingConnection: ["LINE-ASSIGNED", "LINE-UNASSIGNED", "LINE-OTHER"])
+        XCTAssertEqual(allBlocked.order?.arrProduct.count, 0, "nothing to submit: the screen says it needs a connection")
+    }
+
     // MARK: - Amendment B: company A → B → A on one phone
 
     func testNoCompanyADataIsReadableUnderCompanyBAndAKeepsItsOwn() throws {
