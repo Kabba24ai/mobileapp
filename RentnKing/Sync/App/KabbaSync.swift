@@ -96,7 +96,8 @@ enum KabbaSync {
                                         MediaUploadSyncHandler(kind: .license, hasSession: hasSession),
                                     ])
 
-            let contextStore = try ChecklistContextStore(rootDirectory: root)
+            // Per company (Dispatch offline Phase 4, Amendment B): the login api_url's tenant key.
+            let contextStore = try ChecklistContextStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
             KabbaSync.contextStore = contextStore
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
 

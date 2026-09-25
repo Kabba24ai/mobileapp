@@ -30,7 +30,9 @@ func getEquipmentList(strType : String = "Checklist", int_assigned: Int = 1, str
     CallAPIforGetEquipmentList(EquipmentParameater: EquipmentParameater(type: strType, search: "", store_id: strstoreid, currently_assigned: int_assigned)) { isSaved in
         if isSaved {
             completion(getEquipmentData(strType: strType))
-        } else {
+        } else if getEquipmentData(strType: strType).isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -68,6 +70,7 @@ func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, compl
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
     
     //Declaration URL
     var strURL = "\(Url.equipmentList.absoluteString!)"
@@ -98,7 +101,7 @@ func CallAPIforGetEquipmentList(EquipmentParameater : EquipmentParameater, compl
                 }
                 
                 //SAVE ARRAY
-                SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue)
+                SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue, tenantKey: tenant)
                 completion(true)
             }
         }
@@ -112,6 +115,7 @@ func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParamea
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
     
     //Declaration URL
     var strURL = "\(Url.equipmentList.absoluteString!)"
@@ -158,7 +162,7 @@ func CallAPIforGetEquipmentListWithSearch(EquipmentParameater : EquipmentParamea
                 if (EquipmentParameater.store_id ?? "") != "" {
                     
                     //SAVE ARRAY
-                    SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue)
+                    SDKUserDefault.saveMappableArray(arrData, for: EquipmentParameater.type == "RentalReady" ? kFileStorageName.kERentalReadyList.rawValue : kFileStorageName.kEquipmentList.rawValue, tenantKey: tenant)
                     
                 }
                         
@@ -181,7 +185,9 @@ func getStoreList(completion: @escaping ([StoreModel]) -> Void) {
     CallAPIforStoreList { isSaved in
         if isSaved {
             completion(getStoreListData())
-        } else {
+        } else if getStoreListData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -195,6 +201,7 @@ func getStoreListData() -> [StoreModel] {
 }
 
 func CallAPIforStoreList(completion: @escaping (Bool) -> Void) {
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
 
     //Declaration URL
     let strURL = "\(Url.getStores.absoluteString!)"
@@ -216,7 +223,7 @@ func CallAPIforStoreList(completion: @escaping (Bool) -> Void) {
                 let arr = Mapper<StoreModel>().mapArray(JSONArray: arrData as! [[String : Any]])
                 
                 //SAVE ARRAY
-                SDKUserDefault.saveMappableArray(arr, for: kFileStorageName.kStoreList.rawValue)
+                SDKUserDefault.saveMappableArray(arr, for: kFileStorageName.kStoreList.rawValue, tenantKey: tenant)
                 completion(true)
             }
         }

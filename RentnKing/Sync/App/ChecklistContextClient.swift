@@ -8,6 +8,12 @@
 //  a request succeeds. The cache is a snapshot of Laravel's contract, never a
 //  second source of truth.
 //
+//  Dispatch offline Phase 4: the cache is per company (the company signed in
+//  when the request was SENT is the one its answer is saved for), and a cached
+//  context is served offline only when ChecklistContextFallbackPolicy allows it —
+//  never the cycle a local substitution or restart replaced. Otherwise the
+//  answer is `.unavailableOffline` ("this unit's checklist needs a connection").
+//
 
 import Foundation
 
@@ -29,10 +35,14 @@ final class ChecklistContextClient {
 
     /// Fetches from the server (optionally for a chosen unit when nothing is assigned),
     /// caches on success, falls back to the cache on transport failure.
+    /// - Parameter strictUnit: true when `equipmentUniqueId` comes from an action just recorded
+    ///   on this phone (a substitution or restart): a cached context must then be for that unit.
     func load(orderProductUniqueId: String,
               leg: ChecklistLeg,
               equipmentUniqueId: String? = nil,
+              strictUnit: Bool = false,
               completion: @escaping (Result<ChecklistContext, ChecklistContextError>, _ fromCache: Bool) -> Void) {
+        let tenant = store.currentTenantKey
         var path = "orders/checklists/context/\(orderProductUniqueId)/\(leg.rawValue)"
         if let unit = equipmentUniqueId, !unit.isEmpty,
            let encoded = unit.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
@@ -41,10 +51,23 @@ final class ChecklistContextClient {
 
         client.send(method: "GET", path: path) { [weak self] result in
             guard let self = self else { return }
+            // The offline answer: a servable cached copy; `.unavailableOffline` when the cached copy is
+            // a replaced cycle / another unit, or a local substitution/restart needs the server's new
+            // cycle; otherwise (never cached) the caller keeps today's behavior (P4-D11).
+            let offlineAnswer = { (error: APIError) -> Result<ChecklistContext, ChecklistContextError> in
+                guard let tenant = tenant,
+                      let cached = self.store.load(orderProductUniqueId: orderProductUniqueId, leg: leg, tenantKey: tenant) else {
+                    return strictUnit ? .failure(.unavailableOffline) : .failure(.api(error))
+                }
+                return ChecklistContextFallbackPolicy.canServeOffline(cached, equipmentHint: equipmentUniqueId, strictUnit: strictUnit,
+                                                                      operations: KabbaSync.engine?.snapshot() ?? [])
+                    ? .success(cached) : .failure(.unavailableOffline)
+            }
             switch result {
             case .failure(let error):
-                if error.isTransportFailure, let cached = self.store.load(orderProductUniqueId: orderProductUniqueId, leg: leg) {
-                    completion(.success(cached), true)
+                if error.isTransportFailure {
+                    let answer = offlineAnswer(error)
+                    if case .success = answer { completion(answer, true) } else { completion(answer, false) }
                 } else {
                     completion(.failure(.api(error)), false)
                 }
@@ -63,8 +86,9 @@ final class ChecklistContextClient {
                                   equipmentUniqueId: nil, completion: completion)
                         return
                     }
-                    if let cached = self.store.load(orderProductUniqueId: orderProductUniqueId, leg: leg), error.isServerFailure {
-                        completion(.success(cached), true)
+                    if error.isServerFailure {
+                        let answer = offlineAnswer(error)
+                        if case .success = answer { completion(answer, true) } else { completion(answer, false) }
                     } else {
                         completion(.failure(.api(error)), false)
                     }
@@ -72,7 +96,7 @@ final class ChecklistContextClient {
                 }
                 do {
                     let context = try ChecklistContext.decode(envelopeData: response.body ?? Data())
-                    try? self.store.save(context)
+                    if let tenant = tenant { try? self.store.save(context, tenantKey: tenant) }
                     completion(.success(context), false)
                 } catch {
                     completion(.failure(.decoding(error.localizedDescription)), false)

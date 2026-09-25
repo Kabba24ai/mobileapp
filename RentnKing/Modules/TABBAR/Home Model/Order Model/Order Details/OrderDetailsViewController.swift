@@ -118,6 +118,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var fromCheckListScreen: Bool = false
     var isOrderScreen : Bool = false
     var isLoading : Bool = true
+    /// Shown while the order has no copy on this phone and could not be fetched (P4-D7).
+    private(set) var notDownloadedView: EmptyDataView?
     var strOrderID : String = ""
     var OrderID : String = ""
     var strOrderUniqueId : String = ""
@@ -210,6 +212,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
         } rightActionHandler: {
+            guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
             if self.isBillingView{
                 self.isBillingView = false
             }
@@ -264,6 +267,12 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     func setTheView(){
         self.isLoading = false
         self.stopLoading()
+        guard self.objOrderData != nil else {
+            // No order to show (never a crash, never an endless skeleton — Dispatch offline Phase 4).
+            self.tblView.reloadData()
+            return
+        }
+        self.hideOrderNotDownloaded()
         self.setFooter()
         self.updateNavigationbar()
         
@@ -378,7 +387,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     
     private func edit(at index: Int) {
         print(index)
-        if self.objOrderData == nil && arrUserList.count == 0{
+        if self.objOrderData == nil {
             return
         }
         
@@ -396,7 +405,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     private func delete(at index: Int) {
-        if self.objOrderData == nil && arrUserList.count == 0{
+        if self.objOrderData == nil {
             return
         }
 
@@ -624,6 +633,28 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
                 self.tblView.tableFooterView = vw_Table
             }
         }
+    }
+
+    // MARK: - Not downloaded (Dispatch offline Phase 4, P4-D7)
+
+    /// No copy of this order on this phone and the server could not be reached: say so, instead of
+    /// an endless skeleton. The back button stays; a later successful load removes it.
+    func showOrderNotDownloaded() {
+        self.isLoading = false
+        self.stopLoading()
+        self.tblView.reloadData()
+        guard self.notDownloadedView == nil else { return }
+        let emptyView = EmptyDataView(frame: self.view.bounds)
+        emptyView.orderNotDownloaded()
+        emptyView.backgroundColor = .background
+        emptyView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        self.view.addSubview(emptyView)
+        self.notDownloadedView = emptyView
+    }
+
+    func hideOrderNotDownloaded() {
+        self.notDownloadedView?.removeFromSuperview()
+        self.notDownloadedView = nil
     }
 
     func stopLoading(){
@@ -869,8 +900,9 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnEditNoteClicked(_ sender : UIButton) {
-        if self.objOrderData == nil && arrUserList.count == 0 {
-            self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater())
+        if self.objOrderData == nil {
+            // Nothing loaded yet: never open the note popup over a nil order (Dispatch offline Phase 4).
+            if arrUserList.count == 0 { self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater()) }
             return
         }
         
@@ -1209,6 +1241,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnDeliveryImageVideoUploadClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         //IMAGE VIDEO DELIVERY
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
@@ -1221,6 +1254,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnReturnImageVideoUploadClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         //IMAGE VIDEO RETURN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
@@ -1233,6 +1267,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: effective leg state (server ∨ durable local completion),
         // never the raw server flag alone.
         if self.effectiveLegCompleted(isDelivery: true) {
@@ -1263,6 +1298,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnCheckListRetClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: a delivery completion still in the Sync Engine
         // unlocks the Return checklist (effective state, not the raw server flag).
         if self.effectiveLegCompleted(isDelivery: true) == false{
@@ -1311,7 +1347,7 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
             return 1
         }
         else{
-            return self.objOrderData.arrProduct.count
+            return self.objOrderData?.arrProduct.count ?? 0
         }
     }
     
@@ -1665,10 +1701,7 @@ extension OrderDetailsViewController{
     }
     
     func getOrderDetailData(order_id: String) -> OrdersListModel? {
-        if let dic = SDKUserDefault.getMappableObject(OrdersListModel.self, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(order_id)") {
-            return dic
-        }
-        return nil
+        OrderDetailsCache.load(orderUniqueId: order_id)
     }
     
     

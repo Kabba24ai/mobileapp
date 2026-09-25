@@ -46,20 +46,40 @@ enum KabbaAssemblySync {
         return (try? AssemblyOperationBuilder.enqueueAvailability(capture, into: engine))?.id
     }
 
-    // MARK: Cached Assembly Review (one JSON blob per order, like the board list)
+    // MARK: Cached Assembly Review (one JSON blob per order, per company — Phase 4 Amendment B)
 
-    private static func cacheKey(orderUniqueId: String) -> String { "kQueueLineAssembly_\(orderUniqueId)" }
+    /// nil when signed out: nothing is read or written.
+    private static func cacheKey(orderUniqueId: String, tenantKey: String? = nil) -> String? {
+        DispatchOfflineTenantStorage.storageKey("kQueueLineAssembly_\(orderUniqueId)",
+                                                tenantKey: tenantKey ?? KabbaTenantScope.currentKey)
+    }
 
-    static func cache(_ envelopeData: Data, orderUniqueId: String) {
-        UserDefaults.standard.set(envelopeData, forKey: cacheKey(orderUniqueId: orderUniqueId))
+    /// For a NAMED company (the offline bridge writes for its own company, whoever is signed in).
+    @discardableResult
+    static func cache(_ envelopeData: Data, orderUniqueId: String, tenantKey: String) -> Bool {
+        guard let key = cacheKey(orderUniqueId: orderUniqueId, tenantKey: tenantKey) else { return false }
+        UserDefaults.standard.set(envelopeData, forKey: key)
+        return true
+    }
+
+    /// A live Assembly Review answer to a request SENT at `askedAt` for `tenantKey`: not saved when
+    /// a newer copy (a package asked later) is already on this phone (Dispatch offline Phase 4 §4.3).
+    @discardableResult
+    static func saveLive(_ envelopeData: Data, orderUniqueId: String, askedAt: Date, tenantKey: String?) -> Bool {
+        guard let tenant = tenantKey else { return false }
+        return DispatchOfflineSync.saveLiveCopy(.assembly, orderUniqueId: orderUniqueId, askedAt: askedAt, tenantKey: tenant) {
+            cache(envelopeData, orderUniqueId: orderUniqueId, tenantKey: tenant)
+        }
     }
 
     static func cached(orderUniqueId: String) -> AssemblyReviewEnvelope? {
-        guard let data = UserDefaults.standard.data(forKey: cacheKey(orderUniqueId: orderUniqueId)) else { return nil }
+        guard let key = cacheKey(orderUniqueId: orderUniqueId),
+              let data = UserDefaults.standard.data(forKey: key) else { return nil }
         return try? AssemblyReviewEnvelope.decode(data)
     }
 
     static func clearCache(orderUniqueId: String) {
-        UserDefaults.standard.removeObject(forKey: cacheKey(orderUniqueId: orderUniqueId))
+        guard let key = cacheKey(orderUniqueId: orderUniqueId) else { return }
+        UserDefaults.standard.removeObject(forKey: key)
     }
 }

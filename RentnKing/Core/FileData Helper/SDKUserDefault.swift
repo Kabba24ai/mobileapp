@@ -138,13 +138,14 @@ public extension SDKUserDefault {
 		/// Remove value using key
 		/// - Parameter keys: String
 	static func remove(for key: String) {
+		guard let key = scopedKey(key) else { return }
 		SDKUserDefault.shared.mmkv?.removeValue(forKey: key)
 	}
 
 		/// Remove values using keys
 		/// - Parameter keys: [String]
 	static func remove(for keys: [String]) {
-		SDKUserDefault.shared.mmkv?.removeValues(forKeys: keys)
+		SDKUserDefault.shared.mmkv?.removeValues(forKeys: keys.compactMap { scopedKey($0) })
 	}
 
 		/// Save Bool value
@@ -385,24 +386,44 @@ class MyMMKVHandler: NSObject, MMKVHandler {
 
 extension SDKUserDefault {
     // MARK: - Codable arrays (string key) — Dispatch parity (Phase 6A)
+    // MARK: - Company-scoped keys (Dispatch offline Phase 4, Amendment B)
+    //
+    // Keys that hold one company's business data (DispatchOfflineTenantStorage) are stored under
+    // the signed-in company — every save, get and remove below maps them — so nothing cached for
+    // Company A is readable under Company B. Signed out: nothing is read or written for them.
+
+    /// The storage key for `key` under `tenantKey` (default: the signed-in company).
+    static func scopedKey(_ key: String, tenantKey: String? = nil) -> String? {
+        DispatchOfflineTenantStorage.storageKey(key, tenantKey: tenantKey ?? KabbaTenantScope.currentKey)
+    }
+
     static func saveCodableArray<T: Codable>(_ values: [T], for key: String) {
-        guard let data = try? JSONEncoder().encode(values) else { return }
+        guard let key = scopedKey(key), let data = try? JSONEncoder().encode(values) else { return }
         SDKUserDefault.shared.mmkv?.set(data, forKey: key)
     }
 
     static func getCodableArray<T: Codable>(_ type: T.Type, for key: String) -> [T]? {
-        guard let data = SDKUserDefault.shared.mmkv?.data(forKey: key) else { return nil }
+        guard let key = scopedKey(key), let data = SDKUserDefault.shared.mmkv?.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode([T].self, from: data)
     }
 
     static func saveMappableArray<T: Mappable>(_ values: [T], for key: String) {
         // Convert array → JSON string
-        guard let jsonString = Mapper().toJSONString(values, prettyPrint: false) else { return }
+        guard let key = scopedKey(key), let jsonString = Mapper().toJSONString(values, prettyPrint: false) else { return }
         SDKUserDefault.shared.mmkv?.set(jsonString, forKey: key)
     }
     
+    /// Saves for a NAMED company: a loader passes the company that SENT the request, so an answer
+    /// that arrives after a company switch is never filed under the new company (nil = signed out).
+    @discardableResult
+    static func saveMappableArray<T: Mappable>(_ values: [T], for key: String, tenantKey: String?) -> Bool {
+        guard let tenant = tenantKey, let key = scopedKey(key, tenantKey: tenant),
+              let jsonString = Mapper().toJSONString(values, prettyPrint: false) else { return false }
+        return SDKUserDefault.shared.mmkv?.set(jsonString, forKey: key) ?? false
+    }
+
     static func getMappableArray<T: Mappable>(_ type: T.Type, for key: String) -> [T]? {
-        guard let jsonString = SDKUserDefault.shared.mmkv?.string(forKey: key) else {
+        guard let key = scopedKey(key), let jsonString = SDKUserDefault.shared.mmkv?.string(forKey: key) else {
             return nil
         }
         return Mapper<T>().mapArray(JSONString: jsonString)
@@ -429,8 +450,20 @@ extension SDKUserDefault {
     
     
     static func saveMappableObject<T: Mappable>(_ value: T, for key: String) {
-        guard let jsonString = value.toJSONString(prettyPrint: false) else { return }
+        guard let key = scopedKey(key), let jsonString = value.toJSONString(prettyPrint: false) else { return }
         SDKUserDefault.shared.mmkv?.set(jsonString, forKey: key)
+    }
+
+    /// Saves for a NAMED company (the offline bridge writes for its own company, whoever is signed in).
+    @discardableResult
+    static func saveMappableObject<T: Mappable>(_ value: T, for key: String, tenantKey: String) -> Bool {
+        guard let key = scopedKey(key, tenantKey: tenantKey), let jsonString = value.toJSONString(prettyPrint: false) else { return false }
+        return SDKUserDefault.shared.mmkv?.set(jsonString, forKey: key) ?? false
+    }
+
+    static func getMappableObject<T: Mappable>(_ type: T.Type, for key: String, tenantKey: String) -> T? {
+        guard let key = scopedKey(key, tenantKey: tenantKey), let jsonString = SDKUserDefault.shared.mmkv?.string(forKey: key) else { return nil }
+        return Mapper<T>().map(JSONString: jsonString)
     }
     
     
@@ -464,7 +497,7 @@ extension SDKUserDefault {
     }
     
     static func getMappableObject<T: Mappable>(_ type: T.Type, for key: String) -> T? {
-        guard let jsonString = SDKUserDefault.shared.mmkv?.string(forKey: key) else { return nil }
+        guard let key = scopedKey(key), let jsonString = SDKUserDefault.shared.mmkv?.string(forKey: key) else { return nil }
         return Mapper<T>().map(JSONString: jsonString)
     }
     
@@ -482,4 +515,16 @@ extension SDKUserDefault {
         return cacheData
     }
     
+}
+
+
+/// The signed-in company for phone caches (Dispatch offline Phase 4, Amendment B): the tenant key
+/// of the login api_url (DispatchOfflineTenant.key — the same company boundary as the offline
+/// Dispatch store). nil when signed out.
+enum KabbaTenantScope {
+    static var currentKey: String? {
+        guard let raw = UserDefaults.standard.baseURL, let url = URL(string: raw),
+              let host = url.host, !host.isEmpty else { return nil }
+        return DispatchOfflineTenant.key(baseURL: url)
+    }
 }

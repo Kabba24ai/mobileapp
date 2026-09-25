@@ -72,17 +72,56 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     func setTheView(){
         
         //SET WEBVIEW
-        if NetworkReachabilityManager()?.isReachable == true {
+        switch Self.boundary(reachable: NetworkReachabilityManager()?.isReachable == true, signUrl: self.signUrl) {
+        case .load(let url):
+            self.hideBoundary()
             indicatorShow()
             
             self.objWebKit.navigationDelegate = self
-            let request  = URLRequest(url: URL(string:self.signUrl)!)
+            let request  = URLRequest(url: url)
             self.objWebKit.load(request)
-        }
-        else {
-            
+        case .needsConnection:
+            // Dispatch offline Phase 4 (P4-D8): signing happens on the server's page — say so, never a
+            // blank web view. T&C stays unmet; the leg completes through the existing override.
+            self.showBoundary { $0.termsNeedConnection() }
+        case .unavailable:
+            self.showBoundary { $0.termsUnavailable() }
         }
         
+    }
+
+    // MARK: - Offline boundary (Dispatch offline Phase 4, P4-D8)
+
+    enum Boundary: Equatable {
+        case load(URL)
+        /// Offline: signing needs a connection (Phase 5 makes it work offline).
+        case needsConnection
+        /// Online, but the order has no usable signing link (never a force-unwrap crash).
+        case unavailable
+    }
+
+    static func boundary(reachable: Bool, signUrl: String) -> Boundary {
+        guard reachable else { return .needsConnection }
+        let trimmed = signUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http", url.host?.isEmpty == false else { return .unavailable }
+        return .load(url)
+    }
+
+    private(set) var boundaryView: EmptyDataView?
+
+    private func showBoundary(_ configure: (EmptyDataView) -> Void) {
+        let view = self.boundaryView ?? EmptyDataView(frame: self.view.bounds)
+        configure(view)
+        view.backgroundColor = .background
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        if view.superview == nil { self.view.addSubview(view) }
+        self.boundaryView = view
+    }
+
+    private func hideBoundary() {
+        self.boundaryView?.removeFromSuperview()
+        self.boundaryView = nil
     }
 }
 

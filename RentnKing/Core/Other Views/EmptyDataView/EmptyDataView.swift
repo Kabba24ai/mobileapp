@@ -85,6 +85,21 @@ extension EmptyDataView{
         configure(imageName: "", title: "Dispatch isn't downloaded to this phone yet", subtitle: "Connect to the internet once to download today's work.", tintColor: UIColor.primary)
     }
 
+    /// Dispatch offline (Phase 4): this order has no copy on this phone and the phone is offline.
+    func orderNotDownloaded(){
+        configure(imageName: "", title: "This order isn't downloaded to this phone yet", subtitle: "Connect to the internet once to open it.", tintColor: UIColor.primary)
+    }
+
+    /// Dispatch offline (Phase 4): Terms & Conditions are signed on the server's page.
+    func termsNeedConnection(){
+        configure(imageName: "", title: "Signing Terms & Conditions needs a connection", subtitle: "Connect to the internet to sign. The rest of the order keeps working offline.", tintColor: UIColor.primary)
+    }
+
+    /// The order has no usable signing link.
+    func termsUnavailable(){
+        configure(imageName: "", title: "Terms & Conditions aren't available for this order", subtitle: "", tintColor: UIColor.primary)
+    }
+
     func noItemsFound(){
         configure(imageName: "", title: "No products in the cart.", subtitle:"", tintColor: UIColor.primary)
     }

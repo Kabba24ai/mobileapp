@@ -161,6 +161,10 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
     // durable cache when offline). A product without a context falls back to the legacy shape.
     var checklistContexts: [String: ChecklistContext] = [:]
+    /// Dispatch offline Phase 4 (P4-D4): products whose canonical checklist needs a connection —
+    /// the cached copy is the cycle a local substitution/restart replaced (or another unit), so it is
+    /// never shown and nothing is saved against it until the server's new cycle arrives.
+    var contextsNeedingConnection: Set<String> = []
     /// Compact destructive action offered when a non-final preparation exists
     /// ("Delete Checklist / Start Over"). Lives in the table footer so it never
     /// competes with the Save / Next bar.
@@ -580,6 +584,10 @@ extension CheckListViewController{
     @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
+        if let blocked = productsNeedingConnection() {
+            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
+            return
+        }
 
         // 1) The durable draft — the FULL screen state, so reopening restores
         //    every product exactly as left (partial or complete).
@@ -856,6 +864,10 @@ extension CheckListViewController{
 
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
+        if let blocked = productsNeedingConnection() {
+            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
+            return
+        }
 
         //CEHCK DATA
         var objTempOrderData = self.objOrderData
@@ -2897,12 +2909,21 @@ extension CheckListViewController {
         self.queueLineChecklistExecutionId = ""
 
         let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
-        client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: equipmentUniqueId) { [weak self] result, _ in
+        // Strict: the unit comes from the substitution / restart just recorded on this phone.
+        client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: equipmentUniqueId, strictUnit: true) { [weak self] result, _ in
             DispatchQueue.main.async {
-                guard let self = self, case .success(let context) = result else { return }
-                self.checklistContexts[uid] = context
-                self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
-                self.refreshPreparationActions()
+                guard let self = self else { return }
+                switch result {
+                case .success(let context):
+                    self.contextsNeedingConnection.remove(uid)
+                    self.checklistContexts[uid] = context
+                    self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                    self.refreshPreparationActions()
+                case .failure(.unavailableOffline):
+                    self.markNeedsConnection(uid)
+                case .failure:
+                    break
+                }
             }
         }
     }
@@ -2969,13 +2990,40 @@ extension CheckListViewController {
             let chosenUnit = product.objMachine?.unique_id ?? queueUnit
             client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: chosenUnit) { [weak self] result, fromCache in
                 DispatchQueue.main.async {
-                    guard let self = self, case .success(let context) = result else { return }
-                    self.checklistContexts[uid] = context
-                    self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
-                    if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
+                    guard let self = self else { return }
+                    switch result {
+                    case .success(let context):
+                        self.contextsNeedingConnection.remove(uid)
+                        self.checklistContexts[uid] = context
+                        self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                        if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
+                    case .failure(.unavailableOffline):
+                        self.markNeedsConnection(uid)
+                    case .failure:
+                        break // never loaded while connected: the legacy questions stay (P4-D11)
+                    }
                 }
             }
         }
+    }
+
+    /// P4-D4: tells the employee once, and blocks Save / Submit for that product.
+    private func markNeedsConnection(_ uid: String) {
+        let isNew = self.contextsNeedingConnection.insert(uid).inserted
+        self.checklistContexts[uid] = nil
+        if isNew { showAlertMessage(strMessage: self.needsConnectionMessage(for: [uid])) }
+    }
+
+    private func needsConnectionMessage(for uids: [String]) -> String {
+        let names = uids.compactMap { uid in self.objOrderData?.arrProduct.first { $0.unique_id == uid }?.product_name }
+        let what = names.isEmpty ? "This unit" : names.joined(separator: ", ")
+        return "\(what): this unit's checklist needs a connection. What you did is saved on this phone — connect to the internet to load the checklist for the current unit."
+    }
+
+    /// Products on screen whose checklist needs a connection (nil when none).
+    private func productsNeedingConnection() -> [String]? {
+        let blocked = (self.objOrderData?.arrProduct ?? []).compactMap(\.unique_id).filter { self.contextsNeedingConnection.contains($0) }
+        return blocked.isEmpty ? nil : blocked
     }
 
     /// Replaces the product's template questions with the context's (same visual model, canonical

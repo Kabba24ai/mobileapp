@@ -16,6 +16,7 @@ func callAPIforCategoryList(CatrgoryParameater : CatrgoryParameater, completion:
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
 
     //Declaration URL
     let strURL = "\(Url.categoryList.absoluteString!)"
@@ -66,7 +67,7 @@ func callAPIforCategoryList(CatrgoryParameater : CatrgoryParameater, completion:
                 //ADD
                 arrCategorys.insert(objData, at: 0)
                 //SAVE ARRAY
-                SDKUserDefault.saveMappableArray(arrCategorys, for: kFileStorageName.kCateoryList.rawValue)
+                SDKUserDefault.saveMappableArray(arrCategorys, for: kFileStorageName.kCateoryList.rawValue, tenantKey: tenant)
                 completion(true)
             }
         }
@@ -120,6 +121,7 @@ func callAPIforCustomerTagList(completion: @escaping (Bool) -> Void) {
 
 
 func getPriceListAPI( completion: @escaping (Bool) -> Void) {
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
 
     //Declaration URL
     let strURL = "\(Url.priceList.absoluteString!)"
@@ -149,8 +151,8 @@ func getPriceListAPI( completion: @escaping (Bool) -> Void) {
                     let arrProductList = Mapper<PriceListModel>().mapArray(JSONArray: arrProduct as! [[String : Any]])
                     
                     // Overwrite old data
-                    SDKUserDefault.saveMappableArray(arrPriceList, for: kFileStorageName.kPriceList.rawValue)
-                    SDKUserDefault.saveMappableArray(arrProductList, for: kFileStorageName.kProductSettings.rawValue)
+                    SDKUserDefault.saveMappableArray(arrPriceList, for: kFileStorageName.kPriceList.rawValue, tenantKey: tenant)
+                    SDKUserDefault.saveMappableArray(arrProductList, for: kFileStorageName.kProductSettings.rawValue, tenantKey: tenant)
                     completion(true)
                 }
             }
@@ -169,7 +171,9 @@ func getCategoryList(completion: @escaping ([CategoryModel]) -> Void) {
     callAPIforCategoryList(CatrgoryParameater: CatrgoryParameater()) { isSaved in
         if isSaved {
             completion(getCatData())
-        } else {
+        } else if getCatData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -226,7 +230,9 @@ func getPriceList(completion: @escaping ([PriceListModel]) -> Void) {
     getPriceListAPI() { isSaved in
         if isSaved {
             completion(getPriceData())
-        } else {
+        } else if getPriceData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -240,7 +246,9 @@ func getProductSettingList(completion: @escaping ([PriceListModel]) -> Void) {
     getPriceListAPI() { isSaved in
         if isSaved {
             completion(getProductSettingData())
-        } else {
+        } else if getProductSettingData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -282,7 +290,9 @@ func getEmployeeList(completion: @escaping ([EmployeesModel]) -> Void) {
     CallAPIforGetEmployeesList(CatrgoryParameater: CatrgoryParameater()) { isSaved in
         if isSaved {
             completion(getEmployeeData())
-        } else {
+        } else if getEmployeeData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -302,7 +312,9 @@ func getDriverEmployeeList(completion: @escaping ([EmployeesModel]) -> Void) {
     CallAPIforGetEmployeesList(CatrgoryParameater: CatrgoryParameater(is_driver: true)) { isSaved in
         if isSaved {
             completion(getDriverEmployeeData())
-        } else {
+        } else if getDriverEmployeeData().isEmpty {
+            // Offline / failed refresh: keep the list the caller was already given (Dispatch
+            // offline Phase 4) — [] only when there is no cached list at all.
             completion([])
         }
     }
@@ -323,6 +335,7 @@ func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, complet
         showAlertMessage(strMessage: str.invalidRequestParamater)
         return
     }
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
     
     //Declaration URL
     let strURL = "\(Url.employeesList.absoluteString!)"
@@ -349,17 +362,17 @@ func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, complet
                 //SAVE ARRAY
                 if CatrgoryParameater.is_driver == true{
                     if arrData.count != 0{
-                        SDKUserDefault.saveMappableArray(arrData, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver")
+                        SDKUserDefault.saveMappableArray(arrData, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver", tenantKey: tenant)
                     }
                     else{
-                        SDKUserDefault.saveMappableArray(arrEmpty, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver")
+                        SDKUserDefault.saveMappableArray(arrEmpty, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver", tenantKey: tenant)
                     }
                 }
                 else{
                     if arrData.count != 0{
-                        SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue)
+                        SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue, tenantKey: tenant)
                     }else{
-                        SDKUserDefault.saveMappableArray(arrEmpty, for: kFileStorageName.kEmployesList.rawValue)
+                        SDKUserDefault.saveMappableArray(arrEmpty, for: kFileStorageName.kEmployesList.rawValue, tenantKey: tenant)
                     }
                 }
                 

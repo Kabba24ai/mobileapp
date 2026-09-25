@@ -137,6 +137,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     }
 
     private func fetch() {
+        let askedAt = Date(), tenant = KabbaTenantScope.currentKey   // Dispatch offline Phase 4: freshness + company
         let webHelper = WebServiceHelper()
         webHelper.strMethodName = "queueLineAssembly"
         webHelper.methodType = "get"
@@ -159,7 +160,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
                     return
                 }
                 self.lastRefreshFailed = false
-                KabbaAssemblySync.cache(raw, orderUniqueId: self.orderUniqueId)
+                KabbaAssemblySync.saveLive(raw, orderUniqueId: self.orderUniqueId, askedAt: askedAt, tenantKey: tenant)
                 self.apply(envelope)
             }
         }
