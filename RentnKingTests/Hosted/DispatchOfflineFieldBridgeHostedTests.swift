@@ -265,8 +265,9 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
 
     /// Review 3: Submit finalizes the order on this phone (order-level completed marker) and clears
     /// the order's draft. So a line needing a connection is left out ONLY where Submit dropped such a
-    /// line before Phase 4 anyway (no unit; all blank outside a combined checklist); a line with entered
-    /// answers blocks Submit — its answers are never cleared by a partial submit.
+    /// line before Phase 4 anyway (no unit; all blank outside a combined checklist); a line WITH a unit
+    /// and entered answers blocks Submit, so a partial submit never clears its answers. (A no-unit line
+    /// is dropped with its answers, exactly as before Phase 4 — review 4 Minor 1, deferred.)
     func testOnlyALineSubmitWouldHaveDroppedAnywayIsLeftOut() {
         typealias C = CheckListViewController
         let untouchedNoUnit = C.BlockedLine(uniqueId: "SIBLING-UNASSIGNED", hasMachine: false, isBlank: true)

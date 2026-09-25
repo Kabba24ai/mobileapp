@@ -1,5 +1,6 @@
 # Dispatch Offline Phase 4 — Offline Order Details + Canonical Checklist Context Bridge — Implementation Plan
 
+> **Status: PHASE 4 CLOSED locally, 2026-09-25.** The fourth independent review found no Critical or Important issues (§12). Nothing is pushed, merged or deployed; the feature flag is off.
 > **Status: APPROVED (Gary, 2026-09-25): P4-D1–P4-D11 as proposed, B1/B2 approved, plus two required amendments:**
 > - **Amendment A** (§2.3): incomplete Phase 4 sections stay retryable at the same revision.
 > - **Amendment B** (§4.9): every cache Phase 4 prewarms is tenant-safe.
@@ -524,10 +525,14 @@ Then stop before Phase 5.
 7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`, and so does any offline request whose cached context has **no unit** (an unassigned delivery; review I-2). The product is marked "This unit's checklist needs a connection", with no legacy fallback and no `objMachine` revert. **Per product:**
    - **Save** leaves out the lines whose checklist needs a connection and saves and stages the rest. The full-screen draft is written first.
    - **Submit** finalizes the order on this phone: it writes the order-level completed marker and clears the order's draft. So a line needing a connection is left out only where Submit dropped such a line before Phase 4 anyway: it has **no unit**, or it is **all blank outside a combined checklist**. A left-out line is never sent, not even through the legacy submission.
-   - Any other line needing a connection, one with entered answers or a blank line of a combined checklist, **blocks Submit** with "needs a connection", and the draft keeps it. Submit also says so when nothing else is left.
+   - Any other line needing a connection **blocks Submit** with "needs a connection", and the draft keeps it. That covers a line that has a unit and entered answers, and a blank line of a combined checklist. Submit also says so when nothing else is left.
+   - **Limits, as before Phase 4 (review 4, deferred).**
+     - A line with **no unit** is dropped even when it has entered answers, so a partial Submit clears them. The `1a17920` commit title ("never clears a line's entered answers") overstates this.
+     - A note or "delivered by" choice on an all-blank line outside a combined checklist is cleared too, because `checkQuestionsIsBlank` ignores `arrOtherData`.
+     - `removeBlankProducts`' keep-the-first-line rule no longer applies to a blank line needing a connection. With [X blank and needing a connection, Y with no checklist rows], X is left out, and the order is finalized on Y.
    - *History:*
      - As first built, the block covered the whole screen. With the no-unit refusal, that let an untouched unassigned sibling block an assigned line (review 2, fixed in `7257e3c`).
-     - That fix left out every such line, which let a partial Submit clear a left-out line's entered answers (review 3, fixed in `1a17920`).
+     - That fix left out every such line, which let a partial Submit clear a left-out line's entered answers (review 3). `1a17920` fixed this for lines that have a unit; the no-unit case is described under Limits.
    - The "needs a connection" state is a one-time alert per line; its rows stay visible and editable. For an unassigned line they are the legacy `order_details` questions, but they are never submitted through the legacy path.
 8. **Deviation — P4-D3's assembly inputs.** The order fingerprint covers what Order Details renders but **not** the Queue Line / assembly inputs P4-D3 enumerated. The rationale is in the `DispatchOfflineOrderFingerprint` docblock: each delivery member's own revision already covers its stage and blockers, and the newest bridged assembly copy wins. **Known gap (review M-6):** an assembly member that is not itself an active mission (no active driver, or beyond today+2) can change stage or lane without changing any revision, so the bridged Assembly Review can lag until another member's revision changes or it is opened online.
 9. **P4-D5, signed-in employee.** Login now stores the user's `unique_id` (`User.fromLoginResponse`, both login paths). Before this, no profile had one, so the substitution never applied (review I-1). Cached checklist contexts (`ChecklistContextClient`, offline) and cached Assembly Reviews (`KabbaAssemblySync.cached`) are served **at read time** as the user signed in now. A second user on a shared phone therefore never inherits the downloader's `user_id` / `performed_by`, even when the bridge does not re-run. A profile saved before this change has no `unique_id`; that same user downloaded the packages, and any other user must log in, which stores it.
@@ -621,7 +626,8 @@ Then stop before Phase 5.
   | `7257e3c` | Review 2 fix |
   | `e510435` | Review 2 record |
   | `1a17920` | Review 3 fix |
-  | the commit after `1a17920` | Review 3 record |
+  | `b02d959` | Review 3 record |
+  | the commit after `b02d959` | Review 4 record and closure |
 
 - **Backend `feature/dispatch-offline-phase-4`**: `2f859c0a8`, no upstream, local only.
 - **Mobile core `swift test`:** 499/499.
@@ -639,7 +645,7 @@ Then stop before Phase 5.
 
 ### Review 3 (fresh independent reviewer, re-review of `7257e3c`): 0 Critical, 1 Important, 3 Minor, 1 Nit
 - **Save and Submit per product: verified.** Rows stay aligned; the left-out line gets no canonical or legacy submission; Save, partial sync, Delete / Start Over and preparation actions all key on the (nil) context.
-  - The rewritten no-unit loop also fixes a pre-existing crash: the old loop removed items by their original index, and crashed with two or more lines that had no unit.
+  - The rewritten no-unit loop also fixes a pre-existing bug. The old loop removed items by their original index, so with two or more lines that had no unit it either crashed or removed the wrong line: for [none, none, unit] it removed the unit line.
 - **Important, fixed test-first:** a partial Submit finalized the whole order on the phone and cleared the left-out line's entered answers (§11 item 7).
   - Test: hosted `testOnlyALineSubmitWouldHaveDroppedAnywayIsLeftOut`, caught by a break-the-rule probe that restored review 2's behavior.
 - **M-A, fixed:** the "nothing left to submit" check ran before the no-unit removal (an empty preview could be pushed).
@@ -648,4 +654,18 @@ Then stop before Phase 5.
   - **M-C.** The Save and Submit wiring is covered only through the pure helpers. View-controller flow tests are deferred with M-9.
   - **N.** The staged, in-transit and availability Save outcomes do not mention the lines left out.
 - **Test-run note (watch item):** one full hosted run after the break-the-rule probe reported 1 failure in 38 s (normally about 4 s). The result bundle was overwritten before it could be read, so the test is unidentified. Three following full runs were 72/72 green.
+
+### Review 4 (fresh independent reviewer, closing re-review of `1a17920`): no Critical or Important findings, 2 Minor, 2 Nit
+- **Verified:**
+  - The Submit scope rule uses the same inputs as the pre-Phase-4 Submit: `objMachine`, `checkQuestionsIsBlank` and `isCombineChecklist`.
+  - Save is unchanged and never finalizes or clears anything.
+  - A blocked Submit stops before `didNavigateForward`, `persistDraftSnapshot` and any enqueue.
+  - Products and rows stay aligned through every removal.
+  - Core `swift test`: 499/499.
+- **Minor 1 (deferred):** a no-unit line with entered answers is still dropped and cleared by a partial Submit, as before Phase 4 (§11 item 7, Limits). The suggested rule is `leftOut = isBlank && (!hasMachine || !combine)`, so any answered line would block Submit.
+- **Minor 2 (deferred):** the keep-the-first-line exception no longer applies to a blank line needing a connection (§11 item 7, Limits).
+- **Nit 1:** the blocking alert does not mention that turning off Combine lets a blank line with a unit be left out.
+- **Nit 2 (pre-existing):** with every line lacking a unit and none needing a connection, an empty order is still pushed to Submit.
+
+**Phase 4 closed (2026-09-25).** Every Critical and Important finding from reviews 1–3 was fixed test-first and re-reviewed. The deferred Minor and Nit findings in §12 are watch items for Phase 6, or for a scoped pass Gary asks for. Phase 5 has not been started.
 
