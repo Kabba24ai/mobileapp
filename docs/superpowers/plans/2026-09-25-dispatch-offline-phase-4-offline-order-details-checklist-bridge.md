@@ -307,8 +307,8 @@ Every durable cache Phase 4 prewarms is **tenant-scoped on write and on read**, 
 | Cache | Tenant-safe form |
 |---|---|
 | `ChecklistContextStore` | `<KabbaSync>/checklist-contexts/<tenantKey>/<opuid>__<leg>.json`. The store resolves the tenant on every call; with no tenant it reads and writes nothing. |
-| Order Details `kOrderDetailData_<uid>` and checklist `kOrderDetailsData_<uid>` | MMKV keys `kOrderDetailData_<tenantKey>_<uid>` / `kOrderDetailsData_<tenantKey>_<uid>`, built by one helper used at every read and write site. |
-| Assembly Review `kQueueLineAssembly_<uid>` | `kQueueLineAssembly_<tenantKey>_<uid>`. |
+| Order Details `kOrderDetailData_<uid>` and checklist `kOrderDetailsData_<uid>` | MMKV keys `kOrderDetailData_<uid>@tenant:<tenantKey>` / `kOrderDetailsData_<uid>@tenant:<tenantKey>`, built by one helper (`DispatchOfflineTenantStorage.storageKey`) that every SDKUserDefault read, write and remove goes through. *(As built; the form first drafted here was `<key>_<tenantKey>_<uid>`.)* |
+| Assembly Review `kQueueLineAssembly_<uid>` | `kQueueLineAssembly_<uid>@tenant:<tenantKey>`. |
 | Reference lists (`EmployesList`, `EquipmentList`, `kStoreList`, `CateoryList`, `kPriceList`, `kProductSettings`, `OrderDetailUserData`, the driver-employee list) | Tenant-suffixed keys, with the warm-up timestamps scoped the same way. |
 | Dispatch feed / manual MMKV slots (`kDispatchJobList_*`, `kDispatchManualList_*`) | Tenant-suffixed keys. These are not prewarmed, but without scoping they could show one company's rows under another in the Completed / feed-fallback views. |
 | Bridge ledger | Stored in the Phase 3 tenant directory `dispatch-offline/v1/<tenantKey>/`. |
@@ -498,3 +498,49 @@ Then stop before Phase 5.
 - **Phase 5:** a versioned offline T&C snapshot, local rendering, local signing through the Sync Engine, durable sync, and preserving the exact signed revision. Inspection notes for Phase 5: acceptance content is generated from `order.terms_collection`, while the page renders live Terms, so the two can diverge (backend `Front/TermsAndConditions/PostController.php:70`).
 - **Phase 6:** full physical multi-stop acceptance (spec §17) and the watch items in §8.
 - **Not in Phase 4:** choosing any unit offline (`selected`), offline payment and address edits, offline media thumbnails, pruning bridged caches, tenant-scoping the legacy MMKV caches, and Manual Dispatch.
+
+---
+
+## 11. Execution record (2026-09-25)
+
+**Commits (local only, no upstream):**
+- Backend `feature/dispatch-offline-phase-4`: `2f859c0a8` — B1/B2 sections, the `sections` map, the order fingerprint.
+- Mobile `feature/dispatch-offline-phase-4`: see the review record below for the SHAs.
+
+**As built — clarifications within the approved decisions (no decision changed):**
+1. **Freshness per cache (P4-D9).** The ledger stamps each order-scoped cache separately: Order Details (`OrdersListModel`), the checklist screens' order (`OrdersModel`) and Assembly Review. A live Order Details open therefore never stops the bridge from writing the checklist screens' copy. The `order_details` section is satisfied only when **both** order caches hold a copy at least as new as the package.
+2. **Live saves are atomic with the bridge, and pinned to the requesting company.**
+   - The screens' live saves (`OrderDetailsModel`, `OrderDetailsFile`, `AssemblyReviewViewController`) run inside the ledger lock. An answer older than a bridged package is not written.
+   - Each request captures its company when it is **sent**. An answer that arrives after a company switch is never filed under the new company.
+   - The same request-time capture applies to the reference-list loaders (`saveMappableArray(_:for:tenantKey:)`).
+3. **Warm-up list set (P4-D6).** Employees, drivers, equipment (Checklist type), stores, categories, prices + product settings, and users. These are the reference lists of Amendment B's table, each through its existing endpoint.
+   - It runs only after `launch`, `loginCompleted`, `foreground` or `networkRestored`, and only when the run reached the server: `completed`, `partial`, `skipped(.fresh)` or `skipped(.alreadyCurrent)`.
+   - A list is refreshed only when it is empty or older than 12 h. The stamps are company-scoped (`kReferenceWarmedAt_<list>`).
+   - It is never triggered by a wake, a Dispatch open, a manual refresh or a timer.
+4. **Launch/login bridging.** Stored packages are bridged when the app launches or a login completes, before (and whether or not) the server answers. This makes an offline relaunch, or a bridge a previous launch never finished, idempotent through the ledger.
+5. **T&C boundary (P4-D8).** Besides "Signing Terms & Conditions needs a connection" (offline), a missing or invalid signing link now shows "Terms & Conditions aren't available for this order". This replaces a `URL(string:)!` crash.
+6. **Order Details (P4-D7).** "This order isn't downloaded to this phone yet" appears when there is no copy and the fetch fails. Nil guards cover "+View Billing", Photo/Video (both legs), Add Note / note edit / note delete, both checklist tiles, and the product table. **The optional freshness line was not built.**
+7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`. The product is marked "This unit's checklist needs a connection", and Save and Submit are blocked for it. There is no legacy fallback and no `objMachine` revert.
+
+**New watch items (not Phase 4 scope, recorded for Phase 6 / a later pass):**
+- `kOrderNoteData` (the legacy offline note queue) and the Sync Engine operation store are **not** company-scoped.
+  - They are pre-existing cross-company *write* risks on a shared phone. Neither records a company, so work queued under A could be sent with B's session after a switch. This comes from inspection (`SyncEngine` has no tenant or session binding) and was not reproduced end to end.
+  - The note re-apply only matches queue entries by order uid.
+- Other MMKV caches remain unscoped: `OrderList`, `kScheduleOrderList`, `kQueueLineList`, `CustomerList`, `kCheckListOrderDetailsData_` / `kCheckListOtherData_` drafts, and `kPendingCheckList*`.
+  - The drafts are work, not prewarmed caches, and Phase 4 leaves them alone.
+- A section that fails **permanently** is re-downloaded at the same revision on every reconciliation trigger. This is bounded by the triggers (no timer), but the `.alreadyCurrent` skip never applies while that section is failing.
+- Bridged caches (contexts, order caches, assembly) are never pruned (carried over from §8).
+- A live Order Details answer older than a bridged package is shown for that visit but not saved. The next open shows the newer bridged copy.
+- The warm-up uses the existing `serviceWithAlert` loaders. A declared server failure with code 100–102 can raise their existing alert.
+
+**Verification (see the review record for the final numbers):**
+- Mobile core `swift test`: 495/495 (Phase 3 baseline 452).
+- Signed hosted: 67/67 (baseline 56). The new `DispatchOfflineFieldBridgeHostedTests` has 11 tests.
+- Simulator build: OK.
+- No-polling gate: no Timer, asyncAfter, location, socket or background-refresh API in the Phase 4 code.
+- Break-a-rule probes: 20, all caught.
+  - M1–M9 on the Core bridge, readiness, tenancy and fallback.
+  - C1–C7 on the live-save atomicity, the per-cache stamps and the warm-up policy.
+  - H1–H4 hosted, on MMKV scoping, note re-apply, the T&C boundary and the live-save company check.
+- Test #14's "completion only through the existing override" is pinned by `LegCompletionEvaluatorTests` (a Delivery without T&C lists `.termsAndConditions` as missing, and that goes through the Warning override).
+
