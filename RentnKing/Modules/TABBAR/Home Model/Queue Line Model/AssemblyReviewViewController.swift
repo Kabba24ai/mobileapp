@@ -752,25 +752,28 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     /// `product-categories` read the checklist's "Select Category ID" uses (CategoryListFile),
     /// delivered once; nil when neither the cache nor the network has it.
     private func loadCategories(_ deliver: @escaping ([EquipmentCategoryOption]?) -> Void) {
-        let cachedFirst = !getCatData().isEmpty
-        var calls = 0
         var delivered = false
-        getCategoryList { list in
-            calls += 1
+        let finish = { (options: [EquipmentCategoryOption]?) in
             guard !delivered else { return }
-            let options = list.compactMap { category -> EquipmentCategoryOption? in
-                guard let uid = category.unique_id, !uid.isEmpty else { return nil }
-                // The cached list prefixes child categories with "--" for the checklist's wheel.
-                let title = (category.name ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "- ")).trimmingCharacters(in: .whitespaces)
-                return title.isEmpty ? nil : EquipmentCategoryOption(uniqueId: uid, title: title)
-            }
-            if !options.isEmpty {
-                delivered = true
-                DispatchQueue.main.async { deliver(options) }
-            } else if !cachedFirst || calls >= 2 {
-                delivered = true                      // the network read failed and there is no cache
-                DispatchQueue.main.async { deliver(nil) }
-            }
+            delivered = true
+            DispatchQueue.main.async { deliver(options) }
+        }
+        let cached = Self.categoryOptions(getCatData())
+        if !cached.isEmpty { finish(cached) }
+        // The refresh answers on success AND on a transport failure (the list loaders no longer
+        // hand back [] after serving a cache — Dispatch offline Phase 4), so wait on it directly.
+        callAPIforCategoryList(CatrgoryParameater: CatrgoryParameater()) { isSaved in
+            let fresh = isSaved ? Self.categoryOptions(getCatData()) : []
+            finish(fresh.isEmpty ? nil : fresh)     // nil: the network read failed and there is no cache
+        }
+    }
+
+    static func categoryOptions(_ list: [CategoryModel]) -> [EquipmentCategoryOption] {
+        list.compactMap { category -> EquipmentCategoryOption? in
+            guard let uid = category.unique_id, !uid.isEmpty else { return nil }
+            // The cached list prefixes child categories with "--" for the checklist's wheel.
+            let title = (category.name ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "- ")).trimmingCharacters(in: .whitespaces)
+            return title.isEmpty ? nil : EquipmentCategoryOption(uniqueId: uid, title: title)
         }
     }
 

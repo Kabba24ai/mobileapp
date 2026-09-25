@@ -173,10 +173,12 @@ enum DispatchOfflineSync {
         }
     }
 
-    /// The signed-in user as a checklist context employee (P4-D5); nil keeps the package's.
+    /// The signed-in user as a checklist context employee (P4-D5); nil keeps the stored one. A
+    /// profile saved before the login stored `unique_id` has none: that same user downloaded the
+    /// packages, so the stored employee is already them (any other user logs in again first).
     static func signedInEmployee() -> ChecklistContext.Employee? {
         guard let user = UserDefaults.standard.user, let id = Int(user.id ?? ""), id > 0,
-              let uniqueId = user.unique_id, !uniqueId.isEmpty else { return nil }
+              let uniqueId = user.unique_id, !uniqueId.isEmpty, uniqueId != "0" else { return nil }
         return ChecklistContext.Employee(userId: id, uniqueId: uniqueId, fullName: user.full_name ?? "")
     }
 

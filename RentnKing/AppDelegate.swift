@@ -663,12 +663,7 @@ extension AppDelegate :WebServiceHelperDelegate {
                 if let userData = data["user"] as? NSDictionary{
                     
                     //SAVE USER DATA
-                    let userObj = User()
-                    userObj.id = userData.getStringForID(key: "id")
-                    userObj.email = userData.getStringForID(key: "email")
-                    userObj.full_name = userData.getStringForID(key: "full_name")
-                    
-                    
+                    let userObj = User.fromLoginResponse(userData)
                     
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj

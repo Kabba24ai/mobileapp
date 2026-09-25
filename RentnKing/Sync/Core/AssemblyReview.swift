@@ -504,6 +504,14 @@ struct AssemblyReviewEnvelope: Codable, Equatable {
     static func decode(_ data: Data) throws -> AssemblyReviewEnvelope {
         try KabbaISO8601.makeDecoder().decode(AssemblyReviewEnvelope.self, from: data)
     }
+
+    /// A cached review as served to the user signed in NOW (`meta.employee` is who performs the
+    /// acknowledgements — Dispatch offline P4-D5). nil keeps the stored employee.
+    func servedTo(_ signedIn: Employee?) -> AssemblyReviewEnvelope {
+        guard let signedIn = signedIn else { return self }
+        return AssemblyReviewEnvelope(success: success, data: data,
+                                      meta: Meta(generatedAt: meta?.generatedAt, employee: signedIn))
+    }
 }
 
 // MARK: - The durable operation

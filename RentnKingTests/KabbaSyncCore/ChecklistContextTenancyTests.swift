@@ -107,6 +107,22 @@ final class ChecklistContextFallbackPolicyTests: XCTestCase {
         XCTAssertTrue(P.canServeOffline(ctx, equipmentHint: ctx.equipment.equipmentUniqueId, strictUnit: true, operations: []))
     }
 
+    func testAContextWithNoUnitIsNeverServedOffline() throws {
+        // P4-D4 / §4.8: an unassigned delivery needs the online `selected` path to choose its unit.
+        let envelope = try XCTUnwrap(JSONValue.parse(F.data("delivery_checklist_context")))
+        let bare = try XCTUnwrap(envelope["data"])
+        let unassigned = bare.setting(["equipment", "assignment"], .string("none"))
+            .setting(["equipment", "equipment_unique_id"], .null)
+        var ctx = try ChecklistContext.decode(envelopeData: unassigned.serialized())
+        ctx.cachedAt = Date(timeIntervalSince1970: 1_790_000_000)
+        XCTAssertFalse(ctx.equipment.hasUnit)
+
+        XCTAssertFalse(P.canServeOffline(ctx, equipmentHint: nil, strictUnit: false, operations: []),
+                       "This unit's checklist needs a connection")
+        XCTAssertFalse(P.canServeOffline(ctx, equipmentHint: "EQP-PICKED-LOCALLY", strictUnit: false, operations: []))
+        XCTAssertFalse(P.canServeOffline(ctx, equipmentHint: "EQP-PICKED-LOCALLY", strictUnit: true, operations: []))
+    }
+
     func testAnOfflineSubstitutionNeverServesTheReplacedUnitsContext() throws {
         let ctx = try context()
         let swap = discard(EffectiveFieldState.equipmentSubstitutionType, product: ctx.identity.orderProductUniqueId,
@@ -145,3 +161,33 @@ final class ChecklistContextFallbackPolicyTests: XCTestCase {
         XCTAssertTrue(P.canServeOffline(ctx, equipmentHint: nil, strictUnit: false, operations: [sibling]), "another product's discard")
     }
 }
+
+/// P4-D5 at READ time: whatever a cached context or Assembly Review names, the phone serves it
+/// as the user signed in NOW — a shared phone never attributes work to whoever downloaded it.
+final class SignedInEmployeeServingTests: XCTestCase {
+
+    private typealias F = DispatchOfflineFixtures
+
+    func testACachedContextIsServedAsTheSignedInEmployee() throws {
+        let ctx = try ChecklistContext.decode(envelopeData: F.data("delivery_checklist_context"))
+        let signedIn = ChecklistContext.Employee(userId: 77, uniqueId: "PER-SIGNED-IN", fullName: "Yolanda Driver")
+        XCTAssertNotEqual(ctx.employee, signedIn)
+
+        XCTAssertEqual(ctx.servedTo(signedIn).employee, signedIn)
+        XCTAssertEqual(ctx.servedTo(signedIn).executionId, ctx.executionId, "nothing else changes")
+        XCTAssertEqual(ctx.servedTo(nil).employee, ctx.employee, "no local profile: the stored employee stays")
+    }
+
+    func testACachedAssemblyReviewIsServedAsTheSignedInEmployee() throws {
+        let envelope = try AssemblyReviewEnvelope.decode(F.data("queue_line_assembly"))
+        let signedIn = AssemblyReviewEnvelope.Employee(uniqueId: "PER-SIGNED-IN", fullName: "Yolanda Driver")
+        XCTAssertNotEqual(envelope.meta?.employee, signedIn)
+
+        let served = envelope.servedTo(signedIn)
+        XCTAssertEqual(served.meta?.employee, signedIn)
+        XCTAssertEqual(served.meta?.generatedAt, envelope.meta?.generatedAt)
+        XCTAssertEqual(served.data, envelope.data)
+        XCTAssertEqual(envelope.servedTo(nil), envelope)
+    }
+}
+

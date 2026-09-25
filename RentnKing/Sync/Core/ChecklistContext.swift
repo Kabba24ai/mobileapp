@@ -241,7 +241,7 @@ struct ChecklistContext: Codable, Equatable {
     let questions: [Question]
     let operational: Operational
     var serverState: ServerState
-    let employee: Employee?
+    private(set) var employee: Employee?
     let serverTime: String
 
     /// When THIS phone cached the snapshot (not part of the wire format).
@@ -250,6 +250,15 @@ struct ChecklistContext: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case identity, equipment, template, requirements, questions, operational
         case serverState = "server_state", employee, serverTime = "server_time", cachedAt = "cached_at"
+    }
+
+    /// The context as served to the user signed in NOW — what the online endpoint returns for this
+    /// phone's user (Dispatch offline P4-D5). nil (no local profile) keeps the stored employee.
+    func servedTo(_ signedIn: Employee?) -> ChecklistContext {
+        guard let signedIn = signedIn else { return self }
+        var copy = self
+        copy.employee = signedIn
+        return copy
     }
 
     // MARK: Decoding from the canonical envelope

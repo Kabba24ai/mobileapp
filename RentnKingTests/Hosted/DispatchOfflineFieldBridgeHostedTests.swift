@@ -30,11 +30,13 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
     private let orderUid = "ORD-BJVZ-CSDO"        // the fixture's order
     private let opuid = "ORD-SCH-P8KU-S6A9"        // the fixture's mission line
     private var savedBaseURL: String?
+    private var savedUser: User?
     private var root: URL!
 
     override func setUp() {
         super.setUp()
         savedBaseURL = UserDefaults.standard.baseURL
+        savedUser = UserDefaults.standard.user
         root = FileManager.default.temporaryDirectory.appendingPathComponent("p4-hosted-\(UUID().uuidString)", isDirectory: true)
         signIn(urlA)
     }
@@ -52,6 +54,7 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         SDKUserDefault.save("", for: OrderDetailsCache.detailsKey(legacyUid)) // neutralize the raw legacy record
         UserDefaults.standard.removeObject(forKey: "kQueueLineAssembly_\(legacyUid)")
         UserDefaults.standard.baseURL = savedBaseURL
+        UserDefaults.standard.user = savedUser
         try? FileManager.default.removeItem(at: root)
         super.tearDown()
     }
@@ -170,6 +173,67 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         // A hint that matches the bridged unit is still served.
         let unit = h.contexts.load(orderProductUniqueId: opuid, leg: .delivery)?.equipment.equipmentUniqueId
         if case .success = loadContext(client, unit: unit, strict: true) {} else { XCTFail("the bridged unit is served") }
+    }
+
+    // MARK: - P4-D5: whoever is signed in NOW performs the offline work (review I-1)
+
+    private func signInUser(id: String, uniqueId: String?, name: String) {
+        let user = User()
+        user.id = id
+        user.unique_id = uniqueId
+        user.full_name = name
+        UserDefaults.standard.user = user
+    }
+
+    func testALoginKeepsTheSignedInUsersUniqueId() {
+        let user = User.fromLoginResponse(["id": 77, "unique_id": "PER-SIGNED-IN", "email": "y@example.test", "full_name": "Yolanda Driver"])
+        XCTAssertEqual(user.id, "77")
+        XCTAssertEqual(user.unique_id, "PER-SIGNED-IN")
+        XCTAssertEqual(user.full_name, "Yolanda Driver")
+
+        UserDefaults.standard.user = user
+        XCTAssertEqual(DispatchOfflineSync.signedInEmployee(),
+                       ChecklistContext.Employee(userId: 77, uniqueId: "PER-SIGNED-IN", fullName: "Yolanda Driver"))
+        signInUser(id: "77", uniqueId: "0", name: "Yolanda Driver") // the resource's "no unique id" value
+        XCTAssertNil(DispatchOfflineSync.signedInEmployee())
+        signInUser(id: "77", uniqueId: nil, name: "Yolanda Driver") // a profile saved before this change
+        XCTAssertNil(DispatchOfflineSync.signedInEmployee())
+    }
+
+    func testAMissionDownloadedByOneUserIsWorkedOfflineAsTheUserSignedInNow() throws {
+        let h = try harness(storeAt: urlA)
+        h.bridge.bridge(index: h.store.loadIndex()) // downloaded + bridged under Gary Driver (the package's employee)
+        XCTAssertEqual(h.contexts.load(orderProductUniqueId: opuid, leg: .delivery)?.employee?.uniqueId, "PER-VDKO-9765")
+
+        // Gary logs out; Yolanda (same company) logs in on the same phone and works offline.
+        signInUser(id: "77", uniqueId: "PER-SIGNED-IN", name: "Yolanda Driver")
+
+        guard case .success(let context) = loadContext(offlineChecklistClient(h.contexts)) else {
+            return XCTFail("served offline")
+        }
+        XCTAssertEqual(context.employee, ChecklistContext.Employee(userId: 77, uniqueId: "PER-SIGNED-IN", fullName: "Yolanda Driver"),
+                       "restarts / substitutions are attributed to Yolanda, never the downloader")
+        XCTAssertEqual(KabbaAssemblySync.cached(orderUniqueId: orderUid)?.meta?.employee?.uniqueId, "PER-SIGNED-IN",
+                       "Assembly Review acknowledgements too")
+    }
+
+    // MARK: - P4-D4: an unassigned delivery needs a connection (review I-2)
+
+    func testAnUnassignedDeliveryOfflineNeedsAConnection() throws {
+        let package = try fixturePackage()
+        let bare = try XCTUnwrap(package["checklist_context"])
+        guard case .object(var object) = bare, case .object(var equipment)? = object["equipment"] else { return XCTFail("fixture") }
+        equipment["assignment"] = .string("none")
+        equipment["equipment_unique_id"] = .null
+        object["equipment"] = .object(equipment)
+        object["questions"] = .array([])
+        let unassigned = try ChecklistContext.decode(envelopeData: JSONValue.object(object).serialized())
+        let contexts = try ChecklistContextStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+        try contexts.save(unassigned, tenantKey: tenantA)
+
+        XCTAssertEqual(loadContext(offlineChecklistClient(contexts)), .failure(.unavailableOffline),
+                       "never a question-less checklist a local unit pick could stage")
+        XCTAssertEqual(loadContext(offlineChecklistClient(contexts), unit: "EQP-PICKED-LOCALLY"), .failure(.unavailableOffline))
     }
 
     // MARK: - Amendment B: company A → B → A on one phone

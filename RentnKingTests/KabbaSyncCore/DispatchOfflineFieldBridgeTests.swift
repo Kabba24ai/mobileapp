@@ -310,6 +310,19 @@ final class DispatchOfflineFieldBridgeTests: XCTestCase {
         XCTAssertNil(writer.orderDetails("ORD-A", tenant: store.tenantKey), "and then keeps the fresher live copy")
     }
 
+    func testAnUnassignedDeliveryIsBridgedButNeverFieldReadyAndNeverRetried() {
+        var u = m("U", "u1")
+        u.unassigned = true
+        server.missions = [u]
+
+        let result = reconcile(.launch)
+
+        XCTAssertNotNil(context(u), "bridged (an online open still reuses its execution)")
+        XCTAssertFalse(makeBridge().isFieldReady(entry(u)), "choosing the unit needs a connection (P4-D4)")
+        XCTAssertEqual(result.incompleteMissionKeys, [u.key])
+        XCTAssertTrue(makeBridge().repairableMissionKeys(in: index).isEmpty, "not a failed section: never re-downloaded")
+    }
+
     func testAReturnMissionNeedsNoAssembly() {
         let r = m("R", "r1", leg: .return)
         server.missions = [r]

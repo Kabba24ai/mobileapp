@@ -59,9 +59,11 @@ final class ChecklistContextClient {
                       let cached = self.store.load(orderProductUniqueId: orderProductUniqueId, leg: leg, tenantKey: tenant) else {
                     return strictUnit ? .failure(.unavailableOffline) : .failure(.api(error))
                 }
+                // Served as the user signed in NOW (P4-D5): a shared phone never attributes restarts or
+                // substitutions to whoever downloaded or last opened it.
                 return ChecklistContextFallbackPolicy.canServeOffline(cached, equipmentHint: equipmentUniqueId, strictUnit: strictUnit,
                                                                       operations: KabbaSync.engine?.snapshot() ?? [])
-                    ? .success(cached) : .failure(.unavailableOffline)
+                    ? .success(cached.servedTo(DispatchOfflineSync.signedInEmployee())) : .failure(.unavailableOffline)
             }
             switch result {
             case .failure(let error):

@@ -12,6 +12,9 @@
 //  execution). The replacement's canonical context only exists on the server,
 //  so offline it is "needs a connection" instead.
 //
+//  A context with no unit (an unassigned delivery, `assignment: none`) is never
+//  served offline either: choosing its unit needs the server's `selected` path.
+//
 
 import Foundation
 
@@ -26,6 +29,7 @@ enum ChecklistContextFallbackPolicy {
                                 equipmentHint: String?,
                                 strictUnit: Bool,
                                 operations: [SyncOperation]) -> Bool {
+        guard cached.equipment.hasUnit else { return false }
         if EffectiveFieldState.supersededExecutionIds(in: operations).contains(cached.executionId) { return false }
         if strictUnit, let hint = equipmentHint, !hint.isEmpty, cached.equipment.equipmentUniqueId != hint { return false }
         if let discardedAt = EffectiveFieldState.lastDiscardAt(in: operations, orderProductUniqueId: cached.identity.orderProductUniqueId),

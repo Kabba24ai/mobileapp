@@ -59,6 +59,8 @@ enum DispatchOfflineFixtures {
         var cycle: Int? = nil
         var unit: String? = nil
         var serverTime: String? = nil
+        /// An unassigned delivery (`assignment: none`): no unit, no questions.
+        var unassigned = false
 
         var key: String { "\(opuid):\(leg.rawValue)" }
     }
@@ -101,6 +103,11 @@ enum DispatchOfflineFixtures {
         if let cycle = m.cycle { p = p.setting(["checklist_context", "identity", "cycle"], .number(Double(cycle))) }
         if let unit = m.unit { p = p.setting(["checklist_context", "equipment", "equipment_unique_id"], .string(unit)) }
         if let time = m.serverTime { p = p.setting(["checklist_context", "server_time"], .string(time)) }
+        if m.unassigned {
+            p = p.setting(["checklist_context", "equipment", "assignment"], .string("none"))
+                .setting(["checklist_context", "equipment", "equipment_unique_id"], .null)
+                .setting(["checklist_context", "questions"], .array([]))
+        }
         if m.leg == .return {
             // Like the server: Return missions carry no Assembly Review.
             p = p.setting(["assembly"], .null).setting(["sections", "assembly"], .string("not_applicable"))

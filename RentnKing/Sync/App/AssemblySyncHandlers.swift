@@ -72,10 +72,14 @@ enum KabbaAssemblySync {
         }
     }
 
+    /// The cached review, served as the user signed in NOW (its `meta.employee` performs the
+    /// acknowledgements — Dispatch offline P4-D5), for the signed-in company only.
     static func cached(orderUniqueId: String) -> AssemblyReviewEnvelope? {
         guard let key = cacheKey(orderUniqueId: orderUniqueId),
-              let data = UserDefaults.standard.data(forKey: key) else { return nil }
-        return try? AssemblyReviewEnvelope.decode(data)
+              let data = UserDefaults.standard.data(forKey: key),
+              let envelope = try? AssemblyReviewEnvelope.decode(data) else { return nil }
+        let signedIn = DispatchOfflineSync.signedInEmployee()
+        return envelope.servedTo(signedIn.map { AssemblyReviewEnvelope.Employee(uniqueId: $0.uniqueId, fullName: $0.fullName) })
     }
 
     static func clearCache(orderUniqueId: String) {
