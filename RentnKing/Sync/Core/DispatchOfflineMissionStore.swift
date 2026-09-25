@@ -47,6 +47,35 @@ enum DispatchOfflineTenant {
     }
 }
 
+/// Phase 4 (Amendment B): which phone-cache keys hold ONE company's business data, and their
+/// company-scoped storage form. Every read and write of these keys goes through
+/// `storageKey(_:tenantKey:)` (SDKUserDefault, the Assembly Review cache), so a company's cached
+/// Order Details, Assembly Review, reference lists and Dispatch slots are never visible under
+/// another company. Legacy unscoped keys are never produced for these → never read (and never
+/// deleted): their company cannot be proven.
+enum DispatchOfflineTenantStorage {
+    static let exactKeys: Set<String> = [
+        "CateoryList", "EmployesList", "EmployesList_Driver", "EquipmentList", "EquipmentList_Rental_Ready",
+        "kStoreList", "kPriceList", "kProductSettings", "OrderDetailUserData",
+    ]
+    static let prefixes: [String] = [
+        "kOrderDetailData_", "kOrderDetailsData_", "kQueueLineAssembly_",
+        "kDispatchJobList_", "kDispatchManualList_", "kReferenceWarmedAt_",
+    ]
+
+    static func isTenantScoped(_ key: String) -> Bool {
+        exactKeys.contains(key) || prefixes.contains { key.hasPrefix($0) }
+    }
+
+    /// `key` unchanged when it is not company data; its company-scoped form otherwise; nil when it
+    /// is company data and nobody is signed in (read nothing, write nothing).
+    static func storageKey(_ key: String, tenantKey: String?) -> String? {
+        guard isTenantScoped(key) else { return key }
+        guard let tenant = tenantKey, !tenant.isEmpty else { return nil }
+        return "\(key)@tenant:\(tenant)"
+    }
+}
+
 struct DispatchOfflineIndex: Codable, Equatable {
     static let currentSchema = 1
 
@@ -171,6 +200,8 @@ final class DispatchOfflineMissionStore {
     let packagesDirectory: URL
     let quarantineDirectory: URL
     let indexURL: URL
+    /// Phase 4 bridge ledger (metadata only — the data lives in the screens' own caches).
+    let fieldLedgerURL: URL
 
     /// Test seams: make the next write fail as a crash / full disk would.
     var failNextIndexCommit = false
@@ -180,6 +211,7 @@ final class DispatchOfflineMissionStore {
     private let encoder = KabbaISO8601.makeEncoder()
     private let decoder = KabbaISO8601.makeDecoder()
     private let lock = NSLock()
+    private let ledgerLock = NSLock()
     /// Package files are immutable, so a decoded file can be cached by name.
     private var decoded: [String: DispatchOfflineStoredPackage] = [:]
 
@@ -194,9 +226,52 @@ final class DispatchOfflineMissionStore {
         self.packagesDirectory = directory.appendingPathComponent("packages", isDirectory: true)
         self.quarantineDirectory = directory.appendingPathComponent("quarantine", isDirectory: true)
         self.indexURL = directory.appendingPathComponent("index.json")
+        self.fieldLedgerURL = directory.appendingPathComponent("field-ledger.json")
         for dir in [directory, packagesDirectory, quarantineDirectory] {
             try FileSyncOperationStore.ensureProtectedDirectory(dir, fileManager: fileManager)
         }
+    }
+
+    // MARK: - Field ledger (Phase 4 bridge; tenant-scoped with the rest of this directory)
+
+    func loadFieldLedger() -> DispatchOfflineFieldLedger {
+        ledgerLock.withLock { loadLedgerLocked() }
+    }
+
+    /// Read-modify-write under one lock (the bridge on the reconciler queue and a live
+    /// screen save on the main queue never lose each other's update). Written only when changed.
+    @discardableResult
+    func updateFieldLedger<T>(_ body: (inout DispatchOfflineFieldLedger) -> T) -> T {
+        ledgerLock.withLock {
+            var ledger = loadLedgerLocked()
+            let before = ledger
+            let result = body(&ledger)
+            if ledger != before, let data = try? encoder.encode(ledger) {
+                try? FileSyncOperationStore.writeProtected(data, to: fieldLedgerURL)
+            }
+            return result
+        }
+    }
+
+    /// A screen got a live answer (Order Details, the checklist order, Assembly Review) to a request it SENT at
+    /// `askedAt` (phone clock, like a package's `serverObservedAt`). `save` writes the screen's
+    /// cache and runs only when no newer copy (a package asked later) is already on this phone;
+    /// when it succeeds the ledger records it, so an older package never overwrites it. Atomic
+    /// with the bridge (one lock): the newer copy is always the one left on disk.
+    @discardableResult
+    func saveLiveCopy(_ cache: DispatchOfflineOrderCache, orderUniqueId: String, askedAt: Date, save: () -> Bool) -> Bool {
+        updateFieldLedger { ledger in
+            if let newest = ledger.observed(cache, orderUniqueId), newest > askedAt { return false }
+            guard save() else { return false }
+            ledger.observedAt[cache, default: [:]][orderUniqueId] = askedAt
+            return true
+        }
+    }
+
+    private func loadLedgerLocked() -> DispatchOfflineFieldLedger {
+        guard let data = try? Data(contentsOf: fieldLedgerURL),
+              let ledger = try? decoder.decode(DispatchOfflineFieldLedger.self, from: data) else { return DispatchOfflineFieldLedger() }
+        return ledger
     }
 
     // MARK: - Index

@@ -262,7 +262,7 @@ final class DispatchOfflineMissionStoreTests: XCTestCase {
     func testCleanupNeverTouchesSyncEngineWorkOrChecklistContexts() throws {
         let root = Fixtures.tempDirectory()
         let engineStore = try FileSyncOperationStore(rootDirectory: root)
-        let contexts = try ChecklistContextStore(rootDirectory: root)
+        let contexts = try ChecklistContextStore(rootDirectory: root, tenantKey: { "aaaaaaaaaaaaaaaa" })
         var op = SyncOperation(type: "delivery_checklist.complete", capturedAt: t0,
                                identity: SyncBusinessIdentity(orderProductUniqueId: "ORD-SCH-A"), payload: .object(["x": .string("y")]))
         op.state = .needsAttention

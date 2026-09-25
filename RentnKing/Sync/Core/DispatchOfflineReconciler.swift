@@ -103,6 +103,9 @@ struct DispatchOfflineReconcileResult: Equatable {
     var failedMissionKeys: [String] = []
     /// Why package downloads stopped early, when they did.
     var packageFailure: DispatchOfflineFailure? = nil
+    /// Phase 4 (Amendment A): ready missions whose deep-offline sections are not all present yet
+    /// (diagnostics only — they never make a run `partial`; retryable ones are re-requested).
+    var incompleteMissionKeys: [String] = []
 
     var backgroundResult: DispatchOfflineBackgroundResult {
         if changed { return .newData }
@@ -144,6 +147,9 @@ final class DispatchOfflineReconciler {
 
     /// Called on the reconciler's queue after every successful commit (the App refreshes the Dispatch screen).
     var onCommit: ((DispatchOfflineIndex) -> Void)?
+    /// Phase 4: preloads the screens' caches from stored packages at the end of every run, and
+    /// names the missions whose failed sections are re-requested at the same revision (Amendment A).
+    var fieldBridge: DispatchOfflineFieldBridge?
     var logger: ((String) -> Void)?
 
     private let queue = DispatchQueue(label: "ai.kabba.dispatch-offline.reconciler")
@@ -169,6 +175,17 @@ final class DispatchOfflineReconciler {
 
     func request(_ trigger: DispatchOfflineTrigger, completion: Completion? = nil) {
         queue.async { self.enqueue(trigger, completion) }
+    }
+
+    /// Phase 4: bridges packages already on disk (launch / relaunch, an interrupted bridge),
+    /// only while this store's company is signed in. Idempotent. No request.
+    func bridgeStoredPackages(completion: (() -> Void)? = nil) {
+        queue.async {
+            if self.currentSession != nil, !self.running {
+                self.fieldBridge?.bridge(index: self.store.loadIndex())
+            }
+            completion?()
+        }
     }
 
     private var currentSession: DispatchOfflineSession? {
@@ -197,7 +214,8 @@ final class DispatchOfflineReconciler {
     private func skipReason(for trigger: DispatchOfflineTrigger) -> DispatchOfflineReconcileResult.Skip? {
         let index = store.loadIndex()
         if case .wake(let revision?) = trigger, !revision.isEmpty,
-           index.everCommitted, index.manifestRevision == revision, index.isFullyCurrent {
+           index.everCommitted, index.manifestRevision == revision, index.isFullyCurrent,
+           fieldBridge?.repairableMissionKeys(in: index).isEmpty ?? true {
             return .alreadyCurrent
         }
         guard trigger.isThrottled else { return nil }
@@ -350,7 +368,11 @@ final class DispatchOfflineReconciler {
         }
         onCommit?(index)
 
-        let toDownload = manifest.missions.filter { index.entry($0.missionKey)?.readyRevision != $0.revision }
+        // A changed mission, or (Amendment A) one whose failed section is retried at the SAME revision.
+        let repair = fieldBridge?.repairableMissionKeys(in: index) ?? []
+        let toDownload = manifest.missions.filter {
+            index.entry($0.missionKey)?.readyRevision != $0.revision || repair.contains($0.missionKey)
+        }
         let batches = DispatchOfflineAPI.packagesRequests(for: toDownload)
         download(batches[...], owner: owner, index: index, startIndex: startIndex, outcome: outcome, finish: finish)
     }
@@ -473,6 +495,10 @@ final class DispatchOfflineReconciler {
         }
         if final != index, (try? store.commit(final)) == nil {
             final = index
+        }
+        // Phase 4: still on the owner session's queue turn (every answer was checked) — bridge now.
+        if let bridge = fieldBridge {
+            outcome.incompleteMissionKeys = bridge.bridge(index: final).incompleteMissionKeys
         }
         outcome.changed = startIndex.presentableSignature != final.presentableSignature
         logger?("[dispatch-offline] done: \(outcome.status) changed=\(outcome.changed) downloaded=\(outcome.downloaded) adopted=\(outcome.adopted) removed=\(outcome.removed) failed=\(outcome.failedMissionKeys.count)")

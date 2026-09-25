@@ -4,15 +4,15 @@
     "data": {
         "packages": [
             {
-                "mission_key": "ORD-SCH-FBMO-OVRB:delivery",
-                "revision": "24c31412694614b2dd71e6b6737931cca043263ea08ddf7fd6b2a7b75cf3bcdb",
-                "order_product_unique_id": "ORD-SCH-FBMO-OVRB",
+                "mission_key": "ORD-SCH-P8KU-S6A9:delivery",
+                "revision": "35e3d4fc3957a8102dab6265fd61a184a44c976d1f407986bad685c6aee8d23a",
+                "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
                 "leg": "delivery",
                 "dispatch": {
-                    "order_product_unique_id": "ORD-SCH-FBMO-OVRB",
+                    "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
                     "leg": "delivery",
                     "order": {
-                        "unique_id": "ORD-SYD9-KPZY",
+                        "unique_id": "ORD-BJVZ-CSDO",
                         "order_number": "1650",
                         "customer_name": "Cody Cash",
                         "customer_phone": "555-0100",
@@ -32,7 +32,7 @@
                         "options": []
                     },
                     "equipment": {
-                        "unique_id": "EQP-G0ZR-UKTJ",
+                        "unique_id": "EQP-GYVB-QEFI",
                         "equipment_id": "EQP-OFFLINE-7",
                         "name": "Skid Steer 7",
                         "power_source_type": "diesel",
@@ -41,7 +41,7 @@
                         "is_key": false
                     },
                     "schedule": {
-                        "date": "2026-09-24",
+                        "date": "2026-09-25",
                         "time": "09:00:00",
                         "status": "Pending",
                         "transport_mode": "Truck",
@@ -54,11 +54,11 @@
                     },
                     "row": {
                         "dispatch_source": "order",
-                        "dispatch_item_id": "order:ORD-SCH-FBMO-OVRB:delivery",
+                        "dispatch_item_id": "order:ORD-SCH-P8KU-S6A9:delivery",
                         "fulfillment_leg": "delivery",
-                        "sort_key": "2026-09-24|00001",
+                        "sort_key": "2026-09-25|00001",
                         "id": 1,
-                        "unique_id": "ORD-SCH-FBMO-OVRB",
+                        "unique_id": "ORD-SCH-P8KU-S6A9",
                         "product_name": "Skid Steer",
                         "product_data": {
                             "product_type": "Rental",
@@ -69,7 +69,7 @@
                         "delivery_store_id": 1,
                         "delivery_by": 2,
                         "delivery_priority": 1,
-                        "delivery_date": "24/09/2026",
+                        "delivery_date": "25/09/2026",
                         "delivery_time": "09:00",
                         "dispatch_delivery_date": "",
                         "is_early": false,
@@ -91,7 +91,7 @@
                         "pickup_status": "Pending",
                         "pickup_transport_mode": "Truck",
                         "pickup_store_id": "",
-                        "pickup_date": "27/09/2026",
+                        "pickup_date": "28/09/2026",
                         "pickup_time": "",
                         "pickup_by": 3,
                         "pickup_priority": null,
@@ -112,7 +112,7 @@
                         "is_returned": false,
                         "order": {
                             "id": 1,
-                            "unique_id": "ORD-SYD9-KPZY",
+                            "unique_id": "ORD-BJVZ-CSDO",
                             "order_number": "1650",
                             "customer_name": "Cody Cash",
                             "customer_phone": "555-0199",
@@ -135,14 +135,14 @@
                         },
                         "equipment": {
                             "id": 1,
-                            "unique_id": "EQP-G0ZR-UKTJ",
+                            "unique_id": "EQP-GYVB-QEFI",
                             "equipment_name": "Skid Steer 7",
                             "equipment_id": "EQP-OFFLINE-7",
                             "is_fuel": true,
                             "is_key": false,
                             "equipment_store": {
                                 "id": 1,
-                                "unique_id": "STO-OETT-VYS6",
+                                "unique_id": "STO-NZT6-BEE6",
                                 "store_name": "HQ",
                                 "phone": "",
                                 "email": "",
@@ -157,16 +157,16 @@
                         },
                         "delivery_employee": {
                             "id": 2,
-                            "unique_id": "PER-CX26-2FDY",
+                            "unique_id": "PER-VDKO-9765",
                             "full_name": "Gary Driver",
-                            "email": "drv_6ab55599bf5c0@example.com",
+                            "email": "drv_6ab6c9271e1a5@example.com",
                             "status": "Active"
                         },
                         "pickup_employee": {
                             "id": 3,
-                            "unique_id": "PER-R7FH-YTOF",
+                            "unique_id": "PER-EBEZ-IVGI",
                             "full_name": "Blake Driver",
-                            "email": "drv_6ab55599c85b8@example.com",
+                            "email": "drv_6ab6c927236fc@example.com",
                             "status": "Active"
                         },
                         "category_ids": [
@@ -176,18 +176,18 @@
                 },
                 "checklist_context": {
                     "identity": {
-                        "checklist_execution_id": "ORD-CHK-EK3Y-GZHI",
+                        "checklist_execution_id": "ORD-CHK-4TQ6-TKA8",
                         "cycle": 1,
                         "status": "open",
                         "leg": "delivery",
-                        "order_unique_id": "ORD-SYD9-KPZY",
+                        "order_unique_id": "ORD-BJVZ-CSDO",
                         "order_number": "1650",
-                        "order_product_unique_id": "ORD-SCH-FBMO-OVRB",
+                        "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
                         "product_name": "Skid Steer"
                     },
                     "equipment": {
                         "assignment": "soft",
-                        "equipment_unique_id": "EQP-G0ZR-UKTJ",
+                        "equipment_unique_id": "EQP-GYVB-QEFI",
                         "equipment_code": "EQP-OFFLINE-7",
                         "equipment_name": "Skid Steer 7",
                         "current_status": "available",
@@ -201,9 +201,9 @@
                         "equipment_hours": ""
                     },
                     "template": {
-                        "template_id": "CATQS-CFTB-NXZ4",
+                        "template_id": "CATQS-URES-PAYJ",
                         "template_name": "Skid Steer Checklist",
-                        "revision": "2e52f0686effa698",
+                        "revision": "9a2c1bd01ee64b77",
                         "question_source": "equipment_template"
                     },
                     "requirements": {
@@ -212,18 +212,18 @@
                         "store_required": false,
                         "equipment_required": true,
                         "required_question_ids": [
-                            "CAQST-AQUN-RBWW"
+                            "CAQST-WOW2-YHUM"
                         ]
                     },
                     "questions": [
                         {
-                            "question_id": "CAQST-AQUN-RBWW",
+                            "question_id": "CAQST-WOW2-YHUM",
                             "question_name": "Body damage",
                             "text": "Any body damage?",
                             "delivery_text": "Any body damage?",
                             "return_text": "Any body damage?",
                             "category": {
-                                "category_id": "CACAT-OKWR-LYRG",
+                                "category_id": "CACAT-3JPK-IYQX",
                                 "category_name": "Condition"
                             },
                             "required": true,
@@ -231,7 +231,7 @@
                             "index": 1,
                             "answers": [
                                 {
-                                    "answer_id": "CAANS-PQHS-V99X",
+                                    "answer_id": "CAANS-XSS1-59KB",
                                     "text": "No damage",
                                     "delivery_text": "No damage",
                                     "return_text": "No damage",
@@ -285,8 +285,8 @@
                             {
                                 "code": "unit_unconfirmed",
                                 "subject_type": "unit",
-                                "subject_key": "EQP-G0ZR-UKTJ",
-                                "order_product_unique_id": "ORD-SCH-FBMO-OVRB",
+                                "subject_key": "EQP-GYVB-QEFI",
+                                "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
                                 "product_name": "Skid Steer",
                                 "label": "Skid Steer 7 has not been confirmed Available."
                             }
@@ -294,28 +294,788 @@
                     },
                     "employee": {
                         "user_id": 2,
-                        "unique_id": "PER-CX26-2FDY",
+                        "unique_id": "PER-VDKO-9765",
                         "full_name": "Gary Driver"
                     },
-                    "server_time": "2026-09-24T16:53:46+00:00"
+                    "server_time": "2026-09-25T19:19:03+00:00"
                 },
                 "terms": {
                     "status": "Pending",
-                    "page_url": "http://kabba.local/terms-and-conditions/ORD-SYD9-KPZY/mobile",
+                    "page_url": "http://kabba.local/terms-and-conditions/ORD-BJVZ-CSDO/mobile",
                     "offline_content_available": false
+                },
+                "order_details": {
+                    "id": 1,
+                    "unique_id": "ORD-BJVZ-CSDO",
+                    "order_number": "1650",
+                    "customer_name": "Cody Cash",
+                    "customer_email": "",
+                    "customer_phone": "555-0199",
+                    "company_name": "",
+                    "company_website": "",
+                    "status": "",
+                    "order_date": "25/09/2026",
+                    "subtotal": "$0.00",
+                    "is_tax_exempt": "No",
+                    "tax_amount": "$0.00",
+                    "coupon_code": "",
+                    "discount_amount": "$0.00",
+                    "amount": "$0.00",
+                    "platform": "Web",
+                    "payment_type": "",
+                    "payment_status": "",
+                    "payment_type_label": "Unknown",
+                    "payment_status_label": "Unpaid",
+                    "amount_paid": "$0.00",
+                    "balance_due": "$0.00",
+                    "payment_date": "",
+                    "payment_reference": null,
+                    "delivery_address": {
+                        "id": 1,
+                        "order_id": 1,
+                        "type": "Shipping",
+                        "first_name": "Cody",
+                        "last_name": "Cash",
+                        "full_name": "Cody Cash",
+                        "full_address": "12 Farm Road, Clarksville, TN, 37040",
+                        "email": "",
+                        "phone": "555-0100",
+                        "address": "12 Farm Road",
+                        "city": "Clarksville",
+                        "state": "TN",
+                        "state_id": 0,
+                        "zip_code": "37040"
+                    },
+                    "billing_address": {
+                        "id": 0,
+                        "order_id": 0,
+                        "type": "",
+                        "first_name": "",
+                        "last_name": "",
+                        "full_name": "",
+                        "full_address": "",
+                        "email": "",
+                        "phone": "",
+                        "address": "",
+                        "city": "",
+                        "state": "",
+                        "state_id": 0,
+                        "zip_code": ""
+                    },
+                    "is_same_as_billing": false,
+                    "license": [],
+                    "order_products": [
+                        {
+                            "dispatch_source": "order",
+                            "dispatch_item_id": "order:ORD-SCH-P8KU-S6A9:delivery",
+                            "fulfillment_leg": "delivery",
+                            "sort_key": "2026-09-25|00001",
+                            "id": 1,
+                            "unique_id": "ORD-SCH-P8KU-S6A9",
+                            "product_name": "Skid Steer",
+                            "price": "$100.00",
+                            "quantity": 1,
+                            "hour_tracking": false,
+                            "hour_rate": 0,
+                            "allocated_hours": 0,
+                            "sub_total": "$0.00",
+                            "tax": "$0.00",
+                            "total": "$100.00",
+                            "product_data": {
+                                "product_type": "Rental",
+                                "product_option_items": []
+                            },
+                            "is_product_clean": false,
+                            "rental_prepaid_cleaning": 0,
+                            "delivery_clean_option": "",
+                            "delivery_clean_id": 0,
+                            "return_clean_option": "",
+                            "return_clean_id": 0,
+                            "total_clean_charge": 0,
+                            "service_method": "",
+                            "service_option": "",
+                            "distance_type": "",
+                            "distance_range": "",
+                            "delivery_status": "Pending",
+                            "delivery_transport_mode": "Truck",
+                            "delivery_store_id": 1,
+                            "delivery_by": 2,
+                            "delivery_priority": 1,
+                            "delivery_date": "25/09/2026",
+                            "delivery_time": "09:00",
+                            "dispatch_delivery_date": "",
+                            "is_delivery_overdue": false,
+                            "is_early": false,
+                            "is_late_delivery": false,
+                            "delivery_media": [],
+                            "delivery_notes": "",
+                            "delivery_checklist": {
+                                "equipment_fuel": "Full",
+                                "equipment_key_location": null,
+                                "equipment_driver_status": null,
+                                "ready_to_go_at": null,
+                                "arrived_at": null,
+                                "is_delivered": false,
+                                "is_arrived": false,
+                                "call_customer": "Yes",
+                                "driver_checks": [
+                                    1,
+                                    2
+                                ]
+                            },
+                            "pickup_status": "Pending",
+                            "pickup_transport_mode": "Truck",
+                            "pickup_store_id": "",
+                            "pickup_date": "28/09/2026",
+                            "pickup_time": "",
+                            "pickup_by": 3,
+                            "pickup_priority": null,
+                            "dispatch_return_date": "",
+                            "is_pickup_overdue": false,
+                            "is_late_pickup": false,
+                            "pickup_media": [],
+                            "pickup_notes": "",
+                            "pickup_checklist": {
+                                "equipment_fuel": null,
+                                "equipment_key_location": null,
+                                "equipment_driver_status": null,
+                                "ready_to_go_at": null,
+                                "arrived_at": null,
+                                "is_delivered": false,
+                                "is_arrived": false,
+                                "call_customer": null,
+                                "driver_checks": null
+                            },
+                            "delivery_signature_media_id": 0,
+                            "return_signature_media_id": 0,
+                            "delivery_signature_media_url": "",
+                            "return_signature_media_url": "",
+                            "is_delivered": false,
+                            "is_returned": false,
+                            "start_hours": 0,
+                            "end_hours": 0,
+                            "fuel_initial_reading": "",
+                            "fuel_final_reading": "",
+                            "fuel_total_charge": 0,
+                            "total_charge": 0,
+                            "equipment": {
+                                "id": 1,
+                                "unique_id": "EQP-GYVB-QEFI",
+                                "equipment_name": "Skid Steer 7",
+                                "product_category_id": 0,
+                                "assigned_product_id": null,
+                                "equipment_id": "EQP-OFFLINE-7",
+                                "equipment_hours": 0,
+                                "is_tracked": "",
+                                "overage_rate": 0,
+                                "brand": "Bobcat",
+                                "model": "",
+                                "model_year": "",
+                                "date_acquired": "",
+                                "purchase_cost": 0,
+                                "ownership_type": "",
+                                "finance_company": "",
+                                "term_in_months": 0,
+                                "interest_rate": 0,
+                                "monthly_payment": 0,
+                                "vehicle_identification_number": "",
+                                "serial_number": "",
+                                "license_plate": "",
+                                "imei": "",
+                                "power_source_type": "diesel",
+                                "key_starting_mechanism": "",
+                                "is_fuel": true,
+                                "is_key": false,
+                                "has_def": "No",
+                                "diesel_tank_capacity": 0,
+                                "def_tank_capacity": 0,
+                                "gas_tank_capacity": 0,
+                                "standard_battery_count": 0,
+                                "expanded_battery_count": 0,
+                                "checklist_master_id": 1,
+                                "equipment_notes": "",
+                                "current_status": "Available",
+                                "current_status_updated_by": "",
+                                "current_status_changed_at": "",
+                                "product_category": null,
+                                "current_order_id": 0,
+                                "current_order_product_id": 0,
+                                "current_order_number": "",
+                                "equipment_location": "HQ",
+                                "equipment_location_detail": {
+                                    "state": "at_store",
+                                    "state_label": "On-Site",
+                                    "label": "HQ",
+                                    "place_name": "HQ",
+                                    "physical_store_id": 1,
+                                    "anchor_store_id": 1,
+                                    "anchor_store_name": "HQ",
+                                    "anchor_store_unique_id": "STO-NZT6-BEE6",
+                                    "external_location": null,
+                                    "order_id": null,
+                                    "order_number": null,
+                                    "order_unique_id": null,
+                                    "customer_name": null,
+                                    "customer_unique_id": null
+                                },
+                                "equipment_store": {
+                                    "id": 1,
+                                    "unique_id": "STO-NZT6-BEE6",
+                                    "store_name": "HQ",
+                                    "phone": "",
+                                    "email": "",
+                                    "address": "",
+                                    "state_id": 0,
+                                    "city": "",
+                                    "zip_code": "",
+                                    "is_primary": "Yes",
+                                    "status": "Active",
+                                    "full_address": ""
+                                }
+                            },
+                            "equipment_id": 1,
+                            "equipment_category": null,
+                            "is_soft_assigned": true,
+                            "equipment_details": {
+                                "id": 1,
+                                "unique_id": "EQP-GYVB-QEFI",
+                                "equipment_name": "Skid Steer 7",
+                                "product_category_id": 0,
+                                "assigned_product_id": null,
+                                "equipment_id": "EQP-OFFLINE-7",
+                                "equipment_hours": 0,
+                                "is_tracked": "",
+                                "overage_rate": 0,
+                                "brand": "Bobcat",
+                                "model": "",
+                                "model_year": "",
+                                "date_acquired": "",
+                                "purchase_cost": 0,
+                                "ownership_type": "",
+                                "finance_company": "",
+                                "term_in_months": 0,
+                                "interest_rate": 0,
+                                "monthly_payment": 0,
+                                "vehicle_identification_number": "",
+                                "serial_number": "",
+                                "license_plate": "",
+                                "imei": "",
+                                "power_source_type": "diesel",
+                                "key_starting_mechanism": "",
+                                "is_fuel": true,
+                                "is_key": false,
+                                "has_def": "No",
+                                "diesel_tank_capacity": 0,
+                                "def_tank_capacity": 0,
+                                "gas_tank_capacity": 0,
+                                "standard_battery_count": 0,
+                                "expanded_battery_count": 0,
+                                "checklist_master_id": 1,
+                                "equipment_notes": "",
+                                "current_status": "Available",
+                                "current_status_updated_by": "",
+                                "current_status_changed_at": "",
+                                "product_category": null,
+                                "current_order_id": 0,
+                                "current_order_product_id": 0,
+                                "current_order_number": "",
+                                "equipment_location": "HQ",
+                                "equipment_location_detail": {
+                                    "state": "at_store",
+                                    "state_label": "On-Site",
+                                    "label": "HQ",
+                                    "place_name": "HQ",
+                                    "physical_store_id": 1,
+                                    "anchor_store_id": 1,
+                                    "anchor_store_name": "HQ",
+                                    "anchor_store_unique_id": "STO-NZT6-BEE6",
+                                    "external_location": null,
+                                    "order_id": null,
+                                    "order_number": null,
+                                    "order_unique_id": null,
+                                    "customer_name": null,
+                                    "customer_unique_id": null
+                                },
+                                "equipment_store": {
+                                    "id": 1,
+                                    "unique_id": "STO-NZT6-BEE6",
+                                    "store_name": "HQ",
+                                    "phone": "",
+                                    "email": "",
+                                    "address": "",
+                                    "state_id": 0,
+                                    "city": "",
+                                    "zip_code": "",
+                                    "is_primary": "Yes",
+                                    "status": "Active",
+                                    "full_address": ""
+                                }
+                            },
+                            "assigned_by": "",
+                            "assigned_at": "",
+                            "delivery_store": {
+                                "id": 1,
+                                "unique_id": "STO-NZT6-BEE6",
+                                "store_name": "HQ",
+                                "phone": "",
+                                "email": "",
+                                "address": "",
+                                "state_id": 0,
+                                "city": "",
+                                "zip_code": "",
+                                "is_primary": "Yes",
+                                "status": "Active",
+                                "full_address": ""
+                            },
+                            "pickup_store": null,
+                            "equipment_location": "HQ",
+                            "equipment_location_detail": {
+                                "state": "at_store",
+                                "state_label": "On-Site",
+                                "label": "HQ",
+                                "place_name": "HQ",
+                                "physical_store_id": 1,
+                                "anchor_store_id": 1,
+                                "anchor_store_name": "HQ",
+                                "anchor_store_unique_id": "STO-NZT6-BEE6",
+                                "external_location": null,
+                                "order_id": null,
+                                "order_number": null,
+                                "order_unique_id": null,
+                                "customer_name": null,
+                                "customer_unique_id": null
+                            },
+                            "assigned_equipment": {
+                                "name": "Skid Steer 7",
+                                "identifier": "EQP-OFFLINE-7",
+                                "display": "Skid Steer 7 \u00b7 EQP-OFFLINE-7",
+                                "is_assigned": true
+                            },
+                            "customer_checklist_questions": [
+                                {
+                                    "id": 1,
+                                    "unique_id": "CAQST-WOW2-YHUM",
+                                    "question_name": "Body damage",
+                                    "category_id": 1,
+                                    "question_delivery_text": "Any body damage?",
+                                    "question_return_text": "Any body damage?",
+                                    "required_question": 1,
+                                    "category": {
+                                        "id": 1,
+                                        "unique_id": "CACAT-3JPK-IYQX",
+                                        "category_name": "Condition",
+                                        "description": ""
+                                    },
+                                    "answers": [
+                                        {
+                                            "id": 1,
+                                            "unique_id": "CAANS-XSS1-59KB",
+                                            "answer_delivery_text": "No damage",
+                                            "answer_return_text": "No damage",
+                                            "delivery_amt": 0,
+                                            "return_amt": 0,
+                                            "sync_texts": 1,
+                                            "question_id": 1,
+                                            "index_number": 1,
+                                            "user_delivery_amount": 0,
+                                            "user_return_amount": 0,
+                                            "is_delivery_answer": false,
+                                            "is_return_answer": false
+                                        }
+                                    ]
+                                }
+                            ],
+                            "customer_checklist_delivery_questions": [
+                                {
+                                    "id": 1,
+                                    "unique_id": "CAQST-WOW2-YHUM",
+                                    "question_name": "Body damage",
+                                    "category_id": 1,
+                                    "question_delivery_text": "Any body damage?",
+                                    "question_return_text": "Any body damage?",
+                                    "required_question": 1,
+                                    "category": {
+                                        "id": 1,
+                                        "unique_id": "CACAT-3JPK-IYQX",
+                                        "category_name": "Condition",
+                                        "description": ""
+                                    },
+                                    "answers": [
+                                        {
+                                            "id": 1,
+                                            "unique_id": "CAANS-XSS1-59KB",
+                                            "answer_delivery_text": "No damage",
+                                            "answer_return_text": "No damage",
+                                            "delivery_amt": 0,
+                                            "return_amt": 0,
+                                            "sync_texts": 1,
+                                            "question_id": 1,
+                                            "index_number": 1,
+                                            "user_delivery_amount": 0,
+                                            "user_return_amount": 0,
+                                            "is_delivery_answer": false,
+                                            "is_return_answer": false
+                                        }
+                                    ]
+                                }
+                            ],
+                            "customer_checklist_return_questions": [
+                                {
+                                    "id": 1,
+                                    "unique_id": "CAQST-WOW2-YHUM",
+                                    "question_name": "Body damage",
+                                    "category_id": 1,
+                                    "question_delivery_text": "Any body damage?",
+                                    "question_return_text": "Any body damage?",
+                                    "required_question": 1,
+                                    "category": {
+                                        "id": 1,
+                                        "unique_id": "CACAT-3JPK-IYQX",
+                                        "category_name": "Condition",
+                                        "description": ""
+                                    },
+                                    "answers": [
+                                        {
+                                            "id": 1,
+                                            "unique_id": "CAANS-XSS1-59KB",
+                                            "answer_delivery_text": "No damage",
+                                            "answer_return_text": "No damage",
+                                            "delivery_amt": 0,
+                                            "return_amt": 0,
+                                            "sync_texts": 1,
+                                            "question_id": 1,
+                                            "index_number": 1,
+                                            "user_delivery_amount": 0,
+                                            "user_return_amount": 0,
+                                            "is_delivery_answer": false,
+                                            "is_return_answer": false
+                                        }
+                                    ]
+                                }
+                            ],
+                            "rental_ready_checklist_questions": []
+                        }
+                    ],
+                    "order_notes": [],
+                    "is_no_cost": false,
+                    "financial_mode": "standard",
+                    "financial_mode_label": "Standard Order",
+                    "no_cost_reason": null,
+                    "no_cost_reason_label": null,
+                    "terms_status": "Pending",
+                    "terms_page": "http://kabba.local/terms-and-conditions/ORD-BJVZ-CSDO/mobile",
+                    "terms_accepted_at": ""
+                },
+                "assembly": {
+                    "data": {
+                        "order": {
+                            "unique_id": "ORD-BJVZ-CSDO",
+                            "order_number": "1650",
+                            "customer_name": "Cody Cash",
+                            "payment_label": "No Payment Recorded",
+                            "financially_active": true
+                        },
+                        "assemblies": [
+                            {
+                                "key": "QLA-ORD-SCH-P8KU-S6A9",
+                                "kind": "single",
+                                "stage": "pending",
+                                "lane": "pending",
+                                "member_count": 1,
+                                "stage_counts": {
+                                    "pending": 1,
+                                    "staged": 0,
+                                    "in_transit": 0,
+                                    "equipment_delivered": 0
+                                },
+                                "gate": {
+                                    "ready": false,
+                                    "required_count": 1,
+                                    "confirmed_count": 0,
+                                    "blockers": [
+                                        {
+                                            "code": "unit_unconfirmed",
+                                            "subject_type": "unit",
+                                            "subject_key": "EQP-GYVB-QEFI",
+                                            "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
+                                            "product_name": "Skid Steer",
+                                            "label": "Skid Steer 7 has not been confirmed Available."
+                                        }
+                                    ]
+                                },
+                                "members": [
+                                    {
+                                        "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
+                                        "order_unique_id": "ORD-BJVZ-CSDO",
+                                        "order_number": "1650",
+                                        "customer_name": "Cody Cash",
+                                        "identity": {
+                                            "queue_line_item_id": "ORD-SCH-P8KU-S6A9",
+                                            "order_unique_id": "ORD-BJVZ-CSDO",
+                                            "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
+                                            "equipment_unique_id": "EQP-GYVB-QEFI",
+                                            "store_unique_id": "STO-NZT6-BEE6",
+                                            "fulfillment_leg": "delivery",
+                                            "checklist_execution_id": "ORD-CHK-4TQ6-TKA8"
+                                        },
+                                        "fulfillment_leg": "delivery",
+                                        "checklist": {
+                                            "delivery": {
+                                                "leg": "delivery",
+                                                "checklist_execution_id": "ORD-CHK-4TQ6-TKA8",
+                                                "status": "not_prepared",
+                                                "prepared_at": null,
+                                                "completed_at": null
+                                            }
+                                        },
+                                        "store": {
+                                            "unique_id": "STO-NZT6-BEE6",
+                                            "name": "HQ"
+                                        },
+                                        "product": {
+                                            "unique_id": "PRO-IUW9-ER3P",
+                                            "name": "Skid Steer",
+                                            "image_url": "http://api.kabba.local/storage/admin/images/error/No_Image_Available.jpg"
+                                        },
+                                        "delivery": {
+                                            "type_label": "Delivery Truck",
+                                            "transport_mode": "Truck",
+                                            "date": "2026-09-25",
+                                            "dispatch_date": null,
+                                            "time": "09:00:00"
+                                        },
+                                        "urgency": "today",
+                                        "assignment_state": "assignment_product_unknown",
+                                        "equipment": {
+                                            "unique_id": "EQP-GYVB-QEFI",
+                                            "display_id": "EQP-OFFLINE-7",
+                                            "name": "Skid Steer 7",
+                                            "assigned_product_name": null,
+                                            "status": "available",
+                                            "status_label": "Available",
+                                            "power_source_type": "diesel",
+                                            "is_fuel": true,
+                                            "key_starting_mechanism": null,
+                                            "is_key": false,
+                                            "rental_ready": "Not Inspected"
+                                        },
+                                        "equipment_collection": {
+                                            "id": 1,
+                                            "unique_id": "EQP-GYVB-QEFI",
+                                            "equipment_name": "Skid Steer 7",
+                                            "product_category_id": 0,
+                                            "assigned_product_id": null,
+                                            "equipment_id": "EQP-OFFLINE-7",
+                                            "equipment_hours": 0,
+                                            "is_tracked": "",
+                                            "overage_rate": 0,
+                                            "brand": "Bobcat",
+                                            "model": "",
+                                            "model_year": "",
+                                            "date_acquired": "",
+                                            "purchase_cost": 0,
+                                            "ownership_type": "",
+                                            "finance_company": "",
+                                            "term_in_months": 0,
+                                            "interest_rate": 0,
+                                            "monthly_payment": 0,
+                                            "vehicle_identification_number": "",
+                                            "serial_number": "",
+                                            "license_plate": "",
+                                            "imei": "",
+                                            "power_source_type": "diesel",
+                                            "key_starting_mechanism": "",
+                                            "is_fuel": true,
+                                            "is_key": false,
+                                            "has_def": "No",
+                                            "diesel_tank_capacity": 0,
+                                            "def_tank_capacity": 0,
+                                            "gas_tank_capacity": 0,
+                                            "standard_battery_count": 0,
+                                            "expanded_battery_count": 0,
+                                            "checklist_master_id": 1,
+                                            "equipment_notes": "",
+                                            "current_status": "Available",
+                                            "current_status_updated_by": "",
+                                            "current_status_changed_at": "",
+                                            "current_order_id": 0,
+                                            "current_order_product_id": 0,
+                                            "current_order_number": "",
+                                            "order_product": null,
+                                            "checklist_qas": [
+                                                {
+                                                    "id": 1,
+                                                    "unique_id": "CAQST-WOW2-YHUM",
+                                                    "question_name": "Body damage",
+                                                    "category_id": 1,
+                                                    "question_delivery_text": "Any body damage?",
+                                                    "question_return_text": "Any body damage?",
+                                                    "required_question": 1,
+                                                    "category": {
+                                                        "id": 1,
+                                                        "unique_id": "CACAT-3JPK-IYQX",
+                                                        "category_name": "Condition",
+                                                        "description": ""
+                                                    },
+                                                    "answers": [
+                                                        {
+                                                            "id": 1,
+                                                            "unique_id": "CAANS-XSS1-59KB",
+                                                            "answer_delivery_text": "No damage",
+                                                            "answer_return_text": "No damage",
+                                                            "delivery_amt": 0,
+                                                            "return_amt": 0,
+                                                            "sync_texts": 1,
+                                                            "question_id": 1,
+                                                            "index_number": 1,
+                                                            "user_delivery_amount": 0,
+                                                            "user_return_amount": 0,
+                                                            "is_delivery_answer": false,
+                                                            "is_return_answer": false
+                                                        }
+                                                    ]
+                                                }
+                                            ],
+                                            "rental_ready_checklist_questions": [],
+                                            "equipment_location": "HQ",
+                                            "equipment_location_detail": {
+                                                "state": "at_store",
+                                                "state_label": "On-Site",
+                                                "label": "HQ",
+                                                "place_name": "HQ",
+                                                "physical_store_id": 1,
+                                                "anchor_store_id": 1,
+                                                "anchor_store_name": "HQ",
+                                                "anchor_store_unique_id": null,
+                                                "external_location": null,
+                                                "order_id": null,
+                                                "order_number": null,
+                                                "order_unique_id": null,
+                                                "customer_name": null,
+                                                "customer_unique_id": null
+                                            },
+                                            "equipment_store": {
+                                                "id": 1,
+                                                "unique_id": 0,
+                                                "store_name": "HQ",
+                                                "phone": "",
+                                                "email": "",
+                                                "address": "",
+                                                "state_id": 0,
+                                                "city": "",
+                                                "zip_code": "",
+                                                "is_primary": "",
+                                                "status": "",
+                                                "full_address": ""
+                                            }
+                                        },
+                                        "options_count": 0,
+                                        "payment_label": "No Payment Recorded",
+                                        "status": "pending",
+                                        "staged": false,
+                                        "staged_by": null,
+                                        "staged_at": null,
+                                        "in_transit": false,
+                                        "on_my_way_at": null,
+                                        "completed": false,
+                                        "completed_at": null,
+                                        "is_fast_track": false,
+                                        "readiness": "checklist_preparation_required",
+                                        "available_actions": {
+                                            "assign_equipment": false,
+                                            "switch_equipment": true,
+                                            "open_delivery_checklist": true,
+                                            "view_history": true
+                                        },
+                                        "lifecycle_stage": "pending",
+                                        "assembly": {
+                                            "key": "QLA-ORD-SCH-P8KU-S6A9",
+                                            "kind": "single",
+                                            "stage": "pending",
+                                            "lane": "pending",
+                                            "member_count": 1,
+                                            "stage_counts": {
+                                                "pending": 1,
+                                                "staged": 0,
+                                                "in_transit": 0,
+                                                "equipment_delivered": 0
+                                            },
+                                            "dependency": {
+                                                "role": "base",
+                                                "depends_on": null,
+                                                "depends_on_name": null
+                                            },
+                                            "gate": {
+                                                "ready": false,
+                                                "required_count": 1,
+                                                "confirmed_count": 0,
+                                                "blockers": [
+                                                    {
+                                                        "code": "unit_unconfirmed",
+                                                        "subject_type": "unit",
+                                                        "subject_key": "EQP-GYVB-QEFI",
+                                                        "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
+                                                        "product_name": "Skid Steer",
+                                                        "label": "Skid Steer 7 has not been confirmed Available."
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "product_options": [],
+                                        "availability": {
+                                            "unit": {
+                                                "equipment_unique_id": "EQP-GYVB-QEFI",
+                                                "state": null,
+                                                "acknowledged_by": null,
+                                                "acknowledged_at": null,
+                                                "note": null
+                                            },
+                                            "required_count": 1,
+                                            "acknowledged_count": 0,
+                                            "effective_state": null
+                                        },
+                                        "stage_blockers": [
+                                            {
+                                                "code": "unit_unconfirmed",
+                                                "subject_type": "unit",
+                                                "subject_key": "EQP-GYVB-QEFI",
+                                                "order_product_unique_id": "ORD-SCH-P8KU-S6A9",
+                                                "product_name": "Skid Steer",
+                                                "label": "Skid Steer 7 has not been confirmed Available."
+                                            }
+                                        ],
+                                        "warnings": []
+                                    }
+                                ]
+                            }
+                        ],
+                        "excluded": [],
+                        "member_count": 1
+                    },
+                    "meta": {
+                        "generated_at": "2026-09-25T19:19:03+00:00",
+                        "employee": {
+                            "unique_id": "PER-VDKO-9765",
+                            "full_name": "Gary Driver"
+                        }
+                    }
+                },
+                "sections": {
+                    "order_details": "ok",
+                    "assembly": "ok"
                 }
             }
         ],
         "not_active": [
-            "ORD-SCH-FBMO-OVRB:return"
+            "ORD-SCH-P8KU-S6A9:return"
         ],
         "failed": [
             {
-                "order_product_unique_id": "ORD-SCH-ZWUC-KYDM",
+                "order_product_unique_id": "ORD-SCH-ANQ9-5F9R",
                 "leg": "delivery",
                 "code": "package_build_failed"
             }
         ]
     },
-    "request_id": "6715534e-a1b7-41a6-b55d-97fa15e40b6f"
+    "request_id": "2711849f-48b3-4ab5-bf6a-5f92bd1b5eda"
 }

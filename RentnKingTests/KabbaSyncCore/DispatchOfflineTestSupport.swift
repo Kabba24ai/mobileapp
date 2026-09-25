@@ -53,6 +53,12 @@ enum DispatchOfflineFixtures {
         var pickupDriverId: Int? = nil
         var categoryIds: [Int] = []
         var priority: Int = 1
+        // Phase 4 identity knobs (nil keeps the shared fixture's value).
+        var orderUid: String? = nil
+        var executionId: String? = nil
+        var cycle: Int? = nil
+        var unit: String? = nil
+        var serverTime: String? = nil
 
         var key: String { "\(opuid):\(leg.rawValue)" }
     }
@@ -84,7 +90,22 @@ enum DispatchOfflineFixtures {
         p = p.setting(["dispatch", "row", "delivery_employee"], employee(m.deliveryDriverId))
         p = p.setting(["dispatch", "row", "pickup_employee"], employee(m.pickupDriverId))
         p = p.setting(["checklist_context", "identity", "order_product_unique_id"], .string(m.opuid))
-        return p.setting(["checklist_context", "identity", "leg"], .string(m.leg.rawValue))
+        p = p.setting(["checklist_context", "identity", "leg"], .string(m.leg.rawValue))
+        if let order = m.orderUid {
+            p = p.setting(["checklist_context", "identity", "order_unique_id"], .string(order))
+            p = p.setting(["dispatch", "row", "order", "unique_id"], .string(order))
+            p = p.setting(["dispatch", "order", "unique_id"], .string(order))
+            p = p.setting(["order_details", "unique_id"], .string(order))
+        }
+        if let execution = m.executionId { p = p.setting(["checklist_context", "identity", "checklist_execution_id"], .string(execution)) }
+        if let cycle = m.cycle { p = p.setting(["checklist_context", "identity", "cycle"], .number(Double(cycle))) }
+        if let unit = m.unit { p = p.setting(["checklist_context", "equipment", "equipment_unique_id"], .string(unit)) }
+        if let time = m.serverTime { p = p.setting(["checklist_context", "server_time"], .string(time)) }
+        if m.leg == .return {
+            // Like the server: Return missions carry no Assembly Review.
+            p = p.setting(["assembly"], .null).setting(["sections", "assembly"], .string("not_applicable"))
+        }
+        return p
     }
 
     private static func employee(_ id: Int?) -> JSONValue {
@@ -293,4 +314,33 @@ extension DispatchOfflineSession {
     static func of(_ store: DispatchOfflineMissionStore, credential: String = "cred-1") -> DispatchOfflineSession {
         DispatchOfflineSession(tenantKey: store.tenantKey, credential: credential)
     }
+}
+
+/// The App layer's MMKV/UserDefaults writer, recorded in memory per company (Phase 4 bridge).
+final class RecordingOrderCacheWriter: DispatchOfflineOrderCacheWriting {
+    private let lock = NSLock()
+    /// cache → tenant → order uid → payload
+    private var _caches: [DispatchOfflineOrderCache: [String: [String: JSONValue]]] = [:]
+    private var _writes = 0
+    var failWrites = false
+    /// Fail only these caches.
+    var failing: Set<DispatchOfflineOrderCache> = []
+
+    func write(_ cache: DispatchOfflineOrderCache, payload: JSONValue, orderUniqueId: String, tenantKey: String) -> Bool {
+        lock.withLock {
+            guard !failWrites, !failing.contains(cache) else { return false }
+            _writes += 1
+            _caches[cache, default: [:]][tenantKey, default: [:]][orderUniqueId] = payload
+            return true
+        }
+    }
+
+    func cached(_ cache: DispatchOfflineOrderCache, _ orderUniqueId: String, tenant: String) -> JSONValue? {
+        lock.withLock { _caches[cache]?[tenant]?[orderUniqueId] }
+    }
+    func orderDetails(_ orderUniqueId: String, tenant: String) -> JSONValue? { cached(.orderDetails, orderUniqueId, tenant: tenant) }
+    func checklistOrder(_ orderUniqueId: String, tenant: String) -> JSONValue? { cached(.checklistOrder, orderUniqueId, tenant: tenant) }
+    func assembly(_ orderUniqueId: String, tenant: String) -> JSONValue? { cached(.assembly, orderUniqueId, tenant: tenant) }
+    func everything(tenant: String) -> Int { lock.withLock { _caches.values.reduce(0) { $0 + ($1[tenant]?.count ?? 0) } } }
+    var writes: Int { lock.withLock { _writes } }
 }

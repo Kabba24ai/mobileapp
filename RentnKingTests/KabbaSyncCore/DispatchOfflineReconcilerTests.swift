@@ -144,7 +144,7 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
         reconcile()
         let fileB = index.entry("ORD-SCH-B:delivery")!.packageFile!
 
-        let contexts = try ChecklistContextStore(rootDirectory: root)
+        let contexts = try ChecklistContextStore(rootDirectory: root, tenantKey: { "aaaaaaaaaaaaaaaa" })
         try contexts.save(try ChecklistContext.decode(envelopeData: F.data("delivery_checklist_context")))
         for state in [SyncState.pending, .needsAttention, .synced] {
             var op = SyncOperation(type: "delivery_checklist.complete", capturedAt: clock,

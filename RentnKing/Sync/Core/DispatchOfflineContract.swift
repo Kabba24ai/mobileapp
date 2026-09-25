@@ -216,3 +216,58 @@ enum DispatchOfflineAPI {
         }
     }
 }
+
+// MARK: - Phase 4 package sections (Amendment A)
+
+/// The per-section build status a Phase 4 server reports in `package.sections`. Absent (nil)
+/// on a pre-Phase-4 server — deep offline is then simply unavailable and never retried.
+struct DispatchOfflinePackageSections: Equatable {
+    enum Status: String, Equatable {
+        case ok
+        case failed
+        case notApplicable = "not_applicable"
+    }
+
+    let orderDetails: Status?
+    let assembly: Status?
+
+    static func from(_ package: JSONValue) -> DispatchOfflinePackageSections? {
+        guard let sections = package["sections"], case .object = sections else { return nil }
+        return DispatchOfflinePackageSections(
+            orderDetails: sections["order_details"]?.stringValue.flatMap(Status.init(rawValue:)),
+            assembly: sections["assembly"]?.stringValue.flatMap(Status.init(rawValue:)))
+    }
+}
+
+/// Read access to the Phase 4 content of a raw mission package (kept losslessly on disk).
+enum DispatchOfflinePackageContent {
+
+    /// The POST orders/details `order` object (B1), when the server built it.
+    static func orderDetails(_ package: JSONValue) -> JSONValue? {
+        guard let value = package["order_details"], case .object = value else { return nil }
+        return value
+    }
+
+    /// The Assembly Review `{data, meta}` (B2, delivery only), when the server built it.
+    static func assembly(_ package: JSONValue) -> JSONValue? {
+        guard let value = package["assembly"], case .object = value, value["data"]?.objectValue != nil else { return nil }
+        return value
+    }
+
+    /// The order this mission belongs to (order_details first, then the Dispatch blocks).
+    static func orderUniqueId(_ package: JSONValue) -> String? {
+        for value in [package["order_details"]?["unique_id"], package["dispatch"]?["row"]?["order"]?["unique_id"],
+                      package["dispatch"]?["order"]?["unique_id"], package["checklist_context"]?["identity"]?["order_unique_id"]] {
+            if let uid = value?.stringValue, !uid.isEmpty { return uid }
+        }
+        return nil
+    }
+
+    /// The canonical checklist context, decoded exactly like the online endpoint's answer
+    /// (bare object). nil when it does not decode — the package itself stays valid (P4-D10).
+    static func checklistContext(_ package: JSONValue) -> ChecklistContext? {
+        guard let value = package["checklist_context"], case .object = value,
+              let data = try? value.serialized() else { return nil }
+        return try? ChecklistContext.decode(envelopeData: data)
+    }
+}
