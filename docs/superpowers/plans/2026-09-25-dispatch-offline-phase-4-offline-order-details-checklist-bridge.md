@@ -521,7 +521,14 @@ Then stop before Phase 5.
 4. **Launch/login bridging.** Stored packages are bridged when the app launches or a login completes, before (and whether or not) the server answers. This makes an offline relaunch, or a bridge a previous launch never finished, idempotent through the ledger.
 5. **T&C boundary (P4-D8).** Besides "Signing Terms & Conditions needs a connection" (offline), a missing or invalid signing link now shows "Terms & Conditions aren't available for this order". This replaces a `URL(string:)!` crash.
 6. **Order Details (P4-D7).** "This order isn't downloaded to this phone yet" appears when there is no copy and the fetch fails. Nil guards cover "+View Billing", Photo/Video (both legs), Add Note / note edit / note delete, both checklist tiles, and the product table. **The optional freshness line was not built.**
-7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`, and so does any offline request whose cached context has **no unit** (an unassigned delivery; review I-2). The product is marked "This unit's checklist needs a connection", with no legacy fallback and no `objMachine` revert. **Per product:** Save leaves out the lines whose checklist needs a connection and saves and stages the rest. Submit hands on the order without them: they have no usable context and never fall back to the legacy submission. Submit says "needs a connection" only when nothing else is left to submit. The on-screen draft keeps every line. *(As first built the block covered the whole screen; with the no-unit refusal, that let an untouched unassigned sibling block an assigned line — review 2, fixed in `7257e3c`.)*
+7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`, and so does any offline request whose cached context has **no unit** (an unassigned delivery; review I-2). The product is marked "This unit's checklist needs a connection", with no legacy fallback and no `objMachine` revert. **Per product:**
+   - **Save** leaves out the lines whose checklist needs a connection and saves and stages the rest. The full-screen draft is written first.
+   - **Submit** finalizes the order on this phone: it writes the order-level completed marker and clears the order's draft. So a line needing a connection is left out only where Submit dropped such a line before Phase 4 anyway: it has **no unit**, or it is **all blank outside a combined checklist**. A left-out line is never sent, not even through the legacy submission.
+   - Any other line needing a connection, one with entered answers or a blank line of a combined checklist, **blocks Submit** with "needs a connection", and the draft keeps it. Submit also says so when nothing else is left.
+   - *History:*
+     - As first built, the block covered the whole screen. With the no-unit refusal, that let an untouched unassigned sibling block an assigned line (review 2, fixed in `7257e3c`).
+     - That fix left out every such line, which let a partial Submit clear a left-out line's entered answers (review 3, fixed in `1a17920`).
+   - The "needs a connection" state is a one-time alert per line; its rows stay visible and editable. For an unassigned line they are the legacy `order_details` questions, but they are never submitted through the legacy path.
 8. **Deviation — P4-D3's assembly inputs.** The order fingerprint covers what Order Details renders but **not** the Queue Line / assembly inputs P4-D3 enumerated. The rationale is in the `DispatchOfflineOrderFingerprint` docblock: each delivery member's own revision already covers its stage and blockers, and the newest bridged assembly copy wins. **Known gap (review M-6):** an assembly member that is not itself an active mission (no active driver, or beyond today+2) can change stage or lane without changing any revision, so the bridged Assembly Review can lag until another member's revision changes or it is opened online.
 9. **P4-D5, signed-in employee.** Login now stores the user's `unique_id` (`User.fromLoginResponse`, both login paths). Before this, no profile had one, so the substitution never applied (review I-1). Cached checklist contexts (`ChecklistContextClient`, offline) and cached Assembly Reviews (`KabbaAssemblySync.cached`) are served **at read time** as the user signed in now. A second user on a shared phone therefore never inherits the downloader's `user_id` / `performed_by`, even when the bridge does not re-run. A profile saved before this change has no `unique_id`; that same user downloaded the packages, and any other user must log in, which stores it.
 10. **Implementation notes (corrections to §4.1 wording).**
@@ -600,7 +607,7 @@ Then stop before Phase 5.
 - **Plan accuracy corrections.** The warm-up's `skipped(.fresh)` wording (§11 item 3), and the final SHAs and numbers below.
 - **Pre-existing, not a regression.** `callAPIforCategoryList` never calls its completion on a success with no `product_categories`, an `INVALID_TOKEN` body, or a JSON parse error. With an empty cache the category pill then waits.
 
-### Final state (after review 2's fix)
+### Final state (after review 3's fix)
 - **Mobile `feature/dispatch-offline-phase-4`**, no upstream, local only:
 
   | Commit | Contents |
@@ -612,18 +619,33 @@ Then stop before Phase 5.
   | `51579c6` | Review 1 fixes |
   | `b9e2cbe` | Review 1 record |
   | `7257e3c` | Review 2 fix |
-  | this commit | Review 2 record |
+  | `e510435` | Review 2 record |
+  | `1a17920` | Review 3 fix |
+  | the commit after `1a17920` | Review 3 record |
 
 - **Backend `feature/dispatch-offline-phase-4`**: `2f859c0a8`, no upstream, local only.
 - **Mobile core `swift test`:** 499/499.
-- **Signed hosted:** 71/71; `DispatchOfflineFieldBridgeHostedTests` has 15 tests.
+- **Signed hosted:** 72/72 after review 3's fix (3 consecutive green runs); `DispatchOfflineFieldBridgeHostedTests` has 16 tests.
 - **Simulator build:** OK.
 - **No-polling gate:** clean.
-- **Break-a-rule probes:** 25, all caught. These are the 20 from §11 plus 5 on the review fixes:
+- **Break-a-rule probes:** 26, all caught. These are the 20 from §11 plus 6 on the review fixes:
   - read-time context serving;
   - read-time assembly serving;
   - the login `unique_id`;
   - the no-unit refusal;
-  - per-product exclusion.
+  - per-product exclusion;
+  - the Submit scope rule.
 - **Backend:** unchanged since review 1 (§11 numbers).
+
+### Review 3 (fresh independent reviewer, re-review of `7257e3c`): 0 Critical, 1 Important, 3 Minor, 1 Nit
+- **Save and Submit per product: verified.** Rows stay aligned; the left-out line gets no canonical or legacy submission; Save, partial sync, Delete / Start Over and preparation actions all key on the (nil) context.
+  - The rewritten no-unit loop also fixes a pre-existing crash: the old loop removed items by their original index, and crashed with two or more lines that had no unit.
+- **Important, fixed test-first:** a partial Submit finalized the whole order on the phone and cleared the left-out line's entered answers (§11 item 7).
+  - Test: hosted `testOnlyALineSubmitWouldHaveDroppedAnywayIsLeftOut`, caught by a break-the-rule probe that restored review 2's behavior.
+- **M-A, fixed:** the "nothing left to submit" check ran before the no-unit removal (an empty preview could be pushed).
+- **Deferred:**
+  - **M-B.** Submit's error scroll uses section indexes of the reduced order on the full table. This is a pre-existing pattern for removed no-unit lines, and exclusion adds another trigger.
+  - **M-C.** The Save and Submit wiring is covered only through the pure helpers. View-controller flow tests are deferred with M-9.
+  - **N.** The staged, in-transit and availability Save outcomes do not mention the lines left out.
+- **Test-run note (watch item):** one full hosted run after the break-the-rule probe reported 1 failure in 38 s (normally about 4 s). The result bundle was overwritten before it could be read, so the test is unidentified. Three following full runs were 72/72 green.
 
