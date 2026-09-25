@@ -871,14 +871,21 @@ extension CheckListViewController{
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
-        // P4-D4, per product: a line whose checklist needs a connection is never submitted (it has no
-        // usable context and must not fall back to the legacy submission); the other lines complete.
-        let scoped = Self.excludingProductsNeedingConnection(self.objOrderData, other: self.arrOtherData,
-                                                             needingConnection: self.contextsNeedingConnection)
-        if !scoped.excluded.isEmpty, scoped.order?.arrProduct.isEmpty ?? true {
-            showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded))
+        // P4-D4, per product. Submit finalizes the order on this phone and clears its draft, so a line
+        // whose checklist needs a connection is left out only where Submit dropped such a line before
+        // Phase 4 anyway (no unit; all blank outside a combined checklist) — never sent, not even
+        // through the legacy submission. A line with entered answers blocks Submit instead.
+        let blockedLines = (self.objOrderData?.arrProduct ?? []).compactMap { product -> BlockedLine? in
+            guard let uid = product.unique_id, self.contextsNeedingConnection.contains(uid) else { return nil }
+            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil, isBlank: checkQuestionsIsBlank(objProduct: product))
+        }
+        let scope = Self.submitScope(needingConnection: blockedLines, combine: self.isCombineChecklist)
+        if !scope.blocking.isEmpty {
+            showAlertMessage(strMessage: needsConnectionMessage(for: scope.blocking))
             return
         }
+        let scoped = Self.excludingProductsNeedingConnection(self.objOrderData, other: self.arrOtherData,
+                                                             needingConnection: scope.leftOut)
 
         //CEHCK DATA
         var objTempOrderData = scoped.order
@@ -886,6 +893,10 @@ extension CheckListViewController{
         for i in (0..<(objTempOrderData?.arrProduct.count ?? 0)).reversed() where objTempOrderData?.arrProduct[i].objMachine == nil {
             objTempOrderData?.arrProduct.remove(at: i)
             if i < arrTempOtherData.count { arrTempOtherData.remove(at: i) }
+        }
+        if !scoped.excluded.isEmpty, objTempOrderData?.arrProduct.isEmpty ?? true {
+            showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded)) // nothing else left to submit
+            return
         }
         
         //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
@@ -3026,6 +3037,26 @@ extension CheckListViewController {
         let names = uids.compactMap { uid in self.objOrderData?.arrProduct.first { $0.unique_id == uid }?.product_name }
         let what = names.isEmpty ? "This unit" : names.joined(separator: ", ")
         return "\(what): this unit's checklist needs a connection. What you did is saved on this phone — connect to the internet to load the checklist for the current unit."
+    }
+
+    /// A line on screen whose checklist needs a connection, as Submit sees it.
+    struct BlockedLine: Equatable {
+        let uniqueId: String
+        let hasMachine: Bool
+        /// Every question / hours / fuel / cleaning row is still blank (`checkQuestionsIsBlank`).
+        let isBlank: Bool
+    }
+
+    /// Submit's rule for lines whose checklist needs a connection: `leftOut` = the ones Submit would
+    /// have dropped before Phase 4 anyway (no unit, or all blank outside a combined checklist);
+    /// `blocking` = the rest (entered answers, or a blank line of a combined checklist), in screen order.
+    static func submitScope(needingConnection lines: [BlockedLine], combine: Bool) -> (blocking: [String], leftOut: Set<String>) {
+        var blocking: [String] = []
+        var leftOut: Set<String> = []
+        for line in lines {
+            if !line.hasMachine || (line.isBlank && !combine) { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
+        }
+        return (blocking, leftOut)
     }
 
     /// The order without the lines whose checklist needs a connection (their `other` rows too, kept

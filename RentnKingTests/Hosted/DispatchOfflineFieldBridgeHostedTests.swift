@@ -263,6 +263,37 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         XCTAssertEqual(allBlocked.order?.arrProduct.count, 0, "nothing to submit: the screen says it needs a connection")
     }
 
+    /// Review 3: Submit finalizes the order on this phone (order-level completed marker) and clears
+    /// the order's draft. So a line needing a connection is left out ONLY where Submit dropped such a
+    /// line before Phase 4 anyway (no unit; all blank outside a combined checklist); a line with entered
+    /// answers blocks Submit — its answers are never cleared by a partial submit.
+    func testOnlyALineSubmitWouldHaveDroppedAnywayIsLeftOut() {
+        typealias C = CheckListViewController
+        let untouchedNoUnit = C.BlockedLine(uniqueId: "SIBLING-UNASSIGNED", hasMachine: false, isBlank: true)
+        let untouchedWithUnit = C.BlockedLine(uniqueId: "SWAPPED-BLANK", hasMachine: true, isBlank: true)
+        let answered = C.BlockedLine(uniqueId: "SWAPPED-ANSWERED", hasMachine: true, isBlank: false)
+        let answeredNoUnit = C.BlockedLine(uniqueId: "PICKED-NOTHING-ANSWERED", hasMachine: false, isBlank: false)
+
+        var scope = C.submitScope(needingConnection: [untouchedNoUnit], combine: true)
+        XCTAssertEqual(scope.blocking, [])
+        XCTAssertEqual(scope.leftOut, ["SIBLING-UNASSIGNED"], "the motivating case: an untouched unassigned sibling")
+
+        scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: false)
+        XCTAssertEqual(scope.leftOut, ["SWAPPED-BLANK"], "blank outside a combined checklist: dropped before Phase 4 too")
+        scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: true)
+        XCTAssertEqual(scope.blocking, ["SWAPPED-BLANK"], "a combined checklist submits every line together")
+
+        scope = C.submitScope(needingConnection: [answered], combine: false)
+        XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"], "entered answers are never cleared by a partial submit")
+        XCTAssertEqual(scope.leftOut, [])
+
+        scope = C.submitScope(needingConnection: [untouchedNoUnit, answered], combine: false)
+        XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"])
+
+        scope = C.submitScope(needingConnection: [answeredNoUnit], combine: false)
+        XCTAssertEqual(scope.leftOut, ["PICKED-NOTHING-ANSWERED"], "no unit: the no-unit rule drops it, as before Phase 4")
+    }
+
     // MARK: - Amendment B: company A → B → A on one phone
 
     func testNoCompanyADataIsReadableUnderCompanyBAndAKeepsItsOwn() throws {
