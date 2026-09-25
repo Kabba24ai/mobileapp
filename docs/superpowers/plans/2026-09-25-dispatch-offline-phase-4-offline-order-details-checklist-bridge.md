@@ -507,7 +507,7 @@ Then stop before Phase 5.
 - Backend `feature/dispatch-offline-phase-4`: `2f859c0a8` — B1/B2 sections, the `sections` map, the order fingerprint.
 - Mobile `feature/dispatch-offline-phase-4`: see the review record below for the SHAs.
 
-**As built — clarifications within the approved decisions (no decision changed):**
+**As built — clarifications within the approved decisions.** One deviation is listed as item 8.
 1. **Freshness per cache (P4-D9).** The ledger stamps each order-scoped cache separately: Order Details (`OrdersListModel`), the checklist screens' order (`OrdersModel`) and Assembly Review. A live Order Details open therefore never stops the bridge from writing the checklist screens' copy. The `order_details` section is satisfied only when **both** order caches hold a copy at least as new as the package.
 2. **Live saves are atomic with the bridge, and pinned to the requesting company.**
    - The screens' live saves (`OrderDetailsModel`, `OrderDetailsFile`, `AssemblyReviewViewController`) run inside the ledger lock. An answer older than a bridged package is not written.
@@ -520,7 +520,13 @@ Then stop before Phase 5.
 4. **Launch/login bridging.** Stored packages are bridged when the app launches or a login completes, before (and whether or not) the server answers. This makes an offline relaunch, or a bridge a previous launch never finished, idempotent through the ledger.
 5. **T&C boundary (P4-D8).** Besides "Signing Terms & Conditions needs a connection" (offline), a missing or invalid signing link now shows "Terms & Conditions aren't available for this order". This replaces a `URL(string:)!` crash.
 6. **Order Details (P4-D7).** "This order isn't downloaded to this phone yet" appears when there is no copy and the fetch fails. Nil guards cover "+View Billing", Photo/Video (both legs), Add Note / note edit / note delete, both checklist tiles, and the product table. **The optional freshness line was not built.**
-7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`. The product is marked "This unit's checklist needs a connection", and Save and Submit are blocked for it. There is no legacy fallback and no `objMachine` revert.
+7. **Checklist (P4-D4).** A strict request (after an on-phone substitution or restart) that has only a refused or missing copy returns `.unavailableOffline`, and so does any offline request whose cached context has **no unit** (an unassigned delivery; review I-2). The product is marked "This unit's checklist needs a connection", with no legacy fallback and no `objMachine` revert. **While any product on the screen needs a connection, Save and Submit are blocked for the whole screen** (not only that product). The on-screen draft still persists when the screen closes.
+8. **Deviation — P4-D3's assembly inputs.** The order fingerprint covers what Order Details renders but **not** the Queue Line / assembly inputs P4-D3 enumerated. The rationale is in the `DispatchOfflineOrderFingerprint` docblock: each delivery member's own revision already covers its stage and blockers, and the newest bridged assembly copy wins. **Known gap (review M-6):** an assembly member that is not itself an active mission (no active driver, or beyond today+2) can change stage or lane without changing any revision, so the bridged Assembly Review can lag until another member's revision changes or it is opened online.
+9. **P4-D5, signed-in employee.** Login now stores the user's `unique_id` (`User.fromLoginResponse`, both login paths). Before this, no profile had one, so the substitution never applied (review I-1). Cached checklist contexts (`ChecklistContextClient`, offline) and cached Assembly Reviews (`KabbaAssemblySync.cached`) are served **at read time** as the user signed in now. A second user on a shared phone therefore never inherits the downloader's `user_id` / `performed_by`, even when the bridge does not re-run. A profile saved before this change has no `unique_id`; that same user downloaded the packages, and any other user must log in, which stores it.
+10. **Implementation notes (corrections to §4.1 wording).**
+    - The note re-apply is a separate implementation (`OrderNoteQueue`) of the same rules Order Details applies; the screen keeps its own code, which was not extracted.
+    - The order and assembly caches are written on the reconciler queue, inside the ledger lock (MMKV and UserDefaults are thread-safe), not on the main queue. This is what makes live saves atomic with the bridge.
+11. **Regression fixed during review (N-1).** Assembly Review's category picker waited for a second list callback that the Phase 4 loader change no longer sends after a failed refresh. It now waits on the refresh itself.
 
 **New watch items (not Phase 4 scope, recorded for Phase 6 / a later pass):**
 - `kOrderNoteData` (the legacy offline note queue) and the Sync Engine operation store are **not** company-scoped.
@@ -533,9 +539,10 @@ Then stop before Phase 5.
 - A live Order Details answer older than a bridged package is shown for that visit but not saved. The next open shows the newer bridged copy.
 - The warm-up uses the existing `serviceWithAlert` loaders. A declared server failure with code 100–102 can raise their existing alert.
 
-**Verification (see the review record for the final numbers):**
+**Verification (first pass; final numbers are in the review record):**
 - Mobile core `swift test`: 495/495 (Phase 3 baseline 452).
 - Signed hosted: 67/67 (baseline 56). The new `DispatchOfflineFieldBridgeHostedTests` has 11 tests.
+- Backend, from the final HEAD `2f859c0a8`: Dispatch 591, Api 200, Mobile 15, Unit/Push 6 and QueueLine 293, all passing. Orders fails 23 of 665 and CustomerChecklists 11 of 53, the **same tests by name** as the Phase 2 baseline copy (JUnit comparison: no new failures, none only in the baseline).
 - Simulator build: OK.
 - No-polling gate: no Timer, asyncAfter, location, socket or background-refresh API in the Phase 4 code.
 - Break-a-rule probes: 20, all caught.
@@ -543,4 +550,45 @@ Then stop before Phase 5.
   - C1–C7 on the live-save atomicity, the per-cache stamps and the warm-up policy.
   - H1–H4 hosted, on MMKV scoping, note re-apply, the T&C boundary and the live-save company check.
 - Test #14's "completion only through the existing override" is pinned by `LegCompletionEvaluatorTests` (a Delivery without T&C lists `.termsAndConditions` as missing, and that goes through the Warning override).
+
+## 12. Review record
+
+### Review 1 (fresh independent reviewer, whole Phase 4): 0 Critical, 2 Important, 9 Minor, 7 Nit
+**Fixed, test-first:**
+- **I-1, P4-D5 inert.** Login never stored `unique_id`, and the bridge applied the employee only once. Fix: §11 item 9.
+  - Tests: Core `SignedInEmployeeServingTests`.
+  - Tests: hosted `testALoginKeepsTheSignedInUsersUniqueId` and `testAMissionDownloadedByOneUserIsWorkedOfflineAsTheUserSignedInNow`.
+- **I-2, an unassigned delivery offline.** It was served a question-less context. Fix: `ChecklistContextFallbackPolicy` refuses a context with no unit, so the product needs a connection. Such a mission is bridged but never field-ready, and never re-downloaded.
+  - Tests: Core `testAContextWithNoUnitIsNeverServedOffline` and `testAnUnassignedDeliveryIsBridgedButNeverFieldReadyAndNeverRetried`.
+  - Test: hosted `testAnUnassignedDeliveryOfflineNeedsAConnection`.
+- **N-1**, a Phase 4 regression in the Assembly Review category picker: §11 item 11.
+
+**Deferred — watch items, not fixed in Phase 4:**
+- **M-1.** A non-strict offline open is not checked against the replacement unit a pending `queue_line.switch_equipment` names. In a narrow race it can serve the old unit: an Assembly Review member substituted before it had an execution, then a package downloaded before the switch op synced.
+  - Suggested rule: refuse any context whose unit differs from the latest durable switch's unit, in both modes and in bridge rule 4.
+- **M-2.** An active mission line with **no** stored context (not bridged yet, `.invalid`, `.pending`, or `.blocked` with no earlier copy) falls back offline to the legacy questions and the durable legacy submit (the pre-Phase-4 behavior). It does not show "needs a connection" as §4.8 row 1 says.
+- **M-3.** Save and Submit are blocked for the whole screen (§11 item 7).
+- **M-4.** The ledger lock is held for the entire bridge pass. A live Order Details save on the main thread can wait for a large first bridge after login. The ledger is never pruned.
+  - Suggested fix: build the payloads outside the lock and hold it only to compare and write.
+- **M-5.** The same-revision repair has no backoff. A permanently failing section, or a phone-side decode regression, re-downloads on every non-throttled trigger and every wake.
+  - Suggested fix: a per-mission attempt count and cooldown in the ledger.
+- **M-6.** Non-mission assembly members' changes do not change any revision (§11 item 8).
+  - The revision-completeness tests also do not mutate `is_tax_exempt`, `customer_email`, `is_returned`, the store and equipment ids, `product_data`, a note delete or a license delete.
+- **M-7.** A legitimately empty reference list is re-fetched on every qualifying trigger, because an empty list is always "due". `.prices` counts as empty when product settings is empty.
+- **M-8.** The Phase 3 F5 in-memory package cache now holds larger packages, since `order_details` and `assembly` are added per mission.
+- **M-9.** Tests not written:
+  - §7.1 hosted: a prepare enqueued through the real handlers into an offline engine (the Core acceptance test does this with a real `SyncEngine`).
+  - §7.2 #8: a `CheckListViewController` flow test.
+  - #10: old-unit media and return evidence re-asserted.
+  - #12: the acknowledgement overlay.
+  - #13: the view-controller flow for the "isn't downloaded" state.
+  - Prior-valid preservation for assembly and the context.
+- **N-2.** The context bridge's load → compare → save is not atomic with a concurrent online `ChecklistContextClient` save.
+- **N-3.**
+  - Unknown `sections` values are treated as `failed`.
+  - The writer is held `weak`, and a nil writer settles the sections as `.notProvided`.
+- **N-4.** Dispatch feed and manual-slot saves use the company at answer time. The Phase 3 ticket check and `[weak self]` mitigate this.
+- **N-5.** Dead `CheckListModel.swift:472-512` writes `kOrderDetailsData_` directly.
+- **N-6.** The backend `ShowController` test compares the endpoint with the shared builder (the extraction was verified verbatim by reading it). The manifest is at 438 of the 450-statement cap.
+- **N-7.** A phone whose first launch after the upgrade is offline has no company-scoped reference lists yet, because the legacy lists are ignored by design until the first online warm-up.
 
