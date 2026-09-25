@@ -1,6 +1,8 @@
 # Dispatch Offline Phase 4 — Offline Order Details + Canonical Checklist Context Bridge — Implementation Plan
 
-> **Status: PLAN ONLY — awaiting Gary's review.** No product code is written. The decisions in §3 (P4-D1–P4-D11) need approval, and the two backend gaps in §2.2 (B1, B2) need approval **before** any backend change.
+> **Status: APPROVED (Gary, 2026-09-25): P4-D1–P4-D11 as proposed, B1/B2 approved, plus two required amendments:**
+> - **Amendment A** (§2.3): incomplete Phase 4 sections stay retryable at the same revision.
+> - **Amendment B** (§4.9): every cache Phase 4 prewarms is tenant-safe.
 > Rules for execution after approval: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, SSH, production data, feature flag, version/build bump, archive, or App Store upload.
 > **Phase 4 closes only after all of these pass (proposed, §9):**
 > - B1/B2 parity, revision-completeness and performance tests;
@@ -184,7 +186,38 @@ Every screen on the path already works **cache-first**. The only reason a never-
 - A packages-endpoint statement guard (linear in orders, bounded per order) is added.
 - Manifest cost changes only by the fingerprint's eager loads (option b).
 
-**Fixture:** `dispatch_offline_packages.json` is regenerated with `order_details` and `assembly`. The mobile copy stays byte-identical, and contract tests on both sides pin the shape.
+**Fixture:** `dispatch_offline_packages.json` is regenerated with `order_details`, `assembly` and `sections`. The mobile copy stays byte-identical, and contract tests on both sides pin the shape.
+
+### 2.3 Amendment A — incomplete Phase 4 sections stay retryable (LOCKED)
+A base package matching its manifest revision does **not** mean the mission is ready for the deep offline flow.
+
+**Readiness:**
+- **Delivery:** base mission + `order_details` + `assembly` + a valid `checklist_context` (one that decodes as `ChecklistContext`).
+- **Return:** base mission + `order_details` + a valid `checklist_context`.
+
+**Backend — the smallest explicit signal.** Each package carries an additive `sections` map with a stable status per Phase 4 section:
+- `order_details`: `ok` or `failed`;
+- `assembly`: `ok`, `failed`, or `not_applicable` for Return.
+
+A section that failed to build ships as `null`, with status `failed`, and no exception detail. The rest of the package — the Dispatch card and `checklist_context` — is still valid and shipped.
+
+**Phone:**
+- **Ledger.** The bridge ledger (tenant-scoped, §4.9) records, per mission key, the **revision** each required section was satisfied at:
+  - bridged;
+  - kept because a fresher copy exists;
+  - or not applicable.
+- **Retryable mission.** A mission is *field-ready* only when every required section is satisfied **at its current ready revision**. It is **retryable** when:
+  - its revision still matches the manifest,
+  - it is not field-ready,
+  - and a missing section is one the server reported `failed`, or a `checklist_context` the phone could not decode.
+- **Retry download.** The reconciler re-requests retryable missions on every run it performs, even with an unchanged manifest revision. It batches them with any changed missions, and there is no timer.
+  - A wake for an already-applied manifest revision still runs if any mission is retryable; `.alreadyCurrent` requires the index to be fully current **and** nothing retryable.
+- **Old servers.** A package **without** `sections` (a pre-Phase-4 server) is never retryable; deep offline is simply unavailable for it. This prevents endless re-downloads.
+- **Preserved sections.**
+  - A missing or failed section never overwrites or deletes an earlier valid bridged copy; the previous Order Details, assembly or context copy keeps serving the screens.
+  - A repaired download of the same revision replaces the stored package file (same name, now complete) and is bridged.
+- **Dispatch status is unaffected.** Incomplete sections do not make a run `partial` and do not change the Dispatch freshness rules (F1). The Dispatch card depends only on the base package. The result reports `incompleteMissionKeys` for diagnostics.
+- **Required test:** a section that failed at revision R is repaired later **at the same revision R** (manifest unchanged). Tests cover Delivery (`order_details` and `assembly`) and Return (`order_details`), plus prior-valid-section preservation.
 
 ---
 
@@ -268,6 +301,26 @@ Otherwise the client returns **`.unavailableOffline`**. `CheckListViewController
 - **The Delivery leg:** T&C stays an unmet requirement. The existing Complete → `WarningViewController` override records the reason durably, as it does today for any unmet requirement.
 - **Nothing in Phase 4 renders or signs Terms content offline.** The package's `terms.offline_content_available` stays `false` until Phase 5.
 
+### 4.9 Amendment B — tenant-safe caches (LOCKED)
+Every durable cache Phase 4 prewarms is **tenant-scoped on write and on read**, by the current tenant key (the Phase 3 `DispatchOfflineTenant.key` of the login `api_url`). **The freshness ledger is never the tenant boundary.**
+
+| Cache | Tenant-safe form |
+|---|---|
+| `ChecklistContextStore` | `<KabbaSync>/checklist-contexts/<tenantKey>/<opuid>__<leg>.json`. The store resolves the tenant on every call; with no tenant it reads and writes nothing. |
+| Order Details `kOrderDetailData_<uid>` and checklist `kOrderDetailsData_<uid>` | MMKV keys `kOrderDetailData_<tenantKey>_<uid>` / `kOrderDetailsData_<tenantKey>_<uid>`, built by one helper used at every read and write site. |
+| Assembly Review `kQueueLineAssembly_<uid>` | `kQueueLineAssembly_<tenantKey>_<uid>`. |
+| Reference lists (`EmployesList`, `EquipmentList`, `kStoreList`, `CateoryList`, `kPriceList`, `kProductSettings`, `OrderDetailUserData`, the driver-employee list) | Tenant-suffixed keys, with the warm-up timestamps scoped the same way. |
+| Dispatch feed / manual MMKV slots (`kDispatchJobList_*`, `kDispatchManualList_*`) | Tenant-suffixed keys. These are not prewarmed, but without scoping they could show one company's rows under another in the Completed / feed-fallback views. |
+| Bridge ledger | Stored in the Phase 3 tenant directory `dispatch-offline/v1/<tenantKey>/`. |
+
+- **Legacy unscoped records** (every existing key and file above, written before Phase 4) are **never read**: their company cannot be proven, so they are ignored and repopulated by the next online open or bridge. They are not deleted, and nothing else changes on logout.
+- **Required acceptance test (automated):**
+  1. Company A reconciles; the bridge caches Order Details, Assembly Review and checklist contexts, and the lists are warmed.
+  2. Logout.
+  3. Login to Company B, and go offline.
+  4. **No Company A business data is readable under Company B:** no context, Order Details, assembly, reference list or Dispatch slot.
+  5. Switch back to Company A: A's cached data is still present and usable offline.
+
 ### 4.8 Required behavior per scenario
 
 | Scenario | Behavior |
@@ -326,13 +379,15 @@ Otherwise the client returns **`.unavailableOffline`**. `CheckListViewController
 
 - **M0 — Contract.**
   - Decode the fixture's `checklist_context` into `ChecklistContext`, closing the §0.2 gap.
-  - Add optional opaque `order_details`/`assembly` on stored packages; an older server that omits them still decodes.
+  - Add optional opaque `order_details`/`assembly` and the `sections` map on stored packages; an older server that omits them still decodes.
+- **MB — Tenant-safe caches** (Amendment B): the tenant-scoped `ChecklistContextStore`, a tenant key helper, and scoped MMKV/UserDefaults keys at every read and write site; legacy records are ignored.
 - **B1 — Backend (after approval).**
   - Extract `OrderDetailsPayload`, with the `ShowController` byte-equality test.
   - Add `order_details`/`assembly` to the package, with parity tests, isolation and memo.
   - Add the fingerprint (P4-D3), with revision-completeness and no-churn tests and the performance re-measure.
   - Regenerate the fixture and copy it byte-identically to mobile.
 - **M1 — Checklist-context bridge policy** (Core): rules 1–6 with red/green tests.
+- **MA — Section readiness and retry** (Amendment A): ledger per mission key and revision, the reconciler's same-revision retry, `.alreadyCurrent` gating, and `incompleteMissionKeys`.
 - **M2 — Fallback correctness** (Core policy plus the App client): fixes G-A–G-D, and the per-product "needs a connection" state.
 - **M3 — App writers:** the order-details caches (both models), the assembly cache, the ledger and note re-apply, with hosted tests.
 - **M4 — Wiring:** bridge after commits and at launch, current tenant only, idempotent, off the main thread except the MMKV writes.
@@ -388,6 +443,10 @@ The same scenario is repeated for the Return leg (no assembly; `previous_answer_
 | 16 | Mission removal / GC never deletes bridged contexts or order caches (Phase 3 byte-identity tests extended) | Core |
 | 17 | Automated acceptance scenario, Delivery and Return (§7.1) | Core + hosted |
 | 18 | Backend: parity (B1 vs `orders/details`, B2 vs assembly), `ShowController` byte-equality, per-key isolation, revision completeness and no-churn for each fingerprint source, manifest and packages performance guards, fixture shape | Backend |
+| 19 | **Amendment A:** a failed `order_details` (Delivery and Return) or `assembly` (Delivery) repairs later **at the same revision**; a prior valid bridged section is preserved; an old server without `sections` is never retried; a wake at the applied revision still runs while anything is retryable | Core + backend (`sections` statuses) |
+| 20 | **Amendment A:** readiness per leg (Delivery needs `assembly`; Return does not); an undecodable `checklist_context` is not field-ready and is retryable | Core |
+| 21 | **Amendment B:** A → logout → B offline: no A context, Order Details, assembly, list or Dispatch slot is readable; back to A: all of A's data is usable | Core (store) + hosted (MMKV/UserDefaults) |
+| 22 | **Amendment B:** legacy unscoped records are ignored (never served), not deleted | Core + hosted |
 
 ---
 
@@ -428,6 +487,7 @@ Phase 4 closes only when all of these pass:
   - `tests/Feature/Dispatch`, `tests/Feature/Api`, `tests/Feature/Mobile`, `tests/Unit/Push`;
   - `tests/Feature/QueueLine`, for the assembly presenter;
   - `tests/Feature/Orders` and `tests/Feature/CustomerChecklists`, for the `ShowController` extraction and question arrays. Their existing baseline failures must match the Phase 2/3 baseline **by test name**.
+- the Amendment A same-revision repair tests and the Amendment B A → B → A tenant acceptance test;
 - both worktrees clean with no upstream;
 - a **fresh independent reviewer** reporting no Critical or Important issues.
 
