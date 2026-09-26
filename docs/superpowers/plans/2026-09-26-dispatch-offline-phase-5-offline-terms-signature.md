@@ -772,12 +772,13 @@ Gary accepted the core implementation but not the push. This pass is local only:
 
     | Limit | Value | Basis |
     |---|---|---|
-    | Decoded size | 4 MiB | The raw size of every real signing canvas, so even a noisy, incompressible read-back fits. The largest raw is the web page at ratio 4, 1600×512 = 3,277,312 bytes; 19× the largest measured output. |
-    | Encoded length | 5,592,430 characters | 22 + 4 × ⌈4 MiB / 3⌉ |
-    | Mobile upload | 4096 KB | the decoded limit |
-    | Dimensions | 4096 × 2048 px, 4 MP | 3.0× / 4.3× / 6.5× the largest real canvas (1344×480) |
+    | Pad pixel ratio | at most 3 on both pages | a 4× display or browser zoom draws at 3 (13.8) |
+    | Decoded size | 2.5 MiB | The raw size of the largest capped canvas (phone page at ratio 3, 1344×480 = 2,580,960 bytes) plus ≈1.6% framing, so even a noisy, incompressible read-back fits; 12× the largest measured output. Was 4 MiB until 13.8. |
+    | Encoded length | 3,495,278 characters | 22 + 4 × ⌈2.5 MiB / 3⌉ |
+    | Mobile upload | 2560 KB | the decoded limit |
+    | Dimensions | 4096 × 2048 px, 4 MP | 3.0× / 4.3× / 6.5× the largest capped canvas (1344×480) |
 
-  - **Measured output** (simulator, bundled signature_pad v5, both canvases, ratios 1–4, typical / heavy / dense signatures): the largest real-device output is 1344×480 at 219,340 bytes; the synthetic ratio-4 worst case is 1792×640 at 331,319 bytes.
+  - **Measured output** (simulator, bundled signature_pad v5, both canvases, ratios 1–3, typical / heavy / dense signatures): the largest is 1344×480 at 219,340 bytes. A noise-filled canvas through WebKit's own encoder: 2,265,525 bytes on the phone page at ratio 3, 1,621,203 on the web page. Ratio 4 is measured uncapped only, to show the cap is needed: its noisy signature (4,015,389 / 2,877,870) is refused.
   - The phone applies the same contract before recording (`TermsSignatureImage`). Decoding is the server's check alone, because ImageIO renders corrupt PNG data without complaint.
   - The shared vectors are `terms_signature_image.json`: 48 invalid, and 2 valid, one of them a real web-pad capture.
 - **Escaping on the web path.** The customer name is `e()`-escaped wherever it is substituted into the frozen signature block: the signing page, the signed record, and the checkout render. The signature is attribute-escaped. The `{device}` URL segment is whitelisted and emitted with `@json`. The frozen document itself is printed as authored.
@@ -939,9 +940,32 @@ Gary accepted the core implementation but not the push. This pass is local only:
 1. **Pre-fix stored records still render as stored** on the public page, the customer portal and the admin "View Terms" link. The fix stops new ones only. The audit's indicators size the problem; a cleanup needs a decision.
 2. **The web page breaks with agreement content containing `<form>`** (pre-existing, verified in WebKit): the parser closes the signing form early, so SUBMIT ends up outside it and does nothing. It fails safe (nothing wrong is written); the phone handles the same content correctly.
 3. **GD on production is unknown.** Signing works either way; the audit prints it.
-4. **N1/N2:** the size and ratio interaction described above, with a ready fix.
+4. **N1/N2:** the size and ratio interaction described above — fixed in 13.8, with two residual Minors recorded there.
 5. **Unchanged, as directed:** the cross-customer Sync Engine queue; synced signature files kept after pruning; a pending local signature satisfying T&C offline.
 
 ### 13.7 Final state
 - **Hardening complete locally.** No Critical or Important finding open in the hardening's own code. The three open decisions are risks 1–3 above, plus the Review 4 Minors with their ready fixes.
 - **Nothing pushed, merged, deployed or enabled.** Production was not contacted, and the audit procedure (`PRODUCTION_AUDIT.md`) has not been run.
+
+### 13.8 Signature-size correction (Review 4 N1/N2)
+- **Scope (Gary):** only the ready fix — cap the pad's pixel ratio at 3 on both signing pages and cut the decoded limit from 4 MiB to 2.5 MiB, with the related limits. No other Minor/Nit, no production audit, nothing pushed, no version/build bump.
+- **Commits (local, no upstream):** backend `d53dca7a0`; mobile `0f3e7ab`; this record follows.
+- **Contract now:**
+  - Both pages draw the pad at `min(max(devicePixelRatio, 1), 3)`. The web page prints `SignatureImage::MAX_PAD_RATIO`; the phone page mirrors it (`terms-signing.js`, `TermsSignatureImage.maxPadRatio`).
+  - Decoded 2,621,440 bytes; encoded 3,495,278 characters; mobile upload `max:2560` KB; dimensions unchanged (4096 × 2048, 4 MP).
+  - The shared fixture carries `max_pad_ratio: 3`; its 50 vectors are unchanged.
+  - At the limit one acceptance's UPDATE is ≈10.5 MB (was ≈17 MB). The activity-log copy is a separate INSERT.
+- **Evidence (simulator WebKit):**
+  - Noise-filled canvas, WebKit's own encoder: phone page ratio 3 = 2,265,525 bytes; web page ratio 3 = 1,621,203. Uncapped ratio 4 (4,015,389 / 2,877,870) is refused.
+  - Largest drawn signature: 219,340 bytes (phone, ratio 3).
+  - The real phone page at ratios 0.5/1/2/3/4/10 draws at 1/1/2/3/3/3.
+  - One-off, not committed: the real rendered web page (offline copy) drew at 400×128 / 800×256 / 1200×384 for ratios 1 / 2 / 3, 4, 10.
+- **Tests:**
+  - RED on the old code: the backend unit and page tests, the Swift core test and the hosted phone-page test (1792×640 at ratio 4, 4480×1600 at ratio 10).
+  - The new mobile-endpoint test passes on the old code too (phone-sized noise was already over or under both limits); it guards the new limit from being set below the capped canvas.
+  - GREEN: backend Terms 82, Api/Mobile/Terms 21, CustomerPortal 24; mobile core 547/547; signed hosted 84/84; simulator build succeeded.
+- **Review 5 (scoped, independent):** no Critical or Important. Items 1, 2, 4 and 6 OK.
+  - **Minor (verified):** the web pad is sized in rem (Tailwind `28rem` / `8rem`), so it grows with the browser's default font size. At ratio 3 with a root font above 19.08px, a fully incompressible signature no longer fits. At 20px (Chrome "Large") WebKit-style opaque noise, ≈2.53 MB, still fits; at 24px ("Very large") it is ≈3.64 MB, accepted under 4 MiB and refused now. Drawn signatures are unaffected. The docblock's "largest canvas is the phone page" holds only at a 16px root. Ready fix: size the web pad in px, or cap the backing store's area instead of the ratio.
+  - **Minor (plausible, pre-existing, smaller than before):** GD's re-encoding is not size-checked, so a crafted upload under 2.5 MiB (RGB or grey-alpha, within 4 MP) could be stored ≈1.1–3× larger. The UPDATE could then exceed 16 MiB, giving a 500 with nothing written. A signature-block template that places `[customer_signature]` more than once also multiplies the copies. Ready fix: refuse when the canonical output exceeds `MAX_DECODED_BYTES`, or require IHDR colour type 6, 8-bit.
+  - **Nits:** the mobile-endpoint test doesn't discriminate old from new code; the JS literal `3` is not tied to `maxPadRatio` (the phone-page test hardcodes 3); this plan's limits table (updated with this record); "three times" depends on the template.
+
