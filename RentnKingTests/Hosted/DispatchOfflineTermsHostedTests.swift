@@ -1,0 +1,351 @@
+//
+//  DispatchOfflineTermsHostedTests.swift
+//  RentnKingHostedTests — runs inside the RentnKing app (Simulator or device)
+//
+//  Dispatch offline Phase 5 through the REAL app pieces: a stored Delivery
+//  package (the shared Laravel fixture) is bridged into the real
+//  TermsAgreementStore; the real Terms & Conditions screen, offline, renders
+//  the order's frozen agreement as an inert local page in its WKWebView; the
+//  customer signs through the page; the signature is durable in the real Sync
+//  Engine before the screen advances; relaunch, reopen and completion rules
+//  all hold; and the page is inert (no script, handler, javascript: URL,
+//  frame, object, remote load or navigation from the agreement).
+//
+//  No real server: tenants are *.invalid hosts; the screen is told it is
+//  offline through its reachability seam.
+//
+
+import XCTest
+import WebKit
+import UIKit
+@testable import RentnKing
+
+final class DispatchOfflineTermsHostedTests: XCTestCase {
+
+    private let urlA = "https://tenant-a.invalid/api/admin/v1/"
+    private let urlB = "https://tenant-b.invalid/api/admin/v1/"
+    private var tenantA: String { DispatchOfflineTenant.key(baseURL: URL(string: urlA)!) }
+
+    private let orderUid = "ORD-BJVZ-CSDO"        // the fixture's order
+    private let opuid = "ORD-SCH-P8KU-S6A9"        // the fixture's mission line
+    private var savedBaseURL: String?
+    private var root: URL!
+    private var window: UIWindow?
+    private var createdOperations: [String] = []
+
+    override func setUp() {
+        super.setUp()
+        savedBaseURL = UserDefaults.standard.baseURL
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("p5-hosted-\(UUID().uuidString)", isDirectory: true)
+        UserDefaults.standard.baseURL = urlA
+    }
+
+    override func tearDown() {
+        for id in createdOperations { try? KabbaSync.engine?.discard(operationId: id) }
+        if let agreements = KabbaSync.termsAgreements {
+            for tenant in [tenantA, DispatchOfflineTenant.key(baseURL: URL(string: urlB)!)] {
+                try? FileManager.default.removeItem(at: agreements.directory.appendingPathComponent(tenant, isDirectory: true))
+            }
+        }
+        window?.isHidden = true
+        window = nil
+        UserDefaults.standard.baseURL = savedBaseURL
+        try? FileManager.default.removeItem(at: root)
+        super.tearDown()
+    }
+
+    // MARK: - Fixture → a stored, ready Delivery mission for company A
+
+    private func fixturePackage() throws -> JSONValue {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("KabbaSyncCore/Fixtures/dispatch_offline_packages.json")
+        let root = try XCTUnwrap(JSONValue.parse(try Data(contentsOf: url)))
+        return try XCTUnwrap(root["data"]?["packages"]?.arrayValue?.first)
+    }
+
+    /// Stores the fixture package for company A and runs the real bridge into the real agreement store.
+    @discardableResult
+    private func bridgeFixture(sectionsTerms: String? = nil) throws -> DispatchOfflineFieldBridge.Report {
+        let store = try DispatchOfflineMissionStore(rootDirectory: root, baseURL: URL(string: urlA)!)
+        let contexts = try ChecklistContextStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+        let bridge = DispatchOfflineFieldBridge(store: store, contexts: contexts, agreements: KabbaSync.termsAgreements,
+                                                writer: DispatchOfflineOrderBridge.shared, operations: { [] }, currentEmployee: { nil })
+        let missionKey = "\(opuid):delivery"
+        var value = try fixturePackage()
+        if let status = sectionsTerms {
+            value = value.p5Setting(["sections", "terms"], .string(status)).p5Setting(["terms", "agreement"], .null)
+        }
+        guard case .success(let package) = DispatchOfflinePackage.validate(value, requested: [missionKey]) else {
+            throw XCTSkip("fixture package does not validate")
+        }
+        let file = try store.writePackage(package, cachedAt: Date(), serverObservedAt: Date())
+        var index = DispatchOfflineIndex.empty(tenantKey: store.tenantKey, baseURL: DispatchOfflineTenant.normalizedBaseURL(URL(string: urlA)!))
+        index.everCommitted = true
+        index.entries = [.init(missionKey: missionKey, orderProductUniqueId: opuid, leg: .delivery, effectiveDate: "2026-09-25",
+                               serverRevision: package.revision, readyRevision: package.revision, packageFile: file)]
+        try store.commit(index)
+        let report = bridge.bridge(index: store.loadIndex())
+        XCTAssertEqual(bridge.isFieldReady(store.loadIndex().entry(missionKey)!), sectionsTerms == nil)
+        return report
+    }
+
+    /// Polls the main run loop until `condition` holds (the web view and the engine are asynchronous).
+    @discardableResult
+    private func waitUntil(timeout: TimeInterval = 5, file: StaticString = #filePath, line: UInt = #line,
+                           _ description: String, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTFail("Timed out waiting for \(description)", file: file, line: line)
+        return false
+    }
+
+    // MARK: - The real screen, offline
+
+    private final class RecordingDelegate: NSObject, TermsDelegate {
+        var calls = 0
+        var operationsAtCall: [SyncOperation] = []
+        func termsSucess(selectIndex: Int) {
+            calls += 1
+            operationsAtCall = KabbaSync.engine?.snapshot() ?? []
+        }
+    }
+
+    private func openTerms(delegate: RecordingDelegate? = nil, termsStatus: String = "Pending") throws -> TermsAndConditionViewController {
+        let vc = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "TermsAndConditionViewController") as? TermsAndConditionViewController)
+        vc.isOrderFrom = true
+        vc.strOrderUniqueId = orderUid
+        vc.strProductUniqueId = opuid
+        vc.strOrderNumber = "1650"
+        vc.strTermsStatus = termsStatus
+        vc.signUrl = "https://tenant-a.invalid/terms-and-conditions/\(orderUid)/mobile"
+        vc.isReachable = { false }             // completely offline
+        vc.delegate = delegate
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = UINavigationController(rootViewController: vc)
+        window.makeKeyAndVisible()
+        self.window = window
+        waitUntil(timeout: 5, "the screen to resolve") { vc.presentation != nil }
+        return vc
+    }
+
+    @discardableResult
+    private func js(_ webView: WKWebView, _ script: String, file: StaticString = #filePath, line: UInt = #line) -> Any? {
+        let done = expectation(description: "js")
+        var out: Any?
+        webView.evaluateJavaScript(script) { value, error in
+            if let error = error { XCTFail("JS failed: \(error) — \(script)", file: file, line: line) }
+            out = value
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 10)
+        return out
+    }
+
+    private func waitForPage(_ webView: WKWebView) {
+        waitUntil(timeout: 15, "the local page") {
+            var ready = false
+            let done = self.expectation(description: "ready")
+            webView.evaluateJavaScript("document.readyState === 'complete' && !!document.getElementById('terms-dynamic-content')") { value, _ in
+                ready = (value as? Bool) == true
+                done.fulfill()
+            }
+            self.wait(for: [done], timeout: 5)
+            return ready
+        }
+    }
+
+    private let signScript = """
+        document.getElementById('open-signature-btn').click();
+        window.kabbaTerms.pad.fromData([{points: [{x: 20, y: 30, pressure: 0.5, time: 1}, {x: 90, y: 70, pressure: 0.5, time: 20},
+                                                  {x: 160, y: 40, pressure: 0.5, time: 40}, {x: 220, y: 90, pressure: 0.5, time: 60}]}]);
+        document.getElementById('save-signature').click();
+        document.querySelectorAll('input.customer_initials_checkbox').forEach(function (b) { b.click(); });
+        document.getElementById('submit-button').click();
+        true;
+        """
+
+    // MARK: - 1. Never opened online → signed offline → durable → relaunch → completion
+
+    func testANeverOpenedMissionIsSignedOfflineDurablyAndCountsForDelivery() throws {
+        try bridgeFixture()
+        let stored = try XCTUnwrap(KabbaSync.termsAgreements?.current(orderUniqueId: orderUid), "bridged, verified")
+
+        let delegate = RecordingDelegate()
+        let vc = try openTerms(delegate: delegate)
+        XCTAssertEqual(vc.presentation, .document(stored), "offline: the stored, verified agreement")
+        waitForPage(vc.objWebKit)
+
+        // Full terms content renders offline, with the existing approval + sign controls.
+        let text = js(vc.objWebKit, "document.getElementById('terms-dynamic-content').textContent") as? String ?? ""
+        XCTAssertTrue(text.contains("Standard terms."))
+        XCTAssertTrue(text.contains("Addendum."))
+        XCTAssertTrue(text.contains("Cody Cash"), "the frozen customer substitution")
+        XCTAssertEqual(js(vc.objWebKit, "document.querySelectorAll('input.customer_initials_checkbox').length") as? Int, 1)
+        XCTAssertEqual(js(vc.objWebKit, "!!document.getElementById('open-signature-btn')") as? Bool, true)
+
+        // Sign through the page.
+        js(vc.objWebKit, signScript)
+        waitUntil(timeout: 10, "termsSucess") { delegate.calls == 1 }
+
+        // Durable BEFORE the screen advanced.
+        let signed = delegate.operationsAtCall.filter { $0.type == "terms.sign" && $0.identity.orderUniqueId == orderUid }
+        XCTAssertEqual(signed.count, 1)
+        let op = try XCTUnwrap(signed.first)
+        createdOperations.append(op.id)
+        XCTAssertEqual(TermsSignOperationBuilder.termsIdentity(of: op), stored.identity)
+        XCTAssertEqual(op.payload["approvals_confirmed"]?.intValue, 1)
+        let assetsDirectory = try XCTUnwrap(KabbaSync.engine?.store.assetsDirectory)
+        let png = try Data(contentsOf: assetsDirectory.appendingPathComponent(try XCTUnwrap(op.assets.first).relativePath))
+        XCTAssertEqual(png.prefix(4), Data([0x89, 0x50, 0x4E, 0x47]), "the web pad's PNG")
+        XCTAssertNotNil(UIImage(data: png))
+
+        // Leave and reopen: signed on this phone, no second capture.
+        let reopened = try openTerms()
+        if case .signedOnThisPhone? = reopened.presentation {} else { XCTFail("reopened: \(String(describing: reopened.presentation))") }
+
+        // Force-quit / relaunch: a fresh store on the engine's folder still holds the signature.
+        let reloaded = try FileSyncOperationStore(rootDirectory: assetsDirectory.deletingLastPathComponent()).loadAll()
+        XCTAssertTrue(reloaded.contains { $0.id == op.id })
+
+        // Completion follows the existing rules: T&C is satisfied, so the override never lists it.
+        let inputs = LegCompletionInputs(orderUniqueId: orderUid, orderProductUniqueId: opuid, orderProductUniqueIds: [opuid],
+                                         licenseConfirmed: true, deliveryMediaConfirmed: true, deliveryChecklistConfirmed: true,
+                                         termsIdentity: stored.identity)
+        let decision = LegCompletionEvaluator.evaluate(leg: .delivery, inputs: inputs, operations: reloaded)
+        XCTAssertEqual(decision.status(.termsAndConditions), .satisfied)
+        XCTAssertTrue(decision.canProceed)
+        XCTAssertFalse(decision.overrideSections.terms)
+
+        // Reconnect: ONE multipart POST with the identity, the operation id and one signature part.
+        let request = try TermsSignRequestFactory.request(for: op)
+        XCTAssertEqual(request.path, "orders/terms/\(orderUid)/accept")
+        XCTAssertEqual(request.headers["X-Operation-Id"], op.id)
+        let body = try SyncMultipartBuilder.build(fields: request.jsonBody, assets: request.attachments, assetsDirectory: assetsDirectory)
+        defer { try? FileManager.default.removeItem(at: body.fileURL) }
+        let multipart = String(decoding: try Data(contentsOf: body.fileURL), as: UTF8.self)
+        XCTAssertEqual(multipart.components(separatedBy: "name=\"signature_media\"").count - 1, 1)
+        XCTAssertTrue(multipart.contains(stored.identity))
+        XCTAssertTrue(multipart.contains(op.id))
+    }
+
+    // MARK: - 2. Inert rendering
+
+    private final class Recorder: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        var messages: [Any] = []
+        var navigations: [String] = []
+        func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) { messages.append(message.body) }
+        func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            navigations.append(action.request.url?.absoluteString ?? "")
+            decisionHandler(action.request.url?.absoluteString == "about:blank" ? .allow : .cancel)
+        }
+    }
+
+    func testTheAgreementIsRenderedInertAndSigningStillWorks() throws {
+        let post = "window.webkit.messageHandlers.kabbaTermsSigned.postMessage({evil: true})"
+        let hostile = """
+            <p id="clause">Clause one.</p>
+            <script>\(post)</script>
+            <img id="remote" src="https://example.com/pixel.png" onerror="\(post)">
+            <a id="jslink" href="javascript:\(post)">tap me</a>
+            <a id="weblink" href="https://example.com/elsewhere">elsewhere</a>
+            <div id="clicky" onclick="\(post)">click</div>
+            <iframe src="https://example.com"></iframe><object data="https://example.com/x.swf"></object><embed src="https://example.com/y">
+            <svg onload="\(post)"><script>\(post)</script></svg>
+            <form action="https://example.com/steal"><input name="x" value="y"><button>go</button></form>
+            <meta http-equiv="refresh" content="0;url=https://example.com/away"><base href="https://example.com/">
+            <style>@import url(https://example.com/x.css);</style>
+            [customer_approval][/customer_approval]
+            """
+        let entries = [TermsAgreement.Entry(isGlobal: false, content: hostile, signatureBlock: "")]
+        let agreement = TermsAgreement(identity: TermsAgreement.computeIdentity(orderUniqueId: "ORD-INERT", customerName: "Jane", entries: entries),
+                                       orderUniqueId: "ORD-INERT", orderNumber: "#1", customerName: "Jane", approvalsRequired: 1, entries: entries)
+        XCTAssertTrue(agreement.isVerified(forOrder: "ORD-INERT"))
+        let html = try XCTUnwrap(TermsSigningShell.html(for: agreement))
+
+        let recorder = Recorder()
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(recorder, name: TermsSigningShell.messageHandlerName)
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 800), configuration: configuration)
+        webView.navigationDelegate = recorder
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.addSubview(webView)
+        window.makeKeyAndVisible()
+        self.window = window
+        webView.loadHTMLString(html, baseURL: nil)
+        waitForPage(webView)
+
+        XCTAssertEqual(js(webView, "document.getElementById('clause').textContent") as? String, "Clause one.", "the content is there")
+        XCTAssertEqual(js(webView, "document.querySelectorAll('#terms-dynamic-content script, #terms-dynamic-content iframe, #terms-dynamic-content object, #terms-dynamic-content embed, #terms-dynamic-content svg, #terms-dynamic-content form, #terms-dynamic-content meta, #terms-dynamic-content base, #terms-dynamic-content button:not([data-kabba-control]), #terms-dynamic-content input:not([data-kabba-control])').length") as? Int, 0)
+        XCTAssertEqual(js(webView, "document.querySelectorAll('#terms-dynamic-content [data-kabba-control]').length") as? Int, 3,
+                       "only the app's own controls: one approval checkbox, the sign button, the remove-signature button")
+        XCTAssertEqual(js(webView, "Array.prototype.some.call(document.querySelectorAll('#terms-dynamic-content *'), function (el) { return Array.prototype.some.call(el.attributes, function (a) { return a.name.indexOf('on') === 0; }); })") as? Bool, false, "no inline handlers")
+        XCTAssertEqual(js(webView, "document.getElementById('jslink').hasAttribute('href') || document.getElementById('weblink').hasAttribute('href')") as? Bool, false, "no javascript: or web links")
+        XCTAssertEqual(js(webView, "document.getElementById('remote').hasAttribute('src')") as? Bool, false, "no remote image")
+        XCTAssertEqual(js(webView, "document.querySelectorAll('#terms-dynamic-content style').length") as? Int, 0, "no remote stylesheet import")
+
+        js(webView, "document.getElementById('jslink').click(); document.getElementById('weblink').click(); document.getElementById('clicky').click(); true;")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertTrue(recorder.messages.isEmpty, "the agreement can never post a signing")
+        XCTAssertEqual(recorder.navigations.filter { $0 != "about:blank" }, [], "no navigation from the agreement")
+
+        // …and the customer can still sign it.
+        js(webView, "document.getElementById('open-signature-btn') !== null")
+        js(webView, signScript)
+        waitUntil(timeout: 5, "the signing message") { !recorder.messages.isEmpty }
+        let message = try XCTUnwrap(recorder.messages.first as? [String: Any])
+        XCTAssertEqual(message["identity"] as? String, agreement.identity)
+        XCTAssertEqual((message["approvals_confirmed"] as? NSNumber)?.intValue, 1)
+        XCTAssertNotNil(TermsAndConditionViewController.signaturePNG(fromDataURL: message["signature"] as? String ?? ""))
+    }
+
+    // MARK: - 3. Verification failure, missing agreement, tenancy
+
+    func testAnAgreementThatDoesNotVerifyIsNeverShownOrSignable() throws {
+        let vc = try openTerms()
+        var tampered = try XCTUnwrap(TermsAgreement.decode(try fixturePackage()["terms"]?["agreement"]))
+        tampered.entries[0].content = "<p>Not what was frozen.</p>"
+        let block = TermsBlock(status: "Pending", pageUrl: "", agreementStatus: .available, unavailableReason: nil, agreement: tampered)
+
+        vc.apply(TermsScreenPresentation.resolve(vc.presentationInputs(live: .block(block))))
+
+        XCTAssertEqual(vc.presentation, .unableToVerify)
+        XCTAssertNil(vc.renderedAgreement, "nothing rendered, nothing signable")
+        XCTAssertNotNil(vc.boundaryView)
+        vc.didReceiveSigning(["identity": tampered.identity, "approvals_confirmed": 1, "signature": "data:image/png;base64,AAAA"])
+        XCTAssertFalse(KabbaSync.engine?.snapshot().contains { $0.type == "terms.sign" && $0.identity.orderUniqueId == orderUid } ?? true)
+    }
+
+    func testAPackageWithoutAUsableAgreementSaysNotDownloadedNeverABlankPage() throws {
+        try bridgeFixture(sectionsTerms: "failed")
+        XCTAssertNil(KabbaSync.termsAgreements?.current(orderUniqueId: orderUid))
+
+        let vc = try openTerms()
+
+        XCTAssertEqual(vc.presentation, .notDownloaded)
+        XCTAssertNil(vc.renderedAgreement)
+        XCTAssertNotNil(vc.boundaryView, "a clear state, not a blank web view or a spinner")
+    }
+
+    func testCompanyBNeverSeesCompanyAsAgreementAndAKeepsIt() throws {
+        try bridgeFixture()
+
+        UserDefaults.standard.baseURL = urlB
+        XCTAssertEqual(try openTerms().presentation, .notDownloaded, "no Company A agreement under Company B")
+
+        UserDefaults.standard.baseURL = urlA
+        if case .document? = try openTerms().presentation {} else { XCTFail("back to A: usable offline") }
+    }
+}
+
+private extension JSONValue {
+    func p5Setting(_ path: [String], _ value: JSONValue) -> JSONValue {
+        guard let head = path.first else { return value }
+        var object = objectValue ?? [:]
+        object[head] = (object[head] ?? .object([:])).p5Setting(Array(path.dropFirst()), value)
+        return .object(object)
+    }
+}

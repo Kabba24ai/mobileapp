@@ -214,7 +214,8 @@ enum DispatchOfflineSync {
             if let contexts = KabbaSync.contextStore {
                 // Phase 4: preload the screens' caches from each package, for THIS company only.
                 reconciler.fieldBridge = DispatchOfflineFieldBridge(
-                    store: store, contexts: contexts, writer: DispatchOfflineOrderBridge.shared,
+                    store: store, contexts: contexts, agreements: KabbaSync.termsAgreements,
+                    writer: DispatchOfflineOrderBridge.shared,
                     operations: { KabbaSync.engine?.snapshot() ?? [] },
                     currentEmployee: { DispatchOfflineSync.signedInEmployee() })
             }

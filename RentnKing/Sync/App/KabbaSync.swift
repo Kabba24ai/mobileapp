@@ -35,6 +35,8 @@ enum KabbaSync {
     private(set) static var installation: InstallationIdentity?
     private(set) static var contextStore: ChecklistContextStore?
     private(set) static var checklistContexts: ChecklistContextClient?
+    /// Dispatch offline Phase 5: the orders' frozen Terms agreements this phone holds (per company).
+    private(set) static var termsAgreements: TermsAgreementStore?
 
     private static var observers: [NSObjectProtocol] = []
     private static var sessionExpiredHandler: (() -> Void)?
@@ -78,6 +80,8 @@ enum KabbaSync {
                                         FulfillmentInputsSyncHandler(hasSession: hasSession),
                                         // Local-first T&C — durable evidence of a signed Terms & Conditions
                                         TermsAcceptSyncHandler(hasSession: hasSession),
+                                        // Dispatch offline Phase 5 — a signature captured on this phone
+                                        TermsSignSyncHandler(hasSession: hasSession),
                                         // (queue_line.mark_staged retired 2026-09 — staging is the
                                         //  Delivery Checklist's Save: delivery_checklist.prepare + mark_staged)
                                         // Pre-departure preparation lifecycle (2026-09) — the yard
@@ -100,6 +104,7 @@ enum KabbaSync {
             let contextStore = try ChecklistContextStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
             KabbaSync.contextStore = contextStore
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
+            KabbaSync.termsAgreements = try? TermsAgreementStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
 
             // Dispatch offline (Phase 3): the company-wide durable Dispatch working set.
             DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, accessToken: accessToken)

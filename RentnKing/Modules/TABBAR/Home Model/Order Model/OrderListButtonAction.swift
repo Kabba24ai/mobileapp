@@ -100,6 +100,7 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
                 newViewController.strProductUniqueId = objData.arrProduct.first?.unique_id ?? ""
                 newViewController.isReturnLeg = objData.arrProduct.contains(where: { $0.is_delivered ?? false })
                 newViewController.strOrderNumber = objData.order_number ?? ""
+                newViewController.strTermsStatus = objData.terms_status ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }

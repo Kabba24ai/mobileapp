@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */; };
+		5A5E000000000000000000EB /* terms-signing.html in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000EA /* terms-signing.html */; };
+		5A5E000000000000000000ED /* terms-signing.css in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000EC /* terms-signing.css */; };
+		5A5E000000000000000000EF /* terms-signing.js in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000EE /* terms-signing.js */; };
+		5A5E000000000000000000F1 /* signature_pad.umd.min.js in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000F0 /* signature_pad.umd.min.js */; };
+		5A5E000000000000000000F3 /* LICENSE-signature_pad.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000F2 /* LICENSE-signature_pad.txt */; };
+		5A5E000000000000000000E8 /* TermsAgreementClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000E7 /* TermsAgreementClient.swift */; };
+		5A5E000000000000000000E6 /* TermsSigningShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000E5 /* TermsSigningShell.swift */; };
+		5A5E000000000000000000E4 /* TermsScreenPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000E3 /* TermsScreenPresentationTests.swift */; };
+		5A5E000000000000000000E1 /* TermsScreenPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000E0 /* TermsScreenPresentation.swift */; };
+		5A5E000000000000000000E2 /* TermsScreenPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000E0 /* TermsScreenPresentation.swift */; };
 		5A5E000000000000000000DF /* DispatchOfflineTermsBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */; };
 		5A5E000000000000000000DD /* TermsSignOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DC /* TermsSignOperationsTests.swift */; };
 		5A5E000000000000000000DB /* TermsAgreementStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */; };
@@ -502,6 +513,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTermsHostedTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000EA /* terms-signing.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = terms-signing.html; sourceTree = "<group>"; };
+		5A5E000000000000000000EC /* terms-signing.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = terms-signing.css; sourceTree = "<group>"; };
+		5A5E000000000000000000EE /* terms-signing.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = terms-signing.js; sourceTree = "<group>"; };
+		5A5E000000000000000000F0 /* signature_pad.umd.min.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = signature_pad.umd.min.js; sourceTree = "<group>"; };
+		5A5E000000000000000000F2 /* LICENSE-signature_pad.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE-signature_pad.txt; sourceTree = "<group>"; };
+		5A5E000000000000000000E7 /* TermsAgreementClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreementClient.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000E5 /* TermsSigningShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSigningShell.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000E3 /* TermsScreenPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsScreenPresentationTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000E0 /* TermsScreenPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsScreenPresentation.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTermsBridgeTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000DC /* TermsSignOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignOperationsTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreementStoreTests.swift; sourceTree = "<group>"; };
@@ -957,6 +978,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		5A5E000000000000000000E9 /* TermsSigning */ = {
+			isa = PBXGroup;
+			children = (
+				5A5E000000000000000000EA /* terms-signing.html */,
+				5A5E000000000000000000EC /* terms-signing.css */,
+				5A5E000000000000000000EE /* terms-signing.js */,
+				5A5E000000000000000000F0 /* signature_pad.umd.min.js */,
+				5A5E000000000000000000F2 /* LICENSE-signature_pad.txt */,
+			);
+			path = TermsSigning;
+			sourceTree = "<group>";
+		};
 		001D08272E8FFE1B004F4B13 /* FileData Helper */ = {
 			isa = PBXGroup;
 			children = (
@@ -2056,6 +2089,7 @@
 				5A5E000000000000000000CF /* TermsAgreement.swift */,
 				5A5E000000000000000000D2 /* TermsAgreementStore.swift */,
 				5A5E000000000000000000D5 /* TermsSignOperations.swift */,
+				5A5E000000000000000000E0 /* TermsScreenPresentation.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2105,6 +2139,9 @@
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
 				5A5E000000000000000000B6 /* DispatchOfflineSync.swift */,
 				5A5E000000000000000000CB /* DispatchOfflineOrderBridge.swift */,
+				5A5E000000000000000000E5 /* TermsSigningShell.swift */,
+				5A5E000000000000000000E7 /* TermsAgreementClient.swift */,
+				5A5E000000000000000000E9 /* TermsSigning */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2127,6 +2164,7 @@
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
+				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2188,6 +2226,7 @@
 				5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */,
 				5A5E000000000000000000DC /* TermsSignOperationsTests.swift */,
 				5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */,
+				5A5E000000000000000000E3 /* TermsScreenPresentationTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -2434,6 +2473,11 @@
 				C51AF5EF2AD178220042589E /* Roboto-Bold.ttf in Resources */,
 				C5E06B4D2CCBBFDB00FDF876 /* AddNoteView.xib in Resources */,
 				C51AF5D72AD178220042589E /* AlertPopUp.xib in Resources */,
+				5A5E000000000000000000EB /* terms-signing.html in Resources */,
+				5A5E000000000000000000ED /* terms-signing.css in Resources */,
+				5A5E000000000000000000EF /* terms-signing.js in Resources */,
+				5A5E000000000000000000F1 /* signature_pad.umd.min.js in Resources */,
+				5A5E000000000000000000F3 /* LICENSE-signature_pad.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2774,6 +2818,9 @@
 				5A5E000000000000000000D0 /* TermsAgreement.swift in Sources */,
 				5A5E000000000000000000D3 /* TermsAgreementStore.swift in Sources */,
 				5A5E000000000000000000D6 /* TermsSignOperations.swift in Sources */,
+				5A5E000000000000000000E1 /* TermsScreenPresentation.swift in Sources */,
+				5A5E000000000000000000E6 /* TermsSigningShell.swift in Sources */,
+				5A5E000000000000000000E8 /* TermsAgreementClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2896,6 +2943,8 @@
 				5A5E000000000000000000DB /* TermsAgreementStoreTests.swift in Sources */,
 				5A5E000000000000000000DD /* TermsSignOperationsTests.swift in Sources */,
 				5A5E000000000000000000DF /* DispatchOfflineTermsBridgeTests.swift in Sources */,
+				5A5E000000000000000000E2 /* TermsScreenPresentation.swift in Sources */,
+				5A5E000000000000000000E4 /* TermsScreenPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2909,6 +2958,7 @@
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
+				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

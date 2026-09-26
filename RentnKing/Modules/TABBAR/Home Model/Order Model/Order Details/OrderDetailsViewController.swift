@@ -765,7 +765,9 @@ extension OrderDetailsViewController {
                                    deliveryChecklistConfirmed: self.checkCheckListStatus(isDelivery: true),
                                    returnMediaConfirmed: returnMediaConfirmed,
                                    returnChecklistConfirmed: returnChecklistConfirmed,
-                                   activeReturnExecutionId: activeReturnExecution)
+                                   activeReturnExecutionId: activeReturnExecution,
+                                   // Phase 5: a phone signature counts only for the verified agreement held here.
+                                   termsIdentity: KabbaSync.termsAgreements?.current(orderUniqueId: orderUid)?.identity ?? "")
     }
 
     /// The ONE decision for a leg: applicable requirements × effective satisfaction.
@@ -994,6 +996,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
                     : (self.objOrderData.arrProduct.first?.unique_id ?? "")
                 newViewController.isReturnLeg = self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false })
                 newViewController.strOrderNumber = "\(self.objOrderData.order_number ?? "")"
+                newViewController.strTermsStatus = self.objOrderData.terms_status ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }

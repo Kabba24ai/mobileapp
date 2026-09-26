@@ -23,6 +23,19 @@ struct TermsAcceptSyncHandler: SyncOperationHandler {
     }
 }
 
+/// terms.sign (Dispatch offline Phase 5): a signature captured on this phone for the order's
+/// frozen agreement → POST orders/terms/{order}/accept, idempotent via X-Operation-Id.
+struct TermsSignSyncHandler: SyncOperationHandler {
+    let hasSession: () -> Bool
+
+    var operationType: String { TermsSignOperationBuilder.operationType }
+
+    func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
+        guard hasSession() else { throw SyncHandlerError.notAuthenticated("No active session") }
+        return try TermsSignRequestFactory.request(for: operation)
+    }
+}
+
 /// Screen-facing helper over the engine for T&C acceptance (SyncDriverChecklist pattern:
 /// engine-first, durable before returning; the caller keeps its legacy in-memory flip as
 /// the engine-unavailable fallback).
@@ -49,6 +62,31 @@ enum KabbaTermsSync {
             return operation.id
         } catch {
             debugPrint("Terms accept: sync engine enqueue failed (\(error)) — in-session flip only")
+            return nil
+        }
+    }
+
+    /// Dispatch offline Phase 5: durably records the customer's signature of the order's VERIFIED
+    /// frozen agreement (terms.sign). Returns the operation id once the signature and the operation
+    /// are on disk, or nil — in which case nothing was recorded and the caller must not advance.
+    static func recordSigned(agreement: TermsAgreement,
+                             orderProductUniqueId: String,
+                             isReturnLeg: Bool,
+                             approvalsConfirmed: Int,
+                             signaturePNG: Data) -> String? {
+        guard let engine = KabbaSync.engine else { return nil }
+        var capture = TermsSignCapture(orderUniqueId: agreement.orderUniqueId,
+                                       termsIdentity: agreement.identity,
+                                       approvalsConfirmed: approvalsConfirmed)
+        capture.orderProductUniqueId = orderProductUniqueId
+        capture.leg = isReturnLeg ? .return : .delivery
+        capture.employeeUserId = Int(UserDefaults.standard.user?.id ?? "") ?? 0
+        capture.orderNumber = agreement.orderNumber.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard capture.localValidationProblems().isEmpty else { return nil }
+        do {
+            return try TermsSignOperationBuilder.enqueue(capture, signaturePNG: signaturePNG, into: engine).id
+        } catch {
+            debugPrint("Terms sign: sync engine enqueue failed (\(error)) — nothing recorded")
             return nil
         }
     }

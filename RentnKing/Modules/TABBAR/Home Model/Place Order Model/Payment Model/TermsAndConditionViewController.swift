@@ -31,6 +31,22 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     var strProductUniqueId : String = ""
     var isReturnLeg : Bool = false
     var strOrderNumber : String = ""
+    // Dispatch offline Phase 5: the order's terms_status as the calling screen knows it.
+    var strTermsStatus : String = ""
+
+    /// Phase 5: what the screen shows (TermsScreenPresentation — one pure decision).
+    private(set) var presentation: TermsScreenPresentation?
+    /// The VERIFIED agreement the local page is showing (the only one a signing may name).
+    private(set) var renderedAgreement: TermsAgreement?
+    /// Whether the screen asks the server first (live copy) — injectable for the hosted tests.
+    var isReachable: () -> Bool = { NetworkReachabilityManager()?.isReachable == true }
+    private var hasResolved = false
+    private var isRecording = false
+    private var messageProxy: TermsSigningMessageProxy?
+
+    deinit {
+        objWebKit?.configuration.userContentController.removeScriptMessageHandler(forName: TermsSigningShell.messageHandlerName)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -70,6 +86,132 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
     }
     
     func setTheView(){
+        // Dispatch offline Phase 5: the order workflow uses ONE local-first screen, online and
+        // offline — the order's frozen agreement, verified, rendered locally, signed locally.
+        // The new-order flow (isOrderFrom == false) keeps its server page, unchanged.
+        guard self.isOrderFrom, !self.strOrderUniqueId.isEmpty, KabbaSync.termsAgreements != nil else {
+            self.setTheHostedView()
+            return
+        }
+        guard !self.hasResolved else { return }  // never reload a page the customer may be signing
+        self.hasResolved = true
+
+        if self.isReachable() {
+            indicatorShow()
+            TermsAgreementClient.fetch(orderUniqueId: self.strOrderUniqueId) { [weak self] live in
+                indicatorHide()
+                guard let self = self else { return }
+                self.apply(TermsScreenPresentation.resolve(self.presentationInputs(live: live)))
+            }
+        } else {
+            self.apply(TermsScreenPresentation.resolve(self.presentationInputs(live: nil)))
+        }
+    }
+
+    func presentationInputs(live: TermsScreenPresentation.Live?) -> TermsScreenPresentation.Inputs {
+        TermsScreenPresentation.Inputs(orderUniqueId: self.strOrderUniqueId,
+                                       knownTermsStatus: self.strTermsStatus,
+                                       live: live,
+                                       stored: KabbaSync.termsAgreements?.current(orderUniqueId: self.strOrderUniqueId),
+                                       operations: KabbaSync.engine?.snapshot() ?? [],
+                                       signUrl: self.signUrl)
+    }
+
+    func apply(_ presentation: TermsScreenPresentation) {
+        self.presentation = presentation
+        self.renderedAgreement = nil
+        switch presentation {
+        case .document(let agreement):
+            self.renderLocal(agreement)
+        case .hostedPage(let url):
+            self.hideBoundary()
+            self.loadHosted(url)
+        case .notRequired:
+            self.showBoundary { $0.termsNotRequired() }
+        case .alreadyAccepted:
+            self.showBoundary { $0.termsAlreadyAccepted() }
+        case .signedOnThisPhone(let state):
+            self.showBoundary { $0.termsSignedOnThisPhone(synced: state == .synced) }
+        case .unableToVerify:
+            self.showBoundary { $0.termsUnableToVerify() }
+        case .agreementUnavailable:
+            self.showBoundary { $0.termsAgreementUnavailable() }
+        case .notDownloaded:
+            self.showBoundary { $0.termsNotDownloaded() }
+        case .couldNotLoad:
+            self.showBoundary { $0.termsCouldNotLoad() }
+        case .unavailable:
+            self.showBoundary { $0.termsUnavailable() }
+        }
+    }
+
+    /// The order's verified frozen agreement, as an inert local page (TermsSigningShell).
+    private func renderLocal(_ agreement: TermsAgreement) {
+        guard let html = TermsSigningShell.html(for: agreement) else {
+            self.showBoundary { $0.termsUnavailable() }
+            return
+        }
+        self.hideBoundary()
+        let controller = self.objWebKit.configuration.userContentController
+        controller.removeScriptMessageHandler(forName: TermsSigningShell.messageHandlerName)
+        let proxy = TermsSigningMessageProxy(target: self)
+        controller.add(proxy, name: TermsSigningShell.messageHandlerName)
+        self.messageProxy = proxy
+        self.renderedAgreement = agreement
+        self.objWebKit.navigationDelegate = self
+        self.objWebKit.loadHTMLString(html, baseURL: nil)
+    }
+
+    /// The page posted a signing. Recorded durably FIRST (terms.sign), then the existing
+    /// in-session flip and pop — exactly the thank-you path's order of events.
+    func didReceiveSigning(_ body: Any) {
+        guard !self.isRecording, let agreement = self.renderedAgreement, case .document? = self.presentation else { return }
+        guard let message = body as? [String: Any],
+              let identity = message["identity"] as? String, identity == agreement.identity,
+              let approvals = (message["approvals_confirmed"] as? NSNumber)?.intValue, approvals == agreement.approvalsRequired,
+              let dataURL = message["signature"] as? String, let png = Self.signaturePNG(fromDataURL: dataURL) else {
+            self.resetPage("The signature couldn't be read. Please sign again.")
+            return
+        }
+        self.isRecording = true
+        guard let operationId = KabbaTermsSync.recordSigned(agreement: agreement,
+                                                            orderProductUniqueId: self.strProductUniqueId,
+                                                            isReturnLeg: self.isReturnLeg,
+                                                            approvalsConfirmed: approvals,
+                                                            signaturePNG: png) else {
+            self.isRecording = false
+            self.resetPage("The signature couldn't be saved on this phone. Please try again.")
+            return
+        }
+        KabbaSync.showStatusToast(for: operationId)
+        self.delegate?.termsSucess(selectIndex: self.selectIndex)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.navigationController?.popViewController(animated: true)
+        }
+    }
+
+    /// A PNG data URL (the web pad's format) → its bytes, or nil when it isn't a PNG under 2 MB.
+    static func signaturePNG(fromDataURL dataURL: String) -> Data? {
+        let prefix = "data:image/png;base64,"
+        guard dataURL.hasPrefix(prefix), let data = Data(base64Encoded: String(dataURL.dropFirst(prefix.count))),
+              data.count > 8, data.count <= 2 * 1024 * 1024,
+              data.prefix(8) == Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) else { return nil }
+        return data
+    }
+
+    private func resetPage(_ message: String) {
+        guard let json = TermsSigningShell.scriptSafeJSON(["message": message]) else { return }
+        self.objWebKit.evaluateJavaScript("window.kabbaTermsReset && window.kabbaTermsReset(\(json).message);", completionHandler: nil)
+    }
+
+    private func loadHosted(_ url: URL) {
+        indicatorShow()
+        self.objWebKit.navigationDelegate = self
+        self.objWebKit.load(URLRequest(url: url))
+    }
+
+    /// The pre-Phase-5 hosted signing page (the new-order flow, or no agreement store).
+    func setTheHostedView(){
         
         //SET WEBVIEW
         switch Self.boundary(reachable: NetworkReachabilityManager()?.isReachable == true, signUrl: self.signUrl) {
@@ -129,6 +271,7 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error)
     {
         indicatorHide()
+        guard self.renderedAgreement == nil else { return } // a cancelled navigation on the local page is not an error
         showAlertMessage(strMessage: "\(str.somethingWentWrong)")
     }
     
@@ -145,8 +288,13 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
     }
     
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        print(navigationAction.request.url!)
-        if   (navigationAction.request.url?.absoluteString.contains("thank-you"))!
+        // Phase 5: the local agreement page may load itself and go nowhere else.
+        if self.renderedAgreement != nil {
+            decisionHandler(navigationAction.request.url?.absoluteString == "about:blank" ? .allow : .cancel)
+            return
+        }
+        guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+        if url.absoluteString.contains("thank-you")
         {
 
             // Order workflow: the signing page has already recorded the
@@ -194,4 +342,15 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
     
 }
 
+/// Holds the screen weakly: WKUserContentController retains its handlers.
+final class TermsSigningMessageProxy: NSObject, WKScriptMessageHandler {
+    weak var target: TermsAndConditionViewController?
 
+    init(target: TermsAndConditionViewController) {
+        self.target = target
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.didReceiveSigning(message.body)
+    }
+}
