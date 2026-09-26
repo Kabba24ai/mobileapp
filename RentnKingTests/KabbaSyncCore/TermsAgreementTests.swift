@@ -157,4 +157,20 @@ final class TermsAgreementTests: XCTestCase {
                                                    .init(isGlobal: false, content: "<p>Two</p>", signatureBlock: "")])
         XCTAssertEqual(TermsAgreementRenderer.bodyHTML(addendaOnly, markerToken: "t"), "<p>One</p>\n<p>Two</p>")
     }
+    // MARK: - Rendering parity fixture (Phase 5 hardening; the web half is Laravel's TermsRenderingParityTest)
+
+    func testTheParityAgreementVerifiesAndItsBodyCarriesEveryApprovalAndTheSignPlace() throws {
+        let root = try XCTUnwrap(JSONValue.parse(F.data("terms_rendering_parity")))
+        let agreement = try XCTUnwrap(TermsAgreement.decode(root["agreement"]))
+
+        XCTAssertTrue(agreement.isVerified(forOrder: agreement.orderUniqueId), "identity computed independently in Python")
+        XCTAssertEqual(agreement.approvalsRequired, 4)
+        XCTAssertEqual(TermsAgreement.countApprovals(agreement.entries), 4, "a link, a form, a button, plain")
+
+        let body = TermsAgreementRenderer.bodyHTML(agreement, markerToken: "tok")
+        XCTAssertEqual(TermsAgreement.occurrences(of: TermsAgreementRenderer.approvalMarker("tok"), in: body), 4)
+        XCTAssertEqual(TermsAgreement.occurrences(of: TermsAgreementRenderer.signMarker("tok"), in: body), 1)
+        XCTAssertTrue(body.contains("Customer: Pat O&#39;Brien &amp; Sons &quot;Test&quot; &lt;b&gt;"), "the name, escaped")
+        XCTAssertEqual(agreement.recomputedIdentity, agreement.identity, "rendering never touches the identity")
+    }
 }

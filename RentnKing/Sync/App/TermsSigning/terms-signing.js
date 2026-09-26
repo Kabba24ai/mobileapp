@@ -1,46 +1,134 @@
 // Dispatch offline Phase 5 — the local Terms & Conditions signing page.
 //
 // The agreement body arrives as data (window.kabbaTermsPayload.body), is parsed
-// in an INERT document (DOMParser never runs scripts), stripped of anything
-// active, and only then inserted. The page's Content-Security-Policy is the
-// second wall: no script but the two nonce-tagged ones, no inline handlers, no
-// javascript: URLs, no network, no frames. The app's own approval checkboxes
-// and sign button replace the renderer's inert markers.
+// in an INERT document (DOMParser never runs scripts) and REBUILT, node by node,
+// into this page: nothing active survives, and no human-readable wording is
+// lost. The page's Content-Security-Policy is the second wall: no script but
+// the two nonce-tagged ones, no inline handlers, no javascript: URLs, no
+// network, no frames. The app's own approval checkboxes and sign button replace
+// the renderer's inert markers.
+//
+// Rebuilding (Phase 5 hardening — the customer must see every word they sign):
+//   • removed with their content — never text a reader of the web page sees,
+//     or executable: script, template, noscript (the web page runs scripts, so
+//     it never shows it), iframe/frame (their "content" is never rendered),
+//     embed, audio/video and their sources, link/meta/base, title, area;
+//   • made inert, their wording kept — a form becomes a plain block, a button
+//     or a link plain text (so an approval inside one stays tappable), an
+//     object/applet/dialog/unknown wrapper just its content, a text or button
+//     input its visible value, a textarea or select its text;
+//   • SVG and MathML → their visible text only (never the graphic, never its
+//     scripts or handlers; an SVG <title>/<desc> is a tooltip, not shown);
+//   • a remote image (blocked: no network) → its alt text, when it has one;
+//   • on every element kept: no on* handler, no URL attribute (except an
+//     inline data: image), no target/for/form/popover wiring, no style url().
+// Sanitizing is presentation only — the frozen agreement and its identity are
+// never changed.
 (function () {
   'use strict';
 
   var payload = window.kabbaTermsPayload || {};
-  var BLOCKED = ['script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'link', 'meta', 'base',
-    'form', 'input', 'button', 'select', 'textarea', 'option', 'audio', 'video', 'source', 'track', 'portal',
-    'noscript', 'template', 'dialog', 'slot', 'svg', 'math'];
+  var REMOVE = ['script', 'template', 'noscript', 'iframe', 'frame', 'frameset', 'embed', 'audio', 'video', 'source',
+    'track', 'param', 'link', 'meta', 'base', 'title', 'head', 'area', 'datalist'];
+  var TEXT_ONLY = ['svg', 'math'];
+  var NOT_SHOWN_IN_GRAPHICS = ['title', 'desc', 'metadata', 'script', 'style', 'annotation', 'annotation-xml'];
+  var INERT = { form: 'div', button: 'span', a: 'span', object: 'span', applet: 'span', dialog: 'div', portal: 'span',
+    slot: 'span', map: 'span', option: 'span', optgroup: 'span', select: 'span', label: 'span', fieldset: 'div', legend: 'div' };
   var URL_ATTRIBUTES = ['href', 'src', 'srcset', 'action', 'formaction', 'xlink:href', 'data', 'poster', 'background',
-    'ping', 'lowsrc', 'dynsrc', 'codebase', 'cite', 'longdesc', 'usemap', 'manifest'];
-  var DROPPED_ATTRIBUTES = ['target', 'formtarget', 'contenteditable', 'autofocus', 'srcdoc'];
+    'ping', 'lowsrc', 'dynsrc', 'codebase', 'cite', 'longdesc', 'usemap', 'manifest', 'imagesrcset'];
+  var DROPPED_ATTRIBUTES = ['target', 'formtarget', 'contenteditable', 'autofocus', 'srcdoc', 'for', 'form', 'popover',
+    'popovertarget', 'popovertargetaction', 'download', 'name', 'tabindex', 'accesskey', 'http-equiv', 'is'];
+  var TEXT_INPUTS_HIDDEN = ['hidden', 'checkbox', 'radio', 'file', 'image', 'password', 'range', 'color'];
 
   function each(list, fn) { Array.prototype.slice.call(list).forEach(fn); }
 
+  function inertText(className, text) {
+    var span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    return span;
+  }
+
+  // The visible wording of an SVG or MathML subtree, as plain text.
+  function graphicText(el) {
+    var parts = [];
+    (function walk(node) {
+      if (node.nodeType === 3) { parts.push(node.nodeValue); return; }
+      if (node.nodeType !== 1 || NOT_SHOWN_IN_GRAPHICS.indexOf(node.localName.toLowerCase()) !== -1) { return; }
+      each(node.childNodes, walk);
+      parts.push(' ');
+    })(el);
+    return parts.join('').replace(/\s+/g, ' ').trim();
+  }
+
+  function copySafeAttributes(from, to) {
+    var isImage = to.tagName === 'IMG';
+    each(from.attributes, function (attribute) {
+      var name = attribute.name.toLowerCase();
+      var value = (attribute.value || '').trim().toLowerCase();
+      if (name.indexOf('on') === 0 || DROPPED_ATTRIBUTES.indexOf(name) !== -1) { return; }
+      if (URL_ATTRIBUTES.indexOf(name) !== -1 && !(isImage && name === 'src' && value.indexOf('data:image/') === 0)) { return; }
+      if (name === 'style' && /url\s*\(|expression\s*\(/i.test(value)) { return; }
+      try { to.setAttribute(attribute.name, attribute.value); } catch (e) { /* an attribute name HTML can't carry */ }
+    });
+  }
+
+  function rebuildChildren(from, to) {
+    each(from.childNodes, function (child) {
+      var clean = rebuild(child);
+      if (clean) { to.appendChild(clean); }
+    });
+    return to;
+  }
+
+  // One node of the parsed agreement → its inert equivalent in THIS document (or null).
+  function rebuild(node) {
+    if (node.nodeType === 3) { return document.createTextNode(node.nodeValue); }
+    if (node.nodeType !== 1) { return null; } // comments, processing instructions
+    var tag = node.localName.toLowerCase();
+
+    if (REMOVE.indexOf(tag) !== -1) { return null; }
+    if (TEXT_ONLY.indexOf(tag) !== -1) {
+      var words = graphicText(node);
+      return words ? inertText('kabba-inert-text', words) : null;
+    }
+    if (tag === 'style') {
+      if (/@import|url\s*\(/i.test(node.textContent || '')) { return null; }
+      var style = document.createElement('style');
+      style.textContent = node.textContent;
+      return style;
+    }
+    if (tag === 'input') {
+      var type = (node.getAttribute('type') || 'text').toLowerCase();
+      var shown = TEXT_INPUTS_HIDDEN.indexOf(type) === -1 ? (node.getAttribute('value') || node.getAttribute('placeholder') || '') : '';
+      return shown ? inertText('kabba-inert-control', shown) : null;
+    }
+    if (tag === 'textarea') {
+      return node.textContent ? inertText('kabba-inert-textarea', node.textContent) : null;
+    }
+    if (tag === 'img') {
+      var src = (node.getAttribute('src') || '').trim().toLowerCase();
+      if (src.indexOf('data:image/') !== 0) {
+        var alt = (node.getAttribute('alt') || '').trim();
+        return alt ? inertText('kabba-inert-image', alt) : null;
+      }
+    }
+
+    var inert = INERT[tag];
+    var el;
+    try {
+      el = document.createElement(inert || tag);
+    } catch (e) {
+      el = document.createElement('span'); // a tag name HTML can't create: keep its content
+    }
+    copySafeAttributes(node, el);
+    if (inert) { el.classList.add('kabba-inert-' + tag); }
+    return rebuildChildren(node, el);
+  }
+
   function sanitize(html) {
     var doc = new DOMParser().parseFromString('<!DOCTYPE html><html><body>' + html + '</body></html>', 'text/html');
-    var body = doc.body;
-    BLOCKED.forEach(function (tag) { each(body.getElementsByTagName(tag), function (el) { el.remove(); }); });
-    each(body.getElementsByTagName('style'), function (el) {
-      if (/@import|url\s*\(/i.test(el.textContent || '')) { el.remove(); }
-    });
-    each(body.querySelectorAll('*'), function (el) {
-      each(el.attributes, function (attribute) {
-        var name = attribute.name.toLowerCase();
-        var value = (attribute.value || '').trim().toLowerCase();
-        if (name.indexOf('on') === 0 || DROPPED_ATTRIBUTES.indexOf(name) !== -1) {
-          el.removeAttribute(attribute.name);
-        } else if (URL_ATTRIBUTES.indexOf(name) !== -1) {
-          var inlineImage = el.tagName === 'IMG' && name === 'src' && value.indexOf('data:image/') === 0;
-          if (!inlineImage) { el.removeAttribute(attribute.name); }
-        } else if (name === 'style' && /url\s*\(|expression\s*\(/i.test(value)) {
-          el.removeAttribute(attribute.name);
-        }
-      });
-    });
-    return body;
+    return rebuildChildren(doc.body, document.createDocumentFragment());
   }
 
   // Every page control is found BEFORE the agreement is inserted: an id in the agreement's own
@@ -65,8 +153,7 @@
   function hide(el) { el.textContent = ''; el.hidden = true; }
 
   // ── The agreement, inert ──────────────────────────────────────────────
-  var clean = sanitize(String(payload.body || ''));
-  while (clean.firstChild) { content.appendChild(document.adoptNode(clean.firstChild)); }
+  content.appendChild(sanitize(String(payload.body || '')));
 
   function approvalControl() {
     var label = document.createElement('label');
@@ -134,10 +221,11 @@
     each(signMarkers.slice(1), function (extra) { extra.remove(); });
   }
 
-  // No navigation from the agreement, ever.
+  // No navigation from the agreement, ever (a second wall: the rebuild leaves no link). The app's
+  // own controls are never cancelled, so an approval that sat inside a link still ticks.
   document.addEventListener('click', function (event) {
-    var link = event.target && event.target.closest ? event.target.closest('a, area') : null;
-    if (link) { event.preventDefault(); }
+    var target = event.target && event.target.closest ? event.target : null;
+    if (target && target.closest('a, area') && !target.closest('[data-kabba-control], label.approval')) { event.preventDefault(); }
   }, true);
 
   // ── Signature pad ────────────────────────────────────────────────────

@@ -298,7 +298,8 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
                        "only the app's own controls: one approval checkbox, the sign button, the remove-signature button")
         XCTAssertEqual(js(webView, "Array.prototype.some.call(document.querySelectorAll('#terms-dynamic-content *'), function (el) { return Array.prototype.some.call(el.attributes, function (a) { return a.name.indexOf('on') === 0; }); })") as? Bool, false, "no inline handlers")
         XCTAssertEqual(js(webView, "document.getElementById('jslink').hasAttribute('href') || document.getElementById('weblink').hasAttribute('href')") as? Bool, false, "no javascript: or web links")
-        XCTAssertEqual(js(webView, "document.getElementById('remote').hasAttribute('src')") as? Bool, false, "no remote image")
+        XCTAssertEqual(js(webView, "document.getElementById('remote') === null && document.querySelectorAll('#terms-dynamic-content [src]:not([src^=\"data:\"]), #terms-dynamic-content [srcset]').length === 0") as? Bool, true,
+                       "no remote image (an image with no alt text and nothing to load is simply not shown)")
         XCTAssertEqual(js(webView, "document.querySelectorAll('#terms-dynamic-content style').length") as? Int, 0, "no remote stylesheet import")
 
         js(webView, "document.getElementById('jslink').click(); document.getElementById('weblink').click(); document.getElementById('clicky').click(); true;")

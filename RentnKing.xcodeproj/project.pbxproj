@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */; };
 		5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */; };
 		5A5E000000000000000000EB /* terms-signing.html in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000EA /* terms-signing.html */; };
 		5A5E000000000000000000ED /* terms-signing.css in Resources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000EC /* terms-signing.css */; };
@@ -513,6 +514,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsRenderingParityHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTermsHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000EA /* terms-signing.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = terms-signing.html; sourceTree = "<group>"; };
 		5A5E000000000000000000EC /* terms-signing.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = terms-signing.css; sourceTree = "<group>"; };
@@ -2165,6 +2167,7 @@
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
+				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2959,6 +2962,7 @@
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
+				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
