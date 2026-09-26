@@ -320,8 +320,15 @@ final class DispatchOfflineFieldBridge {
         guard leg == .delivery else { return .notApplicable }
         guard let sections = sections, let status = sections.terms, let agreements = agreements else { return .notProvided }
         switch status {
-        case .notApplicable: return .notApplicable
-        case .unavailable: return .unavailable
+        case .notApplicable:
+            if DispatchOfflinePackageContent.terms(package)?.agreementStatus == .notSignable {
+                recordUnavailable(orderUid, observed: observed, ledger: &ledger, agreements: agreements, tenant: tenant)
+            }
+            return .notApplicable
+        case .unavailable:
+            // Remembered, so the screen says "Terms are unavailable" offline — never "not downloaded".
+            recordUnavailable(orderUid, observed: observed, ledger: &ledger, agreements: agreements, tenant: tenant)
+            return .unavailable
         case .failed: return .failed
         case .ok:
             guard let uid = orderUid, let agreement = DispatchOfflinePackageContent.terms(package)?.agreement,
@@ -335,6 +342,16 @@ final class DispatchOfflineFieldBridge {
             ledger.observedAt[.terms, default: [:]][uid] = observed
             return .satisfied
         }
+    }
+
+    /// The package says the order has no trustworthy agreement to sign — recorded unless a newer
+    /// answer (a live fetch asked later) is already on this phone.
+    private func recordUnavailable(_ orderUid: String?, observed: Date, ledger: inout DispatchOfflineFieldLedger,
+                                   agreements: TermsAgreementStore, tenant: String) {
+        guard let uid = orderUid else { return }
+        if let newest = ledger.observed(.terms, uid), newest >= observed { return }
+        guard (try? agreements.recordUnavailable(orderUniqueId: uid, tenantKey: tenant)) != nil else { return }
+        ledger.observedAt[.terms, default: [:]][uid] = observed
     }
 
     /// Writes one cache unless a copy asked for at the same time or later is already there

@@ -113,6 +113,7 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
                                        knownTermsStatus: self.strTermsStatus,
                                        live: live,
                                        stored: KabbaSync.termsAgreements?.current(orderUniqueId: self.strOrderUniqueId),
+                                       storedUnavailable: KabbaSync.termsAgreements?.isUnavailable(orderUniqueId: self.strOrderUniqueId) ?? false,
                                        operations: KabbaSync.engine?.snapshot() ?? [],
                                        signUrl: self.signUrl)
     }

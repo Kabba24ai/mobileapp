@@ -351,6 +351,26 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
         XCTAssertNotNil(vc.boundaryView, "a clear state, not a blank web view or a spinner")
     }
 
+    /// Phase 5 hardening: offline, an order the server reported as having no trustworthy agreement
+    /// says so in the office's words — never "not downloaded".
+    func testAnOrderWithoutATrustworthyAgreementSaysTermsAreUnavailableOffline() throws {
+        try bridgeFixture(sectionsTerms: "unavailable")
+        XCTAssertNil(KabbaSync.termsAgreements?.current(orderUniqueId: orderUid))
+
+        let vc = try openTerms()
+
+        XCTAssertEqual(vc.presentation, .agreementUnavailable)
+        XCTAssertNil(vc.renderedAgreement)
+        let labels = (vc.boundaryView.map { Self.labels(in: $0) } ?? []).compactMap { $0.text }
+        XCTAssertTrue(labels.contains("Terms are unavailable for this order."), "\(labels)")
+        XCTAssertTrue(labels.contains("Please contact the office."), "\(labels)")
+        XCTAssertFalse(labels.contains { $0.localizedCaseInsensitiveContains("download") }, "never 'not downloaded'")
+    }
+
+    private static func labels(in view: UIView) -> [UILabel] {
+        ((view as? UILabel).map { [$0] } ?? []) + view.subviews.flatMap { labels(in: $0) }
+    }
+
     func testCompanyBNeverSeesCompanyAsAgreementAndAKeepsIt() throws {
         try bridgeFixture()
 

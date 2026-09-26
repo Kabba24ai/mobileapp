@@ -27,9 +27,10 @@ final class TermsScreenPresentationTests: XCTestCase {
         return op
     }
 
-    private func resolve(status: String = "Pending", live: P.Live? = nil, stored: TermsAgreement? = nil,
+    private func resolve(status: String = "Pending", live: P.Live? = nil, stored: TermsAgreement? = nil, storedUnavailable: Bool = false,
                          ops: [SyncOperation] = [], signUrl: String = "https://kabba.test/terms-and-conditions/ORD-A/mobile") -> P {
-        P.resolve(.init(orderUniqueId: "ORD-A", knownTermsStatus: status, live: live, stored: stored, operations: ops, signUrl: signUrl))
+        P.resolve(.init(orderUniqueId: "ORD-A", knownTermsStatus: status, live: live, stored: stored,
+                        storedUnavailable: storedUnavailable, operations: ops, signUrl: signUrl))
     }
 
     func testExemptAndAcceptedOrdersAreNeverSignedAgain() {
@@ -57,6 +58,20 @@ final class TermsScreenPresentationTests: XCTestCase {
     func testAnOrderWithoutATrustworthyAgreementSaysSo() {
         XCTAssertEqual(resolve(live: block(.unavailable)), .agreementUnavailable)
         XCTAssertEqual(resolve(live: block(.notSignable)), .agreementUnavailable)
+    }
+
+    /// Phase 5 hardening: offline, an order the server reported as having no trustworthy agreement
+    /// says so — never "not downloaded", which would send the driver looking for a connection that
+    /// cannot help. "Not downloaded" stays for an agreement that exists but is not on this phone.
+    func testOfflineAnOrderReportedWithoutATrustworthyAgreementIsUnavailableNotUndownloaded() {
+        XCTAssertEqual(resolve(storedUnavailable: true), .agreementUnavailable, "offline, reported unavailable")
+        XCTAssertEqual(resolve(live: .failed, storedUnavailable: true), .agreementUnavailable, "a failed fetch falls back to the report")
+        XCTAssertEqual(resolve(), .notDownloaded, "genuinely not downloaded yet")
+        XCTAssertEqual(resolve(live: .failed), .couldNotLoad)
+        XCTAssertEqual(resolve(live: block(.available, agreement: agreement()), storedUnavailable: true), .document(agreement()),
+                       "the server's live answer wins")
+        XCTAssertEqual(resolve(storedUnavailable: true, ops: [signed(.pending)]), .signedOnThisPhone(.pending),
+                       "a signature already on this phone is still shown, never a second capture")
     }
 
     func testASignatureOnThisPhoneIsShownInsteadOfASecondCapture() {

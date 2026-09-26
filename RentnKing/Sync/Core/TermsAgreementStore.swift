@@ -8,6 +8,9 @@
 //
 //    <KabbaSync>/terms-agreements/<tenantKey>/<orderUid>/<identity>.json
 //    <KabbaSync>/terms-agreements/<tenantKey>/<orderUid>/current.json   (the newest copy)
+//    <KabbaSync>/terms-agreements/<tenantKey>/<orderUid>/unavailable.json
+//        (hardening: the server's newest word is that the order has NO trustworthy agreement to
+//        sign — so the screen says "Terms are unavailable", not "not downloaded", offline)
 //
 //  • VERIFIED agreements only: an agreement is stored only when its identity
 //    recomputes from its own payload and it belongs to the order.
@@ -59,6 +62,12 @@ final class TermsAgreementStore {
         return agreement(orderUniqueId: orderUniqueId, identity: identity, tenantKey: tenant)
     }
 
+    /// The server's newest word for the order, for the signed-in company: no trustworthy agreement.
+    func isUnavailable(orderUniqueId: String) -> Bool {
+        guard let tenant = currentTenant() else { return false }
+        return isUnavailable(orderUniqueId: orderUniqueId, tenantKey: tenant)
+    }
+
     // MARK: A named company
 
     func save(_ agreement: TermsAgreement, tenantKey: String) throws {
@@ -68,7 +77,24 @@ final class TermsAgreementStore {
         try lock.withLock {
             try FileSyncOperationStore.writeProtected(data, to: dir.appendingPathComponent(Self.fileName(agreement.identity)))
             try FileSyncOperationStore.writeProtected(data, to: dir.appendingPathComponent("current.json"))
+            try? fileManager.removeItem(at: dir.appendingPathComponent(Self.unavailableFile))
         }
+    }
+
+    /// The server reported the order has no trustworthy agreement (unavailable / not signable): nothing
+    /// is offered for signing from here on, until a verified agreement arrives. Every identity file
+    /// already stored stays (local evidence for a signature that names it).
+    func recordUnavailable(orderUniqueId: String, tenantKey: String) throws {
+        let dir = try orderDirectory(tenantKey, orderUniqueId, create: true)
+        try lock.withLock {
+            try FileSyncOperationStore.writeProtected(Data("{\"status\":\"unavailable\"}".utf8), to: dir.appendingPathComponent(Self.unavailableFile))
+            try? fileManager.removeItem(at: dir.appendingPathComponent("current.json"))
+        }
+    }
+
+    func isUnavailable(orderUniqueId: String, tenantKey: String) -> Bool {
+        guard let dir = try? orderDirectory(tenantKey, orderUniqueId, create: false) else { return false }
+        return lock.withLock { fileManager.fileExists(atPath: dir.appendingPathComponent(Self.unavailableFile).path) }
     }
 
     func current(orderUniqueId: String, tenantKey: String) -> TermsAgreement? {
@@ -91,6 +117,8 @@ final class TermsAgreementStore {
             return agreement
         }
     }
+
+    private static let unavailableFile = "unavailable.json"
 
     private static func fileName(_ identity: String) -> String {
         sanitized(identity.replacingOccurrences(of: ":", with: "-")) + ".json"

@@ -32,6 +32,12 @@ enum TermsAgreementClient {
                     DispatchOfflineSync.saveLiveCopy(.terms, orderUniqueId: orderUniqueId, askedAt: askedAt, tenantKey: tenant) {
                         (try? store.save(agreement, tenantKey: tenant)) != nil
                     }
+                } else if block.agreementStatus == .unavailable || block.agreementStatus == .notSignable,
+                          let tenant = tenant, let store = KabbaSync.termsAgreements {
+                    // Remembered, so offline later the screen still says "Terms are unavailable".
+                    DispatchOfflineSync.saveLiveCopy(.terms, orderUniqueId: orderUniqueId, askedAt: askedAt, tenantKey: tenant) {
+                        (try? store.recordUnavailable(orderUniqueId: orderUniqueId, tenantKey: tenant)) != nil
+                    }
                 }
                 answer = .block(block)
             case .success(let response):

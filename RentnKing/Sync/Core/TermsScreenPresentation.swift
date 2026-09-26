@@ -13,7 +13,8 @@
 //    • an agreement that does not verify (its identity does not recompute, or
 //      it is another order's) → "Unable to Verify Order Terms — Refresh the
 //      Order Before Signing" — nothing is rendered or signable;
-//    • the order has no trustworthy stored agreement → say so (never rebuilt);
+//    • the order has no trustworthy stored agreement → say so (never rebuilt) —
+//      online from the live answer, offline from the server's last report;
 //    • nothing held: offline → "not downloaded yet"; online and the server has
 //      no agreement endpoint (an older server) → the hosted page, as before.
 //
@@ -49,6 +50,9 @@ enum TermsScreenPresentation: Equatable {
         var live: Live?
         /// The newest VERIFIED agreement this phone holds for the order (TermsAgreementStore).
         var stored: TermsAgreement?
+        /// The server's last word (a package or a live answer) is that the order has NO trustworthy
+        /// agreement to sign (TermsAgreementStore.isUnavailable).
+        var storedUnavailable: Bool = false
         var operations: [SyncOperation]
         var signUrl: String
     }
@@ -86,6 +90,7 @@ enum TermsScreenPresentation: Equatable {
         if let newest = signed.max(by: { $0.queuedAt < $1.queuedAt }) { return .signedOnThisPhone(newest.state) }
 
         if let verified = agreement { return .document(verified) }
+        if inputs.storedUnavailable { return .agreementUnavailable } // not "not downloaded": there is none
 
         switch inputs.live {
         case nil:

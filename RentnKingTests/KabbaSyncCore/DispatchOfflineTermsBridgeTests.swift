@@ -154,6 +154,8 @@ final class DispatchOfflineTermsBridgeTests: XCTestCase {
 
         XCTAssertEqual(ledgerTerms(a), .unavailable)
         XCTAssertNil(stored("ORD-A"), "nothing is invented")
+        XCTAssertTrue(agreements.isUnavailable(orderUniqueId: "ORD-A", tenantKey: store.tenantKey),
+                      "remembered, so the screen says 'unavailable' offline — not 'not downloaded'")
         XCTAssertFalse(makeBridge().isFieldReady(entry(a)), "not fully prepared for signing")
         XCTAssertFalse(makeBridge().needsSectionRepair(entry(a)), "retrying cannot help")
         XCTAssertEqual(server.packageRequests.count, requests, "never re-downloaded for it")

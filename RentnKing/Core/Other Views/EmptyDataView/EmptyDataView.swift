@@ -120,8 +120,9 @@ extension EmptyDataView{
                   subtitle: "Connect to the internet and reopen this order so its terms can be downloaded again.", tintColor: UIColor.primary)
     }
 
+    /// The order has no trustworthy agreement to sign (the server's word, online or remembered offline).
     func termsAgreementUnavailable(){
-        configure(imageName: "", title: "This order has no stored terms agreement to sign", subtitle: "Please contact the office.", tintColor: UIColor.primary)
+        configure(imageName: "", title: "Terms are unavailable for this order.", subtitle: "Please contact the office.", tintColor: UIColor.primary)
     }
 
     func termsNotDownloaded(){
