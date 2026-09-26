@@ -187,6 +187,15 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
         XCTAssertEqual(js(vc.objWebKit, "document.querySelectorAll('input.customer_initials_checkbox').length") as? Int, 1)
         XCTAssertEqual(js(vc.objWebKit, "!!document.getElementById('open-signature-btn')") as? Bool, true)
 
+        // The screen's own page can go nowhere, and a signing naming another document is refused.
+        js(vc.objWebKit, "window.location.href = 'https://example.com/elsewhere'; true;")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        XCTAssertEqual(vc.objWebKit.url?.absoluteString ?? "about:blank", "about:blank", "no navigation away from the agreement")
+        vc.didReceiveSigning(["identity": "v1:" + String(repeating: "0", count: 64), "approvals_confirmed": 1,
+                              "signature": "data:image/png;base64," + Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1]).base64EncodedString()])
+        XCTAssertEqual(delegate.calls, 0, "a forged identity never records or advances")
+        XCTAssertFalse(KabbaSync.engine?.snapshot().contains { $0.type == "terms.sign" && $0.identity.orderUniqueId == orderUid } ?? true)
+
         // Sign through the page.
         js(vc.objWebKit, signScript)
         waitUntil(timeout: 10, "termsSucess") { delegate.calls == 1 }
@@ -291,6 +300,12 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.5))
         XCTAssertTrue(recorder.messages.isEmpty, "the agreement can never post a signing")
         XCTAssertEqual(recorder.navigations.filter { $0 != "about:blank" }, [], "no navigation from the agreement")
+
+        // The CSP is its own wall: a script or inline handler added to the page later still never runs.
+        js(webView, "var s = document.createElement('script'); s.textContent = 'window.kabbaInjected = 1;'; document.body.appendChild(s);"
+                    + "var d = document.createElement('div'); d.setAttribute('onclick', 'window.kabbaHandler = 1;'); document.body.appendChild(d); d.click(); true;")
+        XCTAssertEqual(js(webView, "typeof window.kabbaInjected") as? String, "undefined", "CSP blocks an injected script")
+        XCTAssertEqual(js(webView, "typeof window.kabbaHandler") as? String, "undefined", "CSP blocks inline handlers")
 
         // …and the customer can still sign it.
         js(webView, "document.getElementById('open-signature-btn') !== null")
