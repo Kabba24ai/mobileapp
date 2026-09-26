@@ -162,7 +162,7 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
         document.getElementById('open-signature-btn').click();
         window.kabbaTerms.pad.fromData([{points: [{x: 20, y: 30, pressure: 0.5, time: 1}, {x: 90, y: 70, pressure: 0.5, time: 20},
                                                   {x: 160, y: 40, pressure: 0.5, time: 40}, {x: 220, y: 90, pressure: 0.5, time: 60}]}]);
-        document.getElementById('save-signature').click();
+        document.querySelector('#modal #save-signature').click();
         document.querySelectorAll('input.customer_initials_checkbox').forEach(function (b) { b.click(); });
         document.getElementById('submit-button').click();
         true;
@@ -267,6 +267,9 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
             <form action="https://example.com/steal"><input name="x" value="y"><button>go</button></form>
             <meta http-equiv="refresh" content="0;url=https://example.com/away"><base href="https://example.com/">
             <style>@import url(https://example.com/x.css);</style>
+            <p>{{SHELL_JS}} {{PAYLOAD_JSON}} {{NONCE}}</p>
+            <span data-kabba-approval="forged"></span><span data-kabba-approval></span><span data-kabba-sign></span>
+            <span id="save-signature">a colliding id</span><span id="close-modal"></span>
             [customer_approval][/customer_approval]
             """
         let entries = [TermsAgreement.Entry(isGlobal: false, content: hostile, signatureBlock: "")]
@@ -274,6 +277,8 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
                                        orderUniqueId: "ORD-INERT", orderNumber: "#1", customerName: "Jane", approvalsRequired: 1, entries: entries)
         XCTAssertTrue(agreement.isVerified(forOrder: "ORD-INERT"))
         let html = try XCTUnwrap(TermsSigningShell.html(for: agreement))
+        XCTAssertEqual(TermsSigningShell.fill("a{{X}}b{{Y}}c{{Z}}", ["X": "{{Y}}", "Y": "1"]), "a{{Y}}b1c{{Z}}",
+                       "one pass: substituted text is never scanned again")
 
         let recorder = Recorder()
         let configuration = WKWebViewConfiguration()

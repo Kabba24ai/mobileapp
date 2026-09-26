@@ -114,13 +114,34 @@ final class TermsAgreementTests: XCTestCase {
         XCTAssertNil(TermsAgreement.decode(.object(["identity": .string("v1:x")])), "not an agreement")
     }
 
+    func testApprovalsRequiredIsExactlyTheCheckboxesThePageRenders() {
+        typealias E = TermsAgreement.Entry
+        let addendum = E(isGlobal: false, content: "<p>A.</p>[customer_approval][/customer_approval]", signatureBlock: "")
+        let two = E(isGlobal: false, content: "[customer_approval][/customer_approval][customer_approval][/customer_approval]", signatureBlock: "")
+        let standard = { (content: String) in E(isGlobal: true, content: content, signatureBlock: "") }
+        let cases: [(String, [E], Int)] = [
+            ("once", [standard("<p>S.</p>[product_terms][/product_terms]"), addendum, two], 3),
+            ("no shortcode", [standard("<p>S.</p>"), addendum], 0),
+            ("twice", [standard("[product_terms][/product_terms]<hr>[product_terms][/product_terms]"), addendum], 2),
+            ("addenda only", [addendum, two], 3),
+            ("approval in standard terms is text", [standard("[customer_approval][/customer_approval][product_terms][/product_terms]"), addendum], 1),
+        ]
+        for (label, entries, expected) in cases {
+            XCTAssertEqual(TermsAgreement.countApprovals(entries), expected, label)
+            let a = TermsAgreement(identity: "", orderUniqueId: "O", orderNumber: "", customerName: "N", approvalsRequired: expected, entries: entries)
+            let body = TermsAgreementRenderer.bodyHTML(a, markerToken: "t0k")
+            XCTAssertEqual(body.components(separatedBy: TermsAgreementRenderer.approvalMarker("t0k")).count - 1, expected,
+                           "\(label): the count is what the page shows")
+        }
+    }
+
     // MARK: - Renderer (presentation only)
 
     func testTheBodyPlacesInertMarkersWhereThePageHasControls() {
-        let body = TermsAgreementRenderer.bodyHTML(agreement())
+        let body = TermsAgreementRenderer.bodyHTML(agreement(), markerToken: "t0k")
 
-        XCTAssertEqual(body, "<p>Standard terms.</p><p>Addendum.</p>\(TermsAgreementRenderer.approvalMarker)"
-                       + "<p>Jane Doe \(TermsAgreementRenderer.signMarker)</p>")
+        XCTAssertEqual(body, "<p>Standard terms.</p><p>Addendum.</p><span data-kabba-approval=\"t0k\"></span>"
+                       + "<p>Jane Doe <span data-kabba-sign=\"t0k\"></span></p>")
         XCTAssertFalse(body.contains("[customer_approval]"))
         XCTAssertFalse(body.contains("<input"), "no active controls — the page adds its own")
     }
@@ -129,11 +150,11 @@ final class TermsAgreementTests: XCTestCase {
         let entries = [TermsAgreement.Entry(isGlobal: true, content: "[product_terms][/product_terms]", signatureBlock: "[customer_name][/customer_name]")]
         let hostile = TermsAgreement(identity: "", orderUniqueId: "O", orderNumber: "", customerName: "<img src=x onerror=alert(1)>",
                                      approvalsRequired: 0, entries: entries)
-        XCTAssertEqual(TermsAgreementRenderer.bodyHTML(hostile), "&lt;img src=x onerror=alert(1)&gt;")
+        XCTAssertEqual(TermsAgreementRenderer.bodyHTML(hostile, markerToken: "t"), "&lt;img src=x onerror=alert(1)&gt;")
 
         let addendaOnly = TermsAgreement(identity: "", orderUniqueId: "O", orderNumber: "", customerName: "N", approvalsRequired: 0,
                                          entries: [.init(isGlobal: false, content: "<p>One</p>", signatureBlock: "<p>unused</p>"),
                                                    .init(isGlobal: false, content: "<p>Two</p>", signatureBlock: "")])
-        XCTAssertEqual(TermsAgreementRenderer.bodyHTML(addendaOnly), "<p>One</p>\n<p>Two</p>")
+        XCTAssertEqual(TermsAgreementRenderer.bodyHTML(addendaOnly, markerToken: "t"), "<p>One</p>\n<p>Two</p>")
     }
 }

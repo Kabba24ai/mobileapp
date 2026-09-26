@@ -43,6 +43,8 @@
     return body;
   }
 
+  // Every page control is found BEFORE the agreement is inserted: an id in the agreement's own
+  // content can never capture one.
   var content = document.getElementById('terms-dynamic-content');
   var form = document.getElementById('customer-order-sign-form');
   var submitButton = document.getElementById('submit-button');
@@ -50,6 +52,11 @@
   var modal = document.getElementById('modal');
   var canvas = document.getElementById('signature-pad');
   var padMessage = document.getElementById('pad-message');
+  var closeModalButton = document.getElementById('close-modal');
+  var clearButton = document.getElementById('clear-signature');
+  var undoButton = document.getElementById('undo-signature');
+  var saveButton = document.getElementById('save-signature');
+  var markerToken = String(payload.marker_token || '');
   var pad = null;
   var signature = null;
   var submitting = false;
@@ -109,13 +116,22 @@
     return block;
   }
 
-  each(content.querySelectorAll('span[data-kabba-approval]'), function (marker) { marker.replaceWith(approvalControl()); });
-  var signMarkers = content.querySelectorAll('span[data-kabba-sign]');
+  // Only the renderer's markers (this load's random token) become controls; a marker typed
+  // into the agreement's own content is dropped.
+  function isOurs(marker, attribute) { return markerToken !== '' && marker.getAttribute(attribute) === markerToken; }
+  each(content.querySelectorAll('[data-kabba-approval]'), function (marker) {
+    if (isOurs(marker, 'data-kabba-approval')) { marker.replaceWith(approvalControl()); } else { marker.remove(); }
+  });
+  var signMarkers = Array.prototype.filter.call(content.querySelectorAll('[data-kabba-sign]'), function (marker) {
+    if (isOurs(marker, 'data-kabba-sign')) { return true; }
+    marker.remove();
+    return false;
+  });
   if (signMarkers.length === 0) {
     content.appendChild(signControl()); // an agreement of addenda only still needs a place to sign
   } else {
     signMarkers[0].replaceWith(signControl());
-    each(Array.prototype.slice.call(signMarkers, 1), function (extra) { extra.remove(); });
+    each(signMarkers.slice(1), function (extra) { extra.remove(); });
   }
 
   // No navigation from the agreement, ever.
@@ -153,12 +169,12 @@
   }
 
   openButton.addEventListener('click', openModal);
-  document.getElementById('close-modal').addEventListener('click', closeModal);
-  document.getElementById('clear-signature').addEventListener('click', function () { if (pad) { pad.clear(); } });
-  document.getElementById('undo-signature').addEventListener('click', function () {
+  closeModalButton.addEventListener('click', closeModal);
+  clearButton.addEventListener('click', function () { if (pad) { pad.clear(); } });
+  undoButton.addEventListener('click', function () {
     if (pad && !pad.isEmpty()) { var data = pad.toData(); data.pop(); pad.fromData(data); }
   });
-  document.getElementById('save-signature').addEventListener('click', function () {
+  saveButton.addEventListener('click', function () {
     if (!pad || pad.isEmpty()) { show(padMessage, 'Please draw your signature before saving.'); return; }
     signature = pad.toDataURL('image/png');
     previewImage.src = signature;

@@ -37,20 +37,44 @@ enum TermsSigningShell {
                   let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             parts[resource] = text
         }
+        let markerToken = newNonce()
         guard let page = parts[.page], let css = parts[.style], let js = parts[.script], let pad = parts[.signaturePad],
               let payload = scriptSafeJSON([
-                  "body": TermsAgreementRenderer.bodyHTML(agreement),
+                  "body": TermsAgreementRenderer.bodyHTML(agreement, markerToken: markerToken),
+                  "marker_token": markerToken,
                   "identity": agreement.identity,
                   "approvals_required": agreement.approvalsRequired,
               ]) else { return nil }
 
-        return page
-            .replacingOccurrences(of: "{{NONCE}}", with: nonce)
-            .replacingOccurrences(of: "{{CSS}}", with: css.replacingOccurrences(of: "</", with: "<\\/"))
-            .replacingOccurrences(of: "{{ORDER_NUMBER}}", with: TermsAgreementRenderer.escape(agreement.orderNumber))
-            .replacingOccurrences(of: "{{SIGNATURE_PAD}}", with: scriptSafe(withoutSourceMap(pad)))
-            .replacingOccurrences(of: "{{PAYLOAD_JSON}}", with: payload)
-            .replacingOccurrences(of: "{{SHELL_JS}}", with: scriptSafe(js))
+        // ONE pass over the template: text that was substituted in (the agreement included)
+        // is never scanned again, so content can never smuggle a {{…}} placeholder.
+        return fill(page, [
+            "NONCE": nonce,
+            "CSS": css.replacingOccurrences(of: "</", with: "<\\/"),
+            "ORDER_NUMBER": TermsAgreementRenderer.escape(agreement.orderNumber),
+            "SIGNATURE_PAD": scriptSafe(withoutSourceMap(pad)),
+            "PAYLOAD_JSON": payload,
+            "SHELL_JS": scriptSafe(js),
+        ])
+    }
+
+    /// Replaces each {{NAME}} of the template once, left to right, without rescanning replacements.
+    static func fill(_ template: String, _ values: [String: String]) -> String {
+        var out = ""
+        var rest = template[...]
+        while let open = rest.range(of: "{{", options: .literal) {
+            out += rest[..<open.lowerBound]
+            let afterOpen = rest[open.upperBound...]
+            guard let close = afterOpen.range(of: "}}", options: .literal),
+                  let value = values[String(afterOpen[..<close.lowerBound])] else {
+                out += "{{"
+                rest = afterOpen
+                continue
+            }
+            out += value
+            rest = afterOpen[close.upperBound...]
+        }
+        return out + rest
     }
 
     static func newNonce() -> String {

@@ -126,8 +126,27 @@ struct TermsAgreement: Codable, Equatable {
             && recomputedIdentity == identity
     }
 
+    /// Where the standard terms place the product addenda.
+    static let productTermsPlaceholder = "[product_terms][/product_terms]"
+
+    /// Exactly the checkboxes the page renders (Laravel's TermsAgreement::approvalsRequired):
+    /// each addendum placeholder is one checkbox, and the addenda appear once per
+    /// [product_terms] shortcode in the standard terms — or once, with no standard terms.
     static func countApprovals(_ entries: [Entry]) -> Int {
-        entries.filter { !$0.isGlobal }.reduce(0) { $0 + $1.content.components(separatedBy: approvalPlaceholder).count - 1 }
+        let addenda = entries.filter { !$0.isGlobal }.reduce(0) { $0 + occurrences(of: approvalPlaceholder, in: $1.content) }
+        guard let standard = entries.first(where: { $0.isGlobal }) else { return addenda }
+        return occurrences(of: productTermsPlaceholder, in: standard.content) * addenda
+    }
+
+    /// Literal (byte-exact) occurrence count — never Unicode-equivalence matching.
+    static func occurrences(of needle: String, in text: String) -> Int {
+        var count = 0
+        var range = text.startIndex..<text.endIndex
+        while let found = text.range(of: needle, options: .literal, range: range) {
+            count += 1
+            range = found.upperBound..<text.endIndex
+        }
+        return count
     }
 
     // MARK: - Canonicalization helpers
@@ -194,20 +213,26 @@ struct TermsBlock: Equatable {
 /// where the page puts its approval checkboxes and sign button. The signing page sanitizes this
 /// body and replaces the markers with the app's own controls.
 enum TermsAgreementRenderer {
-    static let approvalMarker = "<span data-kabba-approval></span>"
-    static let signMarker = "<span data-kabba-sign></span>"
+    /// The markers carry a per-load random token the page checks, so a marker typed into
+    /// the agreement's own content can never become a control.
+    static func approvalMarker(_ token: String) -> String { "<span data-kabba-approval=\"\(token)\"></span>" }
+    static func signMarker(_ token: String) -> String { "<span data-kabba-sign=\"\(token)\"></span>" }
 
-    static func bodyHTML(_ agreement: TermsAgreement) -> String {
+    static func bodyHTML(_ agreement: TermsAgreement, markerToken: String) -> String {
         let global = agreement.entries.first { $0.isGlobal }
         let addenda = agreement.entries.filter { !$0.isGlobal }
-            .map { $0.content.replacingOccurrences(of: TermsAgreement.approvalPlaceholder, with: approvalMarker) }
+            .map { literal($0.content, TermsAgreement.approvalPlaceholder, approvalMarker(markerToken)) }
             .joined(separator: "\n")
         guard let standard = global else { return addenda }
-        let body = standard.content.replacingOccurrences(of: "[product_terms][/product_terms]", with: addenda)
-        let signature = standard.signatureBlock
-            .replacingOccurrences(of: "[customer_name][/customer_name]", with: escape(agreement.customerName))
-            .replacingOccurrences(of: "[customer_signature][/customer_signature]", with: signMarker)
+        let body = literal(standard.content, TermsAgreement.productTermsPlaceholder, addenda)
+        let signature = literal(literal(standard.signatureBlock, "[customer_name][/customer_name]", escape(agreement.customerName)),
+                                "[customer_signature][/customer_signature]", signMarker(markerToken))
         return body + signature
+    }
+
+    /// Byte-exact replacement, like PHP's str_replace.
+    private static func literal(_ text: String, _ target: String, _ replacement: String) -> String {
+        text.replacingOccurrences(of: target, with: replacement, options: .literal)
     }
 
     static func escape(_ text: String) -> String {
