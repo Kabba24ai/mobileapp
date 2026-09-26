@@ -105,9 +105,15 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
     // MARK: - The real screen, offline
 
     private final class RecordingDelegate: NSObject, TermsDelegate {
+        /// The server recorded the acceptance (the hosted page's thank-you step).
+        var serverAccepted = 0
+        /// Signed on this phone (terms.sign) — never reported as the server's acceptance.
         var calls = 0
         var operationsAtCall: [SyncOperation] = []
         func termsSucess(selectIndex: Int) {
+            serverAccepted += 1
+        }
+        func termsSignedOnThisPhone(selectIndex: Int) {
             calls += 1
             operationsAtCall = KabbaSync.engine?.snapshot() ?? []
         }
@@ -198,7 +204,8 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
 
         // Sign through the page.
         js(vc.objWebKit, signScript)
-        waitUntil(timeout: 10, "termsSucess") { delegate.calls == 1 }
+        waitUntil(timeout: 10, "termsSignedOnThisPhone") { delegate.calls == 1 }
+        XCTAssertEqual(delegate.serverAccepted, 0, "a phone signature is never reported as the server's acceptance")
 
         // Durable BEFORE the screen advanced.
         let signed = delegate.operationsAtCall.filter { $0.type == "terms.sign" && $0.identity.orderUniqueId == orderUid }
@@ -369,6 +376,25 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
 
     private static func labels(in view: UIView) -> [UILabel] {
         ((view as? UILabel).map { [$0] } ?? []) + view.subviews.flatMap { labels(in: $0) }
+    }
+
+    // MARK: - 4. A phone signature never becomes an in-memory "Accepted" (Phase 5 hardening)
+
+    /// Order Details and Order List keep the order's server status after a phone signing: the Sync
+    /// Engine's operation alone decides, so a signature the server later refuses can never stay
+    /// visible — or count for completion — as "Accepted".
+    func testAPhoneSigningLeavesTheServerStatusSoARefusalCanNeverStayAccepted() throws {
+        let details = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController)
+        details.objOrderData = try XCTUnwrap(OrdersListModel(JSON: ["unique_id": orderUid, "terms_status": "Pending"]))
+        details.termsSignedOnThisPhone(selectIndex: 0)
+        XCTAssertEqual(details.objOrderData.terms_status, "Pending", "Order Details: no in-memory Accepted")
+
+        let list = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController)
+        list.arrOrderList = [try XCTUnwrap(OrdersListModel(JSON: ["unique_id": orderUid, "terms_status": "Pending"]))]
+        list.termsSignedOnThisPhone(selectIndex: 0)
+        XCTAssertEqual(list.arrOrderList[0].terms_status, "Pending", "Order List: no in-memory Accepted")
     }
 
     func testCompanyBNeverSeesCompanyAsAgreementAndAKeepsIt() throws {

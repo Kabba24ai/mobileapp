@@ -1242,6 +1242,13 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         //UODATE TERMS
         self.setFooter()
     }
+
+    /// Dispatch offline Phase 5: signed on this phone. The order keeps its server status — the
+    /// engine's terms.sign satisfies T&C while it is healthy and stops the moment the server
+    /// refuses it (syncQueueDidChange re-evaluates then too).
+    func termsSignedOnThisPhone(selectIndex: Int) {
+        self.syncQueueDidChange()
+    }
     
     @IBAction func btnDeliveryImageVideoUploadClicked(_ sender : UIButton) {
         guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)

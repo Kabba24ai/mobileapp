@@ -10,7 +10,11 @@ import WebKit
 import Alamofire
 
 protocol TermsDelegate : NSObject {
+    /// The SERVER recorded the acceptance (the hosted page reached its thank-you step).
     func termsSucess(selectIndex : Int)
+    /// Dispatch offline Phase 5: the customer signed on THIS phone (a terms.sign operation). Never an
+    /// in-memory "Accepted" — the operation decides, so a signature the server refuses stops counting.
+    func termsSignedOnThisPhone(selectIndex : Int)
 }
 
 
@@ -163,8 +167,8 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
         self.objWebKit.loadHTMLString(html, baseURL: nil)
     }
 
-    /// The page posted a signing. Recorded durably FIRST (terms.sign), then the existing
-    /// in-session flip and pop — exactly the thank-you path's order of events.
+    /// The page posted a signing. Recorded durably FIRST (terms.sign), then the calling screen
+    /// re-evaluates from the engine (no in-memory "Accepted") and the screen pops.
     func didReceiveSigning(_ body: Any) {
         guard !self.isRecording, let agreement = self.renderedAgreement, case .document? = self.presentation else { return }
         guard let message = body as? [String: Any],
@@ -185,7 +189,7 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
             return
         }
         KabbaSync.showStatusToast(for: operationId)
-        self.delegate?.termsSucess(selectIndex: self.selectIndex)
+        self.delegate?.termsSignedOnThisPhone(selectIndex: self.selectIndex)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.navigationController?.popViewController(animated: true)
         }

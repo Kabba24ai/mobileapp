@@ -178,6 +178,17 @@ enum EffectiveFieldState {
             || !healthyTermsSignatures(in: operations, orderUniqueId: orderUniqueId, termsIdentity: termsIdentity).isEmpty
     }
 
+    /// The Order List's T&C tile (display only, Phase 5 hardening): the server's Accepted, or a HEALTHY
+    /// terms.sign for this order at the verified identity. A signing is never turned into an in-memory
+    /// "Accepted" — so a signature the server refuses (Needs Attention) stops showing as signed.
+    static func termsShownAsSigned(serverStatus: String?,
+                                   operations: [SyncOperation],
+                                   orderUniqueId: String,
+                                   termsIdentity: String) -> Bool {
+        serverStatus == "Accepted"
+            || !healthyTermsSignatures(in: operations, orderUniqueId: orderUniqueId, termsIdentity: termsIdentity).isEmpty
+    }
+
     /// The terms.sign operations that count for this order and verified identity.
     static func healthyTermsSignatures(in operations: [SyncOperation],
                                        orderUniqueId: String,

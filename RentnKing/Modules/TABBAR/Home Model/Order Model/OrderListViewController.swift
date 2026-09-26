@@ -65,6 +65,8 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
 //
         NotificationCenter.default.addObserver(self, selector: #selector(UpdateCheckListsProduct), name: .updateCheckList, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(self.reloadTable), name: .notificationCount, object: nil)
+        // Phase 5: a phone signature's T&C tile follows its sync state (refused → no longer signed).
+        NotificationCenter.default.addObserver(self, selector: #selector(self.syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
 
         // Do any additional setup after loading the view.
         //SET REFRSH CONTROLGm
@@ -280,6 +282,12 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     @objc func reloadTable(){
         //RELOAD DATA
         self.tblView.reloadData()
+    }
+
+    /// The sync queue changed: redraw the visible rows (no timer, no request — the engine's own notification).
+    @objc func syncQueueDidChange() {
+        guard self.isViewLoaded, self.view.window != nil, let visible = self.tblView.indexPathsForVisibleRows, !visible.isEmpty else { return }
+        self.tblView.reloadRows(at: visible, with: .none)
     }
     func updateCategoryLabel(){
         if selectCategoryID != "" && !selectCategoryName.isEmpty {
@@ -830,7 +838,10 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.viewTermsAndCondition.backgroundColor = .clear
             cell.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             cell.lblTermsAndCondition.textColor = .secondary
-            if objData.terms_status == "Accepted"{
+            // Phase 5: the server's Accepted, or a HEALTHY signature on this phone — never a refused one.
+            let termsOrder = objData.unique_id ?? ""
+            if EffectiveFieldState.termsShownAsSigned(serverStatus: objData.terms_status, operations: syncOps, orderUniqueId: termsOrder,
+                                                      termsIdentity: KabbaSync.termsAgreements?.current(orderUniqueId: termsOrder)?.identity ?? ""){
                 cell.lblTermsAndCondition.textColor = .background
                 cell.viewTermsAndCondition.backgroundColor = .secondary
             }

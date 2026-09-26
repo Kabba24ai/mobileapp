@@ -195,4 +195,21 @@ final class TermsSignOperationsTests: XCTestCase {
         XCTAssertNil(LegCompletionEvaluator.evaluate(leg: .return, inputs: inputs(), operations: []).status(.termsAndConditions),
                      "T&C is never judged for a Return")
     }
+    // MARK: - Phase 5 hardening: a phone signature is never the server's "Accepted"
+
+    /// The Order List's T&C tile: the server's Accepted, or a HEALTHY phone signature for the order at
+    /// the verified identity. A signature the server refused (Needs Attention) never shows as signed —
+    /// there is no in-memory "Accepted" to outlive the refusal.
+    func testTheListShowsAPhoneSignatureAsSignedOnlyWhileItIsHealthy() {
+        func shown(_ status: String?, _ ops: [SyncOperation], identity: String = identityA) -> Bool {
+            EffectiveFieldState.termsShownAsSigned(serverStatus: status, operations: ops, orderUniqueId: "ORD-A", termsIdentity: identity)
+        }
+        XCTAssertTrue(shown("Accepted", []), "the server's acceptance")
+        for state in [SyncState.pending, .syncing, .synced] { XCTAssertTrue(shown("Pending", [op(state)]), "\(state)") }
+        XCTAssertFalse(shown("Pending", [op(.needsAttention)]), "refused by the server: never shown as signed")
+        XCTAssertFalse(shown("Pending", [op(.pending, order: "ORD-B")]), "another order's signature")
+        XCTAssertFalse(shown("Pending", [op(.pending)], identity: identityB), "another document's signature")
+        XCTAssertFalse(shown("Pending", []))
+        XCTAssertFalse(shown("Exempt", []), "Exempt has its own treatment")
+    }
 }
