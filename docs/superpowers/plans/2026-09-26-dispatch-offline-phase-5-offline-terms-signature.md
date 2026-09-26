@@ -363,8 +363,8 @@ On `accepted`, the service writes:
 | A healthy (pending / syncing / synced) `terms.sign` op for this order **at the verified identity** | "Signed on this phone" with its sync state. No second capture is possible (the engine doesn't deduplicate). |
 | A verified agreement: the live copy when reachable, else the stored one | The local signing page |
 | An agreement that fails verification (identity, or wrong order) | **"Unable to Verify Order Terms — Refresh the Order Before Signing"** |
-| Server `agreement_status` unavailable | "This order has no stored terms agreement to sign. Please contact the office." |
-| Offline, no stored agreement | "Terms & Conditions for this order aren't downloaded to this phone yet. Connect to the internet to load them." |
+| Server `agreement_status` unavailable or not signable: live, or remembered offline from a package or an earlier live answer (hardening, §13) | "Terms are unavailable for this order. Please contact the office." |
+| Offline, no stored agreement and no such report (it exists but isn't on this phone) | "Terms & Conditions for this order aren't downloaded to this phone yet. Connect to the internet to load them." |
 | Online, and the server has no agreement endpoint (404: an older server) with a valid `page_url` | The existing hosted page and its thank-you → `terms.accept` path (compatibility only) |
 | Online, the fetch failed, and nothing is stored | "Couldn't load the Terms & Conditions. Check the connection and try again." |
 
@@ -750,3 +750,198 @@ Phase 5 does not:
 - Before any deploy:
   - decide on the pre-existing web signature XSS;
   - run `php artisan terms:agreement-audit` (read-only) on production to see how many Pending orders have no trustworthy stored agreement. Those can no longer be signed on the web, where they used to show today's templates.
+
+## 13. Hardening pass (2026-09-26, after Gary's review of §11–§12)
+
+Gary accepted the core implementation but not the push. This pass is local only: nothing pushed, merged, deployed or enabled, production not contacted, neither `main` touched, Phase 6 not started.
+
+### 13.1 Decisions
+- **Web-signature stored XSS: a release blocker, fixed.** It predates Phase 5, but Phase 5 republishes the path.
+  - Both clients produce PNG only (the web pad's `toDataURL('image/png')`; the phone's local page, same library, uploading the decoded PNG). So exactly one form is accepted: `data:image/png;base64,<strict canonical base64 of a well-formed PNG>`.
+  - **Order of checks:**
+    1. text length, before any decode;
+    2. the exact prefix;
+    3. strict canonical base64;
+    4. decoded size;
+    5. PNG structure: the signature, IHDR first and valid, every chunk's length and CRC, an IDAT, IEND last with nothing after it;
+    6. dimensions from IHDR, before decoding.
+  - **What is stored** is always a rebuild, never the upload:
+    - with GD and PNG support: decoded and re-encoded;
+    - without it: rebuilt from its critical chunks (IHDR, PLTE, tRNS, IDAT, IEND). GD is used by the app but not a declared requirement (review finding, see 13.6).
+  - **Limits:**
+
+    | Limit | Value | Basis |
+    |---|---|---|
+    | Decoded size | 4 MiB | The raw size of every real signing canvas, so even a noisy, incompressible read-back fits. The largest raw is the web page at ratio 4, 1600×512 = 3,277,312 bytes; 19× the largest measured output. |
+    | Encoded length | 5,592,430 characters | 22 + 4 × ⌈4 MiB / 3⌉ |
+    | Mobile upload | 4096 KB | the decoded limit |
+    | Dimensions | 4096 × 2048 px, 4 MP | 3.0× / 4.3× / 6.5× the largest real canvas (1344×480) |
+
+  - **Measured output** (simulator, bundled signature_pad v5, both canvases, ratios 1–4, typical / heavy / dense signatures): the largest real-device output is 1344×480 at 219,340 bytes; the synthetic ratio-4 worst case is 1792×640 at 331,319 bytes.
+  - The phone applies the same contract before recording (`TermsSignatureImage`). Decoding is the server's check alone, because ImageIO renders corrupt PNG data without complaint.
+  - The shared vectors are `terms_signature_image.json`: 48 invalid, and 2 valid, one of them a real web-pad capture.
+- **Escaping on the web path.** The customer name is `e()`-escaped wherever it is substituted into the frozen signature block: the signing page, the signed record, and the checkout render. The signature is attribute-escaped. The `{device}` URL segment is whitelisted and emitted with `@json`. The frozen document itself is printed as authored.
+  - **Presentation only:** the identity is still of the raw frozen name.
+  - **Every interpolation point on the page and in the record, audited:**
+
+    | Value | Context | Treatment |
+    |---|---|---|
+    | `$title` | `@section` | escaped |
+    | branding texts | text | escaped |
+    | `order_number` | text | escaped |
+    | `route()` URLs | attributes | escaped |
+    | `terms_identity` | attribute | escaped |
+    | frozen document | raw, by design | only its substitutions are escaped |
+    | customer name | substituted into the document | `e()` |
+    | signature | `src` / `value` attributes | validated, then `e()` |
+    | `{device}` | script | whitelist + `@json` (was HTML-escaped text inside a script) |
+    | `accepted_terms_content` | raw | built only from the above |
+    | layout: four admin-configured analytics/pixel snippets | raw, site-wide | not customer input; unchanged |
+    | layout: canonical `<link>` | attribute | percent-encoded and escaped |
+
+- **Phone sanitizer: re-graded Important and fixed.** The page now **rebuilds** the parsed agreement node by node instead of deleting subtrees.
+  - **Removed with their content:** script, template, noscript, frame, head elements.
+  - **Made inert, wording kept:**
+    - forms become blocks;
+    - buttons, links and labels become text, so an approval inside one stays tappable;
+    - text and button inputs become their values.
+  - **Placeholders for what can't be shown:**
+    - embedded media → "[Embedded content not shown on this phone]";
+    - remote images → their alt text, or "[Image not shown on this phone]".
+  - **Form controls keep their meaning as text:** ☑/☐, ◉/○, the selected option marked.
+  - **Graphics:** SVG and MathML become their visible text.
+  - **Scoping:** the page's own overlay and forced-hidden rules can no longer capture agreement content.
+  - The CSP stays as the second wall.
+- **Unavailable message.** Offline, an order the server reported as having no trustworthy agreement shows "Terms are unavailable for this order. Please contact the office."
+  - Mechanism: `TermsAgreementStore` `unavailable.json`, written by the bridge and by the live read. The newest answer wins through the terms stamp.
+  - The report keeps the last verified agreement, so signatures are still checked against its identity.
+  - "Not downloaded" stays for an agreement that exists but isn't on the phone.
+- **In-memory "Accepted": a bug, fixed.** It was not just a label: Order Details fed it to leg completion as server truth, so a refused signature kept counting.
+  - Phone signings now call `termsSignedOnThisPhone` and change nothing on the order.
+  - Order Details and Order List derive the state from the engine (`termsShownAsSigned`).
+  - The list redraws on the engine's own queue notification, coalesced, and on return.
+  - The hosted page's server-recorded flip is unchanged.
+- **Production audit, prepared and not run.** `docs/dispatch-offline-phase-5/terms-agreement-audit.php` with `PRODUCTION_AUDIT.md` (backend) is a read-only runner for the CURRENT release, needing none of Phase 5's code.
+  - **Safeguards:**
+    - the MySQL session is set READ ONLY;
+    - each page runs in its own short read-only transaction, rolled back;
+    - SELECT only, with order numbers and counts only;
+    - it is piped over SSH from the reviewed commit's bytes, with the deploy's pinned PHP.
+  - **It reports:**
+    - orders by Terms status;
+    - Pending orders by agreement × delivery activity (active mission / open / historical);
+    - the oldest affected order;
+    - agreements with embedded media, or with the name placed outside text;
+    - GD support;
+    - security indicators for pre-fix stored records.
+  - Its rule is pinned to `TermsAgreement::forOrder` and `DispatchOfflineMissionSelector` by tests. MySQL refusing writes on its session is proven by a test.
+- **Unchanged, as directed:** the cross-customer Sync Engine queue; synced signature files kept after pruning; a pending local signature satisfying T&C offline.
+
+### 13.2 Commits (local; no upstream; neither `main` touched: backend `47e081b17`, mobile `a7d3f48`)
+- **Backend** `feature/dispatch-offline-phase-5`, `b15cf2aa4..ecfe796b4`:
+  - `75cf72605` — signature validation, stored re-encoded;
+  - `4eaec287e` — escaping;
+  - `36e0aa3d1` — parity fixture;
+  - `2b7e5e317` — real pad sample;
+  - `a71c732cd` — production audit;
+  - `2a886b87b` — audit read-only test;
+  - `a134b721a` — no-GD rebuild and the 4 MiB limit (review);
+  - `4c6d3c3f6` — audit review fixes;
+  - `ecfe796b4` — accurate claims.
+- **Mobile** `feature/dispatch-offline-phase-5`, `a339ba1..e6bb41b`:
+  - `ac52e11` — sanitizer rebuild;
+  - `5219f7e` — phone signature contract;
+  - `6e42cf1` — unavailable message;
+  - `2df38e6` — no in-memory Accepted;
+  - `964dd87` — hosted test hygiene;
+  - `1ef30f7` — identity check kept, `.unsupported` exempt, 4 MiB (review);
+  - `e6bb41b` — placeholders, control meaning, CSS scoping, list redraw (review).
+  - This record follows as its own commit.
+
+### 13.3 Verification (final heads)
+- **Backend** `4c6d3c3f6` (`ecfe796b4` changes comments and the doc only):
+
+  | Suite | Result |
+  |---|---|
+  | Dispatch | 597 passed |
+  | Api | 220 passed |
+  | Mobile | 15 passed |
+  | Unit/Push | 6 passed |
+  | QueueLine | 293 passed |
+  | Terms | 81 passed (57 before this pass) |
+  | CustomerPortal | 24 passed |
+  | Orders | 23 of 665 failed, the same tests by name as the baseline |
+  | CustomerChecklists | 11 of 53 failed, the same tests by name as the baseline |
+
+  **The manifest is 438 statements at 50 missions, under the hard ceiling of 450.**
+- **Mobile** `e6bb41b`: core 546/546; signed hosted 83/83; simulator build succeeded.
+- **Test-first:** RED was shown before each fix:
+  - web 6 and mobile 2 endpoint tests (signature);
+  - 3 escaping tests;
+  - the parity test (22 failed assertions);
+  - core compile-RED for the phone contract, the unavailable report and the list rule;
+  - the review-round tests: 10 SignatureImage, 2 audit and 11 page assertions.
+- **Exception:** `SignatureImage` itself was drafted just before its unit test.
+
+### 13.4 Deliberately broken rules: 53, all caught, none missed
+- **Round 1:** 16 backend + 22 mobile.
+  - Three phone-signing probes (M19, M20, M22) first cascaded through a signing leaked into the simulator's real engine. The fix was `964dd87`. Rerun on a clean simulator, each was caught by exactly its intended test.
+- **Round 2 (review fixes):** 8 backend + 7 mobile.
+- **Defence-in-depth rules not observable by a test, recorded as such:**
+  - `e()` on the already-validated signature;
+  - the 4096 KB upload cap, layered with the structural check;
+  - the document-level click guard's exclusion for app controls (no links remain);
+  - the approval `pointer-events` rule;
+  - the list's redraw coalescing.
+
+### 13.5 Review record
+- **Review 3** (fresh independent reviewer, the hardening `b15cf2aa4..a71c732cd` / `a339ba1..2df38e6`):
+  - **Important:**
+    - pre-fix records still render raw — recorded;
+    - GD assumed, not a declared requirement — **fixed** `a134b721a`;
+    - the audit's markup indicator flagged every signed record — **fixed** `4c6d3c3f6`.
+  - **Minors fixed:**
+    - noisy-canvas size (the 4 MiB limit);
+    - decode before cheap checks;
+    - soft-deleted drivers;
+    - the long transaction;
+    - the docs' PHP binary and bytes;
+    - the unavailable report switching off the identity check;
+    - a remembered report hiding the hosted fallback;
+    - media vanishing silently;
+    - control meaning;
+    - the `class="modal"` overlay;
+    - `[hidden]!important`;
+    - list main-thread cost and the missed redraw.
+  - **Recorded:**
+    - `e()` does not cover unquoted/URL/script contexts (now measured by the audit);
+    - the public sign endpoint is unthrottled;
+    - admin template trust (no permission middleware);
+    - script-produced web text;
+    - declarative shadow DOM;
+    - CSS `content:` on renamed elements;
+    - no Mobile Sync Issue for a 422 (pre-existing pattern).
+  - **Sanitizer rating after the fix:** Minor; Important only if production agreements embed media, which the audit now counts.
+  - **`ApiBaseFormRequest` purify:** confirmed a no-op (it merges under key "0"). Minor, pre-existing; the web request now skips it.
+- **Review 4** (closing re-review of the fixes): **no Critical or Important.** Items 1–10: FIXED or PARTIAL.
+  - Sanitizer finding now a residual Minor/Nit.
+  - **Recorded, not fixed** (Gary's rule: Minor/Nit are recorded):
+    - N1 Minor: at the 4 MiB limit one acceptance's UPDATE is ~17 MB (the signature is stored three times, plus an untruncated activity-log copy). That exceeds a 16 MiB `max_allowed_packet` (the MariaDB default), and peak PHP memory is ~80–100 MB. Ready fix: cap the pad's pixel ratio at 3 on both pages and set the limit to 2.5 MiB (the raw size of the capped phone canvas 1344×480; statement ≈ 10.5 MB).
+    - N2 Minor: browser zoom (ratio > 4) can exceed 4 MP. The same ratio cap fixes it.
+    - N3 Minor: without GD, pixel data is stored unvalidated. Ready fix: inflate IDAT with a bound and check the scanline length. The docblock was corrected in `ecfe796b4`.
+    - N4 Minor: while an order is reported unavailable, the T&C screen matches a phone signature against "" while leg completion uses the last verified identity. Ready fix: pass `verifiedIdentity` into the resolver.
+    - N5 Nit: after a reconnect the audit's session is not READ ONLY, and a fatal goes to `laravel.log`. Docs corrected; ready fix: a throwing reconnector, and bootstrapping without HandleExceptions.
+    - N6 Minor: audit memory at 20 max-size signed records per page (post-deploy re-runs). Ready fix: strip the signature in SQL, smaller pages.
+    - N7 Minor: indicator false negatives (other entity-obfuscated schemes, `data:text/html`, `<meta refresh>`, `<base>`, `<form action>`) and admin-authored false positives. The doc now says "warrants review".
+    - N8, N10, N11 Nits: regex gaps in the audit's media and name checks; forced-hidden selectors that aren't fully page-scoped, and SVG images and CSS backgrounds without placeholders; a redraw lost if the list is covered within the 0.25 s window.
+
+### 13.6 Remaining risks (for Gary)
+1. **Pre-fix stored records still render as stored** on the public page, the customer portal and the admin "View Terms" link. The fix stops new ones only. The audit's indicators size the problem; a cleanup needs a decision.
+2. **The web page breaks with agreement content containing `<form>`** (pre-existing, verified in WebKit): the parser closes the signing form early, so SUBMIT ends up outside it and does nothing. It fails safe (nothing wrong is written); the phone handles the same content correctly.
+3. **GD on production is unknown.** Signing works either way; the audit prints it.
+4. **N1/N2:** the size and ratio interaction described above, with a ready fix.
+5. **Unchanged, as directed:** the cross-customer Sync Engine queue; synced signature files kept after pruning; a pending local signature satisfying T&C offline.
+
+### 13.7 Final state
+- **Hardening complete locally.** No Critical or Important finding open in the hardening's own code. The three open decisions are risks 1–3 above, plus the Review 4 Minors with their ready fixes.
+- **Nothing pushed, merged, deployed or enabled.** Production was not contacted, and the audit procedure (`PRODUCTION_AUDIT.md`) has not been run.
