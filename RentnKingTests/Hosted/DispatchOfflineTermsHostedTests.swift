@@ -38,10 +38,20 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
         savedBaseURL = UserDefaults.standard.baseURL
         root = FileManager.default.temporaryDirectory.appendingPathComponent("p5-hosted-\(UUID().uuidString)", isDirectory: true)
         UserDefaults.standard.baseURL = urlA
+        discardFixtureSignings() // a test that failed mid-way must never leak a signing into the next one
+    }
+
+    /// Every terms.sign / terms.accept this suite's fixture order could have left in the app's real engine.
+    private func discardFixtureSignings() {
+        for op in KabbaSync.engine?.snapshot() ?? []
+        where (op.type == "terms.sign" || op.type == "terms.accept") && op.identity.orderUniqueId == orderUid {
+            try? KabbaSync.engine?.discard(operationId: op.id)
+        }
     }
 
     override func tearDown() {
         for id in createdOperations { try? KabbaSync.engine?.discard(operationId: id) }
+        discardFixtureSignings()
         if let agreements = KabbaSync.termsAgreements {
             for tenant in [tenantA, DispatchOfflineTenant.key(baseURL: URL(string: urlB)!)] {
                 try? FileManager.default.removeItem(at: agreements.directory.appendingPathComponent(tenant, isDirectory: true))
