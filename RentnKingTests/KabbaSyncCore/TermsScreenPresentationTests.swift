@@ -72,6 +72,9 @@ final class TermsScreenPresentationTests: XCTestCase {
                        "the server's live answer wins")
         XCTAssertEqual(resolve(storedUnavailable: true, ops: [signed(.pending)]), .signedOnThisPhone(.pending),
                        "a signature already on this phone is still shown, never a second capture")
+        XCTAssertEqual(resolve(live: .unsupported, storedUnavailable: true),
+                       .hostedPage(URL(string: "https://kabba.test/terms-and-conditions/ORD-A/mobile")!),
+                       "an older server (e.g. after a rollback) answers with its hosted page, which the report must not hide")
     }
 
     func testASignatureOnThisPhoneIsShownInsteadOfASecondCapture() {

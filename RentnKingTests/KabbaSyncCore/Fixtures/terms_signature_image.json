@@ -1,9 +1,9 @@
 {
-  "_comment": "Dispatch offline Phase 5 hardening \u2014 THE signature image contract, shared by Laravel (App\\Services\\Terms\\SignatureImage) and the phone (TermsSignatureImage.swift). Both signing clients produce PNG only (signature_pad toDataURL image/png), so exactly one form is accepted: \"data:image/png;base64,\" + strict canonical base64 of a well-formed PNG within the limits below. Limits are derived from measured signature_pad output (largest real-device case: the phone page at ratio 3, 1344x480, 219,340 bytes decoded; synthetic ratio-4 worst case 1792x640, 331,319 bytes). Vectors written independently with Python zlib/struct. Reasons: not_png_data_url, malformed_base64, too_large, not_png, dimensions_exceeded, undecodable. \"undecodable\" is decided by decoding the image (server: GD; phone: UIImage), not by the structural check.",
+  "_comment": "Dispatch offline Phase 5 hardening \u2014 THE signature image contract, shared by Laravel (App\\Services\\Terms\\SignatureImage) and the phone (TermsSignatureImage.swift). Both signing clients produce PNG only (signature_pad toDataURL image/png), so exactly one form is accepted: \"data:image/png;base64,\" + strict canonical base64 of a well-formed PNG within the limits below. Limits: the decoded size covers an INCOMPRESSIBLE signature (raw RGBA, e.g. canvas read-back noise in privacy modes) on every real signing canvas (largest raw: web page at ratio 4, 1600x512 = 3,277,312 bytes); measured signature_pad output sits far inside it (largest real device: phone page at ratio 3, 1344x480, 219,340 bytes). Dimensions 4096x2048 and 4 MP. Vectors written independently with Python zlib/struct. Reasons: not_png_data_url, malformed_base64, too_large, not_png, dimensions_exceeded, undecodable. \"undecodable\" is decided by decoding the image (server: GD; phone: UIImage), not by the structural check.",
   "contract": {
     "data_url_prefix": "data:image/png;base64,",
-    "max_decoded_bytes": 1048576,
-    "max_encoded_length": 1398126,
+    "max_decoded_bytes": 4194304,
+    "max_encoded_length": 5592430,
     "max_width": 4096,
     "max_height": 2048,
     "max_pixels": 4194304

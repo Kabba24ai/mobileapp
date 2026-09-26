@@ -58,7 +58,7 @@ final class TermsSignatureImageTests: XCTestCase {
     func testOversizedInputIsRefusedBeforeAnythingIsDecoded() {
         let tooLong = TermsSignatureImage.dataURLPrefix + String(repeating: "A", count: TermsSignatureImage.maxEncodedLength)
         XCTAssertEqual(TermsSignatureImage.validatedPNG(fromDataURL: tooLong).refusal, .tooLarge)
-        XCTAssertEqual(TermsSignatureImage.validatedPNG(fromDataURL: String(repeating: "<", count: 1_500_000)).refusal, .tooLarge)
+        XCTAssertEqual(TermsSignatureImage.validatedPNG(fromDataURL: String(repeating: "<", count: TermsSignatureImage.maxEncodedLength + 1)).refusal, .tooLarge)
         XCTAssertEqual(TermsSignatureImage.inspect(Data(count: TermsSignatureImage.maxDecodedBytes + 1)).refusal, .tooLarge)
     }
 }

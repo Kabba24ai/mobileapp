@@ -62,6 +62,11 @@ final class TermsAgreementStore {
         return agreement(orderUniqueId: orderUniqueId, identity: identity, tenantKey: tenant)
     }
 
+    func verifiedIdentity(orderUniqueId: String) -> String? {
+        guard let tenant = currentTenant() else { return nil }
+        return verifiedIdentity(orderUniqueId: orderUniqueId, tenantKey: tenant)
+    }
+
     /// The server's newest word for the order, for the signed-in company: no trustworthy agreement.
     func isUnavailable(orderUniqueId: String) -> Bool {
         guard let tenant = currentTenant() else { return false }
@@ -77,18 +82,20 @@ final class TermsAgreementStore {
         try lock.withLock {
             try FileSyncOperationStore.writeProtected(data, to: dir.appendingPathComponent(Self.fileName(agreement.identity)))
             try FileSyncOperationStore.writeProtected(data, to: dir.appendingPathComponent("current.json"))
-            try? fileManager.removeItem(at: dir.appendingPathComponent(Self.unavailableFile))
+            // A verified agreement replaces the report — loudly if it can't (a stale report must never hide it).
+            let report = dir.appendingPathComponent(Self.unavailableFile)
+            if fileManager.fileExists(atPath: report.path) { try fileManager.removeItem(at: report) }
         }
     }
 
     /// The server reported the order has no trustworthy agreement (unavailable / not signable): nothing
-    /// is offered for signing from here on, until a verified agreement arrives. Every identity file
-    /// already stored stays (local evidence for a signature that names it).
+    /// is offered for signing from here on (`current` answers nil), until a verified agreement arrives.
+    /// Every agreement already stored stays — local evidence for a signature that names it, and the
+    /// identity a phone signature is still checked against (`verifiedIdentity`).
     func recordUnavailable(orderUniqueId: String, tenantKey: String) throws {
         let dir = try orderDirectory(tenantKey, orderUniqueId, create: true)
         try lock.withLock {
             try FileSyncOperationStore.writeProtected(Data("{\"status\":\"unavailable\"}".utf8), to: dir.appendingPathComponent(Self.unavailableFile))
-            try? fileManager.removeItem(at: dir.appendingPathComponent("current.json"))
         }
     }
 
@@ -97,8 +104,17 @@ final class TermsAgreementStore {
         return lock.withLock { fileManager.fileExists(atPath: dir.appendingPathComponent(Self.unavailableFile).path) }
     }
 
+    /// The newest verified agreement — nil while the server's newest word is "unavailable".
     func current(orderUniqueId: String, tenantKey: String) -> TermsAgreement? {
-        read(orderUniqueId: orderUniqueId, tenantKey: tenantKey, file: "current.json")
+        guard !isUnavailable(orderUniqueId: orderUniqueId, tenantKey: tenantKey) else { return nil }
+        return read(orderUniqueId: orderUniqueId, tenantKey: tenantKey, file: "current.json")
+    }
+
+    /// The identity of the newest verified agreement this phone holds, even while the server reports
+    /// the order unavailable: what a phone signature for the order is checked against (leg completion,
+    /// Order List). nil = the phone never held one.
+    func verifiedIdentity(orderUniqueId: String, tenantKey: String) -> String? {
+        read(orderUniqueId: orderUniqueId, tenantKey: tenantKey, file: "current.json")?.identity
     }
 
     func agreement(orderUniqueId: String, identity: String, tenantKey: String) -> TermsAgreement? {

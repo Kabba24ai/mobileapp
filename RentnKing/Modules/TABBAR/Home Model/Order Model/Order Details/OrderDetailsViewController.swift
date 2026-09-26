@@ -767,7 +767,7 @@ extension OrderDetailsViewController {
                                    returnChecklistConfirmed: returnChecklistConfirmed,
                                    activeReturnExecutionId: activeReturnExecution,
                                    // Phase 5: a phone signature counts only for the verified agreement held here.
-                                   termsIdentity: KabbaSync.termsAgreements?.current(orderUniqueId: orderUid)?.identity ?? "")
+                                   termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: orderUid) ?? "")
     }
 
     /// The ONE decision for a leg: applicable requirements × effective satisfaction.

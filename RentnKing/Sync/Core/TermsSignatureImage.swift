@@ -16,9 +16,10 @@
 //  Whether the image data itself decodes is the app layer's check (UIImage) —
 //  the server decodes it too (GD) and stores its own re-encoding.
 //
-//  Limits (measured signature_pad output; shared with Laravel through
-//  terms_signature_image.json): 1 MiB decoded, 1,398,126 characters, 4096 ×
-//  2048 px, 4 MP.
+//  Limits (shared with Laravel through terms_signature_image.json): 4 MiB
+//  decoded — the raw size of every real signing canvas, so even a signature
+//  whose pixels don't compress (canvas read-back noise) fits; 5,592,430
+//  characters; 4096 × 2048 px; 4 MP.
 //
 
 import Foundation
@@ -34,9 +35,10 @@ enum TermsSignatureImage {
     }
 
     static let dataURLPrefix = "data:image/png;base64,"
-    static let maxDecodedBytes = 1_048_576
+    /// Covers an INCOMPRESSIBLE signature (canvas read-back noise) on every real signing canvas.
+    static let maxDecodedBytes = 4_194_304
     /// The prefix (22) plus the base64 length of maxDecodedBytes.
-    static let maxEncodedLength = 1_398_126
+    static let maxEncodedLength = 5_592_430
     static let maxWidth = 4096
     static let maxHeight = 2048
     static let maxPixels = 4_194_304

@@ -55,6 +55,9 @@ final class TermsAgreementStoreTests: XCTestCase {
         XCTAssertNil(store.current(orderUniqueId: "ORD-A"), "a newer report: nothing is offered for signing")
         XCTAssertEqual(store.agreement(orderUniqueId: "ORD-A", identity: agreement("ORD-A").identity), agreement("ORD-A"),
                        "the identity already stored is kept as local evidence")
+        XCTAssertEqual(store.verifiedIdentity(orderUniqueId: "ORD-A"), agreement("ORD-A").identity,
+                       "a phone signature is still checked against the last verified agreement, never against nothing")
+        XCTAssertNil(store.verifiedIdentity(orderUniqueId: "ORD-B"))
 
         signedIn = nil
         XCTAssertFalse(store.isUnavailable(orderUniqueId: "ORD-A"), "no company signed in: nothing")

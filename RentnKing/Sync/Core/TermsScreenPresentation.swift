@@ -90,7 +90,8 @@ enum TermsScreenPresentation: Equatable {
         if let newest = signed.max(by: { $0.queuedAt < $1.queuedAt }) { return .signedOnThisPhone(newest.state) }
 
         if let verified = agreement { return .document(verified) }
-        if inputs.storedUnavailable { return .agreementUnavailable } // not "not downloaded": there is none
+        // Not "not downloaded": there is none. An older server's hosted page (.unsupported) still wins.
+        if inputs.storedUnavailable, inputs.live != .unsupported { return .agreementUnavailable }
 
         switch inputs.live {
         case nil:
