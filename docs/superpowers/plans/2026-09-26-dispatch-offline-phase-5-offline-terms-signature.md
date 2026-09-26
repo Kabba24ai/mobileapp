@@ -1,6 +1,7 @@
 # Dispatch Offline Phase 5 — Offline Terms & Conditions + Signature — Implementation Plan
 
-> **Status: APPROVED for implementation (Gary, 2026-09-26) under the corrected model: an order's terms are frozen when the order is created.** This revision replaces the first draft (`f17d1f1`), which assumed live terms, stale signatures and re-signing after template changes. None of those remain.
+> **Status: IMPLEMENTED locally (2026-09-26); awaiting Gary's review. The closing independent review found no Critical or Important issue in the Phase 5 change (§12). Nothing pushed or deployed.**
+> **APPROVED for implementation (Gary, 2026-09-26) under the corrected model: an order's terms are frozen when the order is created.** This revision replaces the first draft (`f17d1f1`), which assumed live terms, stale signatures and re-signing after template changes. None of those remain.
 > Rules for execution: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, publish, SSH, production data, feature flag, version/build bump, archive or App Store upload. Neither `main` is touched. Phase 6 and the cross-customer Sync Engine queue issue are out of scope.
 > **Phase 5 is finished only after all of these pass (§9):**
 > - the backend identity, parity, idempotency and binding tests (§8.1);
@@ -638,3 +639,114 @@ Phase 5 does not:
 - change the Warning override or its permissions;
 - solve the cross-customer queue;
 - begin Phase 6.
+
+---
+
+## 11. Execution record (2026-09-26)
+
+**Commits (local only, no upstream; neither `main` touched):**
+- Backend `feature/dispatch-offline-phase-5`:
+  - `66447cffc` — `TermsAgreement`, canonicalization, shared vectors, immutability guard, `terms:agreement-audit`, `orders.terms_customer_signed_at`;
+  - `aa9dadbfc` — web signing displays and records the frozen agreement (`TermsAcceptanceService`);
+  - `d1b4c2d16` — package `terms` section, `sections.terms`, revision seed;
+  - `60c901c67` — `GET orders/terms/{order}` and `POST orders/terms/{order}/accept` (`terms.sign`);
+  - `206f10496` — contract document and fixtures;
+  - `92c386f1d` — packages fixture keeps the Phase 4 identifiers and adds only the terms fields.
+- Mobile `feature/dispatch-offline-phase-5`:
+  - `0c0ac43` — this plan, revised;
+  - `77e0c30` — Core: agreement, store, bridge section, `terms.sign`, satisfaction rule;
+  - `f562f65` — App: the local-first screen, the inert signing page, the live client, wiring;
+  - `b2b5a55` — hosted tests: the CSP, navigation lock and identity check each stand alone;
+  - `808dbc7` — review fixes (approval count; single-pass template fill; tokenized markers; controls captured before insertion).
+- Backend review fix: `b15cf2aa4` — the approval count equals the checkboxes rendered; a removed line never loses the signature.
+
+**As built — clarifications within the approved model:**
+1. **Freeze point unchanged.** Checkout already freezes the agreement inside its creation transaction, after the original products are attached. Phase 5 writes nothing new at creation.
+2. **The identity is derived, not stored.** It is recomputed from the stored copy on every read; a stored identity column would only duplicate it. The immutability guard in `Order::save` (which also covers `saveQuietly`) keeps the stored copy fixed.
+3. **One schema change:** `orders.terms_customer_signed_at`, a nullable datetime.
+4. **Web path.**
+   - The page renders `TermsAgreement::contentHtml()` plus a hidden `terms_identity`.
+   - A missing or mismatched identity gets 409 with the refresh message.
+   - An order without a trustworthy copy shows no form.
+   - An accepted order is never re-signed; it returns success with the thank-you URL and writes nothing.
+   - An **Exempt** order now answers 409 "not required". Before, a direct POST would overwrite Exempt with Accepted; the page itself never showed a form for it.
+   - An unexpected exception now surfaces as a 500 instead of being reported as "Order not found." (404).
+5. **Addenda-only agreements.** An agreement with no standard terms has no `[customer_signature]` placeholder. The app's page appends its sign control at the end. The web page has no sign button for such an agreement (pre-existing, unchanged).
+6. **Remote images are blocked** in the app's page (P5-A4); `img-src data:` only.
+7. **Hosted fallback.** The hosted page is used only when the server has no agreement endpoint (a 404 that isn't `ORDER_NOT_FOUND`), when there is no agreement store, or in the new-order flow (`isOrderFrom == false`).
+8. **A Needs Attention `terms.sign` never satisfies T&C.** Other operations count as `satisfiedNeedsAttention`; this one doesn't, by design. Its terminal causes mean the signature was refused.
+9. **The manifest is unchanged at 438 statements** at 50 missions, against the hard ceiling of 450. The seed reads columns of the already-loaded order.
+10. **Test seam.** `TermsAndConditionViewController.isReachable` is injectable (default: the real reachability check).
+11. **A one-shot `asyncAfter(0.5)` before pop** mirrors the existing thank-you path. It is not polling.
+
+**Verification, from the final HEADs** (backend `b15cf2aa4`, mobile `808dbc7`):
+- **Backend:**
+  - Dispatch 597, Api 218, Mobile 15, Unit/Push 6, QueueLine 293, Terms 57, CustomerPortal 24, all passing.
+  - Orders fails 23 of 665 and CustomerChecklists 11 of 53: the **same tests by name** as the baseline (JUnit comparison).
+  - Terms 25/25 and CustomerPortal 24/24 at `2f859c0a8` (Task 0).
+- **Mobile core** `swift test`: 538/538 (baseline 499).
+- **Signed hosted:** 77/77 (baseline 72; `DispatchOfflineTermsHostedTests` adds 5).
+- **Simulator build:** OK.
+- **Manifest:** **438** statements at 50 missions, with the ceiling of 450 held (`DISPATCH_OFFLINE_REPORT_QUERIES=1`).
+- **No-polling gate:** there is no Timer, location, socket or background-refresh API.
+  - The live GET fires only when the screen opens.
+  - The one-shot 0.5 s pop delay mirrors the existing thank-you path.
+  - The vendored pad's pen-stroke throttle is its own.
+- **Break-a-rule probes, 35, all caught:**
+  - Core C1–C15. C13 alone is covered twice over (the resolver verifies twice); with both checks removed it is caught.
+  - Backend B1–B14.
+  - Hosted H1–H7.
+
+## 12. Review record
+
+### Review 1 (fresh independent reviewer, whole Phase 5): 0 Critical, 2 Important, 5 Minor, 9 Nit
+- **I-1: `approvals_required` counted placeholders, not the checkboxes rendered.**
+  - The renderer places the addenda once per `[product_terms]` shortcode in the standard terms (none without it, twice with two). An agreement could become unsignable on the web (a regression) and on the phone.
+  - **Fixed** (`b15cf2aa4`, `808dbc7`). The count is now exactly the rendered checkboxes, the same in PHP and Swift, and tested against the rendered output on both sides.
+- **I-2: a soft-deleted order line made a valid acceptance fail terminally.**
+  - **Fixed** (`b15cf2aa4`). The line is looked up within the order, removed lines included; another order's line is still refused, and a removed line's tnc status is not written.
+- **Minor 1 and 2, fixed** in the new signing page (`808dbc7`):
+  - a `{{…}}` placeholder in content broke the page (the template is now filled in one pass);
+  - colliding content ids or forged markers could disable signing (controls are captured before insertion; markers carry a per-load random token).
+- **Recorded, not fixed:**
+  - Minor 3: Order List's in-memory "Accepted" flip after a local signing.
+  - Minor 4: see Review 2 (pre-existing).
+  - Minor 5: readiness when the agreement store fails to open (`notProvided`).
+  - Nits:
+    - `forOrder` treats a null status as signable;
+    - `terms_customer_signed_at` falls back to server time when `captured_at` is missing;
+    - a FormRequest 422 bypasses the ledger (pre-existing pattern);
+    - a web post on an Exempt order gets 409;
+    - the `isReturnLeg` heuristic (pre-existing);
+    - the display title after a refusal;
+    - the `window.kabbaTerms` test handle;
+    - the resources folder path differs from §6.
+  - Test gaps it listed that the fixes closed: the approval-count ↔ render tie, the removed line, placeholders in content, colliding ids.
+
+### Review 2 (fresh independent reviewer, closing re-review of `b15cf2aa4` / `808dbc7`): no Critical or Important issue in the Phase 5 change
+- **It verified:**
+  - I-1, I-2 and the three page fixes are correct and complete in PHP and Swift;
+  - no rebuild-from-templates path exists;
+  - the identity vectors and the live fixture recompute independently.
+- **Pre-existing, judged Important as a security matter, NOT a Phase 5 regression, NOT fixed (needs Gary's decision):** stored XSS through the web signing `signature` field.
+  - `PostRequest` accepts any string.
+  - `TermsContentHelper` interpolates it raw into `accepted_terms_content`, which the public page renders unescaped.
+  - `customer_name` is inserted raw on the web too; the phone escapes it.
+  - Phase 5 narrows the hole: a post now needs the agreement identity, and an accepted order can no longer be overwritten.
+  - **Ready fix:** validate `signature` as `^data:image/(png|jpeg);base64,[A-Za-z0-9+/]+=*$` with a size cap, and escape the customer name in the web render. `TermsRequestEmailTest` posts a plain name as the signature and would change with it.
+- **New Minors, recorded:**
+  1. The page's sanitizer removes whole subtrees of `form`/`button`/`select`/`textarea`/`svg`/`math`/`noscript`/`dialog`/media. Text inside them shows on the web but not on the phone, and a marker inside one only fails at submit. Suggested: unwrap instead of remove, and check the approval count right after insertion.
+  2. An approval checkbox inside a link can't be ticked (the link-click guard).
+  3. Offline, an `unavailable` agreement shows "not downloaded" instead of "no stored agreement" (the resolver has no ledger input).
+  4. Order Details' in-memory Accepted flip counts as server truth for the rest of that session.
+- **Nits:**
+  - the approval rule isn't in the shared vectors or `MOBILE_API_CONTRACT.md`;
+  - generic page CSS class names can be styled by content;
+  - the web `terms_identity` input sits after the raw content (malformed content could swallow it).
+
+### Final state
+- Phase 5 is complete locally, with no Critical or Important issue in the Phase 5 change.
+- Nothing is pushed, merged, deployed, published or enabled; neither `main` was touched; Phase 6 was not started.
+- Before any deploy:
+  - decide on the pre-existing web signature XSS;
+  - run `php artisan terms:agreement-audit` (read-only) on production to see how many Pending orders have no trustworthy stored agreement. Those can no longer be signed on the web, where they used to show today's templates.
