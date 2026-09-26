@@ -1,583 +1,640 @@
 # Dispatch Offline Phase 5 — Offline Terms & Conditions + Signature — Implementation Plan
 
-> **Status: PLAN ONLY — awaiting Gary's review (2026-09-26).** No product code has been written. Decisions P5-D1–P5-D12 (§5) need approval before implementation starts.
-> Rules for execution after approval: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, SSH, production data, feature flag, version/build bump, archive or App Store upload. Do not begin Phase 6.
-> **Phase 5 closes only after all of these pass (§9):**
-> - the backend parity, revision, idempotency and freshness tests (§8.1);
-> - every mobile scenario in §8.2–§8.3, including the automated never-opened acceptance scenario;
-> - the complete affected backend regression and the complete mobile core and signed hosted suites;
-> - the simulator build and the no-polling gate;
+> **Status: APPROVED for implementation (Gary, 2026-09-26) under the corrected model: an order's terms are frozen when the order is created.** This revision replaces the first draft (`f17d1f1`), which assumed live terms, stale signatures and re-signing after template changes. None of those remain.
+> Rules for execution: TDD task by task (failing test → prove the failure → minimum code → focused and regression tests → review the diff → local commit). Local only: no push, merge, deploy, publish, SSH, production data, feature flag, version/build bump, archive or App Store upload. Neither `main` is touched. Phase 6 and the cross-customer Sync Engine queue issue are out of scope.
+> **Phase 5 is finished only after all of these pass (§9):**
+> - the backend identity, parity, idempotency and binding tests (§8.1);
+> - every mobile case in §8.2–§8.3, including the automated never-opened acceptance scenario;
+> - the complete relevant backend regression, with explicit web-signing coverage;
+> - the complete mobile core and signed hosted suites;
+> - the simulator build, the no-polling gate, and the manifest ceiling of **450 statements (hard)**;
 > - a fresh independent reviewer reporting no Critical or Important issues.
+>
+> Then stop and report; nothing is pushed or deployed.
 
 **Goal:** a Dispatch mission that was **never opened while online** supports, with the iPhone **completely offline**:
 
 `cached Dispatch → Driver Checklist → Order Details → Terms & Conditions → customer acceptance/signature → continue completion`
 
-The signature is durable on the phone the moment it is captured, the workflow advances on that local evidence, and it later syncs to Laravel idempotently. The signature is always tied to the exact Terms revision the customer viewed.
+The signature is durable on the phone the moment it is captured, the workflow advances on that local evidence, and it later syncs to Laravel idempotently. It is always bound to **that order's frozen agreement** and its identity.
 
-**Spec:** `docs/superpowers/specs/2026-09-22-dispatch-offline-mission-cache-design.md`: §8 "Terms & Conditions", §9 (T&C accepted/exempt state and content/version change are revision triggers), §17 ("T&C content renders offline", "offline terms signature is durable and later syncs"), §18 step 5, §20 ("Unsigned T&C must be truly usable offline, not merely represented by a cached URL").
+**Spec:** `docs/superpowers/specs/2026-09-22-dispatch-offline-mission-cache-design.md`: §8 "Terms & Conditions", §9, §17, §18 step 5, §20.
 
-**Builds on (local branches, no upstream; `main` untouched in both repos):**
-- Backend `feature/dispatch-offline-phase-5`, cut from Phase 4 HEAD `2f859c0a8`, in worktree `/Users/garyjezorski/Documents/kabba2_AI-dispatch-offline`. No commits yet.
-- Mobile `feature/dispatch-offline-phase-5`, cut from Phase 4 HEAD `92daa7f`, in worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p5`. This plan is its first commit.
+**Branches (local, no upstream):**
+- Backend `feature/dispatch-offline-phase-5`, from Phase 4 HEAD `2f859c0a8`, in worktree `/Users/garyjezorski/Documents/kabba2_AI-dispatch-offline`.
+- Mobile `feature/dispatch-offline-phase-5`, from Phase 4 HEAD `92daa7f`, in worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p5`.
 
 **Baseline (Phase 4 final):**
-- Mobile core `swift test`: 499/499.
-- Signed hosted: 72/72.
-- Simulator build: OK.
+- Mobile core 499/499; signed hosted 72/72; simulator build OK.
 - Backend Dispatch 591, Api 200, Mobile 15, Unit/Push 6, QueueLine 293, all passing.
 - Backend Orders fails 23 and CustomerChecklists fails 11: the same tests by name as the Phase 2 baseline copy.
+- `tests/Feature/Terms` and `tests/Feature/CustomerPortal` are captured at `2f859c0a8` before any change (Task 0).
 
 ---
 
-## 0. What the inspection found
+## 0. The governing principle and what the code shows
 
-### 0.1 How Terms & Conditions are signed today
-- **The phone never signs anything itself.** `TermsAndConditionViewController` is a `WKWebView` that loads the hosted page `GET terms-and-conditions/{order}/mobile` (`TermsService::signingUrl($order, 'mobile')`, exposed as `terms_page` in the orders resources and as `terms.page_url` in the Phase 1 package).
-- **The page** (`resources/views/front/terms_and_conditions/index.blade.php`):
-  - extends the full public site layout (Vite `app.css`/`app.js`, which provides `window.SignaturePad` from `signature_pad` ^5.0.9, plus `notyf`, `apiFetch` and the CSRF meta), and hides the navbar and footer with JS when `device=mobile`;
-  - prints the three "Rental Agreement Header" lines (`Website Management Branding` settings `terms_condition_text_1..3`), the order number and an instruction;
-  - renders the body inside `#terms-dynamic-content` from `TermsContentHelper::generateTermsContent($order)`;
-  - opens a signature modal (signature_pad canvas → `toDataURL('image/png')`), then POSTs the form with `apiFetch`.
-- **The body markup is part of the canonical content.** `generateTermsContentFromArray` injects a required `customer_approval[]` checkbox at every `[customer_approval][/customer_approval]` placeholder in product terms, and a "CLICK HERE TO SIGN" button (inline `onclick="openModal()"`) at `[customer_signature][/customer_signature]` in the global signature block. `[customer_name][/customer_name]` becomes the order's `customer_name`.
-- **The write** (`Front/TermsAndConditions/PostController`, `POST terms-and-conditions/{order}/sign`):
-  - The route is on the **front domain with `web` middleware**, so it has CSRF and no API authentication.
-  - It sets exactly four order columns: `terms_status=Accepted`, `signature_image` (the data URL string, with no format or size check), `accepted_terms_content` and `terms_accepted_at=now()`.
-  - It fires `OrderTermsSignedEvent`, which writes one "Terms accepted by customer." history row.
-  - It is already wrapped in `MobileOperationService` (ledger type `terms.accept`) when an `operation_id` is sent; `MobileSyncIssueTest` (j) proves the replay. No phone code calls it that way today.
-- **After the page shows its thank-you URL,** the app enqueues the Sync Engine op `terms.accept`. That op only posts `update-delivery-pickup-inputs` with `tnc_status="accepted"`, `complete_leg=false`, which records `order_products.{delivery|pickup}_tnc_status`. That column is written but read nowhere on the server. The op carries no signature and no Terms identity.
-- **Entry points** to the screen:
-  - Order Details (the Dispatch → Driver Checklist → Order Details path).
-  - The Order List row button.
-  - The new-order success screen. It never opens: `strOrderUniqueId` is never set (pre-existing; out of scope).
+### 0.1 The principle (Gary, 2026-09-26)
+- **The terms applicable to an order are frozen when the order is created.** The agreement belongs to the order, not to the current catalog.
+- **What the frozen agreement contains:**
+  - the standard terms in force at creation;
+  - every product addendum for the products originally on the order;
+  - the order- and customer-specific substitutions shown to the customer.
+- **What later changes do:**
+  - Edits to company terms, product terms, product data or pricing apply only to orders created afterwards.
+  - Removing a product never removes its addendum.
+  - Additions are separate orders (a related order or an Order Enhancement), each with its own agreement and acceptance.
+- **So an agreement never goes stale.** A signature is compared only with the order's own frozen agreement, never with current templates. There are no amendments and no re-signing after template changes.
 
-### 0.2 What the Terms content is — determined, not assumed
+### 0.2 Where the freeze happens today (confirmed)
+- **The freeze point already exists.** It is `Front/Checkout/PostController`, the one code path that creates orders with products:
+  - public web checkout;
+  - admin checkout via impersonation;
+  - reorders, which are related orders with `reference_order_number` and their own sequential number.
+- **The mobile app's place-order endpoint is retired** (`Url.retired("place-order")`).
+- **Inside that transaction** (`DB::beginTransaction()` line 128 … `DB::commit()` line 796):
+  1. The order row is created (`$customer->orders()->create(...)`, with `customer_name = $customer->full_name`).
+  2. Every order product is created.
+  3. Then, at lines 611-619:
+     - `$order->load(['products.product.terms'])` and `TermsContentHelper::generateTermsContent($order)`;
+     - **`terms_collection`** = the merged, ordered entries `{id, unique_id, title, content, signature_block, is_global}` (the global terms first when any original product `is_general_term_type`, then each product's attached terms, deduplicated);
+     - **`pending_terms_content`** = the rendered body;
+     - `terms_status = Pending`;
+     - `saveQuietly()`.
+- **This is the business-level creation point, after the original products are attached, inside the creation transaction.** Phase 5 keeps it; it does not move or re-run it.
+- **Nothing rewrites the stored copy afterwards.** No code writes `terms_collection` or `pending_terms_content` after checkout.
+- **Nothing edits `orders.customer_name` after creation.** It is written only at checkout and copied once into an Order Enhancement at *its* creation. The frozen customer substitution is therefore the order's own column.
 
-| Question | Answer (evidence) |
+### 0.3 Related orders, Order Enhancements and product removal (confirmed)
+- **Reorders** are new checkout orders, so each freezes its own `terms_collection` at its own creation, with its own unique id.
+- **Order Enhancements** (`Admin/…/Orders/Extension/StoreController`) are **charge-only child orders** (`NNNN-A`, `reference_order_number` = parent):
+  - they have no order products and no `terms_collection`;
+  - they never enter the Dispatch working set, because the mission selector needs a Rental order product;
+  - the parent's agreement and signature are never touched.
+  - Under this model, an Enhancement has no stored agreement. Signing one fails safely (§3.5), which is truthful: it has no products and no terms.
+- **Product removal** is a soft delete of the `order_products` row (`SoftDeletes`; Order's `deleting` hook). No removal path reads or writes the stored copy. Because the frozen agreement reads **only the order's own stored columns**, never `order->products`, removal cannot change it.
+
+### 0.4 The existing web-signing defect
+- **The signing page shows today's templates.** `index.blade.php` renders `generateTermsContent($order)`, which rebuilds from the current catalog, with a comment saying it does so deliberately.
+- **The acceptance records the order's copy.** `PostController` writes `accepted_terms_content` from `terms_collection`.
+- **The fix is not to record the live terms.** It is:
+  1. load the frozen agreement;
+  2. display it;
+  3. record acceptance of that same agreement and identity.
+- The phone path uses the same source (§3).
+
+### 0.5 Other facts that shape the design (from the first inspection, still true)
+- **The signing page is a public, CSRF-protected web route.** There is no terms content API and no API-authenticated acceptance endpoint.
+- **The phone never holds the signature today.** The hosted page in a `WKWebView` submits it itself. The existing `terms.accept` op only posts `update-delivery-pickup-inputs`, which records `order_products.{delivery|pickup}_tnc_status`, a column nothing reads.
+- **T&C is Delivery-only and order-level** (`LegCompletionRequirements`). Any durable `terms.accept` op satisfies it today.
+- **The Sync Engine:**
+  - enqueue is durable before it returns, and ops survive force-quit and restart;
+  - assets are kept until acknowledgment, and needs-attention assets until a person discards them;
+  - it never deduplicates;
+  - `retryable:false` gives Needs Attention;
+  - ops carry no tenant.
+- **`TermsService` documents that acceptance is four columns on the order,** with no terms or signature record (pinned by `TermsRequestEmailTest`). Phase 5 keeps that rule: acceptance stays on the order.
+- **The manifest runs 438 of its 450-statement ceiling** at 50 missions.
+- **The app bundles no web resources today.** Its only native pad is the landscape checklist `EPSignatureView`.
+
+---
+
+## 1. Approach
+1. **One server object, `TermsAgreement::forOrder($order)`**, reads **only the order's stored copy** (`terms_collection`, `customer_name`, `unique_id`, `terms_status`). It never reads templates, products or settings. It yields either:
+   - an **available** agreement with a deterministic, version-prefixed identity; or
+   - an explicit **unavailable** reason for an order without a trustworthy stored copy.
+2. **The web page, the mission package, a small live endpoint and the acceptance write all use it.** No signing screen rebuilds an existing order's agreement.
+3. **The phone** renders the packaged (offline) or freshly fetched (online) agreement in the existing T&C screen, as **inert content** in an app-owned local page with the bundled signature pad. It verifies the identity from the payload before showing anything.
+4. **Signing** writes a durable Sync Engine op `terms.sign` (signature + identity), which satisfies T&C locally at once and syncs later.
+5. **Laravel accepts only an exact match of order and identity.** Anything else is a verification or data-integrity failure, never "terms updated".
+
+---
+
+## 2. The frozen agreement and its identity
+
+### 2.1 What is frozen, and from where
+| Part | Source (stored on the order) |
 |---|---|
-| Generated dynamically? | **Yes.** While Pending, the page renders `generateTermsContent($order)` from **live** rows on every view. |
-| Stored HTML/text? | Admin-authored rich **HTML** in `terms_and_conditions.content` / `.signature_block`, with the placeholder shortcodes above. |
-| A PDF/document? | **No.** There is no PDF anywhere in the terms path. |
-| Company-configurable? | **Yes.** It is per Kabba customer instance (its own database): Configurations → Terms & Conditions, plus the header lines in Branding settings. |
-| Versioned today? | **No.** Terms rows are edited in place (`UpdateController` → `fill()->save()`) and hard-deleted (`DeleteController`). There is no version, revision or hash for rental terms anywhere in `app/`, migrations or tests. (`LoyaltyTermsVersion` is a separate, immutable, published-version model for loyalty terms only; nothing references it here.) |
-| Different by order? | **Yes, by product mix.** The global terms (the first `is_global='Yes'` row) are included only if some product on the order `is_general_term_type`. Each product's attached terms (`product_terms_children`) are then merged, deduplicated by id. |
-| Different by customer? | **Yes, in rendering only.** The signature block prints the order's `customer_name`. |
-| Different by location/store? | **No.** Terms have no store scoping. |
-| Different by company? | **Yes.** Each company has its own rows and settings. |
+| Standard terms + product addenda, in order | `orders.terms_collection` entries: `is_global`, `content`, `signature_block`. `id`, `unique_id` and `title` are not rendered and are left out of the identity. |
+| Customer substitution (`[customer_name]` in the signature block) | `orders.customer_name`, or `"Customer"` when null. This is exactly what the checkout render and the acceptance render substitute, and it is written only at creation. |
+| Order binding | `orders.unique_id` |
 
-### 0.3 The live page and the stored acceptance already disagree (online)
-- The page shows the **live** terms. A Blade comment says so on purpose: `{{-- {!! $order->pending_terms_content !!} commented because before sign user may check latest update terms and then he can sign --}}`.
-- `PostController` records `accepted_terms_content` from **`$order->terms_collection`**, the checkout-time snapshot (`Front/Checkout/PostController.php:616`).
-- **So today, if the office edits the terms after checkout, the customer views B and the order records acceptance of A.** That is the core rule's failure in reverse, already live online. Phase 4 §10 flagged it.
-- `PostRequest` also decides whether approvals are required from `pending_terms_content`, the checkout snapshot, not from what was shown.
+**Not part of the agreement (page chrome):**
+- the Rental Agreement header lines;
+- the order number line and instructions;
+- the approval-checkbox and sign-button widget markup.
 
-### 0.4 Completion rules today (mobile)
-- **T&C is a Delivery-only requirement** (`LegCompletionRequirements` matrix). Return ignores it as historical.
-- **It is an order-level fact.** It is satisfied by the server's `terms_status` Accepted/Exempt, or by **any** durable `terms.accept` op for the order, in any retained state (`EffectiveFieldState.termsSatisfied`, `LegCompletionEvaluator.orderScoped`). A needs-attention op gives `satisfiedNeedsAttention`, which lets the driver proceed with the sync-attention treatment.
-- **The evidence is revision-less today.** Once the office changes the terms, a signature of A cannot be told apart from one of B on the phone.
-- **The Warning override** (`WarningViewController` → `fulfillment_inputs.update`, `complete_leg=false`) records a reason in `delivery_tnc_status` when T&C is missing. Phase 5 leaves it unchanged. Its reasons already include "No Internet / Cellular Service", which Phase 5 is meant to make unnecessary.
-- **Order Details' in-memory "Accepted" flip (`termsSucess`) is overwritten** when the screen reappears and reloads its cached order. Only the durable op keeps T&C lit offline.
-
-### 0.5 Sync Engine facts that shape the design
-- **Durable enqueue.** `enqueue` persists before it returns (atomic write, `completeUntilFirstUserAuthentication`), and operations survive force-quit and restart (`syncing` is reset to `pending`).
-- **Assets.** They are stored under `assets/<scope>/`, sent as multipart parts named by `fieldName`, and kept after acknowledgment unless the handler opts in to deletion. Needs-attention assets are deleted only by a person's **Discard**.
-- **Responses.**
-  - `error.retryable=false` → Needs Attention.
-  - 409 without `retryable` → Needs Attention.
-  - 5xx/429/transport → retry with backoff, never exhausted.
-- **Idempotency and ordering.**
-  - Idempotency is the server's job (`X-Operation-Id` + `operation_id`). The engine **never deduplicates**, so the screen must never enqueue twice for one signing.
-  - Operations send FIFO per `orderingKey` = order product, else order.
-- **No tenant field on operations** (accepted deferred risk, §10.1).
-
-### 0.6 The package today
-- **`terms` = `{status, page_url, offline_content_available: false}`**, with the comment "Phase 5 adds the versioned offline Terms snapshot". `DispatchOfflinePackagesTest` pins `offline_content_available === false`.
-- **The mission revision** covers `terms_status` only (through `dispatch.order.terms_status`). A Terms content edit changes no revision.
-- **The manifest** runs 438 of its 450-statement cap at 50 missions.
-
-### 0.7 Mobile rendering dependencies
-- The app bundles **no** HTML/CSS/JS resources.
-- It uses no `loadHTMLString`, `WKUserContentController`, `WKScriptMessageHandler` or `evaluateJavaScript`.
-- The storyboard web view has default configuration, and its only outlet is `objWebKit`.
-- The only native signature pad is the checklist's `EPSignatureView`: landscape, JPEG, one image per screen.
-
----
-
-## 1. Approach — the existing T&C screen, made local-first
-
-1. **One canonical Terms document per order**, built by one server builder from the **same** source the signing page renders. It has an immutable, content-addressed **revision**. The mission package (Delivery missions whose terms are Pending) and a small live endpoint both carry it.
-2. **The same screen** (`TermsAndConditionViewController` and its `WKWebView`) renders that document **locally**: the same `#terms-dynamic-content` markup, the same inline approval checkboxes, the same signature_pad library. This happens offline from the cached document, and online from a freshly fetched one (P5-D3).
-3. **Signing is local-first:** signature → a durable Sync Engine op `terms.sign` (the signature file plus the revision) → T&C is treated as satisfied locally → the op syncs.
-4. **Laravel decides per revision.** It records acceptance **only** of the revision that is current when the signature arrives. Anything else is kept (on the phone) and surfaced as Needs Attention, never relabelled (P5-D4/D5).
-
-There is no second signing workflow, no second checklist cache and no generic document storage.
-
----
-
-## 2. The canonical Terms identity (P5-D1)
-
-### 2.1 The revision
-`revision` = SHA-256 (64 lowercase hex, the mission-revision format) of this canonical JSON, encoded with the mission revision's `json_encode` flags:
-
+### 2.2 Canonicalization (`kabba-order-terms` v1, documented in code and in `MOBILE_API_CONTRACT.md`)
 ```
-{
-  "schema": 1,
-  "header": [text_1|null, text_2|null, text_3|null],          // Branding settings; "" → null
-  "terms":  [ { "unique_id", "is_global", "content", "signature_block" }, … ]
-                                                               // exactly generateTermsArrayFromOrder(), in its order
-}
+identity = "v1:" + lowercase-hex( SHA-256( canonical_bytes ) )
+
+canonical_bytes = UTF-8 of, each line ending in "\n":
+  kabba-order-terms:v1
+  order:<L>:<order_unique_id>
+  customer_name:<L>:<substituted customer name>
+  entries:<N>
+  then for i = 0 … N-1, in stored order:
+    entry:<i>
+    is_global:<1|0>
+    content:<L>:<content>
+    signature_block:<L>:<signature_block>
 ```
+- **`<L>`** is the UTF-8 **byte** length of the value that follows. The length prefix makes the encoding unambiguous with no escaping.
+- **Line endings in every value are normalized** (CRLF and lone CR → LF) *for hashing only*. Stored contents are never changed.
+- **Null and `""` are equivalent**, as they are to the renderer. There is no trimming and no Unicode normalization.
+- **The identity never depends on rendered HTML,** browser DOM, attribute order, widget markup or image availability.
+- **It is bound to the order by construction:** two orders with identical text have different identities, so a related order or Enhancement can never share one.
+- **A shared test vector** (`tests/Fixtures/mobile-contract/terms_agreement_identity.json`, copied into the mobile tests) pins PHP and Swift to the same bytes. It covers non-ASCII text, CRLF, and null/empty values.
 
-- **Content-addressed:** identical inputs give the identical revision, so **A → B → A returns revision A** (required case 5).
-- **Server-issued:** only the server computes it, in the manifest, the package and the live endpoint, and it compares it by recomputation when a signature arrives.
-- **Immutable:** a revision string can only ever mean one content.
-- **In:** everything that changes what the customer reads or signs:
-  - a Terms row's content or signature block;
-  - attaching or detaching a product's terms;
-  - global inclusion flipping (the product mix);
-  - a header line.
-- **Out:** fields that are not rendered (title, SEO fields, row ids other than `unique_id`), and the **customer name**, which is order data and not the terms. A name correction therefore does not make a signature stale.
+### 2.3 Legacy and malformed orders (fail safe, never rebuilt)
+`TermsAgreement::forOrder` returns **unavailable** with a stable reason, and never substitutes current templates, when:
 
-### 2.2 The content hash
-- **`content_sha256`** = SHA-256 of the exact rendered `content_html` (this includes the customer name).
-- The phone (App layer, CryptoKit) **verifies it before displaying** a document. It never shows bytes other than the ones the server issued.
-- The phone keeps each signed revision's document, with its content hash, as local evidence (§4.2).
+| Reason | Condition |
+|---|---|
+| `no_stored_agreement` | `terms_collection` is null. Orders from before the snapshot column (2025-08-01) and Order Enhancements. |
+| `malformed_stored_agreement` | Not a list; an entry that isn't an object; `is_global` not a boolean; `content`/`signature_block` not string or null; invalid UTF-8. |
+| `empty_agreement` | The list is empty (no terms applied at creation). There is nothing to sign, so it is reported, not silently accepted. |
 
-### 2.3 Why no revision table
-- Recording acceptance only when the presented revision **equals** the current one means the server never needs to recall an old revision's text. Equal hash means equal rendering inputs, so the server renders the accepted content from the current rows, exactly as the page did.
-- Any other revision is refused and kept on the phone (P5-D5), so nothing server-side needs an old version.
-- This keeps `TermsService`'s documented rule ("no terms agreement record … no signature record … the whole lifecycle is four columns on the order", pinned by `TermsRequestEmailTest::test_neither_transport_creates_a_terms_or_signature_record_of_its_own`).
-- **One additive column** makes the order's acceptance self-describing: `orders.accepted_terms_revision` (nullable `string(64)`, no timestamp), written on every acceptance recorded after Phase 5.
+- **Any order with a valid stored copy is treated as immutable** and identified from its existing contents, whenever it was created.
+- **Reporting:**
+  - the API and web page state the reason;
+  - a phone's attempt raises the existing Mobile Sync Issue;
+  - `php artisan terms:agreement-audit` (**read-only**, no secrets) counts Pending orders by agreement status and reason, so the effect can be measured before any deploy.
+
+### 2.4 Immutability backstop
+The Order model refuses (throws on `updating`) any change to `terms_collection`, `pending_terms_content` or `customer_name` once `terms_collection` is set. Checkout's first write, from null, is unaffected, and so is `saveQuietly`. No existing code path makes such a change; the guard is there so that a future one fails loudly rather than silently changing an agreement.
 
 ---
 
 ## 3. Backend design
 
-### 3.1 `App\Services\Terms\TermsDocument` (the one builder)
-- **`forOrder(Order): TermsDocument`** is built **only** from `TermsContentHelper::generateTermsArrayFromOrder()` plus the Branding header lines. The global-terms row and the header settings are memoized per builder instance, so the manifest reads them once.
-- **What it returns:**
-  - `revision()`;
-  - `contentHtml(customerName)`, which is `generateTermsContentFromArray(...)['terms_content']`;
-  - `contentSha256()`;
-  - `approvalsRequired()`, the number of approval placeholders in product terms;
+### 3.1 `App\Services\Terms\TermsAgreement`
+- **Status:**
+  - `available`: Pending with a valid stored copy;
+  - `unavailable`: Pending, with a reason from §2.3;
+  - `not_required`: Accepted or Exempt;
+  - `not_signable`: Declined, which no code writes today.
+- **Accessors:**
+  - `identity()`, the canonical form in §2.2;
+  - `entries()`;
+  - `customerName()`;
+  - `approvalsRequired()`, the count of `[customer_approval][/customer_approval]` placeholders in non-global entries, which is what the renderer turns into required checkboxes;
+  - `contentHtml()`, which is `TermsContentHelper::generateTermsContentFromArray(entries, customerName)['terms_content']` (the web page body);
+  - `acceptedContentHtml($signature)`, which is `generateAcceptedTermsContentFromArray(...)`;
   - `toArray()`, the wire shape in §3.2.
-- **Used by:**
-  - the package section;
-  - the live endpoint;
-  - the mission revision (Pending orders only);
-  - the acceptance service;
-  - the signing page itself if P5-D2 is approved.
-- **Parity test:** `contentHtml` is **byte-identical** to `generateTermsContent($order)['terms_content']`, which is exactly what the signing page prints inside `#terms-dynamic-content`, ahead of its SUBMIT button. The test reads it from the served page.
+- **Reads only order columns:** no queries beyond the order row.
 
-### 3.2 Package and live contract
-**`terms` on a Delivery package whose order's terms are Pending.** The `status`/`page_url` keys stay as they are:
-
+### 3.2 Wire shape of `terms` (package, and the live endpoint)
 ```json
 "terms": {
   "status": "Pending",
   "page_url": "https://…/terms-and-conditions/ORD…/mobile",
   "offline_content_available": true,
-  "document": {
+  "agreement_status": "available",
+  "unavailable_reason": null,
+  "agreement": {
+    "identity": "v1:<64 hex>",
     "order_unique_id": "ORD-…",
-    "revision": "<64 hex>",
-    "content_sha256": "<64 hex>",
-    "header": ["Rental Agreement", null, null],
     "order_number": "#1234",
     "customer_name": "Jane Doe",
-    "content_html": "<div>…</div>",
-    "approvals_required": 2
+    "approvals_required": 2,
+    "entries": [ { "is_global": true, "content": "…", "signature_block": "…" } ]
   }
-},
-"sections": { "order_details": "ok", "assembly": "ok", "terms": "ok" }
+}
 ```
+- **`order_number` is presentation only** and is not part of the identity.
+- **When `agreement_status` is not `available`:** `agreement: null`, `offline_content_available: false`, and `unavailable_reason` is set for `unavailable`.
+- **Package sections:** `sections.terms` is `ok` | `unavailable` | `not_applicable` | `failed`.
+  - `not_applicable` covers terms that aren't Pending, and every Return package.
+  - `failed` means an isolated build exception, exactly like Phase 4's sections.
+  - The agreement is built once per order in `withOrderSections`, **for Delivery packages only**.
+- **Mission revision:** the seed gains `terms` = the identity (Pending and available), `"unavailable:<reason>"`, or `null`.
+  - The value is frozen, so it never churns. `terms_status` is already covered through `dispatch.order`.
+  - It adds **0** manifest statements: the value comes from columns of the already-loaded order.
+- **Live `GET api/admin/v1/orders/terms/{orderUniqueId}`** (`auth:api_user`, read-only) returns `{success, data: <terms>}` for any order. A parity test proves it equals the package's `terms`.
 
-- **Terms Accepted / Exempt / Declined, or a Return package:** `document: null`, `offline_content_available: false`, `sections.terms: "not_applicable"` (P5-D7).
-- **Build failure:** the section is isolated exactly like Phase 4's sections. It gives `document: null`, `sections.terms: "failed"`, and the rest of the package is unaffected. It is reported server-side with no exception detail.
-- **Built once per order** in `withOrderSections`, after every requested mission's `buildContext()`.
-- **Mission revision:** the seed gains `terms` = `TermsDocument::revision()` when the order's terms are Pending, otherwise `null`. A Terms edit therefore reaches offline phones through the normal manifest → wake → package path, while Accepted/Exempt orders never churn.
-  - The selector adds `order.products.product.terms` to its eager loads.
-  - Expected manifest cost: +4 statements (438 → about 442; the cap of 450 is unchanged, P5-D11).
-- **Live endpoint `GET api/admin/v1/orders/terms/{orderUniqueId}`** (`auth:api_user`) returns `{success, data: <the same terms object>}` for any order. It is read-only and uses the same builder. A parity test proves it equals the package's `terms` exactly.
-
-### 3.3 Acceptance endpoint `POST api/admin/v1/orders/terms/{orderUniqueId}/accept`
-The Sync Engine op `terms.sign` posts here. It is multipart and wrapped in `MobileOperationService` with ledger type `terms.sign`.
+### 3.3 Acceptance `POST api/admin/v1/orders/terms/{orderUniqueId}/accept` (op `terms.sign`)
+The request is multipart, wrapped in `MobileOperationService` with ledger type `terms.sign`.
 
 | Field | Rule |
 |---|---|
-| `order_product_unique_id` | required; must belong to the order |
-| `leg` | `delivery` \| `return` |
-| `terms_revision` | required, 64 hex |
+| `terms_identity` | required, `v1:` + 64 hex |
+| `signature_media` | required image (png/jpeg), max 2 048 KB |
 | `approvals_confirmed` | required integer ≥ 0 |
-| `signature_media` | required image (png/jpeg), max 2 048 KB (the checklist signature rule) |
-| `signature_client_media_id` | nullable, the media id format |
-| `captured_at`, `operation_id` | the existing mobile contract |
+| `order_product_unique_id` | nullable. When present it must belong to the order, and it records that line's `tnc_status` |
+| `leg` | nullable, `delivery` \| `return` |
+| `signature_client_media_id`, `captured_at` (device signing time), `operation_id` | the existing mobile contract |
 
-- **The request is validated before anything is written.** An unknown order (for example another company's uid, §10.1) or a product from another order is rejected as a terminal 422/404, and **nothing is stored**: no ledger row, no sync issue, no file.
+- **An unknown order is refused before any write** (404; no ledger row, no issue, no file).
 
-`TermsAcceptanceService::accept()` runs in one transaction with the order row locked (`lockForUpdate`, which serializes a web signing and a phone signing). The rows are checked in this order:
+`TermsAcceptanceService` locks the order row (`lockForUpdate`) and checks, in this order:
 
-| Order state when the op arrives | Outcome | Writes |
+| Order state | Outcome | Writes |
 |---|---|---|
-| Already Accepted (web, or another phone) | **200 `already_accepted`** | none, and no second history row |
+| Accepted | **200 `already_accepted`** | none (one acceptance per order) |
 | Exempt | **200 `not_required`** | none |
-| Pending, and `terms_revision` ≠ current. The same answer covers Declined, which no code writes today and which has no signable document. | **409 `TERMS_REVISION_STALE`, `retryable:false`**, `data.current_revision` | **None to the order.** The existing ledger path raises an order-scoped Mobile Sync Issue ("Customer Signature / Terms"). |
-| Pending, revision current, `approvals_confirmed` < `approvals_required` | 422 terminal | none |
-| Pending, revision current, approvals complete | **200 `accepted`** | See the list below. |
+| Declined, or agreement `unavailable` | **409 `TERMS_AGREEMENT_UNAVAILABLE`**, `retryable:false`, `data.reason` | none |
+| `terms_identity` ≠ the order's frozen identity | **409 `TERMS_IDENTITY_MISMATCH`**, `retryable:false`, message **"Unable to Verify Order Terms — Refresh the Order Before Signing"** | none |
+| `approvals_confirmed` < `approvals_required` | 422 terminal | none |
+| Exact match | **200 `accepted`** | See the list below. |
 
 On `accepted`, the service writes:
-- the same four columns the web path writes:
+- on the order:
   - `terms_status=Accepted`;
   - `signature_image` = `data:image/png;base64,…` (the web format);
-  - `accepted_terms_content` = `generateAcceptedTermsContentFromArray(current terms, customer_name, signature)`;
-  - `terms_accepted_at` = the resolved `captured_at` (P5-D8);
-- plus `accepted_terms_revision`;
-- the line's `{delivery|pickup}_tnc_status='accepted'` (what the thank-you `terms.accept` op records today);
-- `OrderTermsSignedEvent` once, whose history row gets source Api.
+  - `accepted_terms_content` = `acceptedContentHtml`;
+  - **`terms_accepted_at = now()`**, the authoritative server acceptance time;
+  - **`terms_customer_signed_at = captured_at`** (device signing time, clamped by `MobileTimestamps`), stored as customer-action metadata;
+- the line's `{delivery|pickup}_tnc_status='accepted'`, when a line was given;
+- `OrderTermsSignedEvent` once.
 
-**Idempotency comes in two layers:**
-1. The ledger replays the stored acknowledgment for the same `operation_id`. A lost response converges.
-2. The business rule: an already-accepted order answers `already_accepted`.
+**Idempotency and binding:**
+- The ledger replays the original 200 for the same `operation_id`, so a lost acknowledgment converges to the same success.
+- A different op id on an accepted order gets `already_accepted` and changes nothing.
+- The row lock serializes a web signing and a phone signing.
+- A signature only ever lands on the order named in the URL, and only when that order's own frozen identity equals the submitted one. It can never count for another order, including a related order or Enhancement.
 
-A retry of a stale op after the office has resolved things re-executes (rejected ledger rows are re-claimable). It then converges to `accepted` (terms back at A) or `already_accepted` (B was signed).
+**Registry entries:**
+- `ApiErrorCode` gains `TermsIdentityMismatch` and `TermsAgreementUnavailable` (409, not retryable).
+- `MobileSyncIssue::ACTIONABLE_OPERATION_TYPES` gains `terms.sign`, labelled "Customer Signature / Terms". A terminal rejection raises an order-scoped issue through the existing path.
 
-**New codes and registry entries:**
-- `ApiErrorCode::TermsRevisionStale` (409, not retryable), with a translation next to `checklist_execution_superseded`.
-- `MobileSyncIssue::ACTIONABLE_OPERATION_TYPES` gains `terms.sign`, labelled "Customer Signature / Terms".
+### 3.4 Web signing correction
+- **`IndexController` + view:**
+  - A Pending order with an available agreement renders `TermsAgreement::contentHtml()`, the frozen copy, never `generateTermsContent($order)`, plus `<input type="hidden" name="terms_identity">`.
+  - An unavailable agreement shows "We can't display the terms for this order. Please contact us." with no form.
+  - A non-Pending order shows `accepted_terms_content`, unchanged.
+- **`PostRequest`:**
+  - `terms_identity` is required;
+  - the approval rule reads `approvalsRequired()` from the frozen copy instead of searching `pending_terms_content`.
+- **`PostController` → the same service (web channel):**
+  - an exact match writes as today (the frozen copy, `terms_accepted_at=now()`, the event, the signed thank-you URL);
+  - a mismatch or a missing identity (a page opened before the deploy) gives 409 `{success:false, message:"Unable to verify order terms. Please refresh the page before signing."}`;
+  - unavailable gives 409 with the unavailable message;
+  - already accepted returns success with the thank-you URL and **no second write**.
+- **Unchanged:** the `terms.accept` ledger type for web posts that carry an `operation_id`, and the four-column record.
 
-### 3.4 The web signing path (P5-D2, recommended)
-- **`IndexController`/view** render the body from `TermsDocument` (byte-identical by the parity test) and add `<input type="hidden" name="terms_revision">`.
-- **`PostController`** calls the same service on its web channel:
-  - revision equal to current → record as today, but `accepted_terms_content` from the **displayed** (current) document instead of `terms_collection`, plus `accepted_terms_revision`;
-  - revision different → 409 `{success:false, message:"These terms were updated while this page was open. Please review the updated terms and sign again."}` (`apiFetch` shows the message);
-  - revision missing (a page loaded before the deploy) → treated as current.
-- **`PostRequest`'s approval rule** reads the current document's `approvals_required` instead of `pending_terms_content`.
-- **Unchanged:** the ledger type `terms.accept`, `terms_accepted_at=now()`, the event and the response. `terms_collection` and `pending_terms_content` are not touched: checkout still writes them, and the admin view and reports still read them.
-
-### 3.5 Required freshness cases — server behavior
-
-| # | Case | Outcome |
-|---|---|---|
-| 1 | Phone downloads A; customer signs A offline; server still A at sync | **Accepted** (A recorded; `accepted_terms_revision`=A). |
-| 2 | Phone downloads A; server changes to B **before** the customer signs A offline | **Preserved + Needs Attention; re-signing B required.** 409 stale; the order stays Pending; the Mobile Sync Issue is raised; the phone keeps the A signature (P5-D5). |
-| 3 | Customer signs A offline; server changes to B **before** the sync arrives | **Same as case 2** (P5-D4: the server cannot order the events with a trustworthy clock). |
-| 4 | A's acceptance reached the server; the acknowledgment was lost; the phone retries | **Idempotent replay** (the ledger's stored 200, `X-Idempotent-Replay`); nothing re-executes. |
-| 5 | Content returns to an earlier identical revision (A → B → A) | **Accepted**: the revision is content-addressed, so the current revision is A again. |
-| — | Already accepted by another channel | `already_accepted`; the phone is satisfied by server truth. |
-| — | A later retry of a case 2/3 op | Converges as §3.3 says. The original signature is never deleted by the server's answer. |
-
-**Re-sign flow for cases 2 and 3.**
-- The order stays Pending, so the existing automatic Terms SMS/email reminders keep asking the customer to sign the **current** terms on their own device.
-- The office sees the Mobile Sync Issue.
-- If the delivery is still in the phone's working set, the next package brings B, and the T&C tile shows unsigned again so the customer can sign B on the phone. A itself never satisfies B (§4.4).
+### 3.5 Required behavior matrix (server)
+| Case | Result |
+|---|---|
+| Order created with frozen agreement A; A is signed | **Accepted** |
+| Company templates later change A → B | The order stays A; a signature of A is **accepted** |
+| Templates change before the customer signs | The order still displays and accepts A (web and phone) |
+| Templates change after signing, before sync | The order still accepts A |
+| Templates change A → B → A | No effect on the order |
+| A product is removed from the order | The agreement is unchanged, including that product's addendum |
+| A related order (reorder) is created | It has its own frozen agreement and identity and needs its own acceptance; the original is untouched |
+| An Order Enhancement is created | It has no stored agreement (no products), so it is `unavailable: no_stored_agreement` and nothing is signed against it; the parent's agreement and signature are untouched |
+| A successful acknowledgment is lost | The retry is idempotent and returns the original success |
+| A signature is submitted with another order's identity | Rejected, `TERMS_IDENTITY_MISMATCH`, no acceptance write |
+| The packaged identity doesn't match the order's frozen identity | Rejected as the same verification/data-integrity failure |
+| Current web templates differ from the order's snapshot | Web signing displays and records the snapshot |
+| A legacy order has a trustworthy stored copy | Its content is preserved and identified without regeneration |
+| A legacy order lacks a trustworthy stored copy | Signing fails safely (`unavailable`); no templates are substituted |
 
 ---
 
 ## 4. Mobile design
 
 ### 4.1 Components
-**Core (Foundation only, `swift test`):**
-- **`TermsDocument`:** the model and decoder for `terms.document`, used by both the package and the live endpoint. It validates the revision and hash format, requires a non-empty body, and matches `order_unique_id` against the package's order.
-- **`TermsDocumentStore`:**
-  - Tenant-scoped and protected, following the Amendment B pattern: `<KabbaSync>/terms-documents/<tenantKey>/<orderUid>/<revision>.json` plus a newest-copy pointer.
-  - It keeps every revision it received. Nothing is pruned in Phase 5, so a signed revision's document stays on the phone as evidence.
-  - Freshness is a new per-cache stamp `terms` in the Phase 4 field ledger: the newest request time wins, whether a package or a live fetch wrote it.
-- **`DispatchOfflinePackageSections.terms`** and **`DispatchOfflinePackageContent.termsDocument`.**
-- **`DispatchOfflineFieldBridge`:**
-  - A `terms` section state is added to the ledger's `Mission` (`decodeIfPresent`; an absent state is re-bridged idempotently).
-  - It writes the store under the ledger lock when `sections.terms == ok`.
+**Core (`swift test`; Foundation plus CryptoKit, a system framework, no UIKit):**
+- **`TermsAgreement`:**
+  - the model and decoder for `terms.agreement`, plus `agreement_status` and `unavailable_reason`;
+  - `canonicalBytes` and `identity` (§2.2);
+  - `isVerified` = the recomputed identity equals the supplied identity, and `order_unique_id` matches the order being signed.
+- **`TermsAgreementRenderer`:**
+  - builds the body the same way `generateTermsContentFromArray` does (the global content with the product addenda substituted, then the signature block);
+  - uses **inert markers** (`<span data-kabba-approval>`, `<span data-kabba-sign>`) in place of widgets;
+  - HTML-escapes the customer name.
+  - Its output is presentation only; it is never hashed.
+- **`TermsAgreementStore`:**
+  - tenant-scoped and protected (the Amendment B pattern): `<KabbaSync>/terms-agreements/<tenant>/<orderUid>/<identity>.json` plus a newest pointer;
+  - stores **verified agreements only**, and keeps each one (no pruning);
+  - its freshness is the ledger's per-cache `terms` stamp (newest request time wins), written by the bridge or by a live fetch pinned to the requesting company.
+- **Contract and bridge:**
+  - `DispatchOfflinePackageSections.terms` (ok / unavailable / not_applicable / failed) and `DispatchOfflinePackageContent.termsAgreement`.
+  - `DispatchOfflineFieldBridge` adds the ledger `terms` state and writes the store under the ledger lock only when the agreement verifies. An agreement that doesn't verify is `.invalid` (retryable at the same revision). `unavailable` is a new settled, non-retryable state.
 - **Readiness (Amendment A):**
-  - A **Delivery** mission is field-ready only when context + order_details + assembly + **terms** are satisfied or not applicable.
-  - A `failed`/`invalid` terms section is retried at the same revision.
-  - **Return readiness is unchanged.** A pre-Phase-5 server (no `sections.terms`) gives `notProvided`: settled, never retried, and T&C stays "needs a connection" as in Phase 4.
+  - Delivery = context + order_details + assembly + terms satisfied or not applicable. An `unavailable` agreement means the Delivery is not fully prepared, and not retried either.
+  - Return is unchanged.
+  - A pre-Phase-5 server (no `sections.terms`) gives `notProvided`: settled, and T&C behaves as in Phase 4.
 - **`TermsSignOperations`:**
-  - `TermsSignCapture` holds the order, order product, leg, revision, `approvals_confirmed`, employee, order number and `capturedAt`.
-  - `TermsSignOperationBuilder.enqueue(_:signaturePNG:into:)` stores the signature as an asset: scope `terms-<order>`, `signature_media`, `image/png`.
-  - `TermsSignRequestFactory` builds the POST, adding the `X-Operation-Id` header plus `operation_id` and `captured_at` in the body.
-- **`EffectiveFieldState` / `LegCompletionEvaluator`** apply the revision-aware rule in §4.4. `LegCompletionInputs` gains `termsRevision` (the store's newest revision for the order).
+  - the capture holds the order, identity, approvals confirmed, line + leg, employee, order number and `capturedAt`;
+  - it is enqueued with a **PNG** asset (`terms-<order>`, `signature_media`);
+  - the request is the POST in §3.3 with `X-Operation-Id` + `operation_id` + `captured_at`.
+- **`EffectiveFieldState` / `LegCompletionEvaluator`:** the rule in §4.4. `LegCompletionInputs` gains `termsIdentity` (the store's verified identity for the order).
 
 **App:**
-- **`TermsSigningShell`:**
-  - A bundled local page composed at runtime from resource files: HTML skeleton, CSS subset, shell JS, and vendored `signature_pad` 5.x UMD with its MIT license (P5-D6). It reproduces the hosted page's header, order line, instruction, `#terms-dynamic-content` body, SUBMIT and signature modal.
-  - **The page can only talk to native.** A CSP meta allows only the shell's nonce-tagged scripts (`default-src 'none'; script-src 'nonce-…'; style-src 'unsafe-inline'; img-src data: https:; connect-src 'none'`), so a script inside admin-authored content cannot run or post a fake signing.
-  - Buttons are bound by id; the content's inline `onclick` attributes are inert.
-  - **Submit** requires `form.reportValidity()` (every approval checkbox) and a signature, disables itself, and posts `{signature: <PNG data URL>, approvals_confirmed, revision}` to the `kabbaTermsSigned` message handler.
-- **`TermsAndConditionViewController` (the same screen):**
-  - The presentation states (§4.3) come from a pure resolver.
-  - Local documents load with `loadHTMLString` (base URL nil).
-  - The screen adds the message handler through a weak proxy.
-  - It allows only the initial local load and cancels any other navigation. It no longer force-unwraps `navigationAction.request.url`.
-  - **On a signing message**, it validates that the revision equals the rendered document's and that the data is a PNG under 2 MB, then enqueues `terms.sign`. Once that returns (durable), it shows the existing status toast, calls the existing `termsSucess`, and pops, exactly like the thank-you path.
-  - **If the enqueue fails**, it says the signature could not be saved on this phone and flips nothing.
-- **`TermsDocumentClient`:** the live `GET orders/terms/{uid}` on screen open when reachable. That one request replaces today's hosted-page load; there is no polling. The company is captured when the request is sent (the Phase 4 live-save rule), and the result is saved through `saveLiveCopy(.terms, …)`.
-- **`TermsSignSyncHandler`**, registered with `KabbaSync` next to `TermsAcceptSyncHandler`.
-- **Order Details / Order List** pass the order's `terms_status` to the screen. Order Details feeds `termsRevision` into its leg-completion inputs. The existing leg/product rules for the screen's ids are unchanged.
-- **`EmptyDataView`** gains copy for the new states.
+- **Signing shell** (bundled resources `RentnKing/Resources/TermsSigning/`):
+  - `terms-signing.html`, `.css`, `.js`, and `signature_pad.umd.min.js` 5.0.10 (the site's own library, MIT, license file included);
+  - loaded with `loadHTMLString` and a nil base URL.
+- **Inert rendering**, enforced in three layers:
+  1. **A strict CSP:** `default-src 'none'; script-src 'nonce-<random>'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'`. This blocks every script the shell didn't bring, **inline event handlers, `javascript:` URLs,** embedded active content and **remote images** (so a missing image never matters and online and offline look the same).
+  2. **The shell sanitizes the body before inserting it:** it parses it with `DOMParser` (an inert document), removes `script`, `iframe`, `object`, `embed`, `link`, `meta`, `base`, `form` and form controls, and every `on*` attribute, `href`, `src` and `srcset` with a non-`data:` scheme or with `javascript:`. Only then does it replace the inert markers with the app's own checkboxes and sign button.
+  3. **Navigation:** `WKNavigationDelegate` allows only the initial local load and cancels everything else. Link clicks are prevented in the page.
+- **The page's controls.** Submit requires every approval checkbox and a signature, then posts `{signature: <PNG data URL>, approvals_confirmed, identity}` to the `kabbaTermsSigned` handler (through a weak proxy) and disables itself.
+- **`TermsAndConditionViewController`** (the same screen):
+  - Its presentation comes from a pure resolver (§4.3).
+  - **On a signing message** it checks that the identity equals the rendered, verified agreement's and that the data is a PNG under 2 MB. Once the durable `terms.sign` enqueue returns, it shows the existing toast, calls `termsSucess` and pops, like the thank-you path.
+  - **If the enqueue fails**, it says so and flips nothing.
+  - It never force-unwraps a navigation URL.
+- **`TermsAgreementClient`:** the live GET on screen open when reachable. That one request replaces the hosted-page load; there is no polling. The result is saved through `saveLiveCopy(.terms, …)`, pinned to the company captured when it was sent.
+- **Other app wiring:**
+  - `TermsSignSyncHandler` is registered next to `TermsAcceptSyncHandler`. `terms.accept` stays for the hosted-page fallback and any already-queued ops; it is not overloaded.
+  - Order Details and Order List pass `terms_status`. Order Details feeds `termsIdentity` into its leg-completion inputs.
+  - `EmptyDataView` gains the new state copy.
 
 ### 4.2 Durable artifacts per signing
 | Artifact | Where |
 |---|---|
-| Signature image (PNG, the same format as the web pad) | Sync Engine asset `assets/terms-<order>/<clientMediaId>.png`, protected; kept until acknowledgment, and while Needs Attention until a person discards the op |
-| Acceptance time | `capturedAt` on the op |
-| Signer | the existing flow has no signer field; the signature block prints the order's customer name, which is in the document |
-| Order / order product / leg | op identity (`orderUniqueId`, `orderProductUniqueId`) + payload `leg` |
-| Exact terms identity | payload `terms_revision`; the document itself (with `content_sha256`) is kept in `TermsDocumentStore` under that revision |
+| Signature (PNG, the web pad's format) | Sync Engine asset `assets/terms-<order>/<clientMediaId>.png`, protected; kept after acknowledgment (as for checklist signatures) and while Needs Attention until a person discards it |
+| Device signing time | op `capturedAt` → `captured_at` |
+| Order identity | op identity `orderUniqueId` (+ `orderProductUniqueId`, the line whose workflow surfaced it) and the URL |
+| Frozen terms identity | payload `terms_identity`; the verified agreement itself is kept in `TermsAgreementStore` under that identity |
 | Approvals | payload `approvals_confirmed` |
 | Idempotency key | the operation id (`X-Operation-Id` + `operation_id`) |
-| Employee | payload `user_id` / identity `employeeId` (the signed-in user) |
+| Employee | payload `user_id`, identity `employeeId` |
 
 ### 4.3 Screen states (one pure resolver, unit-tested)
 | Condition | Shows |
 |---|---|
-| Server truth Exempt | "Terms & Conditions aren't required for this order." |
-| Server truth Accepted | "Terms & Conditions are already accepted for this order." |
-| A durable `terms.sign` op for this order **at the newest known revision** | "Signed on this phone" with its sync state (Pending Sync / Synced / Needs Attention). No second signature can be captured at that revision (the engine does not deduplicate). |
-| A verified document (live when reachable, else cached) | The local signing page |
-| Online, no document, and a valid `page_url` (an older server, or an order this phone never received) | The existing hosted page, unchanged, with its thank-you → `terms.accept` path |
-| Offline, no document (never downloaded, or the section failed) | "Terms & Conditions for this order aren't downloaded to this phone yet. Connect to the internet to load them." — never a blank web view |
-| Online, no document, invalid link | The Phase 4 "aren't available for this order" state |
+| Server `terms_status` Exempt | "Terms & Conditions aren't required for this order." |
+| Server `terms_status` Accepted | "Terms & Conditions are already accepted for this order." |
+| A healthy (pending / syncing / synced) `terms.sign` op for this order **at the verified identity** | "Signed on this phone" with its sync state. No second capture is possible (the engine doesn't deduplicate). |
+| A verified agreement: the live copy when reachable, else the stored one | The local signing page |
+| An agreement that fails verification (identity, or wrong order) | **"Unable to Verify Order Terms — Refresh the Order Before Signing"** |
+| Server `agreement_status` unavailable | "This order has no stored terms agreement to sign. Please contact the office." |
+| Offline, no stored agreement | "Terms & Conditions for this order aren't downloaded to this phone yet. Connect to the internet to load them." |
+| Online, and the server has no agreement endpoint (404: an older server) with a valid `page_url` | The existing hosted page and its thank-you → `terms.accept` path (compatibility only) |
+| Online, the fetch failed, and nothing is stored | "Couldn't load the Terms & Conditions. Check the connection and try again." |
 
-### 4.4 Local satisfaction — revision-aware
-T&C (Delivery) is satisfied when any one of these holds:
-- **server truth** is `terms_status` Accepted or Exempt (unchanged);
-- **a legacy `terms.accept` op exists for the order** (unchanged: it is written only after the hosted page recorded acceptance on the server);
-- **a durable `terms.sign` op exists for the order whose `terms_revision` equals `termsRevision`**, the newest revision this phone holds for the order. If the phone holds no document it cannot contradict the op, and the op counts.
+### 4.4 Local satisfaction (Delivery; order-level)
+T&C is satisfied when any one of these holds:
+- **server truth:** Accepted or Exempt;
+- **a legacy `terms.accept` op exists** (written only after the hosted page recorded acceptance on the server);
+- **a healthy `terms.sign` op exists** for **this order** whose `terms_identity` equals the phone's verified identity for the order. If the phone holds no agreement, nothing contradicts the op, and it counts.
 
-As before, a needs-attention op gives `satisfiedNeedsAttention`. Consequences:
-- **A signature of A never satisfies B** once the phone knows B (from a package or a live fetch).
-- **A signature for order O never satisfies another order.**
-- **Terms stay order-level (existing, P5-D12).** A signature captured on one Delivery line of an order covers that order's other Delivery lines, because the server records it once on the order.
+**A `terms.sign` op in Needs Attention never satisfies.** Its terminal causes (mismatch, unavailable, approvals) mean the signature was **not** accepted. It is kept for troubleshooting until a person discards it (or it is replaced by a new signing of the verified document). It is never relabelled.
+
+**Consequences:**
+- A signature can't count for another order: the identity is order-bound, and the match is on `orderUniqueId`.
+- One signature covers every Delivery line of its order.
 
 ### 4.5 Tenant safety
-- **`TermsDocumentStore`** is tenant-scoped on read and write, and holds nothing without a tenant.
-- **Live saves** are pinned to the company captured when the request was sent.
-- The A → logout → B offline → back to A test (§8.3) covers the new store.
-- `terms.sign` ops are not tenant-bound, like every other op (§10.1).
+- **`TermsAgreementStore` is tenant-scoped on read and write,** and writes nothing without a tenant.
+- **Live saves** are pinned to the requesting company.
+- **The A → logout → B offline → back to A test** covers the store.
+- **`terms.sign` ops are not tenant-bound**, like every other op. §10.1 explains why that is not materially worse here.
 
 ### 4.6 Scenario behavior
 | Scenario | Behavior |
 |---|---|
-| Never opened, offline, terms Pending | The bridge already stored the document. Order Details → T&C renders it locally, the customer signs, the op is durable, T&C is satisfied, and Complete proceeds without the override. |
-| Leave and reopen / force-quit / restart | The document, op and asset are durable. The screen shows "Signed on this phone", the Order Details tile stays satisfied, and completion is unchanged. |
-| Prolonged offline, then reconnect | The op keeps retrying (never exhausted) and syncs once. The server answers accepted, or replays; the next orders/details and package show Accepted. |
-| Terms changed after download (phone learns B) | The A op stops satisfying. The T&C tile is unsigned and the screen shows document B. The A op keeps syncing and becomes Needs Attention; it is never deleted. |
-| Package has the mission but the terms section failed | The mission appears in Dispatch but is not field-ready for Delivery and is retried at the same revision. The T&C screen offline shows "aren't downloaded yet". |
-| Order's terms accepted elsewhere | The new package or live answer brings Accepted, so T&C is satisfied by server truth. A queued phone op gets `already_accepted`. |
-| Return mission | Unchanged: T&C is not required. A cached document from an earlier Delivery package can still be signed. |
-| Online Dispatch T&C | The document is fetched fresh, then the same local signing runs. The op drains at once (P5-D3). |
+| Never opened, offline, terms Pending | The bridge stored the verified agreement. Order Details → T&C renders it, the customer signs, and the op is durable. T&C is satisfied and Complete proceeds without the override. |
+| Leave and reopen / force-quit / restart | The agreement, op and PNG are durable; the screen shows "Signed on this phone" and the tile stays satisfied. |
+| Prolonged offline, then reconnect | The op retries (never exhausted) and syncs once. The answer is `accepted`, or a replay. The next orders/details or package shows Accepted. |
+| Templates change at any point | Nothing on the phone or server changes for this order: its identity is frozen. |
+| The package has the mission but no usable agreement (failed, or not verifying) | The mission shows in Dispatch but is not Delivery-ready. It is retried at the same revision when retryable. Offline T&C shows the not-downloaded or unable-to-verify state, never a blank page. |
+| The server rejects the op (mismatch / unavailable) | The op goes to Needs Attention with its PNG kept, and T&C shows unsigned. After the order is refreshed, the customer signs the verified document (a new op). |
+| Terms accepted elsewhere | Server truth satisfies T&C. A queued phone op gets `already_accepted`. |
+| Return mission | Unchanged: T&C is not required. |
 
 ---
 
-## 5. Decisions requiring approval
+## 5. Decisions
 
-| ID | Decision | Recommendation | Alternative(s) |
-|---|---|---|---|
-| **P5-D1** | Canonical identity | A content-addressed `revision` (§2.1) plus `content_sha256` of the rendered body (§2.2). No revision table. One nullable column: `orders.accepted_terms_revision`. | (a) An admin-published immutable version table like `LoyaltyTermsVersion`: changes the admin edit flow and still needs content hashing for product-mix documents. (b) Stateless HMAC-signed issue tokens with the phone echoing the document. (c) Include the customer name in the revision, so a name correction makes a signature stale. |
-| **P5-D2** | Which revision is "currently applicable", and the web path | **The live terms the signing page shows** (the page's stated intent), not the checkout snapshot. **Fix the web path too** (§3.4), so web and phone both record what the customer viewed. | Leave the web path unchanged. The phone becomes exact, but a customer signing on their own device keeps the divergence in §0.3. |
-| **P5-D3** | Online behavior of the Dispatch/Order T&C screen | **One local-first screen online and offline.** Online fetches the fresh document (one GET instead of the hosted-page load) and signs locally. The hosted page is only a fallback when no document is available. | Online keeps the hosted page and local signing is offline-only: two signing paths on the phone, and the online path keeps §0.3's divergence unless P5-D2 is approved. |
-| **P5-D4** | Stale-revision policy | **The newer terms must be signed.** Any revision other than the current one is never recorded as acceptance: 409 terminal → Needs Attention on the phone, a Mobile Sync Issue for the office, and terms stay Pending (existing reminders plus on-phone re-signing). Cases 2 and 3 are treated the same. | Accept an older revision captured before the change. This needs Terms change history and trusts the device clock; not recommended. |
-| **P5-D5** | Where a stale signature is kept | **On the phone:** the Needs Attention op and its PNG, kept until a person discards it through the existing sync-attention workflow (spec §5: field work stays "until … explicitly resolved through the existing sync-attention workflow"). Keeps `TermsService`'s documented "four columns on the order" rule. | An append-only `order_terms_acceptances` table (server-side preservation and audit of every phone signing). This contradicts the documented rule and adds a migration. |
-| **P5-D6** | Signing surface | **A bundled local shell in the existing web view:** the same markup, the same `signature_pad` (vendored, MIT), a CSP that blocks content scripts, and a native message handler. It keeps inline approval checkboxes exactly where the terms put them. | Native `EPSignatureView` with a separate native approvals list. It cannot keep approvals inline with their clauses, and it is landscape and JPEG. |
-| **P5-D7** | Which packages carry the document | **Delivery packages whose order terms are Pending** (the requirement matrix; the Phase 4 assembly precedent). Delivery readiness requires it; Return is unchanged. | Both legs, required only for Delivery: larger packages, and Return revisions churn on Terms edits. |
-| **P5-D8** | `terms_accepted_at` for a phone signature | **The device capture time**, clamped by `MobileTimestamps` (when the customer actually signed). | Server receipt time, as the web does. An offline signature then reads hours late. |
-| **P5-D9** | Remote images inside admin-authored terms | **Not carried offline:** all text and markup render, and an externally hosted image shows as missing while offline. Production content can't be checked from here (no production access). | Inline images as data URIs at build time: bigger packages and more code. |
-| **P5-D10** | Operation type | **A new `terms.sign`** for a locally captured signature. It also records the line's `tnc_status`, so it **replaces** the thank-you `terms.accept` for this path. `terms.accept` stays for the hosted-page fallback and for ops already queued on phones. | Overload `terms.accept` with a second endpoint chosen by payload: ambiguous for handlers and for queued ops. |
-| **P5-D11** | Manifest statement budget | About +4 statements (438 → about 442) stays under the **unchanged cap of 450**. Raising the cap would need approval. | — |
-| **P5-D12** | Order-level scope (confirmation of existing behavior) | One signature satisfies T&C for **the order** (all its Delivery lines), because the server records it once on the order. It never satisfies another order or another revision. | Bind satisfaction to the signing line or leg. This would diverge from the server's order-level record. |
+**Approved by Gary (2026-09-26):**
+- **Immutable order agreement.** It is frozen at creation, never regenerated, and there is no staleness or re-signing.
+- **Identity.** A version-prefixed SHA-256 over the canonical frozen payload, bound to the order, excluding chrome.
+- **Web path.** It displays and records the frozen copy.
+- **Legacy orders.** A valid stored copy is used as-is; anything else fails safe.
+- **Acceptance stays on the order**, with no history table.
+- **One app-owned, local-first screen** online and offline.
+- **The bundled MIT `signature_pad`** and inert rendering.
+- **A dedicated `terms.sign` op**; `terms.accept` is not overloaded.
+- **Delivery-only enforcement** and one acceptance per order.
+- **Device signing time is metadata; server time is authoritative.**
+- **The mismatch message** "Unable to Verify Order Terms — Refresh the Order Before Signing".
+- **450 manifest statements is a hard ceiling.**
+
+**Made within the approved model, recorded for review:**
+
+| ID | Decision | Why |
+|---|---|---|
+| P5-A1 | Frozen customer substitution = `orders.customer_name` (or "Customer"), backed by the immutability guard (§2.4) | It is written only at creation. Recovering a name from the old rendered HTML is ambiguous, because the widget markup has changed over time. |
+| P5-A2 | An `empty_agreement` is unavailable, not signable | Signing a blank agreement would record acceptance of nothing. It is reported instead. |
+| P5-A3 | Order Enhancements have no agreement (`no_stored_agreement`) | They have no products or terms today, and no Phase 5 path adds any. Adding freezing to the Enhancement flow would be new scope. |
+| P5-A4 | Remote images are blocked in the app's page | Inertness, and the same view online and offline. The identity is text-only, so an image can't affect it. |
+| P5-A5 | A web post on an already-accepted order does not overwrite | One acceptance per order. The web path overwrote the signature before. |
+| P5-A6 | A web post with a missing identity is rejected with the refresh message | A page opened before the deploy displayed today's templates, not the frozen copy. |
+| P5-A7 | New nullable column `orders.terms_customer_signed_at` | It stores the device signing time on the order (no history table). |
+| P5-A8 | A read-only `terms:agreement-audit` command | "Report the condition" for legacy orders before any deploy. |
 
 ---
 
 ## 6. Expected files and components
 
-**Backend (`kabba2_AI-dispatch-offline`):**
+**Backend:**
 - New:
-  - `app/Services/Terms/TermsDocument.php` (builder + value);
+  - `app/Services/Terms/TermsAgreement.php` (with its canonicalization);
   - `app/Services/Terms/TermsAcceptanceService.php`;
-  - `app/Http/Controllers/Api/Admin/V1/Orders/Terms/ShowController.php` and `AcceptController.php`;
+  - `app/Http/Controllers/Api/Admin/V1/Orders/Terms/ShowController.php`, `AcceptController.php`;
   - `app/Http/Requests/Api/Admin/V1/Orders/Terms/AcceptRequest.php`;
-  - migration `…_add_accepted_terms_revision_to_orders_table.php` (nullable `string(64)`).
+  - `app/Console/Commands/TermsAgreementAudit.php`;
+  - migration `…_add_terms_customer_signed_at_to_orders_table.php` (nullable timestamp).
 - Changed:
-  - `routes/api/admin/v1/orders/routes.php` (two routes);
-  - `app/Enums/Api/ApiErrorCode.php` + its translation;
+  - `routes/api/admin/v1/orders/routes.php`;
+  - `app/Enums/Api/ApiErrorCode.php` + translations;
   - `app/Models/Mobile/MobileSyncIssue.php`;
-  - `app/Models/Orders/Order.php` (fillable);
-  - `app/Services/Dispatch/Offline/DispatchOfflineMissionPackageBuilder.php`, `DispatchOfflineOrderSections.php`, `DispatchOfflineMissionRevision.php`, `DispatchOfflineMissionSelector.php` (`WITH`).
-- P5-D2 only: `Front/TermsAndConditions/IndexController.php`, `PostController.php`, `PostRequest.php`, `resources/views/front/terms_and_conditions/index.blade.php`.
+  - `app/Models/Orders/Order.php` (fillable, cast, immutability guard);
+  - `Front/TermsAndConditions/IndexController.php`, `PostController.php`, `PostRequest.php`, `resources/views/front/terms_and_conditions/index.blade.php`;
+  - `app/Services/Dispatch/Offline/DispatchOfflineMissionPackageBuilder.php`, `DispatchOfflineOrderSections.php`, `DispatchOfflineMissionRevision.php`.
 - Contract:
   - `docs/mobile-integration/MOBILE_API_CONTRACT.md`;
   - `tests/Fixtures/mobile-contract/dispatch_offline_packages.json`;
-  - new `terms_document.json` / `terms_accept.json` fixtures.
+  - new `terms_agreement_identity.json`.
 - Tests:
-  - new `tests/Feature/Terms/TermsDocumentTest.php`, `tests/Feature/Api/Mobile/Terms/TermsAcceptContractTest.php`, `tests/Feature/Dispatch/Mobile/DispatchOfflineTermsSectionTest.php`;
-  - P5-D2: `tests/Feature/Terms/TermsSigningPageRevisionTest.php`;
-  - updated `DispatchOfflinePackagesTest`, `DispatchOfflineRevisionCompletenessTest`, `DispatchOfflineManifestPerformanceTest` (cap unchanged), `DispatchContractFixturesTest`.
+  - new `tests/Feature/Terms/TermsAgreementTest.php`, `TermsSigningPageFrozenAgreementTest.php`, `tests/Feature/Api/Mobile/Terms/TermsAcceptContractTest.php`, `tests/Feature/Dispatch/Mobile/DispatchOfflineTermsSectionTest.php`;
+  - updated `DispatchOfflinePackagesTest`, `DispatchOfflineRevisionCompletenessTest`, `DispatchContractFixturesTest`, `MobileSyncIssueTest` (j), `TermsRequestEmailTest` (the signing test sends the identity).
 
-**Mobile (`mobileapp-dispatch-offline-p5`):**
-- Core new: `TermsDocument.swift`, `TermsDocumentStore.swift`, `TermsSignOperations.swift`.
-- Core changed: `DispatchOfflineContract.swift`, `DispatchOfflineFieldBridge.swift`, `DispatchOfflineMissionStore.swift` (the `terms` stamp), `EffectiveFieldState.swift`, `LegCompletionRequirements.swift`, and `TermsOperations.swift` (its header comment only).
-- App new:
-  - `Sync/App/TermsSigningShell.swift`;
-  - `Sync/App/TermsDocumentClient.swift`;
-  - resources `RentnKing/Resources/TermsSigning/` (`terms-signing.html`, `terms-signing.css`, `terms-signing.js`, `signature_pad.umd.min.js`, `LICENSE-signature_pad.txt`).
+**Mobile:**
+- Core new: `TermsAgreement.swift` (model + canonicalization + renderer), `TermsAgreementStore.swift`, `TermsSignOperations.swift`.
+- Core changed: `DispatchOfflineContract.swift`, `DispatchOfflineFieldBridge.swift`, `DispatchOfflineMissionStore.swift`, `EffectiveFieldState.swift`, `LegCompletionRequirements.swift`.
+- App new: `Sync/App/TermsSigningShell.swift`, `Sync/App/TermsAgreementClient.swift`, resources `RentnKing/Resources/TermsSigning/*`.
 - App changed:
-  - `TermsSyncHandler.swift` (the `terms.sign` handler);
-  - `KabbaSync.swift` (registration, store);
-  - `DispatchOfflineSync.swift` (the live save for `.terms`);
+  - `TermsSyncHandler.swift`, `KabbaSync.swift`, `DispatchOfflineSync.swift`, `DispatchOfflineOrderBridge.swift` (the `.terms` cache case);
   - `TermsAndConditionViewController.swift`, `OrderDetailsViewController.swift`, `OrderListButtonAction.swift`, `EmptyDataView.swift`;
-  - `RentnKing.xcodeproj/project.pbxproj` (sources and bundle resources, via the Phase 4 `pbx_add.py` approach).
+  - `project.pbxproj`.
 - Tests:
-  - Core new `TermsDocumentTests`, `TermsDocumentStoreTests`, `TermsSignOperationsTests`;
-  - updated `EffectiveFieldStateTests`, `LegCompletionEvaluatorTests`, `DispatchOfflineFieldBridgeTests`, `DispatchOfflineContractTests`, `TermsOperationsTests`;
-  - hosted new `RentnKingTests/Hosted/DispatchOfflineTermsHostedTests.swift`.
+  - Core new `TermsAgreementTests` (incl. the shared vector), `TermsAgreementStoreTests`, `TermsSignOperationsTests`;
+  - updated `EffectiveFieldStateTests`, `LegCompletionEvaluatorTests`, `DispatchOfflineFieldBridgeTests`, `DispatchOfflineContractTests`;
+  - hosted new `DispatchOfflineTermsHostedTests.swift`.
 
 ---
 
-## 7. Tasks (TDD, in order; each ends with a local commit)
-
+## 7. Tasks (TDD; each ends with a local commit)
 **Backend**
-1. **`TermsDocument` + revision.** Red tests:
-   - byte parity with `generateTermsContent` and with the served page body;
-   - the revision changes on content, signature block, attach/detach, global flip and header edits;
-   - it does not change on a title/SEO edit or a customer-name change (whereas `content_sha256` does);
-   - A → B → A returns A;
-   - `approvals_required` counts placeholders.
-2. **Package `terms` section + `sections.terms` + mission revision seed.** Red tests:
-   - Delivery/Pending ships the document; Return, Accepted and Exempt give `not_applicable`;
-   - a failing builder is isolated (`failed`, the rest intact) and repaired at the same revision;
-   - revision completeness for Terms edits on Pending orders only;
-   - manifest ≤ 450 statements and package ≤ 130 statements per order.
-3. **Live `GET orders/terms/{uid}`.** Parity with the package's `terms`; auth required; read-only.
-4. **`POST orders/terms/{uid}/accept` + `TermsAcceptanceService` + `TermsRevisionStale` + `terms.sign` sync-issue type + `accepted_terms_revision`.** Red tests for every row of §3.3 and every case in §3.5.
-5. **(If P5-D2)** The web path binds to its displayed revision. The existing `MobileSyncIssueTest` (j), `TermsRequestEmailTest` and `SignedTermsAccessTest` must stay green.
-6. **Contract fixtures + `MOBILE_API_CONTRACT.md`,** then the full affected backend regression (§9).
+
+0. **Baseline.** Record `tests/Feature/Terms` and `tests/Feature/CustomerPortal` results at `2f859c0a8`.
+1. **`TermsAgreement` + canonicalization + the shared vector + the immutability guard + the audit command.** Red tests:
+   - the identity is computed from the stored copy only (a template edit, a product-terms edit and a product removal all leave it unchanged);
+   - order binding (the same text on two orders gives different identities);
+   - every legacy reason;
+   - the guard refuses a change and allows the first freeze;
+   - the vector bytes and hash;
+   - the audit counts.
+2. **Web path.**
+   - The page renders the frozen copy (not current templates) plus the identity field.
+   - Unavailable shows no form.
+   - A post with a matching identity records the frozen copy; a mismatched or missing identity gives 409; already accepted doesn't overwrite.
+   - Approvals come from the frozen copy.
+   - The existing Terms, portal and `MobileSyncIssueTest` (j) stay green.
+3. **Package `terms` + `sections.terms` + revision seed.** Red tests:
+   - Delivery/Pending ships the agreement;
+   - Return, Accepted and Exempt give `not_applicable`;
+   - legacy gives `unavailable`;
+   - a failing section is isolated and repaired at the same revision;
+   - the revision doesn't churn on template edits;
+   - manifest ≤ 450 statements and package ≤ 130 per order.
+4. **Live GET**, with parity to the package.
+5. **Accept endpoint + service + error codes + sync-issue type + `terms_customer_signed_at`.** Red tests for every row of §3.3 and §3.5.
+6. **Contract docs and fixtures**, then the full backend regression (§9).
 
 **Mobile**
 
-7. **Core `TermsDocument` + `TermsDocumentStore`.** Decode and validation, tenant scoping, per-revision retention, newest-wins stamp, and the live-save company pin.
-8. **Core bridge `terms` section.**
-   - Ledger state and decoding a Phase 4 ledger that has no terms key.
-   - Delivery readiness requires terms when Pending; Return is unchanged.
-   - Same-revision repair of a failed terms section.
-   - A pre-Phase-5 package gives `notProvided`.
-9. **Core `terms.sign` + revision-aware satisfaction.**
-   - Payload, request, multipart part, PNG asset, and durability across a store reload.
-   - `EffectiveFieldState`/`LegCompletionEvaluator`: A never satisfies B, O1 never satisfies O2, legacy `terms.accept` is unchanged, and needs-attention gives `satisfiedNeedsAttention`.
-10. **App signing shell + hosted shell tests.**
-    - It renders offline.
-    - Approvals are required, a signature is required, and submit is single-shot.
-    - CSP blocks a `<script>` in content from posting.
-    - Navigation away is cancelled.
-11. **App screen states, message handling, live fetch, Order Details inputs,** then the hosted never-opened acceptance scenario (§8.3).
-12. **Full verification** (§9), break-a-rule probes, then a fresh independent whole-Phase-5 review. Critical/Important findings are fixed and re-reviewed before closure.
+7. **Core `TermsAgreement`:** decode, canonical bytes and identity against the shared vector, verification, renderer markers and escaping.
+8. **Core `TermsAgreementStore`:** tenancy, verified-only writes, retention, freshness.
+9. **Core bridge `terms` section + ledger + readiness + same-revision repair**, and the pre-Phase-5 package (`notProvided`).
+10. **Core `terms.sign` + satisfaction rule:**
+    - healthy only;
+    - identity-bound and order-bound;
+    - Needs Attention never satisfies;
+    - legacy `terms.accept` unchanged.
+11. **App shell + inert rendering + screen resolver + message handling + live fetch + Order Details inputs,** with the hosted tests (§8.3).
+12. **Full verification** (§9), break-a-rule probes, then a fresh independent review. Critical/Important findings are fixed and re-reviewed.
 
 ---
 
 ## 8. Tests
 
-### 8.1 Backend (parity, idempotency, freshness)
-- **Parity:**
-  - `TermsDocument::contentHtml` equals `generateTermsContent`, and the body the served signing page prints in `#terms-dynamic-content`;
-  - the package `terms` equals `GET orders/terms/{uid}`;
-  - the accepted content on the phone path equals what the web path would record for the same revision and signature.
-- **Revision:** every input in §2.1 changes it; the excluded fields don't; A → B → A.
-- **Mission freshness:** a Terms edit changes the revision of every **Pending** Delivery mission that uses it, and of no Accepted/Exempt one; an acceptance changes it (status).
-- **Idempotency:**
-  - the same op id twice gives one acceptance, one history row, one ledger row and a replay header;
-  - a different op id on an accepted order gives `already_accepted` and no write;
-  - a web and a phone signing racing give one acceptance (the row lock).
-- **Stale:**
-  - A-signed-after-B gives 409 `retryable:false`, **no** order write, and one deduplicated order-scoped Mobile Sync Issue;
-  - a retry after the terms return to A gives `accepted`;
-  - a retry after B was signed gives `already_accepted`.
-- **Safety:**
-  - an unknown order uid is rejected with no write of any kind (no order, ledger, sync issue or file);
-  - a product from another order gives 422;
-  - approvals short gives 422;
-  - Exempt gives `not_required`.
-- **P5-D2:** the hidden revision is rendered; a matching post records the displayed content; a mismatched post gives the 409 message; a missing revision is treated as current.
+### 8.1 Backend
+- **Identity:**
+  - the shared vector;
+  - determinism;
+  - order binding;
+  - CRLF/CR normalization;
+  - null equals `""`;
+  - non-ASCII text;
+  - excluded fields (title, id, unique_id) don't matter;
+  - the stored contents are never modified.
+- **Frozen:** after creation, editing the global terms, a product's terms, attachments, product data or pricing, and removing a product (soft delete) all leave `forOrder()->identity()` and `contentHtml()` byte-identical.
+- **Separate agreements:**
+  - a reorder has its own identity;
+  - an Enhancement is `no_stored_agreement`;
+  - neither affects the parent.
+- **Legacy:**
+  - a valid copy is used verbatim;
+  - null, malformed and empty copies give their reasons;
+  - current templates are never read (a query-log assertion: no `terms_and_conditions` or `product_terms_children` query).
+- **Web:**
+  - the page body equals `contentHtml()` even when current templates differ;
+  - the identity field is present;
+  - matching, mismatched, missing, unavailable and already-accepted posts;
+  - approvals come from the frozen copy.
+- **Package and live:**
+  - parity between them;
+  - the section statuses;
+  - isolation and repair;
+  - no revision churn;
+  - statement budgets.
+- **Accept:**
+  - every row of §3.3;
+  - replay (ledger, same original body);
+  - a second op id gives `already_accepted`;
+  - another order's identity gives a mismatch with no write;
+  - an unknown order stores nothing;
+  - the device time goes to `terms_customer_signed_at` and the server time to `terms_accepted_at`;
+  - the line's `tnc_status` is recorded;
+  - exactly one history row;
+  - one sync issue on a terminal rejection.
 
 ### 8.2 Mobile core (`swift test`)
-- Document decode and validation.
-- Store tenancy, freshness and retention.
-- Bridge section states, readiness and repair.
-- `terms.sign` builder and request.
-- Revision-aware satisfaction, including the evaluator's Delivery/Return matrix.
-- The screen-state resolver: a pure function, every row of §4.3.
+- Decode and validation.
+- The shared-vector identity.
+- Verification, including the wrong order.
+- The renderer.
+- The store.
+- Bridge states and readiness.
+- The `terms.sign` builder and request.
+- The satisfaction rules, and the screen-state resolver (every row of §4.3).
 
 ### 8.3 Hosted (Simulator, signed `RentnKingHostedTests`)
-1. **Never opened online, fully automated.**
-   1. Reconcile online (a stubbed server with a Delivery/Pending package).
+1. **Never opened online.**
+   1. Reconcile a stubbed Delivery/Pending package with the agreement.
    2. Never open the mission.
-   3. Go offline: `OfflineURLProtocol` fails every request, and the local page makes none.
-   4. Order Details → T&C through the real screen resolves the cached document.
-   5. The web view renders it offline: every clause's text, both approval checkboxes and the sign button are present.
-   6. Sign through the page: `signaturePad.fromData`, save, approvals, submit.
-   7. The op is durable before `termsSucess` fires.
+   3. Go offline.
+   4. Open T&C through the real screen: it resolves the stored, verified agreement.
+   5. The page renders offline: every clause, both approval checkboxes and the sign button are present.
+   6. Sign through the page.
+   7. The op is durable before `termsSucess`.
    8. Leave and reopen: "Signed on this phone".
-   9. Recreate the engine from the same folder (relaunch offline): the op is still pending and T&C is still satisfied.
-   10. Delivery completion proceeds with no override section for T&C.
-   11. Reconnect, using a stub transport that answers 200 `accepted`: exactly one POST, one `signature_media` part, `terms_revision` = A, and the `X-Operation-Id` header.
-2. **Freshness:** signed A, then a newer package brings B. The A op no longer satisfies, and the screen offers B.
-3. **Failure:** `sections.terms: failed`. Offline T&C shows "aren't downloaded yet" (no web load, no spinner left on screen), and the mission is not Delivery-ready.
-4. **Replay:** the first send commits server-side but the response is lost (transport error); the retry gets a 200 replay. The op is synced, one op exists, and both sends carry the same operation id.
-5. **Wrong mission/revision:** an O1/A op never satisfies O2, or O1 at B.
-6. **Tenant:** the Company A document is invisible under B offline, and usable again under A.
-7. **Stale answer:** a 409 `TERMS_REVISION_STALE` puts the op in Needs Attention with its PNG still on disk. It gives `satisfiedNeedsAttention` while the phone knows only A, and incomplete once it knows B.
+   9. Recreate the engine from the same folder: the op is still pending and T&C is still satisfied.
+   10. Delivery completion lists no T&C override.
+   11. Reconnect, using a stub that answers 200: exactly one POST with one `signature_media` part, the identity and the operation id.
+2. **Inertness.** Content containing `<script>`, `onclick`, `<a href="javascript:…">`, `<iframe>`, `<object>` and a remote `<img>`:
+   - no script runs, and no message is posted by content;
+   - no navigation happens;
+   - no network request is made;
+   - signing still works.
+3. **Verification failure:** a tampered agreement (the identity doesn't recompute) shows "Unable to Verify Order Terms"; nothing renders and no signing is possible.
+4. **Missing agreement:** `sections.terms: failed` → offline "aren't downloaded yet" (no web load, no leftover spinner); the mission is not Delivery-ready.
+5. **Replay:** the first send commits server-side but the response is lost; the retry gets a 200 replay; the op is synced once, with the same operation id both times.
+6. **Binding:** an O1 op never satisfies O2; a 409 mismatch leaves the op in Needs Attention with its PNG kept, and T&C unsigned.
+7. **Tenant:** a Company A agreement is invisible under B offline, and usable again under A.
 
 ---
 
 ## 9. Closing gate
 - All §8 tests, red first then green.
-- The complete mobile core and signed hosted suites (baseline 499 / 72).
+- The complete mobile core suite and the signed hosted suite.
 - The simulator build.
-- The no-polling/timer/GPS/socket gate. The live GET fires only on screen open.
-- Break-a-rule probes for each rule in §3.3–§4.4. Each must be caught.
-- The affected backend regression **from the final backend HEAD**:
-  - `tests/Feature/Dispatch`, `tests/Feature/Api`, `tests/Feature/Mobile`, `tests/Unit/Push`, `tests/Feature/QueueLine`;
-  - `tests/Feature/Terms`, `tests/Feature/CustomerPortal`;
-  - `tests/Feature/Orders` and `tests/Feature/CustomerChecklists`, whose baseline failures must match **by test name**.
+- The no-polling/timer/GPS/socket gate. The live GET fires only when the screen opens.
+- Break-a-rule probes, one per rule in §2–§4.4, each caught.
+- The backend regression **from the final HEAD**:
+  - `tests/Feature/Dispatch`, `Api`, `Mobile`, `tests/Unit/Push`, `QueueLine`;
+  - `tests/Feature/Terms`, `tests/Feature/CustomerPortal`, compared to the Task 0 baseline;
+  - `tests/Feature/Orders` and `CustomerChecklists`, whose baseline failures must match **by test name**.
+- The manifest at 50 missions ≤ **450** statements, with the verified count reported.
 - Both worktrees clean with no upstream.
 - A **fresh independent reviewer** reporting no Critical or Important issues.
 
-Then stop before Phase 6.
+Then stop and report.
 
 ---
 
 ## 10. Recorded risks, boundaries and deferred items
 
 ### 10.1 Accepted deferred risk — cross-customer Sync Engine queue ownership
-- **The risk:** Sync Engine operations carry no company, so work queued under one Kabba customer instance could be sent with another's session after an unsynced company switch on the same phone.
-- **It is accepted as a low-probability deferred risk:** Kabba currently has three customers, customer devices are geographically and operationally separate, and switching one device between Kabba customer instances while unsynced work exists is considered exceptionally unlikely. Phase 5 does not tenant-scope the Sync Engine.
-- **T&C-specific check, which does not make the risk materially worse:**
-  - A `terms.sign` op sent to the wrong company names an order uid that company doesn't have. The request is rejected (422/404) **before any write**, so no order, ledger row, sync issue or file is stored. The op parks as Needs Attention on the phone.
-  - The customer's signature image would reach the other company's server in that rejected request. That is the same exposure class as today's checklist customer signature and license photo operations.
-  - The new document cache is tenant-scoped (§4.5).
+- **The risk:** ops carry no company, so work queued under one Kabba customer instance could be sent with another's session after an unsynced company switch on the same phone.
+- **It is accepted as a low-probability deferred risk:** three customers, devices geographically and operationally separate, and such a switch with unsynced work is considered exceptionally unlikely. It is out of scope for Phase 5.
+- **T&C-specific check, not materially worse:**
+  - A `terms.sign` op sent to the wrong company names an order that company doesn't have. It is refused (404) **before any write**, and it could never match an identity, which is bound to the order uid.
+  - The signature image would reach that server in the refused request, the same exposure class as today's checklist signature and license photo ops.
+  - The agreement store is tenant-scoped.
 
-### 10.2 Watch items (not fixed in Phase 5)
-- **Signature files outlive their records.** A synced signature file stays on disk after `pruneSynced` deletes its record after 7 days. This is pre-existing for every non-media handler; `terms.sign` follows the checklist signature.
-- **Reminders can overlap an unsynced signature.** The existing automatic Terms reminders can text a customer whose signature is still unsynced on an offline phone.
-- **A stale signature exists only on the phone (P5-D5).** A person's Discard, or deleting the app, removes it.
-- **Terms documents on the phone are never pruned,** like Phase 4's bridged caches.
+### 10.2 Watch items
+- **Signature files outlive their records.** A synced signature file stays on disk after `pruneSynced` deletes its record (7 days). This is pre-existing for every non-media handler.
+- **Reminders can overlap an unsynced signature.** The existing automatic Terms reminders can text a customer whose phone signature is still unsynced.
+- **A rejected signature exists only on the phone** until a person discards it.
+- **Legacy orders.** Pending orders without a trustworthy stored copy can no longer be signed on the web, where they showed today's templates before. `terms:agreement-audit` measures how many; production can't be checked from here.
 - **Pre-existing, out of scope:**
   - the new-order success screen's T&C button never opens (`strOrderUniqueId` unset);
-  - Order Details' T&C button checks `status == "Exempt"` instead of `terms_status` (the new screen shows the "not required" state either way);
-  - `Terms::global()->first()` has no ordering (kept identical so the parity holds).
+  - Order Details' T&C button checks `status == "Exempt"` instead of `terms_status`.
 
-### 10.3 Scope boundaries (unchanged)
+### 10.3 Scope boundaries
 Phase 5 does not:
 - redesign Dispatch or Order Details;
-- revisit Phase 3/4 deferred cosmetic items;
-- build generic document signing or arbitrary document storage;
-- solve the cross-customer queue issue;
+- revisit Phase 3/4 deferred items;
+- build generic document signing, document storage, amendments or addenda;
+- add freezing to the Order Enhancement flow;
 - change the Warning override or its permissions;
-- begin Phase 6 physical acceptance.
-
----
-
-## 11. Evidence that the Phase 5 scope needs to change
-1. **Online signing already breaks the core rule** (§0.3). Fixing it means touching the customer-facing web signing path (P5-D2). It is small, but it is outside "offline only".
-2. **There is no Terms content API and no API-authenticated acceptance endpoint.** The only acceptance write is a public, CSRF-protected web route. Phase 5 needs two new mobile endpoints, `GET orders/terms/{uid}` and `POST orders/terms/{uid}/accept`, beyond the package section.
-3. **`TermsService` documents a "no second terms or signature record" rule.** Server-side preservation of stale signatures would contradict it, so P5-D5 recommends phone-side preservation instead.
-4. **Phase 5 introduces the app's first bundled web resources** (the shell and the vendored `signature_pad`, MIT) and its first script-message bridge.
-5. **"Full content renders offline" holds for text and markup.** Remote images inside admin-authored terms cannot render offline (P5-D9); whether production content has any could not be checked from here.
-6. **Online Dispatch signing changes too** if P5-D3 is approved: a locally rendered page instead of the hosted page. That is a visible behavior change for drivers who are online.
-7. **The manifest budget is near its cap:** 438 of 450, with about 442 expected.
+- solve the cross-customer queue;
+- begin Phase 6.
