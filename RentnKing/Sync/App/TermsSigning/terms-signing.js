@@ -253,8 +253,12 @@
   }, true);
 
   // ── Signature pad ────────────────────────────────────────────────────
+  // At most ratio 3 (a 4x display or zoom draws at 3), so even a noisy, incompressible signature
+  // fits the shared size limit (TermsSignatureImage.maxPadRatio; Laravel's SignatureImage).
+  var MAX_PAD_RATIO = 3;
+
   function sizeCanvas() {
-    var ratio = Math.max(window.devicePixelRatio || 1, 1);
+    var ratio = Math.min(Math.max(window.devicePixelRatio || 1, 1), MAX_PAD_RATIO);
     var data = pad ? pad.toData() : null;
     canvas.width = canvas.offsetWidth * ratio;
     canvas.height = canvas.offsetHeight * ratio;

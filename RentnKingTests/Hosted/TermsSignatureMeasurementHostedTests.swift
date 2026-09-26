@@ -6,11 +6,14 @@
 //  the web signing page also uses) on both signing canvases — the phone's
 //  local page and the web page — at device pixel ratios 1–4, for a typical,
 //  a heavy (25 fast strokes) and a dense (80 slow strokes over the whole pad)
-//  signature. The shared signature limits (TermsSignatureImage / Laravel's
-//  SignatureImage) are derived from these numbers; this test keeps them
-//  honest: every real signature passes the phone's check, and the largest
-//  stays at least 3× inside the decoded-size limit (4× for ratios 1–3, every
-//  shipping iPhone and iPad), with the dimensions well inside their limits.
+//  signature, and a noisy one (every pixel noise, as a canvas read-back in a
+//  privacy mode: it does not compress). The shared signature limits
+//  (TermsSignatureImage / Laravel's SignatureImage) are derived from these
+//  numbers; this test keeps them honest. Both pages cap the pad at
+//  TermsSignatureImage.maxPadRatio (3): at ratios 1–3 every signature, the
+//  noisy one included, passes the phone's check, and every drawn one stays at
+//  least 4× inside the decoded-size limit; ratio 4 is measured UNCAPPED, to
+//  prove the cap is needed — its noisy signature is refused.
 //
 
 import XCTest
@@ -85,15 +88,24 @@ final class TermsSignatureMeasurementHostedTests: XCTestCase {
                 c.width = c.offsetWidth * \(ratio); c.height = c.offsetHeight * \(ratio); c.getContext('2d').scale(\(ratio), \(ratio));
                 var pad = new window.SignaturePad(c, { backgroundColor: 'rgba(255,255,255,1)', penColor: 'rgb(0,0,0)' });
                 var out = [];
-                // typical: a signature's few slow strokes; heavy: 25 fast strokes; dense: 80 slow, wide
-                // strokes over the whole pad (the worst case for PNG size: antialiased edges everywhere).
-                [['typical', 3, 60, 20], ['heavy', 25, 80, 6], ['dense', 80, 150, 40]].forEach(function (k) {
-                  pad.fromData(kabbaStrokes(k[1], k[2], c.offsetWidth, c.offsetHeight, 7, k[3]));
+                function sample(kind) {
                   var url = pad.toDataURL('image/png');
                   var b64 = url.slice('data:image/png;base64,'.length);
                   var pad0 = (b64.match(/=+$/) || [''])[0].length;
-                  out.push([k[0], c.width, c.height, url.length, b64.length / 4 * 3 - pad0, url]);
+                  out.push([kind, c.width, c.height, url.length, b64.length / 4 * 3 - pad0, url]);
+                }
+                // typical: a signature's few slow strokes; heavy: 25 fast strokes; dense: 80 slow, wide
+                // strokes over the whole pad (the worst drawn case: antialiased edges everywhere).
+                [['typical', 3, 60, 20], ['heavy', 25, 80, 6], ['dense', 80, 150, 40]].forEach(function (k) {
+                  pad.fromData(kabbaStrokes(k[1], k[2], c.offsetWidth, c.offsetHeight, 7, k[3]));
+                  sample(k[0]);
                 });
+                // noisy: every pixel random (opaque, as the pad's white background is) — WebKit's own
+                // PNG encoder on an incompressible canvas, the worst case for size.
+                var ctx = c.getContext('2d'), img = ctx.createImageData(c.width, c.height), x = 7; // xorshift32: incompressible
+                for (var i = 0; i < img.data.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; x >>>= 0; img.data[i] = i % 4 === 3 ? 255 : x & 255; }
+                ctx.putImageData(img, 0, 0);
+                sample('noisy');
                 JSON.stringify(out);
                 """
             let raw = js(webView, script) as? String ?? "[]"
@@ -130,21 +142,65 @@ final class TermsSignatureMeasurementHostedTests: XCTestCase {
         for s in samples {
             print("P5-SIGNATURE-MEASURE canvas=\(s.canvas) ratio=\(s.ratio) kind=\(s.kind) px=\(s.width)x\(s.height) encoded=\(s.encoded) decoded=\(s.decoded)")
         }
-        XCTAssertEqual(samples.count, 24)
+        XCTAssertEqual(samples.count, 32)
 
         for s in samples {
             let label = "\(s.canvas) ratio \(s.ratio) \(s.kind)"
+            guard s.ratio <= TermsSignatureImage.maxPadRatio else {
+                // Uncapped (neither page draws at 4): the noisy signature is over the size limit.
+                if s.kind == "noisy" {
+                    XCTAssertNil(TermsAndConditionViewController.signaturePNG(fromDataURL: s.dataURL), label)
+                    XCTAssertGreaterThan(s.decoded, TermsSignatureImage.maxDecodedBytes, label)
+                }
+                continue
+            }
             // The real format passes the phone's check (and so the server's shared contract).
             XCTAssertNotNil(TermsAndConditionViewController.signaturePNG(fromDataURL: s.dataURL), label)
-            XCTAssertLessThanOrEqual(s.decoded * (s.ratio <= 3 ? 4 : 3), TermsSignatureImage.maxDecodedBytes, "\(label): size headroom")
-            XCTAssertLessThanOrEqual(s.encoded * (s.ratio <= 3 ? 4 : 3), TermsSignatureImage.maxEncodedLength, "\(label): encoded headroom")
-            XCTAssertLessThanOrEqual(s.width * 2, TermsSignatureImage.maxWidth, "\(label): width headroom")
-            XCTAssertLessThanOrEqual(s.height * 3, TermsSignatureImage.maxHeight, "\(label): height headroom")
-            XCTAssertLessThanOrEqual(s.width * s.height * 3, TermsSignatureImage.maxPixels, "\(label): pixel headroom")
+            XCTAssertLessThanOrEqual(s.decoded * (s.kind == "noisy" ? 1 : 4), TermsSignatureImage.maxDecodedBytes, "\(label): size headroom")
+            XCTAssertLessThanOrEqual(s.encoded * (s.kind == "noisy" ? 1 : 4), TermsSignatureImage.maxEncodedLength, "\(label): encoded headroom")
+            XCTAssertLessThanOrEqual(s.width * 3, TermsSignatureImage.maxWidth, "\(label): width headroom")
+            XCTAssertLessThanOrEqual(s.height * 4, TermsSignatureImage.maxHeight, "\(label): height headroom")
+            XCTAssertLessThanOrEqual(s.width * s.height * 6, TermsSignatureImage.maxPixels, "\(label): pixel headroom")
         }
         // One real web-page signature (ratio 1, typical) for the shared fixture's valid vectors.
         if let sample = samples.first(where: { $0.canvas == "web" && $0.ratio == 1 && $0.kind == "typical" }) {
             print("P5-SIGNATURE-SAMPLE \(sample.dataURL)")
+        }
+    }
+
+    /// The phone's REAL signing page (TermsSigningShell) draws the pad at a pixel ratio of at most
+    /// TermsSignatureImage.maxPadRatio — a 4× display or zoom draws at 3, below 1 at 1 — and a
+    /// noisy signature on its largest canvas (448×160 CSS px, capped) still passes the phone's check.
+    func testThePhonePageCapsThePadRatioAndItsNoisiestSignatureFits() throws {
+        let entries = [TermsAgreement.Entry(isGlobal: true, content: "<p>Standard terms.</p>[customer_approval][/customer_approval]", signatureBlock: "")]
+        let agreement = TermsAgreement(identity: TermsAgreement.computeIdentity(orderUniqueId: "ORD-RATIO", customerName: "Jane", entries: entries),
+                                       orderUniqueId: "ORD-RATIO", orderNumber: "#1", customerName: "Jane", approvalsRequired: 1, entries: entries)
+        let webView = load(try XCTUnwrap(TermsSigningShell.html(for: agreement)))
+        let size = "var c = document.getElementById('signature-pad'); JSON.stringify([c.width, c.height, c.offsetWidth, c.offsetHeight])"
+
+        for (index, (ratio, drawn)) in [(0.5, 1), (1, 1), (2, 2), (3, 3), (4, 3), (10, 3)].enumerated() {
+            _ = js(webView, "Object.defineProperty(window, 'devicePixelRatio', { configurable: true, get: function () { return \(ratio); } }); true;")
+            // The first open sizes the pad; afterwards the page re-sizes it on resize.
+            _ = js(webView, index == 0 ? "document.getElementById('open-signature-btn').click(); true;" : "window.dispatchEvent(new Event('resize')); true;")
+            let dims = (try? JSONSerialization.jsonObject(with: Data((js(webView, size) as? String ?? "[]").utf8))) as? [Int] ?? []
+            XCTAssertEqual(dims.count, 4, "ratio \(ratio)")
+            guard dims.count == 4 else { continue }
+            XCTAssertEqual([dims[2], dims[3]], [448, 160], "the largest phone canvas")
+            XCTAssertEqual([dims[0], dims[1]], [dims[2] * drawn, dims[3] * drawn], "ratio \(ratio) draws at \(drawn)")
+        }
+
+        // At ratio 10 (capped at 3): a drawn signature and a noise-filled one both pass the phone's check.
+        let drawn = js(webView, "window.kabbaTerms.pad.fromData([{points: [{x: 20, y: 30, pressure: 0.5, time: 1}, {x: 90, y: 70, pressure: 0.5, time: 20}, {x: 160, y: 40, pressure: 0.5, time: 40}]}]); window.kabbaTerms.pad.toDataURL('image/png')") as? String ?? ""
+        let noisy = js(webView, """
+            var c = document.getElementById('signature-pad'), ctx = c.getContext('2d'), img = ctx.createImageData(c.width, c.height), x = 11;
+            for (var i = 0; i < img.data.length; i++) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; x >>>= 0; img.data[i] = i % 4 === 3 ? 255 : x & 255; }
+            ctx.putImageData(img, 0, 0); c.toDataURL('image/png');
+            """) as? String ?? ""
+        for (kind, url) in [("drawn", drawn), ("noisy", noisy)] {
+            let png = try XCTUnwrap(TermsAndConditionViewController.signaturePNG(fromDataURL: url), kind)
+            guard case .success(let dims) = TermsSignatureImage.inspect(png) else { XCTFail(kind); continue }
+            XCTAssertEqual([dims.width, dims.height], [448 * 3, 160 * 3], kind)
+            print("P5-SIGNATURE-PHONE-PAGE ratio=10 kind=\(kind) px=\(dims.width)x\(dims.height) decoded=\(png.count) limit=\(TermsSignatureImage.maxDecodedBytes)")
         }
     }
 
