@@ -55,6 +55,9 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     var selectStatus : String = "All"
     var selectPaymentType : String = "All"
     var selectNotificationType :  String = "All"
+    /// Phase 5: one redraw per burst of sync-queue events, and one on return if they came while hidden.
+    private var syncRedrawPending = false
+    private var syncRedrawWhenVisible = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -284,10 +287,32 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         self.tblView.reloadData()
     }
 
-    /// The sync queue changed: redraw the visible rows (no timer, no request — the engine's own notification).
+    /// The sync queue changed (the engine's own notification — no timer, no request): redraw the
+    /// visible rows once for a burst of events (a drain changes many operations), or on return when
+    /// the list is covered, so a refused signature never keeps showing as signed.
     @objc func syncQueueDidChange() {
-        guard self.isViewLoaded, self.view.window != nil, let visible = self.tblView.indexPathsForVisibleRows, !visible.isEmpty else { return }
+        guard self.isViewLoaded else { return }
+        guard self.view.window != nil else { self.syncRedrawWhenVisible = true; return }
+        guard !self.syncRedrawPending else { return }
+        self.syncRedrawPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self else { return }
+            self.syncRedrawPending = false
+            self.redrawVisibleRows()
+        }
+    }
+
+    private func redrawVisibleRows() {
+        guard self.view.window != nil, let visible = self.tblView.indexPathsForVisibleRows, !visible.isEmpty else { return }
         self.tblView.reloadRows(at: visible, with: .none)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if self.syncRedrawWhenVisible {
+            self.syncRedrawWhenVisible = false
+            self.redrawVisibleRows()
+        }
     }
     func updateCategoryLabel(){
         if selectCategoryID != "" && !selectCategoryName.isEmpty {
@@ -841,7 +866,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             // Phase 5: the server's Accepted, or a HEALTHY signature on this phone — never a refused one.
             let termsOrder = objData.unique_id ?? ""
             if EffectiveFieldState.termsShownAsSigned(serverStatus: objData.terms_status, operations: syncOps, orderUniqueId: termsOrder,
-                                                      termsIdentity: KabbaSync.termsAgreements?.current(orderUniqueId: termsOrder)?.identity ?? ""){
+                                                      termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: termsOrder) ?? ""){
                 cell.lblTermsAndCondition.textColor = .background
                 cell.viewTermsAndCondition.backgroundColor = .secondary
             }

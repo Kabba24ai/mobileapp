@@ -11,15 +11,19 @@
 // Rebuilding (Phase 5 hardening — the customer must see every word they sign):
 //   • removed with their content — never text a reader of the web page sees,
 //     or executable: script, template, noscript (the web page runs scripts, so
-//     it never shows it), iframe/frame (their "content" is never rendered),
-//     embed, audio/video and their sources, link/meta/base, title, area;
+//     it never shows it), frame, sources/tracks, link/meta/base, title, area;
+//   • embedded content the phone cannot load (no network) never vanishes
+//     silently: an iframe, embed, audio or video becomes a visible placeholder,
+//     a remote image its alt text or a placeholder, an object its fallback
+//     content plus a placeholder;
 //   • made inert, their wording kept — a form becomes a plain block, a button
 //     or a link plain text (so an approval inside one stays tappable), an
-//     object/applet/dialog/unknown wrapper just its content, a text or button
-//     input its visible value, a textarea or select its text;
+//     applet/dialog/unknown wrapper just its content, a textarea its text;
+//   • form controls keep their MEANING as text — a text or button input its
+//     visible value (a submit/reset with none its default label), a checkbox
+//     or radio ☑/☐ or ◉/○, a select every option with the selected one ◉;
 //   • SVG and MathML → their visible text only (never the graphic, never its
 //     scripts or handlers; an SVG <title>/<desc> is a tooltip, not shown);
-//   • a remote image (blocked: no network) → its alt text, when it has one;
 //   • on every element kept: no on* handler, no URL attribute (except an
 //     inline data: image), no target/for/form/popover wiring, no style url().
 // Sanitizing is presentation only — the frozen agreement and its identity are
@@ -28,17 +32,20 @@
   'use strict';
 
   var payload = window.kabbaTermsPayload || {};
-  var REMOVE = ['script', 'template', 'noscript', 'iframe', 'frame', 'frameset', 'embed', 'audio', 'video', 'source',
-    'track', 'param', 'link', 'meta', 'base', 'title', 'head', 'area', 'datalist'];
+  var REMOVE = ['script', 'template', 'noscript', 'frame', 'frameset', 'source', 'track', 'param', 'link', 'meta', 'base',
+    'title', 'head', 'area', 'datalist'];
+  var EMBEDDED = ['iframe', 'embed', 'audio', 'video'];
+  var IMAGE_NOT_SHOWN = '[Image not shown on this phone]';
+  var EMBED_NOT_SHOWN = '[Embedded content not shown on this phone]';
   var TEXT_ONLY = ['svg', 'math'];
   var NOT_SHOWN_IN_GRAPHICS = ['title', 'desc', 'metadata', 'script', 'style', 'annotation', 'annotation-xml'];
   var INERT = { form: 'div', button: 'span', a: 'span', object: 'span', applet: 'span', dialog: 'div', portal: 'span',
-    slot: 'span', map: 'span', option: 'span', optgroup: 'span', select: 'span', label: 'span', fieldset: 'div', legend: 'div' };
+    slot: 'span', map: 'span', optgroup: 'span', select: 'span', label: 'span', fieldset: 'div', legend: 'div' };
   var URL_ATTRIBUTES = ['href', 'src', 'srcset', 'action', 'formaction', 'xlink:href', 'data', 'poster', 'background',
     'ping', 'lowsrc', 'dynsrc', 'codebase', 'cite', 'longdesc', 'usemap', 'manifest', 'imagesrcset'];
   var DROPPED_ATTRIBUTES = ['target', 'formtarget', 'contenteditable', 'autofocus', 'srcdoc', 'for', 'form', 'popover',
     'popovertarget', 'popovertargetaction', 'download', 'name', 'tabindex', 'accesskey', 'http-equiv', 'is'];
-  var TEXT_INPUTS_HIDDEN = ['hidden', 'checkbox', 'radio', 'file', 'image', 'password', 'range', 'color'];
+  var TEXT_INPUTS_HIDDEN = ['hidden', 'file', 'password', 'range', 'color'];
 
   function each(list, fn) { Array.prototype.slice.call(list).forEach(fn); }
 
@@ -88,6 +95,7 @@
     var tag = node.localName.toLowerCase();
 
     if (REMOVE.indexOf(tag) !== -1) { return null; }
+    if (EMBEDDED.indexOf(tag) !== -1) { return inertText('kabba-inert-placeholder', EMBED_NOT_SHOWN); }
     if (TEXT_ONLY.indexOf(tag) !== -1) {
       var words = graphicText(node);
       return words ? inertText('kabba-inert-text', words) : null;
@@ -100,8 +108,21 @@
     }
     if (tag === 'input') {
       var type = (node.getAttribute('type') || 'text').toLowerCase();
-      var shown = TEXT_INPUTS_HIDDEN.indexOf(type) === -1 ? (node.getAttribute('value') || node.getAttribute('placeholder') || '') : '';
+      var on = node.hasAttribute('checked');
+      if (type === 'checkbox') { return inertText('kabba-inert-mark', on ? '☑' : '☐'); }
+      if (type === 'radio') { return inertText('kabba-inert-mark', on ? '◉' : '○'); }
+      if (type === 'image') {
+        var inputAlt = (node.getAttribute('alt') || '').trim();
+        return inertText('kabba-inert-placeholder', inputAlt ? '[Image not shown on this phone: ' + inputAlt + ']' : IMAGE_NOT_SHOWN);
+      }
+      var fallback = { submit: 'Submit', reset: 'Reset' }[type] || '';
+      var shown = TEXT_INPUTS_HIDDEN.indexOf(type) === -1 ? (node.getAttribute('value') || node.getAttribute('placeholder') || fallback) : '';
       return shown ? inertText('kabba-inert-control', shown) : null;
+    }
+    if (tag === 'option') {
+      var label = node.getAttribute('label') || node.textContent || '';
+      var chosen = node.selected === true || node.hasAttribute('selected');
+      return inertText('kabba-inert-option', (chosen ? '◉ ' : '○ ') + label.replace(/\s+/g, ' ').trim());
     }
     if (tag === 'textarea') {
       return node.textContent ? inertText('kabba-inert-textarea', node.textContent) : null;
@@ -110,7 +131,7 @@
       var src = (node.getAttribute('src') || '').trim().toLowerCase();
       if (src.indexOf('data:image/') !== 0) {
         var alt = (node.getAttribute('alt') || '').trim();
-        return alt ? inertText('kabba-inert-image', alt) : null;
+        return inertText('kabba-inert-placeholder', alt ? '[Image not shown on this phone: ' + alt + ']' : IMAGE_NOT_SHOWN);
       }
     }
 
@@ -123,7 +144,10 @@
     }
     copySafeAttributes(node, el);
     if (inert) { el.classList.add('kabba-inert-' + tag); }
-    return rebuildChildren(node, el);
+    if (tag === 'optgroup' && node.getAttribute('label')) { el.appendChild(inertText('kabba-inert-optgroup-label', node.getAttribute('label'))); }
+    rebuildChildren(node, el);
+    if (tag === 'object') { el.appendChild(inertText('kabba-inert-placeholder', EMBED_NOT_SHOWN)); }
+    return el;
   }
 
   function sanitize(html) {

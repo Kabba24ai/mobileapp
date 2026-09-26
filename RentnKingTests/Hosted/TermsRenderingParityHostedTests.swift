@@ -195,4 +195,57 @@ final class TermsRenderingParityHostedTests: XCTestCase {
         XCTAssertEqual(message["identity"] as? String, identity, "sanitizing is presentation: the identity is the frozen one")
         XCTAssertEqual((message["approvals_confirmed"] as? NSNumber)?.intValue, approvals)
     }
+    /// Review fixes: nothing in the agreement can become a page overlay or be hidden by the page's own
+    /// rules, blocked media leave a visible placeholder (never silently vanish), and form controls keep
+    /// their meaning (which option is selected, which box is ticked) as plain text.
+    func testTheInertPageKeepsMeaningAndNothingInTheAgreementCanCoverTheControls() throws {
+        let content = """
+            <p>Clause A (plain).</p>
+            <div class="modal">Clause M (a class the page itself uses): still just text.</div>
+            <p hidden style="display:block">Clause H (hidden, shown by its own style).</p>
+            <img src="https://example.com/terms.png">
+            <iframe src="https://example.com/embedded"></iframe>
+            <video src="https://example.com/terms.mp4"></video>
+            <select><option>Plan A</option><option selected>Plan B</option></select>
+            <p><input type="checkbox" checked> Declines the damage waiver.</p>
+            <p><input type="checkbox"> Accepts marketing.</p>
+            <p><input type="radio" checked> Weekly billing.</p>
+            <p><input type="submit"></p>
+            [customer_approval][/customer_approval]
+            """
+        let entries = [TermsAgreement.Entry(isGlobal: false, content: content, signatureBlock: "")]
+        let agreement = TermsAgreement(identity: TermsAgreement.computeIdentity(orderUniqueId: "ORD-MEANING", customerName: "Jane", entries: entries),
+                                       orderUniqueId: "ORD-MEANING", orderNumber: "#2", customerName: "Jane", approvalsRequired: 1, entries: entries)
+        XCTAssertTrue(agreement.isVerified(forOrder: "ORD-MEANING"))
+
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 400, height: 900))
+        window.makeKeyAndVisible()
+        self.window = window
+        let recorder = Recorder()
+        let page = load(try XCTUnwrap(TermsSigningShell.html(for: agreement)), recorder: recorder, in: window, x: 0)
+        let text = normalized(js(page, visibleTextJS) as? String ?? "")
+
+        for phrase in ["Clause A (plain).", "Clause M (a class the page itself uses): still just text.",
+                       "Clause H (hidden, shown by its own style).",
+                       "[Image not shown on this phone]", "[Embedded content not shown on this phone]",
+                       "○ Plan A", "◉ Plan B", "☑ Declines the damage waiver.", "☐ Accepts marketing.", "◉ Weekly billing.", "Submit"] {
+            XCTAssertTrue(text.contains(phrase), "shown: \(phrase) — in: \(text)")
+        }
+        XCTAssertEqual(js(page, "getComputedStyle(document.querySelector('#terms-dynamic-content .modal')).position") as? String, "static",
+                       "the agreement's own class='modal' is not the page's overlay")
+
+        // The approval is what a tap reaches, and the page's own pad still opens as its overlay.
+        let hit = js(page, """
+            (function () {
+              var box = document.querySelector('input.customer_initials_checkbox');
+              box.scrollIntoView({block: 'center'});
+              var r = box.getBoundingClientRect();
+              var el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+              return el === box || box.closest('label').contains(el);
+            })()
+            """) as? Bool
+        XCTAssertEqual(hit, true)
+        js(page, "document.getElementById('open-signature-btn').click(); true;")
+        XCTAssertEqual(js(page, "getComputedStyle(document.body.querySelector(':scope > .modal')).position") as? String, "fixed")
+    }
 }
