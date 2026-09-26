@@ -10,6 +10,7 @@
 //    checklist_context → ChecklistContextStore (<tenant>/<opuid>__<leg>)
 //    order_details     → the Order Details cache + the checklist screens' order cache (App writer)
 //    assembly          → the Assembly Review cache (App writer, delivery only)
+//    terms             → TermsAgreementStore (Phase 5, delivery only, verified agreements only)
 //
 //  No second cache: each section is the canonical server payload the screen
 //  would have cached after an online open. Rules (plan §4.2–§4.3):
@@ -21,7 +22,8 @@
 //
 //  Readiness (Amendment A): a mission is field-ready only when every required
 //  section is satisfied at its current package revision — Delivery: context +
-//  order_details + assembly; Return: context + order_details. A section the
+//  order_details + assembly + terms (Phase 5, when the order's terms are
+//  Pending); Return: context + order_details. A section the
 //  server reported `failed`, or a context the phone could not decode, is
 //  retryable: the reconciler re-requests that package at the SAME revision.
 //
@@ -37,6 +39,8 @@ enum DispatchOfflineOrderCache: String, Codable, CaseIterable, Equatable {
     case checklistOrder = "checklist_order"
     /// Assembly Review (`assembly`, delivery only).
     case assembly
+    /// Phase 5: the order's frozen Terms agreement (TermsAgreementStore, written by Core — never by the App writer).
+    case terms
 }
 
 /// The App layer writes the order-scoped sections into the screens' existing
@@ -64,6 +68,9 @@ struct DispatchOfflineFieldLedger: Codable, Equatable {
         case blocked
         /// Valid, but the local write failed — re-bridged from disk, never re-downloaded.
         case pending
+        /// Phase 5 (terms): required, but the order has no trustworthy stored agreement —
+        /// settled (retrying cannot help), and the mission is not fully offline-ready.
+        case unavailable
     }
 
     struct Mission: Codable, Equatable {
@@ -74,17 +81,34 @@ struct DispatchOfflineFieldLedger: Codable, Equatable {
         var checklistContext: SectionState
         var orderDetails: SectionState
         var assembly: SectionState
+        /// Phase 5. nil = a ledger written before Phase 5: not settled, so it is re-bridged once.
+        var terms: SectionState?
 
-        private var states: [SectionState] { [checklistContext, orderDetails, assembly] }
+        init(revision: String, serverReportsSections: Bool, checklistContext: SectionState,
+             orderDetails: SectionState, assembly: SectionState, terms: SectionState? = .notApplicable) {
+            self.revision = revision
+            self.serverReportsSections = serverReportsSections
+            self.checklistContext = checklistContext
+            self.orderDetails = orderDetails
+            self.assembly = assembly
+            self.terms = terms
+        }
 
-        var isComplete: Bool { states.allSatisfy { $0 == .satisfied || $0 == .notApplicable } }
+        private var states: [SectionState?] { [checklistContext, orderDetails, assembly, terms] }
+
+        /// Every required section is present. Terms from a pre-Phase-5 server (`notProvided`) keep
+        /// Phase 4's readiness: T&C then works as it did in Phase 4 (online, or the override).
+        var isComplete: Bool {
+            [checklistContext, orderDetails, assembly].allSatisfy { $0 == .satisfied || $0 == .notApplicable }
+                && (terms == .satisfied || terms == .notApplicable || terms == .notProvided)
+        }
         /// Nothing left to do at this revision (complete, or permanently unavailable from this server).
-        var isSettled: Bool { states.allSatisfy { $0 == .satisfied || $0 == .notApplicable || $0 == .notProvided } }
+        var isSettled: Bool { states.allSatisfy { $0 == .satisfied || $0 == .notApplicable || $0 == .notProvided || $0 == .unavailable } }
         var isRetryable: Bool { serverReportsSections && !isComplete && states.contains { $0 == .failed || $0 == .invalid } }
 
         enum CodingKeys: String, CodingKey {
             case revision, serverReportsSections = "server_reports_sections"
-            case checklistContext = "checklist_context", orderDetails = "order_details", assembly
+            case checklistContext = "checklist_context", orderDetails = "order_details", assembly, terms
         }
     }
 
@@ -126,17 +150,20 @@ final class DispatchOfflineFieldBridge {
 
     let store: DispatchOfflineMissionStore
     private let contexts: ChecklistContextStore
+    private let agreements: TermsAgreementStore?
     private weak var writer: DispatchOfflineOrderCacheWriting?
     private let operations: () -> [SyncOperation]
     private let currentEmployee: () -> ChecklistContext.Employee?
 
     init(store: DispatchOfflineMissionStore,
          contexts: ChecklistContextStore,
+         agreements: TermsAgreementStore? = nil,
          writer: DispatchOfflineOrderCacheWriting?,
          operations: @escaping () -> [SyncOperation],
          currentEmployee: @escaping () -> ChecklistContext.Employee?) {
         self.store = store
         self.contexts = contexts
+        self.agreements = agreements
         self.writer = writer
         self.operations = operations
         self.currentEmployee = currentEmployee
@@ -169,9 +196,11 @@ final class DispatchOfflineFieldBridge {
                                                     observed: observed, ledger: &ledger, tenant: tenant)
                 let assemblyState = bridgeAssembly(package, leg: entry.leg, sections: sections, orderUid: orderUid,
                                                    observed: observed, ledger: &ledger, tenant: tenant)
+                let termsState = bridgeTerms(package, leg: entry.leg, sections: sections, orderUid: orderUid,
+                                             observed: observed, ledger: &ledger, tenant: tenant)
                 ledger.missions[entry.missionKey] = DispatchOfflineFieldLedger.Mission(
                     revision: revision, serverReportsSections: sections != nil,
-                    checklistContext: contextState, orderDetails: orderState, assembly: assemblyState)
+                    checklistContext: contextState, orderDetails: orderState, assembly: assemblyState, terms: termsState)
                 report.bridgedMissionKeys.append(entry.missionKey)
             }
 
@@ -260,7 +289,7 @@ final class DispatchOfflineFieldBridge {
             return written.allSatisfy { $0 } ? .satisfied : .pending
         case .notApplicable?:
             return .notApplicable
-        case .failed?, nil:
+        case .failed?, .unavailable?, nil:
             return .failed
         }
     }
@@ -277,8 +306,34 @@ final class DispatchOfflineFieldBridge {
                 ? .satisfied : .pending
         case .notApplicable?:
             return .notApplicable
-        case .failed?, nil:
+        case .failed?, .unavailable?, nil:
             return .failed
+        }
+    }
+
+    /// Phase 5: the order's frozen Terms agreement → TermsAgreementStore, Delivery only, and only
+    /// when it VERIFIES (its identity recomputes and it is this package's order). A newer copy
+    /// (a live fetch asked later) is never overwritten.
+    private func bridgeTerms(_ package: JSONValue, leg: ChecklistLeg, sections: DispatchOfflinePackageSections?, orderUid: String?,
+                             observed: Date, ledger: inout DispatchOfflineFieldLedger,
+                             tenant: String) -> DispatchOfflineFieldLedger.SectionState {
+        guard leg == .delivery else { return .notApplicable }
+        guard let sections = sections, let status = sections.terms, let agreements = agreements else { return .notProvided }
+        switch status {
+        case .notApplicable: return .notApplicable
+        case .unavailable: return .unavailable
+        case .failed: return .failed
+        case .ok:
+            guard let uid = orderUid, let agreement = DispatchOfflinePackageContent.terms(package)?.agreement,
+                  agreement.isVerified(forOrder: uid) else { return .invalid }
+            if let newest = ledger.observed(.terms, uid), newest >= observed { return .satisfied }
+            do {
+                try agreements.save(agreement, tenantKey: tenant)
+            } catch {
+                return .pending
+            }
+            ledger.observedAt[.terms, default: [:]][uid] = observed
+            return .satisfied
         }
     }
 

@@ -40,6 +40,8 @@ final class DispatchOfflineOrderBridge: DispatchOfflineOrderCacheWriting {
             guard let data = try? JSONValue.object(envelope).serialized(),
                   (try? AssemblyReviewEnvelope.decode(data)) != nil else { return false }
             return KabbaAssemblySync.cache(data, orderUniqueId: orderUniqueId, tenantKey: tenantKey)
+        case .terms:
+            return false // Core writes the agreement store itself (DispatchOfflineFieldBridge.bridgeTerms)
         }
     }
 

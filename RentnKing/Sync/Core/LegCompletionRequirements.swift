@@ -21,6 +21,8 @@
 //
 //      requirement          Delivery completion   Return completion
 //      Terms & Conditions   required              ignored (historical)
+//        (Phase 5: a terms.sign counts only while healthy and at the order's
+//         verified agreement identity — see EffectiveFieldState.termsSatisfied)
 //      Driver's License     required              ignored (historical)
 //      Delivery Photo/Video required              ignored (historical)
 //      Delivery Checklist   required              ignored (historical)
@@ -106,6 +108,9 @@ struct LegCompletionInputs: Equatable {
     /// The current return checklist execution for the focus product, when the
     /// phone knows it (cached context). Empty → unknown.
     var activeReturnExecutionId: String = ""
+    /// Phase 5: the identity of the verified frozen Terms agreement this phone
+    /// holds for the order. Empty → none held.
+    var termsIdentity: String = ""
 
     init(orderUniqueId: String,
          orderProductUniqueId: String,
@@ -116,7 +121,8 @@ struct LegCompletionInputs: Equatable {
          deliveryChecklistConfirmed: Bool = false,
          returnMediaConfirmed: Bool = false,
          returnChecklistConfirmed: Bool = false,
-         activeReturnExecutionId: String = "") {
+         activeReturnExecutionId: String = "",
+         termsIdentity: String = "") {
         self.orderUniqueId = orderUniqueId
         self.orderProductUniqueId = orderProductUniqueId
         self.orderProductUniqueIds = orderProductUniqueIds
@@ -127,6 +133,7 @@ struct LegCompletionInputs: Equatable {
         self.returnMediaConfirmed = returnMediaConfirmed
         self.returnChecklistConfirmed = returnChecklistConfirmed
         self.activeReturnExecutionId = activeReturnExecutionId
+        self.termsIdentity = termsIdentity
     }
 }
 
@@ -207,7 +214,7 @@ enum LegCompletionEvaluator {
                        operations: [SyncOperation]) -> RequirementStatus {
         switch requirement {
         case .termsAndConditions:
-            return orderScoped(confirmed: inputs.termsConfirmed, types: [EffectiveFieldState.termsAcceptedType], inputs: inputs, operations: operations)
+            return terms(inputs: inputs, operations: operations)
         case .driverLicense:
             return orderScoped(confirmed: inputs.licenseConfirmed, types: [EffectiveFieldState.licenseMediaType], inputs: inputs, operations: operations)
         case .deliveryMedia:
@@ -233,6 +240,18 @@ enum LegCompletionEvaluator {
         guard !inputs.orderUniqueId.isEmpty else { return .incomplete }
         let evidence = operations.filter { types.contains($0.type) && $0.identity.orderUniqueId == inputs.orderUniqueId }
         return status(from: evidence)
+    }
+
+    /// T&C (order-level): server truth; a legacy terms.accept as before (any retained state — the
+    /// hosted page recorded it server-side); or a HEALTHY terms.sign for this order at the verified
+    /// identity (Phase 5). A Needs Attention terms.sign was refused by the server and never counts.
+    private static func terms(inputs: LegCompletionInputs, operations: [SyncOperation]) -> RequirementStatus {
+        let legacy = orderScoped(confirmed: inputs.termsConfirmed, types: [EffectiveFieldState.termsAcceptedType],
+                                 inputs: inputs, operations: operations)
+        if legacy == .satisfied { return .satisfied }
+        let signed = EffectiveFieldState.healthyTermsSignatures(in: operations, orderUniqueId: inputs.orderUniqueId,
+                                                                termsIdentity: inputs.termsIdentity)
+        return signed.isEmpty ? legacy : .satisfied
     }
 
     /// The delivery checklist is satisfied by a durable completion for ANY line

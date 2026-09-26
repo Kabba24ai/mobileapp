@@ -226,16 +226,27 @@ struct DispatchOfflinePackageSections: Equatable {
         case ok
         case failed
         case notApplicable = "not_applicable"
+        /// Phase 5 (terms only): required, but the order has no trustworthy stored agreement.
+        case unavailable
     }
 
     let orderDetails: Status?
     let assembly: Status?
+    /// Phase 5: the order's frozen Terms agreement (nil = a pre-Phase-5 server).
+    let terms: Status?
+
+    init(orderDetails: Status?, assembly: Status?, terms: Status? = nil) {
+        self.orderDetails = orderDetails
+        self.assembly = assembly
+        self.terms = terms
+    }
 
     static func from(_ package: JSONValue) -> DispatchOfflinePackageSections? {
         guard let sections = package["sections"], case .object = sections else { return nil }
         return DispatchOfflinePackageSections(
             orderDetails: sections["order_details"]?.stringValue.flatMap(Status.init(rawValue:)),
-            assembly: sections["assembly"]?.stringValue.flatMap(Status.init(rawValue:)))
+            assembly: sections["assembly"]?.stringValue.flatMap(Status.init(rawValue:)),
+            terms: sections["terms"]?.stringValue.flatMap(Status.init(rawValue:)))
     }
 }
 
@@ -252,6 +263,11 @@ enum DispatchOfflinePackageContent {
     static func assembly(_ package: JSONValue) -> JSONValue? {
         guard let value = package["assembly"], case .object = value, value["data"]?.objectValue != nil else { return nil }
         return value
+    }
+
+    /// Phase 5: the package's `terms` block (the order's frozen agreement, decoded — NOT verified).
+    static func terms(_ package: JSONValue) -> TermsBlock? {
+        TermsBlock.decode(package["terms"])
     }
 
     /// The order this mission belongs to (order_details first, then the Dispatch blocks).

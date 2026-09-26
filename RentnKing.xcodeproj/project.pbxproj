@@ -7,6 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5A5E000000000000000000DF /* DispatchOfflineTermsBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */; };
+		5A5E000000000000000000DD /* TermsSignOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DC /* TermsSignOperationsTests.swift */; };
+		5A5E000000000000000000DB /* TermsAgreementStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */; };
+		5A5E000000000000000000D9 /* TermsAgreementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000D8 /* TermsAgreementTests.swift */; };
+		5A5E000000000000000000D6 /* TermsSignOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000D5 /* TermsSignOperations.swift */; };
+		5A5E000000000000000000D7 /* TermsSignOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000D5 /* TermsSignOperations.swift */; };
+		5A5E000000000000000000D3 /* TermsAgreementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000D2 /* TermsAgreementStore.swift */; };
+		5A5E000000000000000000D4 /* TermsAgreementStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000D2 /* TermsAgreementStore.swift */; };
+		5A5E000000000000000000D0 /* TermsAgreement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000CF /* TermsAgreement.swift */; };
+		5A5E000000000000000000D1 /* TermsAgreement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000CF /* TermsAgreement.swift */; };
 		5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */; };
 		5A5E000000000000000000CC /* DispatchOfflineOrderBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000CB /* DispatchOfflineOrderBridge.swift */; };
 		5A5E000000000000000000CA /* DispatchOfflineReferenceWarmupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000C9 /* DispatchOfflineReferenceWarmupTests.swift */; };
@@ -492,6 +502,13 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineTermsBridgeTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000DC /* TermsSignOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignOperationsTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreementStoreTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000D8 /* TermsAgreementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreementTests.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000D5 /* TermsSignOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignOperations.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000D2 /* TermsAgreementStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreementStore.swift; sourceTree = "<group>"; };
+		5A5E000000000000000000CF /* TermsAgreement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsAgreement.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineFieldBridgeHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000CB /* DispatchOfflineOrderBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineOrderBridge.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000C9 /* DispatchOfflineReferenceWarmupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineReferenceWarmupTests.swift; sourceTree = "<group>"; };
@@ -2036,6 +2053,9 @@
 				5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */,
 				5A5E000000000000000000BF /* ChecklistContextFallbackPolicy.swift */,
 				5A5E000000000000000000C2 /* DispatchOfflineReferenceWarmup.swift */,
+				5A5E000000000000000000CF /* TermsAgreement.swift */,
+				5A5E000000000000000000D2 /* TermsAgreementStore.swift */,
+				5A5E000000000000000000D5 /* TermsSignOperations.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2164,6 +2184,10 @@
 				5A5E000000000000000000C5 /* ChecklistContextTenancyTests.swift */,
 				5A5E000000000000000000C7 /* DispatchOfflineFieldBridgeTests.swift */,
 				5A5E000000000000000000C9 /* DispatchOfflineReferenceWarmupTests.swift */,
+				5A5E000000000000000000D8 /* TermsAgreementTests.swift */,
+				5A5E000000000000000000DA /* TermsAgreementStoreTests.swift */,
+				5A5E000000000000000000DC /* TermsSignOperationsTests.swift */,
+				5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -2747,6 +2771,9 @@
 				5A5E000000000000000000C0 /* ChecklistContextFallbackPolicy.swift in Sources */,
 				5A5E000000000000000000C3 /* DispatchOfflineReferenceWarmup.swift in Sources */,
 				5A5E000000000000000000CC /* DispatchOfflineOrderBridge.swift in Sources */,
+				5A5E000000000000000000D0 /* TermsAgreement.swift in Sources */,
+				5A5E000000000000000000D3 /* TermsAgreementStore.swift in Sources */,
+				5A5E000000000000000000D6 /* TermsSignOperations.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2862,6 +2889,13 @@
 				5A5E000000000000000000C6 /* ChecklistContextTenancyTests.swift in Sources */,
 				5A5E000000000000000000C8 /* DispatchOfflineFieldBridgeTests.swift in Sources */,
 				5A5E000000000000000000CA /* DispatchOfflineReferenceWarmupTests.swift in Sources */,
+				5A5E000000000000000000D1 /* TermsAgreement.swift in Sources */,
+				5A5E000000000000000000D4 /* TermsAgreementStore.swift in Sources */,
+				5A5E000000000000000000D7 /* TermsSignOperations.swift in Sources */,
+				5A5E000000000000000000D9 /* TermsAgreementTests.swift in Sources */,
+				5A5E000000000000000000DB /* TermsAgreementStoreTests.swift in Sources */,
+				5A5E000000000000000000DD /* TermsSignOperationsTests.swift in Sources */,
+				5A5E000000000000000000DF /* DispatchOfflineTermsBridgeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

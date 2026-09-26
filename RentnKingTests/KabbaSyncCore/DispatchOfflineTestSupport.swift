@@ -61,6 +61,12 @@ enum DispatchOfflineFixtures {
         var serverTime: String? = nil
         /// An unassigned delivery (`assignment: none`): no unit, no questions.
         var unassigned = false
+        // Phase 5 knobs.
+        /// `sections.terms` as the server would report it; nil keeps "ok" (Delivery) / "not_applicable" (Return).
+        /// "absent" removes the key (a pre-Phase-5 server).
+        var termsSection: String? = nil
+        /// Corrupt the packaged agreement so its identity no longer recomputes.
+        var tamperedTerms = false
 
         var key: String { "\(opuid):\(leg.rawValue)" }
     }
@@ -108,11 +114,52 @@ enum DispatchOfflineFixtures {
                 .setting(["checklist_context", "equipment", "equipment_unique_id"], .null)
                 .setting(["checklist_context", "questions"], .array([]))
         }
+        // Phase 5: the order's frozen agreement is bound to its order — re-target it (identity
+        // recomputed) whenever a test gives the mission another order.
+        if let order = m.orderUid { p = retargetedTerms(p, orderUid: order) }
         if m.leg == .return {
-            // Like the server: Return missions carry no Assembly Review.
+            // Like the server: Return missions carry no Assembly Review and no agreement.
             p = p.setting(["assembly"], .null).setting(["sections", "assembly"], .string("not_applicable"))
+            p = withoutAgreement(p).setting(["sections", "terms"], .string("not_applicable"))
+        }
+        switch m.termsSection {
+        case "absent"?:
+            if case .object(var sections)? = p["sections"] { sections["terms"] = nil; p = p.setting(["sections"], .object(sections)) }
+            p = withoutAgreement(p)
+        case let status?:
+            p = p.setting(["sections", "terms"], .string(status))
+            if status != "ok" {
+                p = withoutAgreement(p).setting(["terms", "agreement_status"], status == "unavailable" ? .string("unavailable") : .null)
+                if status == "unavailable" { p = p.setting(["terms", "unavailable_reason"], .string("no_stored_agreement")) }
+            }
+        case nil:
+            break
+        }
+        if m.tamperedTerms, var entries = p["terms"]?["agreement"]?["entries"]?.arrayValue, !entries.isEmpty {
+            entries[0] = entries[0].setting(["content"], .string("<p>Tampered.</p>"))
+            p = p.setting(["terms", "agreement", "entries"], .array(entries))
         }
         return p
+    }
+
+    /// The package's agreement moved to `orderUid`, with its identity recomputed.
+    static func retargetedTerms(_ package: JSONValue, orderUid: String) -> JSONValue {
+        guard var agreement = TermsAgreement.decode(package["terms"]?["agreement"]) else { return package }
+        agreement.orderUniqueId = orderUid
+        agreement.identity = agreement.recomputedIdentity
+        return package.setting(["terms", "agreement", "order_unique_id"], .string(orderUid))
+            .setting(["terms", "agreement", "identity"], .string(agreement.identity))
+    }
+
+    /// The agreement the package carries for its order (decoded; the shared fixture's content).
+    static func agreement(_ m: Mission) -> TermsAgreement {
+        TermsAgreement.decode(package(m)["terms"]?["agreement"])!
+    }
+
+    private static func withoutAgreement(_ package: JSONValue) -> JSONValue {
+        package.setting(["terms", "agreement"], .null)
+            .setting(["terms", "offline_content_available"], .bool(false))
+            .setting(["terms", "agreement_status"], .null)
     }
 
     private static func employee(_ id: Int?) -> JSONValue {

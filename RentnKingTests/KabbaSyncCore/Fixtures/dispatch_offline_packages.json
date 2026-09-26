@@ -302,7 +302,28 @@
                 "terms": {
                     "status": "Pending",
                     "page_url": "http://kabba.local/terms-and-conditions/ORD-BJVZ-CSDO/mobile",
-                    "offline_content_available": false
+                    "offline_content_available": true,
+                    "agreement_status": "available",
+                    "unavailable_reason": null,
+                    "agreement": {
+                        "identity": "v1:458a8f041d81d4b4b0fdfaaef14d50f62431f390c414f99969d0f7c360cd761d",
+                        "order_unique_id": "ORD-BJVZ-CSDO",
+                        "order_number": "1650",
+                        "customer_name": "Cody Cash",
+                        "approvals_required": 1,
+                        "entries": [
+                            {
+                                "is_global": true,
+                                "content": "<p>Standard terms.</p>[product_terms][/product_terms]",
+                                "signature_block": "<p>[customer_name][/customer_name] [customer_signature][/customer_signature]</p>"
+                            },
+                            {
+                                "is_global": false,
+                                "content": "<p>Addendum.</p>[customer_approval][/customer_approval]",
+                                "signature_block": ""
+                            }
+                        ]
+                    }
                 },
                 "order_details": {
                     "id": 1,
@@ -1062,7 +1083,8 @@
                 },
                 "sections": {
                     "order_details": "ok",
-                    "assembly": "ok"
+                    "assembly": "ok",
+                    "terms": "ok"
                 }
             }
         ],

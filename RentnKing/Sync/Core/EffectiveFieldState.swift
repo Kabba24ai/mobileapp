@@ -36,6 +36,8 @@ enum EffectiveFieldState {
     static let returnMediaType = "return_media.upload"
     static let licenseMediaType = "license_media.upload"
     static let termsAcceptedType = "terms.accept"
+    /// Dispatch offline Phase 5: a signature captured on this phone, bound to the order's frozen agreement.
+    static let termsSignedType = "terms.sign"
     static let driverChecklistType = "driver_checklist.update"
     /// Pre-departure preparation lifecycle (2026-09): the two operations that
     /// DISCARD a preparation cycle. Both are the phone's local-first record of
@@ -157,15 +159,36 @@ enum EffectiveFieldState {
     }
 
     /// Terms & Conditions requirement satisfied? server truth (Accepted/Exempt)
-    /// ∨ durable local acceptance op. Terms are an ORDER-level fact — any
-    /// terms.accept evidence for the order satisfies, whichever product's
-    /// workflow surfaced the signing.
+    /// ∨ durable local evidence. Terms are an ORDER-level fact — one signature
+    /// covers every line of its order, whichever product's workflow surfaced it:
+    ///   • terms.accept (the hosted page already recorded acceptance server-side):
+    ///     any retained op for the order, as before;
+    ///   • terms.sign (signed on this phone, Phase 5): a HEALTHY op (pending /
+    ///     syncing / synced) for this order whose terms identity is the verified
+    ///     agreement this phone holds for it (`termsIdentity`; empty = the phone
+    ///     holds none, nothing contradicts the op). A parked (Needs Attention)
+    ///     terms.sign never satisfies: the server refused it (the wrong order's
+    ///     document, corrupted data) — it is kept, never relabelled.
     static func termsSatisfied(serverAccepted: Bool,
                                       operations: [SyncOperation],
-                                      orderUniqueId: String) -> Bool {
-        serverAccepted || hasDurableEvidence(in: operations,
-                                             types: [termsAcceptedType],
-                                             orderUniqueId: orderUniqueId)
+                                      orderUniqueId: String,
+                                      termsIdentity: String = "") -> Bool {
+        serverAccepted
+            || hasDurableEvidence(in: operations, types: [termsAcceptedType], orderUniqueId: orderUniqueId)
+            || !healthyTermsSignatures(in: operations, orderUniqueId: orderUniqueId, termsIdentity: termsIdentity).isEmpty
+    }
+
+    /// The terms.sign operations that count for this order and verified identity.
+    static func healthyTermsSignatures(in operations: [SyncOperation],
+                                       orderUniqueId: String,
+                                       termsIdentity: String) -> [SyncOperation] {
+        guard !orderUniqueId.isEmpty else { return [] }
+        return operations.filter { op in
+            op.type == termsSignedType
+                && op.identity.orderUniqueId == orderUniqueId
+                && countsAsDurableEvidence(op.state) && op.state != .needsAttention
+                && (termsIdentity.isEmpty || TermsSignOperationBuilder.termsIdentity(of: op) == termsIdentity)
+        }
     }
 
     /// Delivery VIDEO requirement satisfied for ONE order product?
