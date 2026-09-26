@@ -190,13 +190,14 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
         }
     }
 
-    /// A PNG data URL (the web pad's format) → its bytes, or nil when it isn't a PNG under 2 MB.
+    /// The pad's PNG data URL → its bytes, or nil when the shared signature contract refuses it
+    /// (TermsSignatureImage — form, base64, PNG structure, size, dimensions): nothing the server
+    /// would refuse on those grounds is ever recorded. Decoding the image data is the server's
+    /// check alone (GD) — ImageIO accepts corrupt PNG data silently, so the phone does not pretend
+    /// to; the pad's own output always decodes (TermsSignatureMeasurementHostedTests).
     static func signaturePNG(fromDataURL dataURL: String) -> Data? {
-        let prefix = "data:image/png;base64,"
-        guard dataURL.hasPrefix(prefix), let data = Data(base64Encoded: String(dataURL.dropFirst(prefix.count))),
-              data.count > 8, data.count <= 2 * 1024 * 1024,
-              data.prefix(8) == Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) else { return nil }
-        return data
+        guard case .success(let png) = TermsSignatureImage.validatedPNG(fromDataURL: dataURL) else { return nil }
+        return png
     }
 
     private func resetPage(_ message: String) {
