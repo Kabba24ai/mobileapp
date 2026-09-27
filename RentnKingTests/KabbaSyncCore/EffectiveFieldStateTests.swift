@@ -217,6 +217,23 @@ final class DriverTripStageTests: XCTestCase {
                                                server: server ?? noServerStage, serverObservedAt: observedAt)
     }
 
+    // Driver Delivery Process Flow (2026-09-27) §3.3.2: the server's Arrived is trusted
+    // only when it is WHOLE — is_arrived AND arrived_at. A row written before every recall
+    // cleared both (RC10) can carry a stale is_arrived with no stamp; that is not an arrival.
+    func testServerArrivedIsTrustedOnlyWhenWhole() {
+        XCTAssertTrue(DriverStageServerState(isArrivedFlag: true, arrivedAt: "2026-09-27 16:51:00", readyToGoAt: "2026-09-27 15:10:00").isArrived)
+        XCTAssertFalse(DriverStageServerState(isArrivedFlag: true, arrivedAt: nil, readyToGoAt: "2026-09-27 15:10:00").isArrived,
+                       "a stale is_arrived with no arrived_at is not an arrival")
+        XCTAssertFalse(DriverStageServerState(isArrivedFlag: true, arrivedAt: "", readyToGoAt: nil).isArrived)
+        XCTAssertFalse(DriverStageServerState(isArrivedFlag: false, arrivedAt: "2026-09-27 16:51:00", readyToGoAt: nil).isArrived,
+                       "the flag is still required — arrived_at alone is not enough either")
+
+        let stale = DriverStageServerState(isArrivedFlag: true, arrivedAt: nil, readyToGoAt: "2026-09-27 15:10:00")
+        XCTAssertEqual(stage([], server: stale).stage, .onMyWay, "the departure stamp still counts")
+        XCTAssertEqual(stage([], server: DriverStageServerState(isArrivedFlag: true, arrivedAt: nil, readyToGoAt: nil)).stage, .notStarted)
+        XCTAssertEqual(stage([], server: DriverStageServerState(isArrivedFlag: true, arrivedAt: "2026-09-27 16:51:00", readyToGoAt: nil)).stage, .arrived)
+    }
+
     func testLoadMapAndGoSavedOnThisPhoneIsOnMyWayImmediately() {
         let ops = [stageOp("On My Way", captured: t0)]
         let effective = stage(ops)

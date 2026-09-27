@@ -1174,8 +1174,8 @@ extension DriverChecklistViewController {
         self.pushOrderDetails()
     }
 
-    /// Screen 2 → Screen 3. The ONLY way Order Details is reached from
-    /// Dispatch — through this screen, for every state (see DriverChecklistRouting).
+    /// Screen 2 → Screen 3 (Main Order). Reached from here on Arrived, or directly
+    /// from Dispatch when the effective stage is already Arrived (DeliveryWorkflowRouting).
     private func pushOrderDetails() {
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{

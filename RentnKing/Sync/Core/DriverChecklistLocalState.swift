@@ -7,46 +7,31 @@
 //  customer, the call sub-checklist, fuel and keys. NOT the full Delivery/
 //  Return equipment checklist — that is a separate system (ChecklistContext).
 //
-//  This file owns the two rules the 2026-09 workflow correction is built on:
+//  This file owns the record's rules:
 //
-//  1. ROUTING IS ABSOLUTE (DriverChecklistRouting). A Start Delivery / Start
-//     Return tap ALWAYS opens the Driver Checklist screen. Saved progress —
-//     local, server, partial, complete, even "driver already arrived" — only
-//     changes what Screen 2 shows, never which screen opens. The old shortcut
-//     (is_arrived → straight to Order Details) is the bug this replaces.
+//  1. PROGRESS IS SCOPED TO ORDER-PRODUCT + LEG. Delivery cannot populate
+//     Return, product A cannot populate product B, one order cannot populate
+//     another. The pre-correction key was scoped to the ORDER, which leaked
+//     state across the lines of a multi-line order — hence the "v2" key
+//     namespace: old order-scoped blobs are simply ignored.
 //
-//  2. PROGRESS IS SCOPED TO ORDER-PRODUCT + LEG (DriverChecklistLocalState).
-//     Delivery cannot populate Return, product A cannot populate product B,
-//     one order cannot populate another. The pre-correction key was scoped to
-//     the ORDER, which leaked state across the lines of a multi-line order —
-//     hence the "v2" key namespace: old order-scoped blobs are simply ignored.
+//  2. FUEL AND KEYS BELONG TO ONE UNIT (D5, 2026-09-27). The record carries the
+//     identity of the unit those answers were given for, so a replaced unit
+//     always starts unanswered — on this phone and on any other phone that
+//     restores from the server's copy.
+//
+//  Routing is NOT decided here. A Start Delivery / Start Return tap opens the
+//  screen the effective workflow stage names (DeliveryWorkflowStage, spec §5);
+//  this record is one of that derivation's inputs (evidence), never a router.
+//  The 2026-09 "routing is absolute" rule that lived here trusted a stale
+//  server is_arrived; the stage derivation trusts the effective, local-first
+//  trip stage instead.
 //
 //  Saved answers are current state, not a historical lock: every value here
 //  restores into the same editable controls that wrote it.
 //
 
 import Foundation
-
-/// Where a Dispatch "Start Delivery" / "Start Return" tap must navigate.
-public enum DriverChecklistRouting {
-
-    public enum Destination: Equatable {
-        /// Screen 2 — the Driver Checklist. The only valid destination.
-        case driverChecklist
-    }
-
-    /// The navigation rule: EVERY combination of prior state routes to the
-    /// Driver Checklist. The inputs exist so the rule is enforced where the
-    /// temptation lives — a future "skip when X" must change this function's
-    /// signature and the tests that pin all combinations down.
-    public static func destination(isArrived: Bool,
-                                   readyToGoAt: String?,
-                                   hasSavedProgress: Bool) -> Destination {
-        // Saved checklist progress changes the CONTENTS of Screen 2,
-        // never the routing around Screen 2.
-        return .driverChecklist
-    }
-}
 
 /// The locally persisted state of one driver mini-checklist (one order
 /// product, one leg). Field names mirror the canonical wire contract of
@@ -65,15 +50,20 @@ public struct DriverChecklistLocalState: Equatable {
     public var fuel: String
     /// "" | "Missing" | "With Machine" (delivery only; "" = no keys).
     public var keys: String
+    /// D5: the unique id of the unit `fuel` / `keys` were answered for
+    /// ("" = unknown — a record written before the identity existed).
+    public var equipmentUniqueId: String
 
     public init(checks: [Bool] = [],
                 callCustomer: String = "",
                 fuel: String = "",
-                keys: String = "") {
+                keys: String = "",
+                equipmentUniqueId: String = "") {
         self.checks = checks
         self.callCustomer = callCustomer
         self.fuel = fuel
         self.keys = keys
+        self.equipmentUniqueId = equipmentUniqueId
     }
 
     // MARK: - Identity
@@ -96,6 +86,7 @@ public struct DriverChecklistLocalState: Equatable {
             "call_customer": callCustomer,
             "fuel": fuel,
             "keys": keys,
+            "equipment_unique_id": equipmentUniqueId,
         ]
     }
 
@@ -105,13 +96,14 @@ public struct DriverChecklistLocalState: Equatable {
         self.callCustomer = dictionary["call_customer"] as? String ?? ""
         self.fuel = dictionary["fuel"] as? String ?? ""
         self.keys = dictionary["keys"] as? String ?? ""
+        self.equipmentUniqueId = dictionary["equipment_unique_id"] as? String ?? ""
     }
 
     // MARK: - Progress
 
     /// True when the driver has entered anything beyond the untouched
-    /// defaults — this is what turns the Dispatch button band GREEN. It never
-    /// influences routing (see DriverChecklistRouting).
+    /// defaults — this is what turns the Dispatch button band GREEN. Routing
+    /// reads the workflow stage, not this flag (DeliveryWorkflowStage).
     public var hasProgress: Bool {
         if checks.contains(true) { return true }
         if callCustomer == "no_answer" { return true }   // deliberate non-default selection

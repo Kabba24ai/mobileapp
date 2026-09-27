@@ -4,38 +4,19 @@ import XCTest
 @testable import KabbaSyncCore
 #endif
 
-/// The 2026-09 Dispatch workflow correction, pinned down:
+/// The driver mini-checklist's local record, pinned down:
 ///
-///  1. Start Delivery / Start Return ALWAYS routes to the Driver Checklist —
-///     no combination of prior state (arrived, ready-to-go, saved progress)
-///     may reopen the old Screen 1 → Screen 3 shortcut.
+///  1. Routing is NOT decided here. Start Delivery / Start Return routes by
+///     the effective workflow stage (DeliveryWorkflowStage, 2026-09-27); the
+///     record is one of that derivation's inputs (evidence), never a router.
 ///  2. Saved mini-checklist progress is scoped to ORDER-PRODUCT + LEG, stays
-///     editable, and round-trips losslessly.
+///     editable, and round-trips losslessly — including the identity of the
+///     unit the fuel/keys answers were given for (D5).
 ///  3. Progress detection (the GREEN Dispatch band) reflects any non-default
-///     entry, locally or as the server reports it — and is routing-inert.
+///     entry, locally or as the server reports it.
 final class DriverChecklistLocalStateTests: XCTestCase {
 
-    // MARK: - 1. The navigation rule is absolute
-
-    func testEveryPriorStateCombinationRoutesToTheDriverChecklist() {
-        // All 8 combinations of (isArrived, readyToGoAt, hasSavedProgress):
-        // the pre-correction code bypassed Screen 2 when is_arrived was true.
-        for isArrived in [false, true] {
-            for readyToGo in [nil, "2026-09-01 08:15:00"] {
-                for progress in [false, true] {
-                    XCTAssertEqual(
-                        DriverChecklistRouting.destination(isArrived: isArrived,
-                                                           readyToGoAt: readyToGo,
-                                                           hasSavedProgress: progress),
-                        .driverChecklist,
-                        "Bypass regression: isArrived=\(isArrived) readyToGo=\(String(describing: readyToGo)) progress=\(progress) must still open the Driver Checklist"
-                    )
-                }
-            }
-        }
-    }
-
-    // MARK: - 2. Identity: order-product + leg
+    // MARK: - 1. Identity: order-product + leg
 
     func testKeyIsScopedToOrderProductAndLeg() {
         let productADelivery = DriverChecklistLocalState.key(orderProductUniqueId: "ORD-SCH-AAAA-0001", leg: "delivery")
@@ -96,6 +77,23 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertEqual(foreign?.hasProgress, false)
     }
 
+    // MARK: - 2c. The unit the fuel/keys answers belong to (D5)
+
+    func testEquipmentIdentityRoundTripsAndIsUnknownWhenAbsent() {
+        let saved = DriverChecklistLocalState(checks: [true, false, false, false],
+                                              callCustomer: "confirmed",
+                                              fuel: "Full",
+                                              keys: "With Machine",
+                                              equipmentUniqueId: "EQP-A")
+        XCTAssertEqual(saved.dictionary()["equipment_unique_id"] as? String, "EQP-A")
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: saved.dictionary()), saved)
+
+        // A record written before the identity existed restores as "unknown unit".
+        let legacy = DriverChecklistLocalState(dictionary: ["fuel": "Full", "keys": "With Machine"])
+        XCTAssertEqual(legacy?.equipmentUniqueId, "")
+        XCTAssertEqual(DriverChecklistLocalState().equipmentUniqueId, "")
+    }
+
     // MARK: - 3. Progress detection (the green band) — routing-inert
 
     func testUntouchedDefaultsAreNotProgress() {
@@ -121,6 +119,18 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertTrue(partial.hasProgress)
     }
 
+    func testTheRecordCarriesNoRoutingRule() {
+        // The green-band predicate is an input to DeliveryWorkflowStage, never
+        // a destination: nothing on the record says where Start Delivery goes.
+        let progressed = DriverChecklistLocalState(checks: [true, true, true, true],
+                                                   callCustomer: "no_answer",
+                                                   fuel: "Full",
+                                                   keys: "With Machine")
+        XCTAssertTrue(progressed.hasProgress)
+        XCTAssertTrue(DriverChecklistEvidence.exists(localRecord: progressed, serverChecklist: nil, operations: [],
+                                                     orderProductUniqueId: "P1", leg: "delivery"))
+    }
+
     func testServerReportedProgressMatchesTheSameRules() {
         XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: [0, 0, 0, 0],
                                                                    callCustomer: "confirmed",
@@ -144,17 +154,4 @@ final class DriverChecklistLocalStateTests: XCTestCase {
                                                                   keys: "With Machine"))
     }
 
-    func testProgressNeverChangesTheRoute() {
-        // Belt and braces: the green-band predicate feeding the routing rule
-        // still yields the checklist destination.
-        let progressed = DriverChecklistLocalState(checks: [true, true, true, true],
-                                                   callCustomer: "no_answer",
-                                                   fuel: "Full",
-                                                   keys: "With Machine")
-        XCTAssertTrue(progressed.hasProgress)
-        XCTAssertEqual(DriverChecklistRouting.destination(isArrived: false,
-                                                          readyToGoAt: nil,
-                                                          hasSavedProgress: progressed.hasProgress),
-                       .driverChecklist)
-    }
 }

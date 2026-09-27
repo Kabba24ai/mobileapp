@@ -78,6 +78,7 @@
 		5A5C00000000000000000044 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
 		5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
 		5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
+		5A5F00000000000000000002 /* DeliveryWorkflowStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */; };
 		5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000014 /* TermsSyncHandler.swift */; };
@@ -459,6 +460,7 @@
 		5A5C000000000000000000C4 /* SessionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000043 /* SessionState.swift */; };
 		5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
 		5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
+		5A5F00000000000000000003 /* DeliveryWorkflowStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */; };
 		5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
@@ -577,6 +579,7 @@
 		5A5C00000000000000000043 /* SessionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionState.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000045 /* ReleasePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicy.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalState.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryWorkflowStage.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000006 /* EffectiveFieldState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldState.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000011 /* TermsOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperations.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000014 /* TermsSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSyncHandler.swift; sourceTree = "<group>"; };
@@ -2078,6 +2081,7 @@
 				5A5C00000000000000000043 /* SessionState.swift */,
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
 				5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */,
+				5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */,
 				5A5CFADE0000000000000006 /* EffectiveFieldState.swift */,
 				5A5CFADE0000000000000011 /* TermsOperations.swift */,
 				5A5CFADE0000000000000020 /* PreparationLifecycle.swift */,
@@ -2598,6 +2602,7 @@
 				5A5C00000000000000000044 /* SessionState.swift in Sources */,
 				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
 				5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */,
+				5A5F00000000000000000002 /* DeliveryWorkflowStage.swift in Sources */,
 				5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */,
@@ -2923,6 +2928,7 @@
 				5A5C000000000000000000C4 /* SessionState.swift in Sources */,
 				5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */,
 				5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */,
+				5A5F00000000000000000003 /* DeliveryWorkflowStage.swift in Sources */,
 				5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000022 /* PreparationLifecycle.swift in Sources */,

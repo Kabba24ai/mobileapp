@@ -25,9 +25,11 @@ enum DispatchOfflineRowAdapter {
 /// Screen 2 derives the same stage itself from DriverStageOverlay.
 enum DriverStagePresentation {
 
+    /// The server's Arrived counts only when whole — is_arrived AND arrived_at (spec §3.3.2).
     static func serverState(_ checklist: CheckListResponeData?) -> DriverStageServerState {
-        DriverStageServerState(readyToGoAt: checklist?.ready_to_go_at, arrivedAt: checklist?.arrived_at,
-                               isArrived: checklist?.is_arrived ?? false)
+        DriverStageServerState(isArrivedFlag: checklist?.is_arrived ?? false,
+                               arrivedAt: checklist?.arrived_at,
+                               readyToGoAt: checklist?.ready_to_go_at)
     }
 
     /// The row with its ACTIVE leg's effective stage applied (unchanged when not started).

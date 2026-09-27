@@ -285,6 +285,22 @@ struct DriverStageServerState: Equatable {
     var readyToGoAt: String?
     var arrivedAt: String?
     var isArrived: Bool
+
+    init(readyToGoAt: String?, arrivedAt: String?, isArrived: Bool) {
+        self.readyToGoAt = readyToGoAt
+        self.arrivedAt = arrivedAt
+        self.isArrived = isArrived
+    }
+
+    /// From the row's checklist block (spec §3.3.2): the server's Arrived is
+    /// trusted only when it is WHOLE — the flag AND the stamp. A row written
+    /// before every recall cleared both (RC10) can carry a stale is_arrived
+    /// with no arrived_at; that is not an arrival, so it can never resume a
+    /// recalled delivery at Main Order.
+    init(isArrivedFlag: Bool, arrivedAt: String?, readyToGoAt: String?) {
+        let stamp = arrivedAt.flatMap { $0.isEmpty ? nil : $0 }
+        self.init(readyToGoAt: readyToGoAt, arrivedAt: stamp, isArrived: isArrivedFlag && stamp != nil)
+    }
 }
 
 struct DriverStageEffective: Equatable {

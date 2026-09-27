@@ -1688,29 +1688,24 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 
             }
 
-            // ONE canonical route (2026-09 correction): Start Delivery / Start Return
-            // ALWAYS opens the Driver Checklist. Prior state — arrived, ready-to-go,
-            // saved progress, green band — only changes what Screen 2 SHOWS, never
-            // which screen opens. The old is_arrived shortcut straight to Order
-            // Details is gone; Screen 2 itself carries the driver on to Screen 3.
-            let hasProgress = hasSavedDriverProgress(objData, leg: checklistType == "pickup" ? DriverChecklistLocalState.legPickup : DriverChecklistLocalState.legDelivery)
-            switch DriverChecklistRouting.destination(isArrived: is_arrived,
-                                                      readyToGoAt: ready_to_go_at.isEmpty ? nil : ready_to_go_at,
-                                                      hasSavedProgress: hasProgress) {
-            case .driverChecklist:
-                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
-                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
-                    newViewController.delegate_Data = self
-                    newViewController.buttonColour = buttonColour
-                    newViewController.objDispatch = self.arrDispatchList[sender.tag]
-                    newViewController.serverObservedAt = self.serverObservedAt(for: objData)
-                    newViewController.selectIndex = sender.tag
-                    newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
-                    newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
-                    newViewController.productUniqueId = objData.unique_id ?? ""
-                    newViewController.checklistType = checklistType
-                    self.navigationController?.pushViewController(newViewController, animated: true)
-                }
+            // Start Delivery / Start Return opens the Driver Checklist. Routing by the
+            // effective workflow stage — Assembly Review first, Main Order after
+            // Arrived (DeliveryWorkflowRouting, spec §5) — lands with the Dispatch
+            // rewiring; the derivation itself already lives in Sync Core
+            // (DeliveryWorkflowStage). Prior state never re-opens the old
+            // is_arrived shortcut straight to Order Details.
+            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
+            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
+                newViewController.delegate_Data = self
+                newViewController.buttonColour = buttonColour
+                newViewController.objDispatch = self.arrDispatchList[sender.tag]
+                newViewController.serverObservedAt = self.serverObservedAt(for: objData)
+                newViewController.selectIndex = sender.tag
+                newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
+                newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
+                newViewController.productUniqueId = objData.unique_id ?? ""
+                newViewController.checklistType = checklistType
+                self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
 
