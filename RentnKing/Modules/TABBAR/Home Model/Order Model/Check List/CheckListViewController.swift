@@ -722,9 +722,10 @@ extension CheckListViewController{
             didNavigateForward = true
             KabbaSync.showConfirmationToast("✓ Checklist successfully completed")
 
-            let needsVideo = stagedProducts.contains { !self.deliveryVideoPresent(for: $0) }
+            // The leg's own media rule (§13): Delivery needs its video, Return any pickup media.
+            let mediaUnmet = stagedProducts.contains { !self.mediaRequirementMet(for: $0) }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                self?.routeAfterSave(needsVideo: needsVideo)
+                self?.routeAfterSave(mediaUnmet: mediaUnmet)
             }
             return
         }
@@ -760,17 +761,17 @@ extension CheckListViewController{
     /// is missing, else Main Order. In the yard, today's rule: back to the Assembly Review
     /// this checklist was entered from (it refreshes checklist, lifecycle, availability and
     /// STOP / GO; Back returns to the origin), or the legacy targets. Navigation only.
-    func routeAfterSave(needsVideo: Bool) {
+    func routeAfterSave(mediaUnmet: Bool) {
         let stage = self.missionStage
         if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
             switch CustomerSiteRouter.afterStep(.checklistPrepared, stage: stage, isDeliveryLeg: self.isDeliveryType,
-                                                videoRequirementMet: !needsVideo, checklistComplete: false) {
+                                                videoRequirementMet: !mediaUnmet, checklistComplete: false) {
             case .video: self.openDeliveryMediaUpload()
             case .mainOrder, .checklist, .assemblyReview: CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
             }
             return
         }
-        if needsVideo {
+        if mediaUnmet {
             self.openDeliveryMediaUpload()
             return
         }
@@ -857,6 +858,15 @@ extension CheckListViewController{
                                                                   context: uid.isEmpty ? nil : self.checklistContexts[uid],
                                                                   orderUniqueId: self.strOrderUniqueId,
                                                                   operations: self.operationsSnapshot())
+    }
+
+    /// This screen's leg's media rule for a product (Delivery: the video; Return: any pickup media).
+    private func mediaRequirementMet(for product: ProductModel) -> Bool {
+        let uid = product.unique_id ?? ""
+        return CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: self.isDeliveryType,
+                                                          context: uid.isEmpty ? nil : self.checklistContexts[uid],
+                                                          orderUniqueId: self.strOrderUniqueId,
+                                                          operations: self.operationsSnapshot())
     }
 
     /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;

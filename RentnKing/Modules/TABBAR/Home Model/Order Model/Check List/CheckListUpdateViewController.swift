@@ -79,9 +79,11 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
             let operations = self.operationsSnapshot()
             let focus = self.objOrderData?.arrProduct.first { $0.unique_id == self.focusOrderProductUniqueId }
+            // The leg's own media rule (§13): Delivery needs its video, Return any pickup media.
             let videoMet = focus.map {
-                CustomerSiteNavigation.deliveryVideoRequirementMet(product: $0, context: self.checklistContexts[$0.unique_id ?? ""],
-                                                                   orderUniqueId: self.strOrderUniqueId, operations: operations)
+                CustomerSiteNavigation.mediaRequirementMet(product: $0, isDeliveryLeg: self.isDeliveryType,
+                                                           context: self.checklistContexts[$0.unique_id ?? ""],
+                                                           orderUniqueId: self.strOrderUniqueId, operations: operations)
             } ?? true
             switch CustomerSiteRouter.afterStep(.checklistCompleted, stage: stage, isDeliveryLeg: self.isDeliveryType,
                                                 videoRequirementMet: videoMet, checklistComplete: true) {

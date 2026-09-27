@@ -1440,7 +1440,8 @@ extension ImageUploadViewController {
                     CustomerSiteNavigation.makeFocusedChecklist(orderUniqueId: self.strOrderID,
                                                                 orderNumber: self.objOrderDetail?.order_number ?? "",
                                                                 product: focus, selectIndex: self.selectIndex,
-                                                                floor: self.driverStageFloor, fromCheckListScreen: true)
+                                                                floor: self.driverStageFloor, fromCheckListScreen: true,
+                                                                isDelivery: self.isDeliveryLeg)
                 }
             case .mainOrder, .video, .assemblyReview:
                 CustomerSiteNavigation.goToMainOrder(on: self.navigationController)

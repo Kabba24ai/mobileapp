@@ -92,6 +92,29 @@ enum CustomerSiteNavigation {
         return legacyRows.contains { $0.isImage == false && ($0.productID ?? "") == uid }
     }
 
+    /// The leg's media requirement for a product (§10.2 / §13): Delivery demands its video
+    /// (D7); Return keeps today's rule — any pickup media for THIS line (the feed's items, a
+    /// durable return media upload for its current cycle, a legacy queued pickup upload) —
+    /// judged by the same evaluator Main Order's tiles use.
+    static func mediaRequirementMet(product: ProductModel, isDeliveryLeg: Bool, context: ChecklistContext?,
+                                    orderUniqueId: String, operations: [SyncOperation]) -> Bool {
+        if isDeliveryLeg {
+            return deliveryVideoRequirementMet(product: product, context: context, orderUniqueId: orderUniqueId, operations: operations)
+        }
+        let uid = product.unique_id ?? ""
+        let legacyRows = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUniqueId,
+                                                                          strType: uploadType.video_image.rawValue,
+                                                                          strVideoType: "pickup")
+        let inputs = LegCompletionInputs(orderUniqueId: orderUniqueId,
+                                         orderProductUniqueId: uid,
+                                         orderProductUniqueIds: [uid],
+                                         returnMediaConfirmed: !product.arrPickupMedia.isEmpty
+                                             || legacyRows.contains { ($0.productID ?? "") == uid },
+                                         activeReturnExecutionId: context?.executionId ?? "")
+        return LegCompletionEvaluator.evaluate(leg: .return, inputs: inputs, operations: operations)
+            .status(.returnMedia)?.isSatisfied == true
+    }
+
     /// Is THIS product's checklist complete (server ∨ a durable completion op)?
     static func checklistComplete(product: ProductModel, isDeliveryLeg: Bool, operations: [SyncOperation]) -> Bool {
         EffectiveFieldState.legSatisfied(serverCompleted: (isDeliveryLeg ? product.is_delivered : product.is_returned) ?? false,
@@ -144,10 +167,10 @@ enum CustomerSiteNavigation {
     /// The focused equipment checklist for the mission line, as Main Order opens it after
     /// departure (§10.2): the same screen the review's Continue builds, focused on one line.
     static func makeFocusedChecklist(orderUniqueId: String, orderNumber: String, product: ProductModel?, selectIndex: Int,
-                                     floor: DeliveryWorkflowStage?, fromCheckListScreen: Bool) -> CheckListViewController? {
+                                     floor: DeliveryWorkflowStage?, fromCheckListScreen: Bool, isDelivery: Bool = true) -> CheckListViewController? {
         let storyboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         guard let vc = storyboard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController else { return nil }
-        vc.isDeliveryType = true
+        vc.isDeliveryType = isDelivery
         vc.isOrderDetailsView = true
         vc.fromCheckListScreen = fromCheckListScreen
         vc.selectIndex = selectIndex

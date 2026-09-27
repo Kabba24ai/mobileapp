@@ -730,7 +730,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         // Checklist Save: Video while unmet, else Main Order.
         let cl = try checklist(floor: .arrived, ops: arrivedOps, context: try context(videoPresent: false))
         nav.pushViewController(cl, animated: false)
-        cl.routeAfterSave(needsVideo: true)
+        cl.routeAfterSave(mediaUnmet: true)
         let video = try XCTUnwrap(nav.topViewController as? ImageUploadViewController, "Save → Video while the delivery video is missing")
         XCTAssertEqual(video.focusOrderProductUniqueId, productId)
         XCTAssertEqual(video.driverStageFloor, .arrived)
@@ -746,7 +746,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
 
         // Save with the video met → Main Order.
         nav.pushViewController(cl, animated: false)
-        cl.routeAfterSave(needsVideo: false)
+        cl.routeAfterSave(mediaUnmet: false)
         XCTAssertTrue(nav.topViewController === details)
 
         // Submit: Video when unmet, else Main Order — never the review after departure.
@@ -780,7 +780,113 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         let yardReview = AssemblyReviewViewController()
         let yardChecklist = try checklist(floor: nil, ops: [], context: try context())
         nav.setViewControllers([list, details, yardReview, yardChecklist], animated: false)
-        yardChecklist.routeAfterSave(needsVideo: false)
+        yardChecklist.routeAfterSave(mediaUnmet: false)
         XCTAssertTrue(nav.topViewController === yardReview, "yard: today's returnToReview rule")
+    }
+
+    // MARK: - Task 13 — the Return band (§13): same screens, its own rules, never the review
+
+    private func returnRow(pickupMedia: [[String: Any]] = []) throws -> SchedulesModel { try row(evidence: false, pickup: true) }
+
+    private func returnOp(status: String, minutesAgo: Double = 5) -> SyncOperation { driverOp(status: status, leg: "pickup", minutesAgo: minutesAgo) }
+
+    private func returnMediaOp() -> SyncOperation {
+        SyncOperation(type: EffectiveFieldState.returnMediaType, capturedAt: Date(),
+                      identity: SyncBusinessIdentity(orderProductUniqueId: productId),
+                      payload: .object(["order_product_unique_id": .string(productId)]))
+    }
+
+    private func returnCompleteOp() -> SyncOperation {
+        SyncOperation(type: EffectiveFieldState.returnCompleteType, capturedAt: Date(),
+                      identity: SyncBusinessIdentity(orderProductUniqueId: productId),
+                      payload: .object(["order_product_unique_id": .string(productId)]))
+    }
+
+    func testStartReturnResumesByStageAndNeverOpensTheReview() throws {
+        // Not started → Screen 2, the checklist controls (no review even with none cached).
+        let (fresh, freshNav) = dispatch(try returnRow(), review: nil)
+        start(fresh)
+        let screen = try XCTUnwrap(freshNav.topViewController as? DriverChecklistViewController)
+        XCTAssertEqual(screen.checklistType, "pickup")
+        screen.loadViewIfNeeded()
+        XCTAssertFalse(screen.viewDriverCheckList.isHidden)
+        XCTAssertNil(screen.reviewAssemblyButton.superview, "no Review Assembly on Return")
+
+        // On My Way → Screen 2 in the On My Way state.
+        let (onMyWayList, onMyWayNav) = dispatch(try returnRow(), ops: [returnOp(status: "On My Way")], review: try review(go: false))
+        start(onMyWayList)
+        let enRoute = try XCTUnwrap(onMyWayNav.topViewController as? DriverChecklistViewController)
+        enRoute.operationsSnapshot = { [self.returnOp(status: "On My Way")] }
+        enRoute.loadViewIfNeeded()
+        XCTAssertFalse(enRoute.viewArrivedMain.isHidden)
+        XCTAssertTrue(enRoute.viewDriverCheckList.isHidden)
+
+        // Arrived → Main Order for the Return leg.
+        let (arrivedList, arrivedNav) = dispatch(try returnRow(), ops: [returnOp(status: "On My Way", minutesAgo: 10), returnOp(status: "Arrived")], review: nil)
+        start(arrivedList)
+        let details = try XCTUnwrap(arrivedNav.topViewController as? OrderDetailsViewController)
+        XCTAssertEqual(details.completionLeg, .return)
+        // Main Order derives the Return stage from the same steps (no assembly gate on Return).
+        details.objOrderData = try orderDetailsModel()
+        details.operationsSnapshot = { [self.returnOp(status: "On My Way", minutesAgo: 10), self.returnOp(status: "Arrived")] }
+        XCTAssertEqual(details.missionStage, .arrived, "Return resumes at Arrived")
+    }
+
+    func testTheReturnMediaRuleIsItsOwnAndTheReturnExitsFollowIt() throws {
+        var product = try XCTUnwrap(try orderDetailsModel().arrProduct.first { $0.unique_id == productId })
+        XCTAssertFalse(CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: false, context: nil, orderUniqueId: orderUid, operations: []),
+                       "no pickup media yet")
+        XCTAssertTrue(CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: false, context: nil, orderUniqueId: orderUid, operations: [returnMediaOp()]),
+                      "a durable return media upload for THIS line")
+        product.arrPickupMedia = [try XCTUnwrap(LicenseModel(JSON: ["id": 9, "media_type": "image", "media_url": "https://example.invalid/r.jpg"]))]
+        XCTAssertTrue(CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: false, context: nil, orderUniqueId: orderUid, operations: []),
+                      "Return keeps today's rule: any pickup media, photo included (D7 is Delivery-only)")
+        XCTAssertFalse(CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: true, context: try context(videoPresent: false), orderUniqueId: orderUid, operations: []),
+                       "…while Delivery still demands its video")
+
+        // Return exits: Save / Submit → Video while pickup media is missing, else Main Order; never the review.
+        let details = try orderDetails(ops: [returnOp(status: "On My Way", minutesAgo: 10), returnOp(status: "Arrived")])
+        details.completionLeg = .return
+        let review = AssemblyReviewViewController()
+        let nav = UINavigationController(rootViewController: DispatchListViewController())
+        nav.pushViewController(details, animated: false)
+        nav.pushViewController(review, animated: false)
+
+        let cl = try checklist(floor: .arrived, ops: [], context: nil)
+        cl.isDeliveryType = false
+        nav.pushViewController(cl, animated: false)
+        cl.routeAfterSave(mediaUnmet: true)
+        let video = try XCTUnwrap(nav.topViewController as? ImageUploadViewController, "Return Save → Video while pickup media is missing")
+        XCTAssertEqual(video.strType, "pickup")
+        XCTAssertEqual(video.focusOrderProductUniqueId, productId)
+
+        // Video done, Return checklist not complete → back to the existing (Return) checklist; complete → Main Order.
+        video.operationsSnapshot = { [] }
+        XCTAssertTrue(video.routeAfterUpload())
+        XCTAssertTrue(nav.topViewController === cl)
+        nav.pushViewController(video, animated: false)
+        video.operationsSnapshot = { [self.returnCompleteOp()] }
+        XCTAssertTrue(video.routeAfterUpload())
+        XCTAssertTrue(nav.topViewController === details, "past the review, to Main Order")
+
+        // Submit: pickup media missing → Video; present → Main Order.
+        let cu = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController)
+        cu.objOrderData = try checklistOrderModel()
+        cu.isDeliveryType = false
+        cu.isOrderDetailsView = true
+        cu.strOrderUniqueId = orderUid
+        cu.focusOrderProductUniqueId = productId
+        cu.driverStageFloor = .arrived
+        cu.operationsSnapshot = { [] }
+        cu.cachedAssemblyReview = { _ in nil }
+        nav.setViewControllers([nav.viewControllers[0], details, review, cu], animated: false)
+        cu.routeAfterSubmit()
+        XCTAssertEqual((nav.topViewController as? ImageUploadViewController)?.strType, "pickup", "Return Submit → Video while pickup media is missing")
+
+        nav.setViewControllers([nav.viewControllers[0], details, review, cu], animated: false)
+        cu.operationsSnapshot = { [self.returnMediaOp()] }
+        cu.routeAfterSubmit()
+        XCTAssertTrue(nav.topViewController === details, "Return Submit with pickup media → Main Order, never the review")
     }
 }
