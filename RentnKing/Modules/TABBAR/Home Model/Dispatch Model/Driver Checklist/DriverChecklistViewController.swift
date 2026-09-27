@@ -1243,7 +1243,7 @@ extension DriverChecklistViewController {
     /// the effective stage is already Arrived (DeliveryWorkflowRouting, D4).
     private func pushOrderDetails() {
         guard let row = self.objDispatch,
-              let details = DispatchListViewController.makeOrderDetails(for: row, index: self.selectIndex) else { return }
+              let details = DispatchListViewController.makeOrderDetails(for: row, index: self.selectIndex, serverObservedAt: self.serverObservedAt) else { return }
         self.navigationController?.pushViewController(details, animated: true)
     }
 }

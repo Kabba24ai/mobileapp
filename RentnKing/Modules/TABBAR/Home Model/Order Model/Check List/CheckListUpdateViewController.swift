@@ -60,6 +60,57 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
 
     /// Phase 3 — canonical contexts handed over by CheckListViewController (order_product_unique_id → context).
     var checklistContexts: [String: ChecklistContext] = [:]
+    // Driver Delivery Process Flow (2026-09-27): the mission line and the stage the checklist
+    // handed down; nil / "" for yard entries (today's review sequencing).
+    var focusOrderProductUniqueId: String = ""
+    var driverStageFloor: DeliveryWorkflowStage?
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+
+    /// After Submit (§10.2): at the customer site — from On My Way on, and on Return — Video
+    /// while the delivery video is still missing, else Main Order; never the Assembly Review.
+    /// In the yard, today's rule: the review beneath, else Order Details / the Orders list.
+    func routeAfterSubmit() {
+        let stage = CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                                 isDeliveryLeg: self.isDeliveryType,
+                                                 floor: self.driverStageFloor,
+                                                 review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                                 operations: self.operationsSnapshot())
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
+            let operations = self.operationsSnapshot()
+            let focus = self.objOrderData?.arrProduct.first { $0.unique_id == self.focusOrderProductUniqueId }
+            let videoMet = focus.map {
+                CustomerSiteNavigation.deliveryVideoRequirementMet(product: $0, context: self.checklistContexts[$0.unique_id ?? ""],
+                                                                   orderUniqueId: self.strOrderUniqueId, operations: operations)
+            } ?? true
+            switch CustomerSiteRouter.afterStep(.checklistCompleted, stage: stage, isDeliveryLeg: self.isDeliveryType,
+                                                videoRequirementMet: videoMet, checklistComplete: true) {
+            case .video:
+                CustomerSiteNavigation.goToVideo(on: self.navigationController) {
+                    CustomerSiteNavigation.makeMediaUpload(orderUniqueId: self.strOrderUniqueId, order: self.objOrderData,
+                                                           isDelivery: self.isDeliveryType, selectIndex: self.selectIndex,
+                                                           focusOrderProductUniqueId: self.focusOrderProductUniqueId,
+                                                           executionIds: self.checklistContexts.mapValues { $0.executionId },
+                                                           floor: self.driverStageFloor, isQueueLine: false)
+                }
+            case .mainOrder, .checklist, .assemblyReview:
+                CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return
+        }
+        ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
+            if self.isOrderDetailsView{
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+            else{
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+        }
+    }
 
     // MARK: Finalization footer (signature → Submit row + Total Charge panel)
     //
@@ -579,22 +630,9 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     
                     NotificationCenter.default.post(name: .updateCheckList, object: nil, userInfo: ["checklist_data": self.arrOtherData, "index" : self.selectIndex, "type" : self.isDeliveryType] )
 
-                    // Back to the Assembly Review the checklist was entered from
-                    // (2026-09-14) — it refreshes checklist state, lifecycle and
-                    // STOP / GO; Back from there returns to the origin. Legacy
-                    // stacks without a review keep their old targets.
-                    ChecklistEntry.returnToReview(on: self.navigationController) {
-                        if self.isOrderDetailsView{
-                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
-                                self.navigationController?.popToViewController(targetViewController, animated: true)
-                            }
-                        }
-                        else{
-                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                                self.navigationController?.popToViewController(targetViewController, animated: true)
-                            }
-                        }
-                    }
+                    // One exit rule (routeAfterSubmit): the review in the yard, the
+                    // customer-site matrix after departure.
+                    self.routeAfterSubmit()
                     
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1){

@@ -279,7 +279,7 @@ extension LicenseUploadViewController {
             showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
             self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                self.navigationController?.popViewController(animated: true)
+                self.routeAfterSave()
             }
         }
         else{
@@ -344,7 +344,7 @@ extension LicenseUploadViewController {
                         }
                         
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                            self.navigationController?.popViewController(animated: true)
+                            self.routeAfterSave()
                         }
                     }
                 }
@@ -514,5 +514,14 @@ func loadImagefromImageVideoDirectory(fileName: String) -> UIImage? {
 func getVideoUrl(fileName: String) -> URL? {
     let fileURL = ImageVideoUploadDirectory.appendingPathComponent(fileName)
     return fileURL
+}
+
+// MARK: - Driver Delivery Process Flow (2026-09-27)
+extension LicenseUploadViewController {
+    /// Add Driver License → Main Order (§10.2): the Order Details that opened it, whatever
+    /// lies beneath; a stack without one keeps its old single pop.
+    func routeAfterSave() {
+        CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+    }
 }
 

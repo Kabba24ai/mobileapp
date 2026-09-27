@@ -420,18 +420,7 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
                 NotificationCenter.default.post(name: .updateCheckList, object: nil, userInfo: ["checklist_data": self.arrOtherData, "index" : self.selectIndex, "type" : self.isDeliveryType] )
 
                     
-                    ChecklistEntry.returnToReview(on: self.navigationController) {
-                        if self.isOrderDetailsView{
-                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
-                                navigationController?.popToViewController(targetViewController, animated: true)
-                            }
-                        }
-                        else{
-                            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                                navigationController?.popToViewController(targetViewController, animated: true)
-                            }
-                        }
-                    }
+                    self.routeAfterSubmit()
                     
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){

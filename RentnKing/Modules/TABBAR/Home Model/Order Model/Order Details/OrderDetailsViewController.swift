@@ -136,6 +136,22 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     /// The leg the Dispatch row is completing (set by DriverChecklistViewController).
     /// nil → derived from the feed, for screens that never carry a dispatch row.
     var completionLeg: ChecklistLeg?
+    /// Driver Delivery Process Flow (2026-09-27): the Dispatch row's server copy of the
+    /// trip (set with the row); nil when this screen was not reached through a mission.
+    var missionServerTrip: DriverStageServerState?
+    var missionServerObservedAt: Date?
+
+    /// Seams (hosted tests inject; production reads the engine and the caches).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+    var cachedChecklistContext: (String) -> ChecklistContext? = { KabbaSync.checklistContexts?.cached(orderProductUniqueId: $0, leg: .delivery) }
+
+    /// The mission bar (spec §10 / §11): the trip status, the locked unit and Review
+    /// Assembly — shown only when this screen is the customer-site hub of a Delivery mission.
+    let missionBar = UIStackView()
+    let missionStatusLabel = UILabel()
+    let reviewAssemblyButton = UIButton(type: .system)
+    private var missionBarInstalled = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -275,6 +291,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         self.hideOrderNotDownloaded()
         self.setFooter()
         self.updateNavigationbar()
+        self.setupMissionBar()
         
         //SET DETAILS
         if self.objOrderData != nil{
@@ -754,6 +771,18 @@ extension OrderDetailsViewController {
             ? ""
             : (KabbaSync.checklistContexts?.cached(orderProductUniqueId: focus, leg: .return)?.executionId ?? "")
 
+        // Driver Delivery Process Flow (2026-09-27, §10.3 / §10.4): the delivery checklist
+        // and the delivery video are judged for THE MISSION LINE — a sibling line's
+        // completion or video never speaks for it — and the video for its ACTIVE cycle.
+        let deliveryContext = focus.isEmpty ? nil : self.cachedChecklistContext(focus)
+        let deliveryChecklistConfirmed: Bool
+        if let focusProduct = focusProduct {
+            deliveryChecklistConfirmed = (focusProduct.is_delivered ?? false)
+                || (!KabbaSync.isReady && self.checkCheckListStatus(isDelivery: true))
+        } else {
+            deliveryChecklistConfirmed = self.checkCheckListStatus(isDelivery: true)
+        }
+
         let lineIds = (leg.isDelivery ? products : deliveredLines).compactMap { $0.unique_id }.filter { !$0.isEmpty }
 
         return LegCompletionInputs(orderUniqueId: orderUid,
@@ -764,24 +793,156 @@ extension OrderDetailsViewController {
                                    // D7: only a VIDEO counts — a photo-only order is not delivery-media complete.
                                    orderHasDeliveryVideo: products.contains { $0.arrDeliveryMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") } }
                                        || legacyDeliveryMedia.contains { !$0.isImage },
-                                   deliveryChecklistConfirmed: self.checkCheckListStatus(isDelivery: true),
+                                   deliveryChecklistConfirmed: deliveryChecklistConfirmed,
                                    returnMediaConfirmed: returnMediaConfirmed,
                                    returnChecklistConfirmed: returnChecklistConfirmed,
                                    activeReturnExecutionId: activeReturnExecution,
                                    // Phase 5: a phone signature counts only for the verified agreement held here.
-                                   termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: orderUid) ?? "")
+                                   termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: orderUid) ?? "",
+                                   deliveryVideoConfirmed: deliveryContext?.serverState.deliveryVideoPresent == true,
+                                   activeDeliveryExecutionId: deliveryContext?.executionId ?? "")
     }
 
     /// The ONE decision for a leg: applicable requirements × effective satisfaction.
     func legCompletionDecision(for leg: ChecklistLeg) -> LegCompletionDecision {
         LegCompletionEvaluator.evaluate(leg: leg,
                                         inputs: self.legCompletionInputs(for: leg),
-                                        operations: KabbaSync.engine?.snapshot() ?? [])
+                                        operations: self.operationsSnapshot())
+    }
+
+    // MARK: - The mission (Driver Delivery Process Flow 2026-09-27)
+
+    /// Where the mission is (spec §3.3), for the line this screen was opened for through the
+    /// driver road; nil for yard entries (Orders, Schedule, a notification) — those keep the
+    /// review sequencing.
+    var missionStage: DeliveryWorkflowStage? {
+        guard self.fromCheckListScreen, let leg = self.completionLeg, !self.strProductID.isEmpty else { return nil }
+        let focusProduct = self.objOrderData?.arrProduct.first { $0.unique_id == self.strProductID }
+        let serverCompleted = (leg.isDelivery ? focusProduct?.is_delivered : focusProduct?.is_returned) ?? false
+        return DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: self.strProductID,
+                                      isDeliveryLeg: leg.isDelivery,
+                                      serverTrip: self.missionServerTrip,
+                                      serverObservedAt: self.missionServerObservedAt,
+                                      serverLegCompleted: serverCompleted,
+                                      onDriverChecklist: true),   // the driver came through Screen 2 to be here
+            review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+            operations: self.operationsSnapshot())
+    }
+
+    /// The products' active checklist executions, so media lands in the right cycle (D7).
+    private func activeExecutionIds() -> [String: String] {
+        var ids: [String: String] = [:]
+        for product in self.objOrderData?.arrProduct ?? [] {
+            guard let uid = product.unique_id, !uid.isEmpty,
+                  let context = self.cachedChecklistContext(uid) else { continue }
+            ids[uid] = context.executionId
+        }
+        return ids
+    }
+
+    /// The mission bar under the navigation bar: "Delivery Arrived · Skid Steer 7 · #TAG" and
+    /// Review Assembly (read-only after departure, §11). Built once; shown for a Delivery
+    /// mission only.
+    private func setupMissionBar() {
+        if !missionBarInstalled {
+            missionBarInstalled = true
+            missionBar.axis = .horizontal
+            missionBar.alignment = .center
+            missionBar.spacing = 12
+            missionBar.isLayoutMarginsRelativeArrangement = true
+            missionBar.layoutMargins = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
+            missionBar.backgroundColor = .background
+            missionBar.translatesAutoresizingMaskIntoConstraints = false
+            missionBar.accessibilityIdentifier = "orderDetails.mission"
+
+            missionStatusLabel.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 14) ?? .systemFont(ofSize: 14, weight: .medium)
+            missionStatusLabel.textColor = .primary
+            missionStatusLabel.numberOfLines = 2
+            missionStatusLabel.adjustsFontSizeToFitWidth = true
+            missionStatusLabel.minimumScaleFactor = 0.8
+            missionStatusLabel.accessibilityIdentifier = "orderDetails.mission.status"
+            missionBar.addArrangedSubview(missionStatusLabel)
+
+            reviewAssemblyButton.setTitle("Review Assembly", for: .normal)
+            reviewAssemblyButton.titleLabel?.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 13) ?? .systemFont(ofSize: 13, weight: .medium)
+            reviewAssemblyButton.setTitleColor(.secondary, for: .normal)
+            reviewAssemblyButton.layer.borderWidth = 1
+            reviewAssemblyButton.layer.borderColor = UIColor.secondary.cgColor
+            reviewAssemblyButton.layer.cornerRadius = 8
+            reviewAssemblyButton.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            reviewAssemblyButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+            reviewAssemblyButton.accessibilityIdentifier = "orderDetails.mission.reviewAssembly"
+            reviewAssemblyButton.addTarget(self, action: #selector(reviewAssemblyTapped), for: .touchUpInside)
+            missionBar.addArrangedSubview(reviewAssemblyButton)
+
+            self.view.addSubview(missionBar)
+            NSLayoutConstraint.activate([
+                missionBar.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
+                missionBar.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                missionBar.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+            ])
+        }
+        self.updateMissionBar()
+    }
+
+    func updateMissionBar() {
+        guard let stage = self.missionStage, self.completionLeg?.isDelivery == true else {
+            missionBar.isHidden = true
+            return
+        }
+        missionBar.isHidden = false
+        let status: String
+        switch stage {
+        case .arrived: status = "Delivery Arrived"
+        case .onMyWay: status = "Delivery On My Way"
+        case .delivered: status = "Delivery Complete"
+        case .assemblyReview, .driverChecklist: status = "Delivery"
+        }
+        let unit = self.missionUnitLine()
+        missionStatusLabel.text = unit.isEmpty ? status : "\(status) · \(unit)"
+        reviewAssemblyButton.isHidden = stage == .delivered
+    }
+
+    /// "Name · #TAG" of the mission's effective unit — a switch this phone made first.
+    private func missionUnitLine() -> String {
+        if let pending = QueueLineLocalOverlay.from(self.operationsSnapshot()).pendingEquipment(for: self.strProductID) {
+            return EquipmentIdentity.line(name: pending.name, displayId: pending.displayId)
+        }
+        let machine = self.objOrderData?.arrProduct.first { $0.unique_id == self.strProductID }?.objMachine
+        return EquipmentIdentity.line(name: machine?.equipment_name, displayId: machine?.equipment_id)
+    }
+
+    /// Review Assembly from Main Order (§11): the same review, driver origin, a revisit —
+    /// read-only once the phone is effectively On My Way / Arrived.
+    @objc func reviewAssemblyTapped() {
+        guard let stage = self.missionStage else { return }
+        ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                          orderUniqueId: self.strOrderUniqueId,
+                                          orderNumber: self.objOrderData?.order_number ?? self.strOrderID,
+                                          focusOrderProductUniqueId: self.strProductID,
+                                          origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: self.strProductID,
+                                                                                      enteredFrom: stage, isRevisit: true),
+                                                                        selectIndex: self.selectIndex,
+                                                                        fromCheckListScreen: self.fromCheckListScreen,
+                                                                        missionServerTrip: self.missionServerTrip,
+                                                                        missionServerObservedAt: self.missionServerObservedAt))
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The mission bar sits over the table's top edge: keep the content beneath it.
+        let inset = missionBar.isHidden || !missionBarInstalled ? 0 : missionBar.frame.height
+        if self.tblView.contentInset.top != inset {
+            self.tblView.contentInset.top = inset
+            self.tblView.verticalScrollIndicatorInsets.top = inset
+        }
     }
 
     @objc func syncQueueDidChange() {
         guard self.objOrderData != nil, self.isViewLoaded else { return }
         self.setFooter()
+        if missionBarInstalled { self.updateMissionBar() }
     }
 }
 
@@ -1261,6 +1422,10 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             newViewController.selectIndex = selectIndex
             newViewController.objOrderDetail = self.objOrderData
             newViewController.strOrderID = self.strOrderUniqueId
+            // D7 (§10.3): media captured from Main Order lands in the mission's ACTIVE cycle.
+            newViewController.checklistExecutionIds = self.activeExecutionIds()
+            newViewController.focusOrderProductUniqueId = self.strProductID
+            newViewController.driverStageFloor = self.missionStage
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
@@ -1274,6 +1439,8 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             newViewController.selectIndex = selectIndex
             newViewController.objOrderDetail = self.objOrderData
             newViewController.strOrderID = self.strOrderUniqueId
+            newViewController.focusOrderProductUniqueId = self.strProductID
+            newViewController.driverStageFloor = self.missionStage
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
@@ -1293,6 +1460,21 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
                 newViewController.strOrderUniqueId = self.strOrderUniqueId
                 newViewController.strOrderID = self.strOrderID
                 self.navigationController?.pushViewController(newViewController, animated: true)
+            }
+        }
+        else if let stage = self.missionStage, stage >= .onMyWay {
+            // Driver Delivery Process Flow (2026-09-27, §10.2): once the truck has left,
+            // CheckList Deliv opens the equipment checklist ITSELF, focused on the
+            // mission line with the locked unit — never the Assembly Review (RC6).
+            // The review stays available separately, read-only (the mission bar).
+            let product = self.objOrderData.arrProduct.first { $0.unique_id == self.strProductID }
+            CustomerSiteNavigation.goToChecklist(on: self.navigationController) {
+                CustomerSiteNavigation.makeFocusedChecklist(orderUniqueId: self.strOrderUniqueId,
+                                                            orderNumber: self.objOrderData.order_number ?? "",
+                                                            product: product,
+                                                            selectIndex: self.selectIndex,
+                                                            floor: stage,
+                                                            fromCheckListScreen: self.fromCheckListScreen)
             }
         }
         else{

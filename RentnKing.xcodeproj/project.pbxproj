@@ -100,6 +100,7 @@
 		5A5CFADE0000000000000082 /* AssemblyReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000080 /* AssemblyReview.swift */; };
 		5A5CFADE0000000000000084 /* AssemblySyncHandlers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */; };
 		5A5F00000000000000000039 /* DriverMissionStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000038 /* DriverMissionStage.swift */; };
+		5A5F0000000000000000003B /* CustomerSiteNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000003A /* CustomerSiteNavigation.swift */; };
 		5A5CFADE0000000000000086 /* AssemblyReviewViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000085 /* AssemblyReviewViewController.swift */; };
 		5A5CFADE000000000000008C /* ChecklistEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE000000000000008B /* ChecklistEntry.swift */; };
 		5A5CFADE000000000000008E /* EquipmentAssignmentFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE000000000000008D /* EquipmentAssignmentFlow.swift */; };
@@ -612,6 +613,7 @@
 		5A5CFADE0000000000000080 /* AssemblyReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReview.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblySyncHandlers.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000038 /* DriverMissionStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverMissionStage.swift; sourceTree = "<group>"; };
+		5A5F0000000000000000003A /* CustomerSiteNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteNavigation.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000085 /* AssemblyReviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyReviewViewController.swift; sourceTree = "<group>"; };
 		5A5CFADE000000000000008B /* ChecklistEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistEntry.swift; sourceTree = "<group>"; };
 		5A5CFADE000000000000008D /* EquipmentAssignmentFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAssignmentFlow.swift; sourceTree = "<group>"; };
@@ -2181,6 +2183,7 @@
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
 				5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */,
 				5A5F00000000000000000038 /* DriverMissionStage.swift */,
+				5A5F0000000000000000003A /* CustomerSiteNavigation.swift */,
 				5A5C0000000000000000001B /* KabbaSync.swift */,
 				5A5C0000000000000000001D /* SyncStatusUI.swift */,
 				5A5C0000000000000000001F /* KabbaSyncAppearance.swift */,
@@ -2826,6 +2829,7 @@
 				5A5CFADE0000000000000081 /* AssemblyReview.swift in Sources */,
 				5A5CFADE0000000000000084 /* AssemblySyncHandlers.swift in Sources */,
 				5A5F00000000000000000039 /* DriverMissionStage.swift in Sources */,
+				5A5F0000000000000000003B /* CustomerSiteNavigation.swift in Sources */,
 				5A5CFADE0000000000000086 /* AssemblyReviewViewController.swift in Sources */,
 				5A5CFADE000000000000008C /* ChecklistEntry.swift in Sources */,
 				5A5CFADE000000000000008E /* EquipmentAssignmentFlow.swift in Sources */,

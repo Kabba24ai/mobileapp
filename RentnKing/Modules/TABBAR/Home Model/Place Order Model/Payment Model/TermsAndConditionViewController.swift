@@ -191,8 +191,14 @@ class TermsAndConditionViewController: UIViewController, UIGestureRecognizerDele
         KabbaSync.showStatusToast(for: operationId)
         self.delegate?.termsSignedOnThisPhone(selectIndex: self.selectIndex)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.navigationController?.popViewController(animated: true)
+            self.routeAfterSigning()
         }
+    }
+
+    /// Sign Terms → Main Order (Driver Delivery Process Flow §10.2): the Order Details that
+    /// opened it, whatever lies beneath; a stack without one keeps its old single pop.
+    func routeAfterSigning() {
+        CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
     }
 
     /// The pad's PNG data URL → its bytes, or nil when the shared signature contract refuses it
@@ -327,7 +333,7 @@ extension TermsAndConditionViewController:WKNavigationDelegate{
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
                 if self.isOrderFrom{
-                    self.navigationController?.popViewController(animated: true)
+                    self.routeAfterSigning()
                 }
                 else{
                     //TERMS AND CONDITION

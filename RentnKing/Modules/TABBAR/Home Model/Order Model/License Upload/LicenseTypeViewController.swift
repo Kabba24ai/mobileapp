@@ -232,11 +232,7 @@ extension LicenseTypeViewController {
             }
             showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController || $0 is OrderDetailsViewController  }) {
-                    (targetViewController as? OrderListViewController)?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
-                    (targetViewController as? OrderDetailsViewController)?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
-                    self.navigationController?.popToViewController(targetViewController, animated: true)
-                }
+                self.routeAfterSave()
             }
         }
         else {
@@ -317,3 +313,20 @@ extension LicenseTypeViewController {
         }
     }
 }
+
+// MARK: - Driver Delivery Process Flow (2026-09-27)
+extension LicenseTypeViewController {
+    /// Add Driver License → Main Order (§10.2): the NEAREST Order Details beneath (an Orders
+    /// list further down is not the target), else the Orders list, else one pop. The screen
+    /// that opened it learns of the saved license first.
+    func routeAfterSave() {
+        let beneath = self.navigationController?.viewControllers.dropLast().reversed() ?? []
+        if let details = beneath.first(where: { $0 is OrderDetailsViewController }) as? OrderDetailsViewController {
+            details.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+        } else if let list = beneath.first(where: { $0 is OrderListViewController }) as? OrderListViewController {
+            list.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
+        }
+        CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+    }
+}
+

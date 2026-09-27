@@ -273,6 +273,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         start(list)
         let details = try XCTUnwrap(nav.topViewController as? OrderDetailsViewController, "Arrived per the server → Main Order, never a dead Start button")
         XCTAssertEqual(details.completionLeg, .delivery)
+        XCTAssertEqual(details.missionServerTrip?.isArrived, true)
     }
 
     func testStartReturnNeverOpensTheReview() throws {
@@ -521,5 +522,265 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertEqual(copy.call_customer, "no_answer")
         XCTAssertEqual(copy.driver_checks, [1, 1, 1, 1])
         XCTAssertEqual(copy.equipment_unique_id, unitB.id)
+    }
+
+    // MARK: - Task 12 — Main Order hub, post-departure checklist entry, customer-site exits
+
+    private func jsonObject(_ value: JSONValue) throws -> [String: Any] {
+        try XCTUnwrap(try JSONSerialization.jsonObject(with: try value.serialized()) as? [String: Any])
+    }
+
+    /// Order Details' model, from the package's order_details section (the bridge's own shape).
+    private func orderDetailsModel(deliveryMedia: [[String: Any]] = []) throws -> OrdersListModel {
+        var order = try jsonObject(try XCTUnwrap(package["order_details"]))
+        var products = try XCTUnwrap(order["order_products"] as? [[String: Any]])
+        products[0]["delivery_media"] = deliveryMedia
+        order["order_products"] = products
+        return try XCTUnwrap(OrdersListModel(JSON: order))
+    }
+
+    /// The checklist screens' model (a different type over the same section).
+    private func checklistOrderModel() throws -> OrdersModel {
+        try XCTUnwrap(OrdersModel(JSON: try jsonObject(try XCTUnwrap(package["order_details"]))))
+    }
+
+    /// The mission's cached checklist context, from the package: `videoPresent` = the server
+    /// holds a video for the active cycle; `hasUnit` false = an unassigned line; `inTransit` =
+    /// the server's (possibly stale) departure flag.
+    private func context(videoPresent: Bool = false, hasUnit: Bool = true, inTransit: Bool = false) throws -> ChecklistContext {
+        var json = try XCTUnwrap(package["checklist_context"])
+        json = setting(json, ["server_state", "delivery_video_present"], .bool(videoPresent))
+        json = setting(json, ["server_state", "in_transit"], .bool(inTransit))
+        if !hasUnit {
+            json = setting(json, ["equipment", "assignment"], .string("none"))
+            json = setting(json, ["equipment", "equipment_unique_id"], .null)
+        }
+        return try ChecklistContext.decode(envelopeData: try json.serialized())
+    }
+
+    private func deliveryCompleteOp() -> SyncOperation {
+        SyncOperation(type: EffectiveFieldState.deliveryCompleteType, capturedAt: Date(),
+                      identity: SyncBusinessIdentity(orderProductUniqueId: productId),
+                      payload: .object(["order_product_unique_id": .string(productId)]))
+    }
+
+    private var arrivedOps: [SyncOperation] { [driverOp(status: "On My Way", minutesAgo: 10), driverOp(status: "Arrived")] }
+
+    /// Main Order as Dispatch / Screen 2 open it for the mission line.
+    private func orderDetails(ops: [SyncOperation], review: AssemblyReviewEnvelope? = nil, context: ChecklistContext? = nil,
+                              deliveryMedia: [[String: Any]] = []) throws -> OrderDetailsViewController {
+        let vc = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController)
+        vc.objOrderData = try orderDetailsModel(deliveryMedia: deliveryMedia)
+        vc.strOrderUniqueId = orderUid
+        vc.strOrderID = "1650"
+        vc.strProductID = productId
+        vc.isOrderScreen = true
+        vc.fromCheckListScreen = true
+        vc.completionLeg = .delivery
+        vc.operationsSnapshot = { ops }
+        vc.cachedAssemblyReview = { _ in review }
+        vc.cachedChecklistContext = { _ in context }
+        return vc
+    }
+
+    /// The equipment checklist as Main Order opens it after departure (focused on the mission line).
+    private func checklist(floor: DeliveryWorkflowStage?, ops: [SyncOperation], context: ChecklistContext?) throws -> CheckListViewController {
+        let vc = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController)
+        vc.objOrderData = try checklistOrderModel()
+        vc.isDeliveryType = true
+        vc.isOrderDetailsView = true
+        vc.fromCheckListScreen = true
+        vc.strOrderUniqueId = orderUid
+        vc.strOrderID = "1650"
+        vc.focusOrderProductUniqueId = productId
+        vc.queueLineFocusedStaging = true
+        vc.selectProductIndex = 0
+        if let context { vc.checklistContexts[productId] = context }
+        vc.driverStageFloor = floor
+        vc.operationsSnapshot = { ops }
+        vc.cachedAssemblyReview = { _ in nil }
+        return vc
+    }
+
+    func testMainOrderAfterArrivalOpensTheChecklistDirectlyAndBeforeDepartureTheReview() throws {
+        let arrived = try orderDetails(ops: arrivedOps)
+        let nav = UINavigationController(rootViewController: DispatchListViewController())
+        nav.pushViewController(arrived, animated: false)
+        XCTAssertEqual(arrived.missionStage, .arrived)
+
+        arrived.btnCheckListDelivClicked(UIButton())
+        let checklist = try XCTUnwrap(nav.topViewController as? CheckListViewController, "after departure CheckList Deliv opens the checklist itself — never the review (RC6)")
+        XCTAssertEqual(checklist.focusOrderProductUniqueId, productId)
+        XCTAssertTrue(checklist.queueLineFocusedStaging)
+        XCTAssertTrue(checklist.isDeliveryType)
+        XCTAssertTrue(checklist.isOrderDetailsView)
+        XCTAssertTrue(checklist.fromCheckListScreen)
+        XCTAssertEqual(checklist.queueLineEquipmentUniqueId, unitA, "the locked unit")
+        XCTAssertEqual(checklist.driverStageFloor, .arrived, "the stage travels with the screen")
+
+        // Before departure (a yard entry) the review sequencing is untouched.
+        let yard = try orderDetails(ops: [], review: try review(go: false))
+        yard.fromCheckListScreen = false
+        yard.completionLeg = nil
+        let yardNav = UINavigationController(rootViewController: yard)
+        yard.btnCheckListDelivClicked(UIButton())
+        let review = try XCTUnwrap(yardNav.topViewController as? AssemblyReviewViewController)
+        XCTAssertEqual(review.origin.kind, .orderDetails)
+    }
+
+    func testMainOrderShowsTheMissionAndOffersReviewAssemblyReadOnly() throws {
+        let vc = try orderDetails(ops: arrivedOps, review: try review(go: true))
+        let nav = UINavigationController(rootViewController: DispatchListViewController())
+        nav.pushViewController(vc, animated: false)
+        vc.loadViewIfNeeded()
+        vc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        vc.setTheView()
+        vc.view.layoutIfNeeded()
+
+        XCTAssertFalse(vc.missionBar.isHidden)
+        let text = vc.missionStatusLabel.text ?? ""
+        XCTAssertTrue(text.contains("Arrived"), text)
+        XCTAssertTrue(text.contains("\(unitAName) · #\(unitATag)"), text)
+
+        vc.reviewAssemblyButton.sendActions(for: .touchUpInside)
+        let origin = try XCTUnwrap(driverOrigin(nav.topViewController))
+        XCTAssertEqual(origin.product, productId)
+        XCTAssertEqual(origin.enteredFrom, .arrived, "read-only: the review learns the stage")
+        XCTAssertTrue(origin.isRevisit)
+
+        // A yard entry shows no mission bar.
+        let yard = try orderDetails(ops: [])
+        yard.fromCheckListScreen = false
+        yard.completionLeg = nil
+        yard.loadViewIfNeeded()
+        yard.setTheView()
+        XCTAssertTrue(yard.missionBar.isHidden)
+    }
+
+    func testMainOrderMediaCarriesTheActiveCycleAndTheTilesUseTheVideoPolicy() throws {
+        let context = try context(videoPresent: false)
+        let photoOnly: [[String: Any]] = [["id": 1, "media_type": "image", "media_url": "https://example.invalid/p.jpg"]]
+        let vc = try orderDetails(ops: arrivedOps, context: context, deliveryMedia: photoOnly)
+        let nav = UINavigationController(rootViewController: DispatchListViewController())
+        nav.pushViewController(vc, animated: false)
+
+        vc.btnDeliveryImageVideoUploadClicked(UIButton())
+        let upload = try XCTUnwrap(nav.topViewController as? ImageUploadViewController)
+        XCTAssertEqual(upload.checklistExecutionIds[productId], context.executionId, "media lands in the active cycle")
+        XCTAssertEqual(upload.focusOrderProductUniqueId, productId)
+        XCTAssertEqual(upload.driverStageFloor, .arrived)
+
+        let inputs = vc.legCompletionInputs(for: .delivery)
+        XCTAssertEqual(inputs.activeDeliveryExecutionId, context.executionId)
+        XCTAssertFalse(inputs.deliveryVideoConfirmed)
+        XCTAssertFalse(inputs.orderHasDeliveryVideo, "a photo is not a video (D7)")
+        XCTAssertFalse(inputs.deliveryChecklistConfirmed, "product-scoped: this line's checklist is not complete")
+        let decision = vc.legCompletionDecision(for: .delivery)
+        XCTAssertEqual(decision.status(.deliveryMedia), .incomplete, "a photo-only order shows the video tile incomplete")
+        XCTAssertTrue(decision.overrideSections.video, "the override screen lists Video")
+
+        let withVideo = try orderDetails(ops: arrivedOps, context: try self.context(videoPresent: true), deliveryMedia: photoOnly)
+        XCTAssertEqual(withVideo.legCompletionDecision(for: .delivery).status(.deliveryMedia), .satisfied, "the server's cycle truth satisfies")
+        let completed = try orderDetails(ops: arrivedOps + [deliveryCompleteOp()], context: context)
+        XCTAssertEqual(completed.legCompletionDecision(for: .delivery).status(.deliveryChecklist), .satisfied, "a durable completion for THIS line")
+    }
+
+    func testTheChecklistAfterDepartureRefusesReassignmentAndRestartExceptForAnUnassignedLine() throws {
+        let stale = try context(hasUnit: true, inTransit: false)          // the cache still says "in the yard"
+        XCTAssertEqual(CheckListViewController.preparationBlock(for: stale, missionStage: .onMyWay), .inTransit, "the phone's own departure wins over a stale cached context")
+        XCTAssertEqual(CheckListViewController.preparationBlock(for: stale, missionStage: .arrived), .inTransit)
+        XCTAssertNil(CheckListViewController.preparationBlock(for: stale, missionStage: .driverChecklist), "before departure the cached rule decides (in the yard: no block)")
+        XCTAssertNil(CheckListViewController.preparationBlock(for: try context(hasUnit: false), missionStage: .onMyWay), "a departed line with no unit still picks one (§10.2)")
+        XCTAssertFalse(CheckListViewController.restartAllowed(stale, hasLocalAnswers: true, missionStage: .onMyWay), "no Start Over after departure")
+        XCTAssertEqual(CheckListViewController.tripStage(for: .onMyWay), .onMyWay)
+        XCTAssertEqual(CheckListViewController.tripStage(for: .arrived), .arrived)
+        XCTAssertEqual(CheckListViewController.tripStage(for: .driverChecklist), .notStarted)
+
+        // The screen itself: the target it hands the shared flow carries the block.
+        let vc = try checklist(floor: .onMyWay, ops: [], context: stale)
+        XCTAssertEqual(vc.missionStage, .onMyWay)
+        XCTAssertEqual(vc.assignmentTarget(for: stale, productIndex: 0)?.block, .inTransit)
+        XCTAssertFalse(vc.restartIsAllowed(atProductIndex: 0))
+    }
+
+    func testCustomerSiteExitsGoToMainOrderVideoOrChecklist() throws {
+        // Main Order = the nearest Order Details beneath; an Orders list further down is not the target.
+        let list = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController)
+        let details = try orderDetails(ops: arrivedOps)
+        let nav = UINavigationController(rootViewController: list)
+        nav.pushViewController(details, animated: false)
+
+        // License and Terms → Main Order.
+        let license = LicenseTypeViewController()
+        nav.pushViewController(license, animated: false)
+        license.routeAfterSave()
+        XCTAssertTrue(nav.topViewController === details, "License → the pushing Order Details, not the Orders list beneath")
+        let terms = TermsAndConditionViewController()
+        nav.pushViewController(terms, animated: false)
+        terms.routeAfterSigning()
+        XCTAssertTrue(nav.topViewController === details)
+        let upload = LicenseUploadViewController()
+        nav.pushViewController(upload, animated: false)
+        upload.routeAfterSave()
+        XCTAssertTrue(nav.topViewController === details)
+
+        // Checklist Save: Video while unmet, else Main Order.
+        let cl = try checklist(floor: .arrived, ops: arrivedOps, context: try context(videoPresent: false))
+        nav.pushViewController(cl, animated: false)
+        cl.routeAfterSave(needsVideo: true)
+        let video = try XCTUnwrap(nav.topViewController as? ImageUploadViewController, "Save → Video while the delivery video is missing")
+        XCTAssertEqual(video.focusOrderProductUniqueId, productId)
+        XCTAssertEqual(video.driverStageFloor, .arrived)
+
+        // Video done with the checklist still incomplete → back to the existing checklist; complete → Main Order.
+        video.operationsSnapshot = { self.arrivedOps }
+        XCTAssertTrue(video.routeAfterUpload())
+        XCTAssertTrue(nav.topViewController === cl, "the checklist is not complete: back to it, not a new one")
+        nav.pushViewController(video, animated: false)
+        video.operationsSnapshot = { self.arrivedOps + [self.deliveryCompleteOp()] }
+        XCTAssertTrue(video.routeAfterUpload())
+        XCTAssertTrue(nav.topViewController === details, "complete: Main Order")
+
+        // Save with the video met → Main Order.
+        nav.pushViewController(cl, animated: false)
+        cl.routeAfterSave(needsVideo: false)
+        XCTAssertTrue(nav.topViewController === details)
+
+        // Submit: Video when unmet, else Main Order — never the review after departure.
+        let review = AssemblyReviewViewController()
+        nav.pushViewController(review, animated: false)
+        let cu = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController)
+        cu.objOrderData = try checklistOrderModel()
+        cu.isDeliveryType = true
+        cu.isOrderDetailsView = true
+        cu.strOrderUniqueId = orderUid
+        cu.focusOrderProductUniqueId = productId
+        cu.driverStageFloor = .arrived
+        cu.operationsSnapshot = { self.arrivedOps }
+        cu.cachedAssemblyReview = { _ in nil }
+        cu.checklistContexts[productId] = try context(videoPresent: false)
+        nav.pushViewController(cu, animated: false)
+        cu.routeAfterSubmit()
+        let afterSubmit = try XCTUnwrap(nav.topViewController as? ImageUploadViewController, "Submit → Video while unmet")
+        XCTAssertFalse(nav.topViewController === review, "never back to the review after departure")
+        afterSubmit.operationsSnapshot = { self.arrivedOps + [self.deliveryCompleteOp()] }
+        XCTAssertTrue(afterSubmit.routeAfterUpload())
+        XCTAssertTrue(nav.topViewController === details, "…and the video done with the checklist complete lands on Main Order, past the review")
+
+        nav.setViewControllers([list, details, review, cu], animated: false)
+        cu.checklistContexts[productId] = try context(videoPresent: true)
+        cu.routeAfterSubmit()
+        XCTAssertTrue(nav.topViewController === details, "Submit with the video met → Main Order")
+
+        // The yard band is untouched: before departure the checklist Save still returns to the review beneath.
+        let yardReview = AssemblyReviewViewController()
+        let yardChecklist = try checklist(floor: nil, ops: [], context: try context())
+        nav.setViewControllers([list, details, yardReview, yardChecklist], animated: false)
+        yardChecklist.routeAfterSave(needsVideo: false)
+        XCTAssertTrue(nav.topViewController === yardReview, "yard: today's returnToReview rule")
     }
 }

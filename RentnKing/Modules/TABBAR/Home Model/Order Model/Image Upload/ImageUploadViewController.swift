@@ -46,6 +46,12 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     /// Phase 4 — order product unique_id → Phase 3 checklist execution id, so each photo/video
     /// is anchored to the exact checklist it documents (set by CheckListViewController).
     var checklistExecutionIds: [String: String] = [:]
+    // Driver Delivery Process Flow (2026-09-27): the mission line and the stage the opener
+    // handed down; nil / "" for yard entries (today's review sequencing).
+    var focusOrderProductUniqueId: String = ""
+    var driverStageFloor: DeliveryWorkflowStage?
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     private var playerVC: AVPlayerViewController?
     /// Token for the block-based AVPlayerItem observer, so it can be removed (it isn't auto-removed).
     private var videoFailObserver: NSObjectProtocol?
@@ -386,18 +392,7 @@ extension ImageUploadViewController {
             // durable local operations. Legacy Queue Line stacks fall back to
             // the board / the Orders list; other legacy stacks pop once the
             // upload succeeds (below).
-            self.returnedToReview = ChecklistEntry.returnToReview(on: self.navigationController) {
-                guard self.isQueueLine else { return }
-                if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
-                    self.navigationController?.popToViewController(board, animated: true)
-                }
-                else if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                    self.navigationController?.popToViewController(targetViewController, animated: true)
-                }
-                else {
-                    self.navigationController?.popViewController(animated: true)
-                }
-            }
+            self.returnedToReview = self.routeAfterUpload()
 
         }
     }
@@ -1416,3 +1411,54 @@ extension OrderProductTableCell : UICollectionViewDelegate,UICollectionViewDataS
     }
 
 }
+
+// MARK: - Driver Delivery Process Flow (2026-09-27): the exit after a saved upload
+extension ImageUploadViewController {
+
+    private var isDeliveryLeg: Bool { self.strType != "pickup" }
+
+    /// Where a saved upload goes (§10.2). At the customer site — from On My Way on, and on
+    /// Return — Checklist while THIS line's checklist is not complete (the one already on the
+    /// stack), else Main Order. In the yard, today's rule: the review beneath, else the Queue
+    /// Line board / the Orders list / one pop for legacy stacks. Returns true when it navigated.
+    @discardableResult
+    func routeAfterUpload() -> Bool {
+        let stage = CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                                 isDeliveryLeg: isDeliveryLeg,
+                                                 floor: self.driverStageFloor,
+                                                 review: self.cachedAssemblyReview(self.strOrderID)?.data,
+                                                 operations: self.operationsSnapshot())
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: isDeliveryLeg) {
+            let focus = self.objOrderDetail?.arrProduct.first { $0.unique_id == self.focusOrderProductUniqueId }
+            let complete = focus.map {
+                CustomerSiteNavigation.checklistComplete(product: $0, isDeliveryLeg: isDeliveryLeg, operations: self.operationsSnapshot())
+            } ?? true
+            switch CustomerSiteRouter.afterStep(.video, stage: stage, isDeliveryLeg: isDeliveryLeg,
+                                                videoRequirementMet: true, checklistComplete: complete) {
+            case .checklist:
+                CustomerSiteNavigation.goToChecklist(on: self.navigationController) {
+                    CustomerSiteNavigation.makeFocusedChecklist(orderUniqueId: self.strOrderID,
+                                                                orderNumber: self.objOrderDetail?.order_number ?? "",
+                                                                product: focus, selectIndex: self.selectIndex,
+                                                                floor: self.driverStageFloor, fromCheckListScreen: true)
+                }
+            case .mainOrder, .video, .assemblyReview:
+                CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return true
+        }
+        return ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
+            guard self.isQueueLine else { return }
+            if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
+                self.navigationController?.popToViewController(board, animated: true)
+            }
+            else if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                self.navigationController?.popToViewController(targetViewController, animated: true)
+            }
+            else {
+                self.navigationController?.popViewController(animated: true)
+            }
+        }
+    }
+}
+

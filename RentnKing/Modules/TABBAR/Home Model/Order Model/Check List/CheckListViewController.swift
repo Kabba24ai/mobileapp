@@ -157,6 +157,14 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     private lazy var equipmentFlow = EquipmentAssignmentFlow(host: self)
     var selectProductIndex : Int = 0
 
+    // Driver Delivery Process Flow (2026-09-27): the mission's stage as the opener knew it
+    // (Main Order after departure hands it down); nil for yard entries. The screen floors
+    // its own derivation under it — see `missionStage`.
+    var driverStageFloor: DeliveryWorkflowStage?
+    /// Seams (hosted tests inject; production reads the engine and the cached review).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+
     // Phase 3 — canonical checklist contexts (execution identity + questions in ONE id space),
     // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
     // durable cache when offline). A product without a context falls back to the legacy shape.
@@ -716,12 +724,7 @@ extension CheckListViewController{
 
             let needsVideo = stagedProducts.contains { !self.deliveryVideoPresent(for: $0) }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                guard let self = self else { return }
-                if needsVideo {
-                    self.openDeliveryMediaUpload()
-                } else {
-                    self.popAfterSave()
-                }
+                self?.routeAfterSave(needsVideo: needsVideo)
             }
             return
         }
@@ -752,19 +755,70 @@ extension CheckListViewController{
         return saved
     }
 
-    /// After a staging Save: back to the Assembly Review this checklist was
-    /// entered from — whatever the origin — which refreshes checklist,
-    /// lifecycle, availability and STOP / GO; the technician's own Back then
-    /// returns to the origin. Legacy stacks without a review keep their old
-    /// targets. Navigation only — never state.
-    private func popAfterSave() {
-        ChecklistEntry.returnToReview(on: self.navigationController) {
+    /// After a Save (Driver Delivery Process Flow 2026-09-27, §10.2): at the customer site —
+    /// from On My Way on, and on Return — the router decides: Video while the delivery video
+    /// is missing, else Main Order. In the yard, today's rule: back to the Assembly Review
+    /// this checklist was entered from (it refreshes checklist, lifecycle, availability and
+    /// STOP / GO; Back returns to the origin), or the legacy targets. Navigation only.
+    func routeAfterSave(needsVideo: Bool) {
+        let stage = self.missionStage
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
+            switch CustomerSiteRouter.afterStep(.checklistPrepared, stage: stage, isDeliveryLeg: self.isDeliveryType,
+                                                videoRequirementMet: !needsVideo, checklistComplete: false) {
+            case .video: self.openDeliveryMediaUpload()
+            case .mainOrder, .checklist, .assemblyReview: CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return
+        }
+        if needsVideo {
+            self.openDeliveryMediaUpload()
+            return
+        }
+        ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
             if self.isQueueLine, let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
                 self.navigationController?.popToViewController(board, animated: true)
             } else {
                 self.navigationController?.popViewController(animated: true)
             }
         }
+    }
+
+    // MARK: - The mission's stage on this screen (Driver Delivery Process Flow 2026-09-27)
+
+    /// The focus line's stage: the opener's floor under the phone's own durable steps.
+    var missionStage: DeliveryWorkflowStage {
+        CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                     isDeliveryLeg: self.isDeliveryType,
+                                     floor: self.driverStageFloor,
+                                     review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                     operations: self.operationsSnapshot())
+    }
+
+    /// The preparation rules read the phone's effective trip stage BEFORE the cached
+    /// context (whose `in_transit` may be stale offline): a departed line refuses a
+    /// unit change or a restart with the In Transit explanation. The one exception is a
+    /// departed line with no unit at all (§10.2): its "select a unit" path stays so
+    /// completion remains possible.
+    static func preparationBlock(for context: ChecklistContext, missionStage: DeliveryWorkflowStage) -> PreparationLifecycle.Block? {
+        if !context.equipment.hasUnit, PreparationPolicy.block(for: context) == nil { return nil }
+        return PreparationPolicy.block(for: context, tripStage: tripStage(for: missionStage))
+    }
+
+    static func tripStage(for stage: DeliveryWorkflowStage) -> DriverTripStage {
+        CustomerSiteNavigation.tripStage(for: stage)
+    }
+
+    static func restartAllowed(_ context: ChecklistContext, hasLocalAnswers: Bool, missionStage: DeliveryWorkflowStage) -> Bool {
+        PreparationPolicy.mayRestartChecklist(context, hasLocalAnswers: hasLocalAnswers, tripStage: tripStage(for: missionStage))
+    }
+
+    private func preparationBlock(for context: ChecklistContext) -> PreparationLifecycle.Block? {
+        Self.preparationBlock(for: context, missionStage: self.missionStage)
+    }
+
+    func restartIsAllowed(atProductIndex index: Int) -> Bool {
+        guard let uid = self.objOrderData?.arrProduct[safe: index]?.unique_id, let context = self.checklistContexts[uid] else { return false }
+        return Self.restartAllowed(context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index), missionStage: self.missionStage)
     }
 
     /// Assembly Review gate (2026-09-14), phone-side half: what holds this
@@ -796,74 +850,36 @@ extension CheckListViewController{
     /// A sibling product's video, a Return-leg video, or a photo never counts.
     /// Never waits for Laravel.
     private func deliveryVideoPresent(for product: ProductModel) -> Bool {
+        // The ONE delivery-video requirement (D7, §10.3) — the same policy Main Order's
+        // tiles and Complete gate use, so the screens can never disagree.
         let uid = product.unique_id ?? ""
-        let context = uid.isEmpty ? nil : self.checklistContexts[uid]
-        let activeExecutionId = context?.executionId ?? ""
-
-        // Server truth, scoped to the CYCLE (2026-09): a walk-around video is
-        // evidence about ONE machine. `delivery_video_present` is computed for
-        // the ACTIVE execution, so after a substitution or a restart the
-        // replacement unit correctly needs its own video. The old per-product
-        // media list is only consulted when no context exists (offline first
-        // open), where it cannot distinguish cycles.
-        if let present = context?.serverState.deliveryVideoPresent {
-            if present { return true }
-        } else if product.arrDeliveryMedia.contains(where: { ($0.media_type ?? "").lowercased() == "video" }) {
-            return true
-        }
-
-        if let engine = KabbaSync.engine, !uid.isEmpty,
-           EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false,
-                                                      operations: engine.snapshot(),
-                                                      orderProductUniqueId: uid,
-                                                      activeExecutionId: activeExecutionId) {
-            return true
-        }
-
-        let legacyRows = CoreDBManager.sharedDatabase.getUploadListData(
-            strOrderID: self.strOrderUniqueId,
-            strType: uploadType.video_image.rawValue,
-            strVideoType: "delivery"
-        )
-        // A legacy local row carries no cycle identity; once this phone has
-        // durably discarded a preparation for the product, it stops counting.
-        if let engine = KabbaSync.engine, !uid.isEmpty,
-           EffectiveFieldState.lastDiscardAt(in: engine.snapshot(), orderProductUniqueId: uid) != nil {
-            return false
-        }
-
-        return legacyRows.contains { row in
-            row.isImage == false && !uid.isEmpty && (row.productID ?? "") == uid
-        }
+        return CustomerSiteNavigation.deliveryVideoRequirementMet(product: product,
+                                                                  context: uid.isEmpty ? nil : self.checklistContexts[uid],
+                                                                  orderUniqueId: self.strOrderUniqueId,
+                                                                  operations: self.operationsSnapshot())
     }
 
     /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;
     /// prefer the local cache, else build one from the loaded order data so we always navigate
     /// (and never crash its force-unwrapped datasource with a nil).
     private func openDeliveryMediaUpload() {
-        var listModel = SDKUserDefault.getMappableObject(
-            OrdersListModel.self,
-            for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
-        if listModel == nil, let obj = self.objOrderData {
-            var built = OrdersListModel(JSON: [:])
-            built?.id = obj.id
-            built?.arrProduct = obj.arrProduct   // same ProductModel type; drives the upload table
-            listModel = built
+        // Phase 4: every photo/video is anchored to its product's checklist execution.
+        var executionIds = self.checklistContexts.mapValues { $0.executionId }
+        if !self.queueLineChecklistExecutionId.isEmpty, !self.focusOrderProductUniqueId.isEmpty, executionIds[self.focusOrderProductUniqueId] == nil {
+            executionIds[self.focusOrderProductUniqueId] = self.queueLineChecklistExecutionId
         }
-        guard let listModel = listModel else { return }
-
-        let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let vc = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
-            vc.isQueueLine = self.isQueueLine
-            vc.strType = self.isDeliveryType ? "delivery" : "pickup"
-            vc.selectIndex = self.selectIndex
-            vc.objOrderDetail = listModel
-            vc.strOrderID = self.strOrderUniqueId
-            // Phase 4: every photo/video is anchored to its product's checklist execution.
-            vc.checklistExecutionIds = self.checklistContexts.mapValues { $0.executionId }
-            if !self.queueLineChecklistExecutionId.isEmpty, !self.focusOrderProductUniqueId.isEmpty, vc.checklistExecutionIds[self.focusOrderProductUniqueId] == nil {
-                vc.checklistExecutionIds[self.focusOrderProductUniqueId] = self.queueLineChecklistExecutionId
-            }
+        let make = { [weak self] () -> ImageUploadViewController? in
+            guard let self = self else { return nil }
+            return CustomerSiteNavigation.makeMediaUpload(orderUniqueId: self.strOrderUniqueId, order: self.objOrderData,
+                                                          isDelivery: self.isDeliveryType, selectIndex: self.selectIndex,
+                                                          focusOrderProductUniqueId: self.focusOrderProductUniqueId,
+                                                          executionIds: executionIds, floor: self.driverStageFloor,
+                                                          isQueueLine: self.isQueueLine)
+        }
+        // At the customer site the upload already on the stack is the destination (§10.1).
+        if CustomerSiteNavigation.isCustomerSite(stage: self.missionStage, isDeliveryLeg: self.isDeliveryType) {
+            CustomerSiteNavigation.goToVideo(on: self.navigationController, make: make)
+        } else if let vc = make() {
             self.navigationController?.pushViewController(vc, animated: true)
         }
     }
@@ -933,6 +949,8 @@ extension CheckListViewController{
                 newViewController.strOrderUniqueId = self.strOrderUniqueId
                 newViewController.isOrderDetailsView = self.isOrderDetailsView
                 newViewController.checklistContexts = self.checklistContexts
+                newViewController.focusOrderProductUniqueId = self.focusOrderProductUniqueId
+                newViewController.driverStageFloor = self.driverStageFloor
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
             
@@ -1878,7 +1896,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         // in the yard is routine, and this screen is the preparation workbench.
         // The only refusals are physical: the unit already left, or it was
         // delivered. (Laravel enforces the same two cutoffs.)
-        if let context = self.focusedChecklistContext, let block = PreparationPolicy.block(for: context) {
+        if let context = self.focusedChecklistContext, let block = self.preparationBlock(for: context) {
             showAlertMessage(strMessage: block.message)
             return
         }
@@ -2788,17 +2806,15 @@ extension CheckListViewController {
         // Attribution: the employee this checklist already names for the product (the same
         // person its Save / Complete payloads carry); the signed-in account only when nobody
         // is selected yet. Never a separate "Performed By" picker.
-        let performedBy = PreparationPolicy.performedBy(selectedEmployeeUniqueId: selectedEmployeeUniqueId(atProductIndex: productIndex),
-                                                        contextEmployeeUniqueId: context.employee?.uniqueId)
-        let target = EquipmentAssignmentFlow.Target(
-            orderUniqueId: context.identity.orderUniqueId,
-            orderProductUniqueId: context.identity.orderProductUniqueId,
-            supersededExecutionId: context.executionId,
-            currentEquipmentUniqueId: context.equipment.equipmentUniqueId,
-            currentEquipmentCode: context.equipment.equipmentCode,
-            block: PreparationPolicy.block(for: context),
-            confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
-            performedByUniqueId: performedBy)
+        let target = self.assignmentTarget(for: context, productIndex: productIndex)
+            ?? EquipmentAssignmentFlow.Target(orderUniqueId: context.identity.orderUniqueId,
+                                              orderProductUniqueId: context.identity.orderProductUniqueId,
+                                              supersededExecutionId: context.executionId,
+                                              currentEquipmentUniqueId: context.equipment.equipmentUniqueId,
+                                              currentEquipmentCode: context.equipment.equipmentCode,
+                                              block: self.preparationBlock(for: context),
+                                              confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
+                                              performedByUniqueId: nil)
 
         self.equipmentFlow.apply(target, replacement: candidate) { [weak self] _, _, _ in
             guard let self = self else { return }
@@ -2820,6 +2836,23 @@ extension CheckListViewController {
         return uid
     }
 
+    /// What the shared flow needs to know about the focused line's change: the physical
+    /// block from the phone's effective trip stage (locked after departure), what a switch
+    /// would discard, and who performs it.
+    func assignmentTarget(for context: ChecklistContext, productIndex: Int) -> EquipmentAssignmentFlow.Target? {
+        let performedBy = PreparationPolicy.performedBy(selectedEmployeeUniqueId: selectedEmployeeUniqueId(atProductIndex: productIndex),
+                                                        contextEmployeeUniqueId: context.employee?.uniqueId)
+        return EquipmentAssignmentFlow.Target(
+            orderUniqueId: context.identity.orderUniqueId,
+            orderProductUniqueId: context.identity.orderProductUniqueId,
+            supersededExecutionId: context.executionId,
+            currentEquipmentUniqueId: context.equipment.equipmentUniqueId,
+            currentEquipmentCode: context.equipment.equipmentCode,
+            block: self.preparationBlock(for: context),
+            confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
+            performedByUniqueId: performedBy)
+    }
+
     /// "Delete Checklist / Start Over" — same supersession, same unit.
     @objc private func restartChecklistTapped() {
         self.view.endEditing(true)
@@ -2827,7 +2860,7 @@ extension CheckListViewController {
         guard let uid = self.objOrderData?.arrProduct[safe: productIndex]?.unique_id,
               let context = self.checklistContexts[uid] else { return }
 
-        if let block = PreparationPolicy.block(for: context) {
+        if let block = self.preparationBlock(for: context) {
             showAlertMessage(strMessage: block.message)
             return
         }
@@ -2956,7 +2989,7 @@ extension CheckListViewController {
         let context = uid.isEmpty ? nil : self.checklistContexts[uid]
 
         let allowed = context.map {
-            PreparationPolicy.mayRestartChecklist($0, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index))
+            Self.restartAllowed($0, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index), missionStage: self.missionStage)
         } ?? false
 
         guard allowed else {

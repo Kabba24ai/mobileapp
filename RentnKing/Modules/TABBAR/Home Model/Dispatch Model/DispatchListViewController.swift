@@ -1693,7 +1693,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         case .driverChecklist:
             self.openDriverChecklist(at: index)
         case .mainOrder:
-            if let details = Self.makeOrderDetails(for: raw, index: index) {
+            if let details = Self.makeOrderDetails(for: raw, index: index, serverObservedAt: observedAt) {
                 self.navigationController?.pushViewController(details, animated: true)
             }
         case .none:
@@ -1741,7 +1741,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 
     /// Main Order (Screen 3) for a dispatch row — the ONE construction, shared by
     /// Dispatch (an Arrived mission resumes here, D4) and Screen 2's Arrived tap.
-    static func makeOrderDetails(for row: SchedulesModel, index: Int) -> OrderDetailsViewController? {
+    static func makeOrderDetails(for row: SchedulesModel, index: Int, serverObservedAt: Date?) -> OrderDetailsViewController? {
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         guard let details = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController else { return nil }
         let isDeliveryLeg = row.is_delivered == false
@@ -1756,6 +1756,10 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         // (a delivery completed locally must not flip the gate to Return rules).
         details.completionLeg = isDeliveryLeg ? .delivery : .return
         details.strComplateDelivery = "\(isDeliveryLeg ? "Delivery" : "Return") Complete - Next Mission"
+        // The row's server copy of the trip: Main Order derives the mission's stage from
+        // it plus the engine, exactly as Dispatch and Screen 2 do (DriverMissionStage).
+        details.missionServerTrip = DriverStagePresentation.serverState(isDeliveryLeg ? row.delivery_checklist : row.pickup_checklist)
+        details.missionServerObservedAt = serverObservedAt
         return details
     }
     
