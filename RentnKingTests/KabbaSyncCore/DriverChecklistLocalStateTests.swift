@@ -94,23 +94,86 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertEqual(DriverChecklistLocalState().equipmentUniqueId, "")
     }
 
-    // MARK: - 3. Progress detection (the green band) — routing-inert
+    // MARK: - 2d. Restore is unit-checked (D5, spec §7.3)
 
-    func testUntouchedDefaultsAreNotProgress() {
-        // The defaults a fresh screen starts with: nothing ticked,
-        // call = confirmed (segment default), fuel Not Full, keys Missing.
-        let fresh = DriverChecklistLocalState(checks: [false, false, false, false],
-                                              callCustomer: "confirmed",
-                                              fuel: "Not Full",
-                                              keys: "Missing")
-        XCTAssertFalse(fresh.hasProgress)
+    private let unitA = "EQP-A"
+    private let unitB = "EQP-B"
+
+    private func recordForA() -> DriverChecklistLocalState {
+        DriverChecklistLocalState(checks: [true, false, true, false], callCustomer: "confirmed",
+                                  fuel: "Full", keys: "With Machine", equipmentUniqueId: unitA)
     }
 
-    func testEachNonDefaultEntryCountsAsProgress() {
+    func testTheSameUnitRestoresEverything() {
+        let restored = DriverChecklistLocalState.restore(local: recordForA(), server: nil, effectiveUnit: unitA)
+        XCTAssertEqual(restored, recordForA())
+    }
+
+    func testAReplacedUnitResetsFuelAndKeysButKeepsTheCall() {
+        let restored = DriverChecklistLocalState.restore(local: recordForA(), server: nil, effectiveUnit: unitB)
+        XCTAssertEqual(restored?.checks, [true, false, true, false])
+        XCTAssertEqual(restored?.callCustomer, "confirmed")
+        XCTAssertEqual(restored?.fuel, "", "Unit A's fuel answer never speaks for Unit B")
+        XCTAssertEqual(restored?.keys, "")
+        XCTAssertEqual(restored?.equipmentUniqueId, unitB, "the record now belongs to the effective unit")
+    }
+
+    func testTheServerCopyRestoresUnderTheSameRuleOnAnotherPhone() {
+        let server = DriverChecklistServerCopy(callCustomer: "no_answer", fuel: "Full", keys: "With Machine",
+                                               checks: [0, 1, 0, 0], equipmentUniqueId: unitA)
+        let sameUnit = DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitA)
+        XCTAssertEqual(sameUnit, DriverChecklistLocalState(checks: [false, true, false, false], callCustomer: "no_answer",
+                                                           fuel: "Full", keys: "With Machine", equipmentUniqueId: unitA))
+
+        let otherUnit = DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitB)
+        XCTAssertEqual(otherUnit?.callCustomer, "no_answer")
+        XCTAssertEqual(otherUnit?.checks, [false, true, false, false])
+        XCTAssertEqual(otherUnit?.fuel, "")
+        XCTAssertEqual(otherUnit?.keys, "")
+    }
+
+    func testAnAbsentIdentityWhileAUnitIsAssignedRestoresNoFuelOrKeys() {
+        // A record written before the identity existed (or a legacy server row).
+        let legacy = DriverChecklistLocalState(checks: [true], callCustomer: "confirmed", fuel: "Full", keys: "With Machine")
+        let restored = DriverChecklistLocalState.restore(local: legacy, server: nil, effectiveUnit: unitA)
+        XCTAssertEqual(restored?.fuel, "")
+        XCTAssertEqual(restored?.keys, "")
+        XCTAssertEqual(restored?.callCustomer, "confirmed")
+
+        let serverLegacy = DriverChecklistServerCopy(callCustomer: "confirmed", fuel: "Not Full", keys: "Missing", checks: [1], equipmentUniqueId: nil)
+        XCTAssertEqual(DriverChecklistLocalState.restore(local: nil, server: serverLegacy, effectiveUnit: unitA)?.fuel, "")
+    }
+
+    func testNoUnitAssignedRestoresAsRecorded() {
+        for unit in [String?.none, ""] {
+            let restored = DriverChecklistLocalState.restore(local: recordForA(), server: nil, effectiveUnit: unit)
+            XCTAssertEqual(restored, recordForA(), "effectiveUnit=\(String(describing: unit))")
+        }
+    }
+
+    func testLocalWinsOverTheServerCopyAndNothingRestoresNothing() {
+        let server = DriverChecklistServerCopy(callCustomer: "no_answer", fuel: "Not Full", keys: "Missing", checks: nil, equipmentUniqueId: unitA)
+        XCTAssertEqual(DriverChecklistLocalState.restore(local: recordForA(), server: server, effectiveUnit: unitA), recordForA())
+        XCTAssertNil(DriverChecklistLocalState.restore(local: nil, server: nil, effectiveUnit: unitA))
+    }
+
+    // MARK: - 3. Progress detection (the green band)
+
+    func testAnUntouchedScreenIsNotProgress() {
+        // Nothing preselected any more (spec §7.1): unset call, no fuel, no keys.
+        let fresh = DriverChecklistLocalState(checks: [false, false, false, false], callCustomer: "", fuel: "", keys: "")
+        XCTAssertFalse(fresh.hasProgress)
+        XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: [0, 0, 0, 0], callCustomer: nil, fuel: nil, keys: nil))
+    }
+
+    func testEveryExplicitAnswerCountsAsProgress() {
         XCTAssertTrue(DriverChecklistLocalState(checks: [false, true, false]).hasProgress, "one tick")
         XCTAssertTrue(DriverChecklistLocalState(callCustomer: "no_answer").hasProgress, "no-answer selection")
-        XCTAssertTrue(DriverChecklistLocalState(fuel: "Full").hasProgress, "fuel flipped")
-        XCTAssertTrue(DriverChecklistLocalState(keys: "With Machine").hasProgress, "keys flipped")
+        XCTAssertTrue(DriverChecklistLocalState(callCustomer: "confirmed").hasProgress, "confirmed is an explicit choice now, not a default")
+        XCTAssertTrue(DriverChecklistLocalState(fuel: "Full").hasProgress)
+        XCTAssertTrue(DriverChecklistLocalState(fuel: "Not Full").hasProgress, "Not Full is a recorded answer (A2) — it blocks departure, but it is progress")
+        XCTAssertTrue(DriverChecklistLocalState(keys: "With Machine").hasProgress)
+        XCTAssertTrue(DriverChecklistLocalState(keys: "Missing").hasProgress)
     }
 
     func testPartialProgressIsProgress() {
@@ -132,14 +195,19 @@ final class DriverChecklistLocalStateTests: XCTestCase {
     }
 
     func testServerReportedProgressMatchesTheSameRules() {
-        XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: [0, 0, 0, 0],
-                                                                   callCustomer: "confirmed",
-                                                                   fuel: "Not Full",
-                                                                   keys: "Missing"))
+        XCTAssertTrue(DriverChecklistLocalState.serverHasProgress(driverChecks: [0, 0, 0, 0],
+                                                                  callCustomer: "confirmed",
+                                                                  fuel: "Not Full",
+                                                                  keys: "Missing"),
+                      "explicit answers the server holds are progress, whatever they say")
         XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: nil,
                                                                    callCustomer: nil,
                                                                    fuel: nil,
                                                                    keys: nil))
+        XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: [0, 0],
+                                                                   callCustomer: "",
+                                                                   fuel: "",
+                                                                   keys: ""), "empty strings are unset")
         XCTAssertTrue(DriverChecklistLocalState.serverHasProgress(driverChecks: [1, 0, 0, 0],
                                                                   callCustomer: nil,
                                                                   fuel: nil,

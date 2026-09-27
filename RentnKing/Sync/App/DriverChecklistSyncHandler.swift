@@ -61,6 +61,7 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
                         equipmentDriverStatus: String,
                         checklistType: String,
                         driverChecks: [Int]? = nil,
+                        equipmentUniqueId: String? = nil,
                         capturedAt: Date = Date(),
                         operationId: String = UUID().uuidString) throws -> SyncOperation {
         var payload: [String: JSONValue] = [
@@ -79,6 +80,13 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
         // "no change", exactly like the scalar fields above.
         if let driverChecks {
             payload["driver_checks"] = .array(driverChecks.map { .number(Double($0)) })
+        }
+        // D5 (2026-09-27): the unit the fuel / keys answers were given for. The
+        // server stores it beside the ticks and the feed returns it, so any
+        // phone restores Fuel / Keys only against the same unit. Omitted when
+        // unknown = "no change" (never sent as "").
+        if let equipmentUniqueId, !equipmentUniqueId.isEmpty {
+            payload["equipment_unique_id"] = .string(equipmentUniqueId)
         }
 
         return try engine.enqueue(type: operationType,

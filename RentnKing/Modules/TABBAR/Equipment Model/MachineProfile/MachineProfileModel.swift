@@ -46,6 +46,11 @@ struct MachineModel: Mappable{
 
     internal var is_fuel: Bool?
     internal var is_key: Bool?
+    /// D5 (2026-09-27): the yard's sign-off predicates (diesel/gas; one or two
+    /// physical keys) — narrower than is_fuel / is_key. nil on a cached package
+    /// that predates them; the gate then falls back to the display flags.
+    internal var requires_fuel_check: Bool?
+    internal var requires_key_check: Bool?
 
     init?(map:Map) {
         mapping(map: map)
@@ -80,6 +85,8 @@ struct MachineModel: Mappable{
         equipment_store <- map["equipment_store"]
         is_fuel <- map["is_fuel"]
         is_key <- map["is_key"]
+        requires_fuel_check <- map["requires_fuel_check"]
+        requires_key_check <- map["requires_key_check"]
     }
 }
 

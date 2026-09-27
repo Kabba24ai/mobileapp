@@ -44,11 +44,11 @@ public struct DriverChecklistLocalState: Equatable {
     /// The call-customer sub-checklist ticks, in display order.
     /// Delivery has 4 items, return has 3 — the count is owned by the screen.
     public var checks: [Bool]
-    /// "confirmed" | "no_answer" (segment; "confirmed" is the default).
+    /// "" | "confirmed" | "no_answer" — "" = unset (nothing is preselected, spec §7.1).
     public var callCustomer: String
-    /// "" | "Not Full" | "Full" (delivery only; "" = equipment has no fuel).
+    /// "" | "Not Full" | "Full" (delivery only; "" = unanswered, or the unit needs no fuel sign-off).
     public var fuel: String
-    /// "" | "Missing" | "With Machine" (delivery only; "" = no keys).
+    /// "" | "Missing" | "With Machine" (delivery only; "" = unanswered, or no key sign-off).
     public var keys: String
     /// D5: the unique id of the unit `fuel` / `keys` were answered for
     /// ("" = unknown — a record written before the identity existed).
@@ -99,16 +99,50 @@ public struct DriverChecklistLocalState: Equatable {
         self.equipmentUniqueId = dictionary["equipment_unique_id"] as? String ?? ""
     }
 
+    // MARK: - Restore (D5, spec §7.3): local copy first, else the server copy — unit-checked
+
+    /// The record to show on Screen 2 for the `effectiveUnit` (the row's unit
+    /// overlaid by this phone's own unacknowledged switch). Call Customer and
+    /// its ticks always restore — they belong to the customer interaction.
+    /// Fuel and Keys restore only when the recorded unit IS the effective unit;
+    /// if it differs or is absent while a unit is assigned they return to
+    /// unanswered, so no phone ever inherits answers given for a replaced unit.
+    /// With no unit assigned at all the record restores as recorded.
+    public static func restore(local: DriverChecklistLocalState?,
+                               server: DriverChecklistServerCopy?,
+                               effectiveUnit: String?) -> DriverChecklistLocalState? {
+        guard var record = local ?? server.map(DriverChecklistLocalState.init(server:)) else { return nil }
+
+        guard let unit = effectiveUnit, !unit.isEmpty else { return record }
+        if record.equipmentUniqueId == unit { return record }
+
+        record.fuel = ""
+        record.keys = ""
+        record.equipmentUniqueId = unit
+        return record
+    }
+
+    /// The server's copy of the mini-checklist as a record.
+    public init(server: DriverChecklistServerCopy) {
+        self.init(checks: (server.checks ?? []).map { $0 == 1 },
+                  callCustomer: server.callCustomer ?? "",
+                  fuel: server.fuel ?? "",
+                  keys: server.keys ?? "",
+                  equipmentUniqueId: server.equipmentUniqueId ?? "")
+    }
+
     // MARK: - Progress
 
-    /// True when the driver has entered anything beyond the untouched
-    /// defaults — this is what turns the Dispatch button band GREEN. Routing
-    /// reads the workflow stage, not this flag (DeliveryWorkflowStage).
+    /// True when the driver has recorded anything — this is what turns the
+    /// Dispatch button band GREEN. Nothing is preselected any more (spec §7.1),
+    /// so every non-empty answer is an explicit one, including Not Full and
+    /// Missing (recorded, and blocking departure). Routing reads the workflow
+    /// stage, not this flag (DeliveryWorkflowStage).
     public var hasProgress: Bool {
         if checks.contains(true) { return true }
-        if callCustomer == "no_answer" { return true }   // deliberate non-default selection
-        if fuel == "Full" { return true }                // default is "Not Full"
-        if keys == "With Machine" { return true }        // default is "Missing"
+        if !callCustomer.isEmpty { return true }
+        if !fuel.isEmpty { return true }
+        if !keys.isEmpty { return true }
         return false
     }
 
@@ -120,9 +154,9 @@ public struct DriverChecklistLocalState: Equatable {
                                          fuel: String?,
                                          keys: String?) -> Bool {
         if driverChecks?.contains(1) == true { return true }
-        if callCustomer == "no_answer" { return true }
-        if fuel == "Full" { return true }
-        if keys == "With Machine" { return true }
+        if let call = callCustomer, !call.isEmpty { return true }
+        if let fuel, !fuel.isEmpty { return true }
+        if let keys, !keys.isEmpty { return true }
         return false
     }
 }

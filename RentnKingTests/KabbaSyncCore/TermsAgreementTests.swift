@@ -96,7 +96,8 @@ final class TermsAgreementTests: XCTestCase {
         XCTAssertTrue(agreement.isVerified(forOrder: agreement.orderUniqueId), "Laravel's identity recomputes on the phone")
 
         let packaged = try XCTUnwrap(DispatchOfflinePackageContent.terms(F.packageTemplate)?.agreement)
-        XCTAssertTrue(packaged.isVerified(forOrder: "ORD-BJVZ-CSDO"))
+        let packagedOrder = try XCTUnwrap(F.packageTemplate["dispatch"]?["row"]?["order"]?["unique_id"]?.stringValue)
+        XCTAssertTrue(packaged.isVerified(forOrder: packagedOrder), "the packaged agreement verifies for the package's own order")
         XCTAssertEqual(DispatchOfflinePackageSections.from(F.packageTemplate)?.terms, .ok)
     }
 

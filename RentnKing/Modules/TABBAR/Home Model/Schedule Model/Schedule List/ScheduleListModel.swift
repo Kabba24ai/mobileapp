@@ -138,6 +138,9 @@ struct CheckListResponeData: Mappable{
     // Dispatch card show the green progress band from server truth.
     internal var call_customer: String?
     internal var driver_checks: [Int]?
+    /// D5 (2026-09-27): the unit the fuel / keys answers were given for
+    /// (null when never recorded). Restore compares it to the effective unit.
+    internal var equipment_unique_id: String?
 
     init?(map:Map) {
         mapping(map: map)
@@ -153,6 +156,13 @@ struct CheckListResponeData: Mappable{
         ready_to_go_at <- map["ready_to_go_at"]
         call_customer <- map["call_customer"]
         driver_checks <- map["driver_checks"]
+        equipment_unique_id <- map["equipment_unique_id"]
+    }
+
+    /// The server's copy as the Sync Core reads it (nil when the block holds nothing at all).
+    var serverCopy: DriverChecklistServerCopy {
+        DriverChecklistServerCopy(callCustomer: call_customer, fuel: equipment_fuel, keys: equipment_key_location,
+                                  checks: driver_checks, equipmentUniqueId: equipment_unique_id)
     }
 }
 

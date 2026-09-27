@@ -490,9 +490,10 @@ final class AssemblyReviewTests: XCTestCase {
         let member = data.assemblies[0].members[0]
         let queue = QueueLineLocalOverlay.from([switchOp(product: member.orderProductUniqueId, to: "EQP-NEW", name: "X", tag: "1", state: .needsAttention)])
         let unit = try XCTUnwrap(AssemblyPolicy.effectiveEquipment(member: member, queue: queue))
-        XCTAssertEqual(unit.uniqueId, "EQP-SVSW-VGDH")
+        let serverUnit = try XCTUnwrap(member.equipment)
+        XCTAssertEqual(unit.uniqueId, serverUnit.uniqueId, "the server's unit stands")
         XCTAssertFalse(unit.fromLocalSwitch)
-        XCTAssertEqual(unit.identityLine, "Skid Steer 6aa7d9ba6bd7e · #EQP-P3-6AA7D9BA6BD7F")
+        XCTAssertEqual(unit.identityLine, EquipmentIdentity.line(name: serverUnit.name, displayId: serverUnit.displayId))
         XCTAssertEqual(AssemblyPolicy.unitState(member: member, queue: queue, overlay: AssemblyLocalOverlay()), .available)
     }
 

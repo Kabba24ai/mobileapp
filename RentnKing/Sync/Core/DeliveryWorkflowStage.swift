@@ -94,16 +94,16 @@ enum DeliveryWorkflowRouting {
 
 /// The server's copy of the driver mini-checklist for one leg, as the Dispatch
 /// row's checklist block reports it (null = the server holds nothing).
-struct DriverChecklistServerCopy: Equatable {
-    var callCustomer: String?
-    var fuel: String?
-    var keys: String?
-    var checks: [Int]?
+public struct DriverChecklistServerCopy: Equatable {
+    public var callCustomer: String?
+    public var fuel: String?
+    public var keys: String?
+    public var checks: [Int]?
     /// D5: the unit the fuel/keys answers were given for.
-    var equipmentUniqueId: String?
+    public var equipmentUniqueId: String?
 
-    init(callCustomer: String? = nil, fuel: String? = nil, keys: String? = nil,
-         checks: [Int]? = nil, equipmentUniqueId: String? = nil) {
+    public init(callCustomer: String? = nil, fuel: String? = nil, keys: String? = nil,
+                checks: [Int]? = nil, equipmentUniqueId: String? = nil) {
         self.callCustomer = callCustomer
         self.fuel = fuel
         self.keys = keys
