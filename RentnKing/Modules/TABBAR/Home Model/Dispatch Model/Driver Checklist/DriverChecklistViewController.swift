@@ -13,6 +13,8 @@ protocol DriverChecklistDelegate {
 
 import UIKit
 import MessageUI
+import Alamofire
+import ObjectMapper
 
 class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelegate {
 
@@ -52,7 +54,8 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     @IBOutlet weak var viewDoubleCheck: UIView!
     @IBOutlet weak var con_DoubleCheck: NSLayoutConstraint!
     var strDoubleCheck : String = ""
-    var strCallCustomer : String = "confirmed"
+    /// "" (unset) | "confirmed" | "no_answer" — nothing is preselected (spec §7.1).
+    var strCallCustomer : String = ""
     var strKeys : String = ""
     var buttonColour : UIColor = .secondaryText
 
@@ -93,18 +96,34 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     /// the server already has ready-to-go/arrived) — the checklist controls
     /// are hidden then, so exits must not queue a partial save.
     private var passedChecklistStage = false
-    /// Server already recorded Arrived for this leg: Screen 2 still opens
-    /// (routing is absolute) showing the Arrived status, and its button just
+    /// The effective stage is already Arrived (Dispatch normally routes that
+    /// straight to Main Order, spec §5; this is the safety net if the screen is
+    /// reached anyway): the Arrived status is shown and the button just
     /// continues to Order Details without re-firing the Arrived mutation.
     private var alreadyArrived = false
 
     // Side-by-side toggles replacing the fuel/keys dropdowns (delivery only)
-    private let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
-    private let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
+    let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
+    let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
 
-    // Call Customer confirmation toggle, shown next to the "1. Call Customer" title.
-    // Right option ("With Machine") is the confirmed state required before Ready to Go.
-    private let callCustomerSegment = UISegmentedControl(items: ["Confirmed", "No Answer"])
+    // Call Customer outcome, shown next to the "1. Call Customer" title:
+    // Confirmed (every check required) or No Answer (an explicit, recorded attempt).
+    let callCustomerSegment = UISegmentedControl(items: ["Confirmed", "No Answer"])
+
+    // Driver Delivery Process Flow (2026-09-27): the effective unit ("Name · #TAG"),
+    // the Review Assembly door (Delivery, every state) and the one sentence that
+    // says why Load Map & Go is disabled — built in code, in the header stack.
+    let unitIdentityLabel = UILabel()
+    let reviewAssemblyButton = UIButton(type: .system)
+    let gateBlockerLabel = UILabel()
+
+    /// Seams (hosted tests inject; production reads the shared engine, the cached
+    /// review, the network and Apple Maps).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+    var isReachable: () -> Bool = { NetworkReachabilityManager()?.isReachable == true }
+    var openMaps: (String, @escaping (Bool) -> Void) -> Void = { address, done in openAddressInMap(address: address, completion: done) }
+    var presentNoticeOverride: ((UIAlertController) -> Void)?
 
     // Whether each toggle is shown — driven by the equipment's is_fuel / is_key flags.
     // Shown when the flag is true (or missing); hidden only when explicitly false.
@@ -134,7 +153,10 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     
     private var callDeliveryCustomerChecks: [Bool] = [false, false, false, false]
     private var callReturnCustomerChecks: [Bool] = [false, false, false]
-    private var callCustomerCheckboxButtons: [UIButton] = []
+    private(set) var callCustomerCheckboxButtons: [UIButton] = []
+
+    /// The header row built in code: the effective unit + Review Assembly.
+    private let driverToolsRow = UIStackView()
 
     
     // MARK: - Lifecycle
@@ -145,10 +167,39 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
         //SET LOADING
         self.setTheView()
         self.setProduct()
+        self.setupDriverTools()
         self.setupDriverCheckList()
         self.setupStatusView()
         self.getReadyToGo_ArrivedStatus()
         self.setupHeader()
+
+        // The gate and the unit header follow the engine: a switch or an
+        // acknowledgement made on the Assembly Review (or drained by the sync)
+        // changes what this screen may allow.
+        NotificationCenter.default.addObserver(self, selector: #selector(syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func syncQueueDidChange() {
+        DispatchQueue.main.async { [weak self] in self?.refreshDerivedState() }
+    }
+
+    /// Re-reads what the engine and the row say — the effective unit (a switch
+    /// made on the review rebinds the fuel / keys answers, D5) and the gate.
+    func refreshDerivedState() {
+        guard self.isViewLoaded else { return }
+        self.updateUnitHeader()
+        if !passedChecklistStage && !alreadyArrived {
+            // Re-run the restore against the effective unit; what the server has
+            // accepted is unchanged by this, so the partial-sync baseline stays.
+            let synced = self.syncedSnapshot
+            self.restoreChecklistState()
+            self.syncedSnapshot = synced
+        }
+        self.updateReadyToGoButton()
     }
     
     
@@ -156,17 +207,14 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
         // Review F2: the stage is DERIVED from the durable Sync Engine steps (Load Map & Go /
         // Arrived saved on this phone) over the row's server copy — leaving Dispatch, a
         // force-quit or a relaunch offline can never forget it, or offer the step again.
-        let checklist = self.objDispatch?.is_delivered == false ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
-        let effective = DriverStageOverlay.from(KabbaSync.engine?.snapshot() ?? []).effective(
-            orderProductUniqueId: self.productUniqueId, leg: self.checklistType,
-            server: DriverStagePresentation.serverState(checklist), serverObservedAt: self.serverObservedAt)
+        let effective = self.effectiveTrip()
         let ready_to_go_at: String = effective.readyToGoAt ?? ""
         let arrived_at: String = effective.arrivedAt ?? ""
         let is_arrived: Bool = effective.stage == .arrived
 
         if is_arrived {
-            // ALREADY ARRIVED. Screen 2 still opens (routing is absolute) and
-            // shows the recorded Arrived status; the button becomes "Continue"
+            // ALREADY ARRIVED (Dispatch routes this to Main Order; safety net):
+            // show the recorded Arrived status; the button becomes "Continue"
             // and only navigates — the Arrived mutation is never re-fired.
             alreadyArrived = true
             passedChecklistStage = true
@@ -226,6 +274,12 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
             guard let vw_Table = self.tblView.tableHeaderView else { return }
 
             var getHeight: CGFloat = self.lblReturnAddress!.frame.origin.y + self.lblReturnAddress!.frame.size.height
+
+            // The rows built in code sit in the same vertical stack as the checklist
+            // and the status view: the unit / Review Assembly row above, the gate
+            // sentence below (only while it says something).
+            let spacing = (self.viewDriverCheckList.superview as? UIStackView)?.spacing ?? 0
+            getHeight += self.driverToolsRow.isHidden ? 0 : self.driverToolsRow.frame.size.height + spacing
             
             if arrived {
                 getHeight = getHeight + self.viewArrivedMain!.frame.origin.y + self.viewArrivedMain!.frame.size.height
@@ -237,6 +291,7 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
                 else {
                     getHeight = getHeight + self.viewReadytoGo!.frame.origin.y + self.viewReadytoGo!.frame.size.height
                 }
+                getHeight += self.gateBlockerLabel.isHidden ? 0 : self.gateBlockerLabel.frame.size.height + spacing
             }
             
             vw_Table.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: getHeight + 50)
@@ -268,6 +323,10 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
 
         } rightActionHandler: {sender, SelectTag  in
         }
+
+        // Back from the Assembly Review (a switch, an acknowledgement) or from
+        // anywhere else: the unit header and the gate reflect the engine now.
+        self.refreshDerivedState()
     }
     
   
@@ -497,15 +556,31 @@ extension DriverChecklistViewController : MFMessageComposeViewControllerDelegate
         self.strOpenMap()
     }
     
+    /// Opens the customer address in Apple Maps; when nothing can be opened (no
+    /// service, unroutable address) the Service Offline notice says so and this
+    /// button stays for a retry (spec §8).
     func strOpenMap(){
         if self.objDispatch == nil{
             return
         }
-                      
-        
-        let strAddress : String = self.objDispatch?.order?.objDeliveryAddress?.full_address ?? ""
-        openAddressInMap(address: strAddress)
 
+        let strAddress : String = self.objDispatch?.order?.objDeliveryAddress?.full_address ?? ""
+        self.openMaps(strAddress) { [weak self] opened in
+            if !opened { self?.presentServiceOfflineNotice() }
+        }
+    }
+
+    /// §8: the status is saved on this phone and will sync; navigation needs service.
+    func presentServiceOfflineNotice() {
+        let alert = UIAlertController(title: LoadMapAndGoDecision.serviceOfflineTitle,
+                                      message: LoadMapAndGoDecision.serviceOfflineMessage,
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        if let override = self.presentNoticeOverride {
+            override(alert)
+        } else {
+            self.present(alert, animated: true)
+        }
     }
     
 }
@@ -584,10 +659,12 @@ extension DriverChecklistViewController {
 //        self.viewkeys.isHidden = true
 //        self.con_keys.constant = 0
 
-        // Only show a toggle when the equipment actually has fuel / keys.
-        // Hidden only when the flag is explicitly false; shown when true or missing.
-        self.showFuelSegment = (self.objDispatch?.objEquipment?.is_fuel != false)
-        self.showKeysSegment = (self.objDispatch?.objEquipment?.is_key != false)
+        // Ask only what the yard's own predicate requires (requires_fuel_check /
+        // requires_key_check, D5); a cached row that predates it falls back to the
+        // display flag; unknown = ask (a silent skip is never safe).
+        let unit = self.objDispatch?.objEquipment
+        self.showFuelSegment = DriverChecklistGate.fuelRequired(requiresFuelCheck: unit?.requires_fuel_check, isFuel: unit?.is_fuel)
+        self.showKeysSegment = DriverChecklistGate.keysRequired(requiresKeyCheck: unit?.requires_key_check, isKey: unit?.is_key)
 
         // If the equipment has neither fuel nor keys, hide the whole container.
         if !showFuelSegment && !showKeysSegment {
@@ -605,26 +682,27 @@ extension DriverChecklistViewController {
         self.viewDoubleCheck.backgroundColor = .clear
         self.viewDoubleCheck.layer.borderWidth = 0
 
-        // Build only the columns that apply. Defaults: the LEFT option (index 0) —
-        // "Not Full" / "Missing" — to match the staging screen.
+        // Build only the columns that apply. NOTHING is preselected (spec §7.1):
+        // an unanswered control is a blocker, and Not Full / Missing are recorded
+        // answers that block departure (D2 / D11) — never defaults.
         var columns: [UIView] = []
 
         if showFuelSegment {
             columns.append(makeSegmentColumn(title: "2. Fuel", segment: fuelSegment))
-            fuelSegment.selectedSegmentIndex = 0
-            self.strDoubleCheck = "Not Full"
+            fuelSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+            self.strDoubleCheck = ""
             fuelSegment.addTarget(self, action: #selector(fuelSegmentChanged(_:)), for: .valueChanged)
         } else {
-            self.strDoubleCheck = ""   // no fuel on this equipment
+            self.strDoubleCheck = ""   // the yard asks no fuel question for this unit
         }
 
         if showKeysSegment {
             columns.append(makeSegmentColumn(title: "3. Keys", segment: keysSegment))
-            keysSegment.selectedSegmentIndex = 0
-            self.strKeys = "Missing"
+            keysSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+            self.strKeys = ""
             keysSegment.addTarget(self, action: #selector(keysSegmentChanged(_:)), for: .valueChanged)
         } else {
-            self.strKeys = ""          // no keys on this equipment
+            self.strKeys = ""          // the yard asks no key question for this unit
         }
 
         let row = UIStackView(arrangedSubviews: columns)
@@ -700,21 +778,24 @@ extension DriverChecklistViewController {
             callCustomerSegment.leadingAnchor.constraint(greaterThanOrEqualTo: lblCallCustomerTitle.leadingAnchor, constant: 8)
         ])
 
-        callCustomerSegment.selectedSegmentIndex = 0     // default LEFT ("Missing")
-        self.strCallCustomer = "confirmed"
+        callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment   // nothing preselected (D3)
+        self.strCallCustomer = ""
         callCustomerSegment.addTarget(self, action: #selector(callCustomerSegmentChanged(_:)), for: .valueChanged)
-        // Default "Missing" → checklist active and required.
         self.setCallCustomerChecklistEnabled(true)
     }
 
-    /// "With Machine" (right) means the customer already has the unit — no call-customer checklist needed.
-    private var isCallWithMachine: Bool { callCustomerSegment.selectedSegmentIndex == 1 }
+    /// "No Answer" (right): an explicit, recorded call attempt — the sub-checklist does not apply.
+    private var isNoAnswer: Bool { callCustomerSegment.selectedSegmentIndex == 1 }
 
     @objc private func callCustomerSegmentChanged(_ sender: UISegmentedControl) {
-        self.strCallCustomer = sender.selectedSegmentIndex == 1 ? "no_answer" : "confirmed"
-        // "With Machine" → the call-customer checklist is inactive and not required.
-        // "Missing" → the checklist is active and every item must be checked.
-        self.setCallCustomerChecklistEnabled(sender.selectedSegmentIndex != 1)
+        switch sender.selectedSegmentIndex {
+        case 0: self.strCallCustomer = "confirmed"
+        case 1: self.strCallCustomer = "no_answer"
+        default: self.strCallCustomer = ""
+        }
+        // No Answer → the call-customer checklist is inactive and not required.
+        // Confirmed (or nothing yet) → the checklist is active; Confirmed needs every item.
+        self.setCallCustomerChecklistEnabled(!isNoAnswer)
         self.updateReadyToGoButton()
         self.saveChecklistState()
     }
@@ -743,23 +824,39 @@ extension DriverChecklistViewController {
     }
     
     
-    private func updateReadyToGoButton() {
-        let allChecked = self.checklistType == "pickup" ? !callReturnCustomerChecks.contains(false) : !callDeliveryCustomerChecks.contains(false)
-        // A toggle that isn't shown (equipment has no fuel / no keys) is not required.
-        let fuelFilled = !self.showFuelSegment || !(self.strDoubleCheck).trimmingCharacters(in: .whitespaces).isEmpty
-        let keysFilled = !self.showKeysSegment || !(self.strKeys).trimmingCharacters(in: .whitespaces).isEmpty
-        // "With Machine" skips the Call Customer checklist; "Missing" requires every item checked.
-        let callChecklistOK = isCallWithMachine || allChecked
+    private var isDeliveryLeg: Bool { self.checklistType != "pickup" }
 
-        var isEnabled = callChecklistOK && fuelFilled && keysFilled
-        if self.checklistType == "pickup"{
-            isEnabled = callChecklistOK
-        }
-        btnReadytoGo.isEnabled = isEnabled
-        // Delivery → light green, Return/pickup → amber
-//        let enabledColor: UIColor = (self.checklistType == "pickup") ? .secondaryText : UIColor(red: 0.404, green: 0.792, blue: 0.404, alpha: 1.0)
-//        viewReadytoGo.backgroundColor = isEnabled ? enabledColor : .darkGray
-        viewReadytoGo.backgroundColor = isEnabled ? hexStringToUIColor(hex: "3DDC6E") : .darkGray
+    /// The cached Assembly Review's gate for this mission as this phone knows it
+    /// (nil = no review on this phone → honestly STOP, §6.4). Delivery only.
+    private func assemblyGate(_ operations: [SyncOperation]) -> AssemblyPolicy.LocalGate? {
+        guard isDeliveryLeg else { return nil }
+        return AssemblyPolicy.gate(forMission: self.productUniqueId,
+                                   in: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                   queue: QueueLineLocalOverlay.from(operations),
+                                   overlay: AssemblyLocalOverlay.from(operations))
+    }
+
+    /// The departure gate (spec §7): Assembly GO ∧ Call complete ∧ (fuel n/a ∨ Full)
+    /// ∧ (keys n/a ∨ With Machine) — every term explicit, no default passes.
+    private var gateDecision: DriverChecklistGateDecision {
+        let checks = isDeliveryLeg ? callDeliveryCustomerChecks : callReturnCustomerChecks
+        return DriverChecklistGate.evaluate(DriverChecklistGateInputs(
+            isDeliveryLeg: isDeliveryLeg,
+            call: CallOutcome(callCustomer: self.strCallCustomer, ticks: checks),
+            fuelRequired: isDeliveryLeg && self.showFuelSegment,
+            fuel: FuelAnswer(rawValue: self.strDoubleCheck),
+            keysRequired: isDeliveryLeg && self.showKeysSegment,
+            keys: KeysAnswer(rawValue: self.strKeys),
+            assemblyReady: isDeliveryLeg ? self.assemblyGate(self.operationsSnapshot())?.ready : nil))
+    }
+
+    private func updateReadyToGoButton() {
+        let decision = self.gateDecision
+        btnReadytoGo.isEnabled = decision.enabled
+        viewReadytoGo.backgroundColor = decision.enabled ? hexStringToUIColor(hex: "3DDC6E") : .darkGray
+        // The one sentence that says why — hidden once the button is live or the truck has left.
+        gateBlockerLabel.text = decision.firstBlocker
+        gateBlockerLabel.isHidden = decision.enabled || passedChecklistStage || alreadyArrived
     }
     
     private func setupCallCustomerSubChecklist() {
@@ -877,69 +974,75 @@ extension DriverChecklistViewController {
         // F2: a departure is recorded once — a replayed tap or stale screen never queues another.
         guard !passedChecklistStage, !alreadyArrived else { return }
 
-        //        let alert = UIAlertController(title: "Ready to go", message: "Are you sure you're ready to go?", preferredStyle: .alert)
-        //
-        //        alert.addAction(UIAlertAction(title: str.no, style: .cancel))
-        //
-        //        alert.addAction(UIAlertAction(title: str.yes, style: .default, handler: { _ in
-        //
-        //
-        //
-        //        }))
-        //
-        //        self.present(alert, animated: true)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: {
-            self.strOpenMap()
-        })
-        
-        
-        // Durably queued (Sync Engine) before the UI moves on; the toast reports Pending Sync → Synced.
-        // Carries the full checklist state (answers + ticks) with the departure transition.
+        // The gate is re-evaluated at the tap, not trusted from the button state (§7).
+        let decision = self.gateDecision
+        guard decision.enabled else {
+            self.updateReadyToGoButton()
+            return
+        }
+
+        // Record FIRST (§8). Durably queued (Sync Engine) before anything moves; the
+        // toast reports Pending Sync → Synced. Carries the full checklist state —
+        // answers, ticks and the unit they were given for (D5) — with the departure.
         //
         // Checklist-driven Queue Line (2026-09): "Load Map & Go" IS the
         // departure — it sends the canonical ON MY WAY status (the server
         // back-fills ready_to_go_at when the prep stamp was skipped, so every
         // existing consumer keeps working). The Queue Line board shows the
-        // item as Staged + In Transit until arrival/signed completion.
+        // item as Staged + In Transit until arrival/signed completion. From this
+        // moment the assignment is locked on this phone (spec §3.4).
         let readyToGoState = currentLocalState()
-        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId, equipment_fuel: self.strDoubleCheck, call_customer: self.strCallCustomer, equipment_key_location: self.strKeys, equipment_driver_status: kDriverCheckListStatus.kOnMyWay.rawValue, checklist_type: self.checklistType, driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 })
+        let readyToGoOperationId = saveDriverChecklistLocally(order_product_unique_id: self.productUniqueId,
+                                                              equipment_fuel: self.strDoubleCheck,
+                                                              call_customer: self.strCallCustomer,
+                                                              equipment_key_location: self.strKeys,
+                                                              equipment_driver_status: kDriverCheckListStatus.kOnMyWay.rawValue,
+                                                              checklist_type: self.checklistType,
+                                                              driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 },
+                                                              equipment_unique_id: readyToGoState.equipmentUniqueId)
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: readyToGoOperationId)
         passedChecklistStage = true
         syncedSnapshot = readyToGoState
-        
-        
-        // Show On My Way status view, hide checklist
+
+        // Show the On My Way status view, hide the checklist and the gate sentence.
         self.viewArrivedMain.isHidden = false
         self.viewDriverCheckList.isHidden = true
-        
-        
-        // Set current date & time
+        self.gateBlockerLabel.isHidden = true
+
         let formatter = DateFormatter()
         formatter.dateFormat = "MM/dd/yyyy hh:mm a"
         self.lbl_Arrived_dateTime.text = formatter.string(from: Date())
-        //========================================================//
-        
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let strReadytoGoDate = formatter.string(from: Date())
-        
-        if self.objDispatch?.is_delivered == false {
-            //DELIVERY CASE — the local saved answers are KEPT (they restore into
-            //Screen 2 on every revisit; Ready to Go is a stage, not an eraser).
-            self.objDispatch?.delivery_checklist?.ready_to_go_at = strReadytoGoDate
-            self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.delivery_checklist)
+
+        // The Dispatch row copy learns the ANSWERS only; the stage is the engine's.
+        self.reportAnswersToDispatch()
+        self.setupHeader(arrived: true)
+
+        // THEN navigate (§8): with service Apple Maps opens and Kabba stays here in
+        // the On My Way state; without it — or when the address cannot be routed —
+        // the Service Offline notice says the status is saved and will sync, and
+        // the map button stays for a retry. Never a pretend map, never a block.
+        switch LoadMapAndGoDecision.outcome(reachable: self.isReachable()) {
+        case .openMaps:
+            self.strOpenMap()
+        case .serviceOffline:
+            self.presentServiceOfflineNotice()
         }
-        else{
-            //PICKUP CASE
-            self.objDispatch?.pickup_checklist?.ready_to_go_at = strReadytoGoDate
-            self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.pickup_checklist)
-        }
-        
-        
-        
-        self.setupHeader()
-        
+    }
+
+    /// Screen 2 → the Dispatch row copy: the answers as recorded (fuel, keys, call,
+    /// ticks, unit). Dispatch merges exactly these fields — never the stage.
+    private func reportAnswersToDispatch() {
+        let state = currentLocalState()
+        var block = (isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist)
+            ?? Mapper<CheckListResponeData>().map(JSON: [:])
+        block?.equipment_fuel = state.fuel.isEmpty ? nil : state.fuel
+        block?.equipment_key_location = state.keys.isEmpty ? nil : state.keys
+        block?.call_customer = state.callCustomer.isEmpty ? nil : state.callCustomer
+        block?.driver_checks = state.checks.map { $0 ? 1 : 0 }
+        block?.equipment_unique_id = state.equipmentUniqueId.isEmpty ? nil : state.equipmentUniqueId
+        if isDeliveryLeg { self.objDispatch?.delivery_checklist = block } else { self.objDispatch?.pickup_checklist = block }
+        self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: block)
     }
     
     
@@ -996,13 +1099,15 @@ extension DriverChecklistViewController {
         )
     }
 
-    /// The screen's controls as one value (pickup has no fuel/keys — both stay "").
+    /// The screen's controls as one value (pickup has no fuel/keys — both stay ""),
+    /// bound to the unit the answers were given for (D5).
     private func currentLocalState() -> DriverChecklistLocalState {
         DriverChecklistLocalState(
             checks: checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks,
             callCustomer: self.strCallCustomer,
             fuel: self.strDoubleCheck,
-            keys: self.strKeys
+            keys: self.strKeys,
+            equipmentUniqueId: self.effectiveUnit?.id ?? ""
         )
     }
 
@@ -1013,73 +1118,52 @@ extension DriverChecklistViewController {
     }
 
     func restoreChecklistState() {
-        // Local copy first (most recent edits on this phone); otherwise the
-        // state the server last accepted (fresh install / reassigned driver).
+        // Local copy first (most recent edits on this phone); otherwise the state
+        // the server last accepted (fresh install / reassigned driver). Either way
+        // the fuel / keys answers restore ONLY for the unit they were given for
+        // (D5, §7.3): a replaced unit starts unanswered; the call and its ticks
+        // belong to the mission and always come back.
         let stored = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: localStateKey))
-        let seededFromServer = stored == nil
-        guard let state = stored ?? serverSeededState() else {
-            syncedSnapshot = currentLocalState()
-            return
-        }
+        let serverCopy = (checklistType == "pickup" ? self.objDispatch?.pickup_checklist : self.objDispatch?.delivery_checklist)?.serverCopy
+        let state = DriverChecklistLocalState.restore(local: stored, server: serverCopy, effectiveUnit: self.effectiveUnit?.id)
 
-        if checklistType == "pickup" {
-            for (i, val) in state.checks.enumerated() where i < callReturnCustomerChecks.count {
-                callReturnCustomerChecks[i] = val
-            }
-        } else {
-            for (i, val) in state.checks.enumerated() where i < callDeliveryCustomerChecks.count {
-                callDeliveryCustomerChecks[i] = val
+        if let state {
+            if checklistType == "pickup" {
+                callReturnCustomerChecks = callReturnCustomerChecks.indices.map { $0 < state.checks.count ? state.checks[$0] : false }
+            } else {
+                callDeliveryCustomerChecks = callDeliveryCustomerChecks.indices.map { $0 < state.checks.count ? state.checks[$0] : false }
             }
         }
-
         let checks = checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks
         for (i, btn) in callCustomerCheckboxButtons.enumerated() where i < checks.count {
             btn.isSelected = checks[i]
         }
 
-        if showFuelSegment, !state.fuel.isEmpty {
-            self.strDoubleCheck = state.fuel
-            fuelSegment.selectedSegmentIndex = state.fuel == "Full" ? 1 : 0
-        }
+        // Fuel / keys: the recorded answer, or nothing selected.
+        self.strDoubleCheck = (showFuelSegment && isDeliveryLeg) ? (state?.fuel ?? "") : ""
+        fuelSegment.selectedSegmentIndex = FuelAnswer(rawValue: self.strDoubleCheck).map { $0 == .full ? 1 : 0 } ?? UISegmentedControl.noSegment
+        self.strKeys = (showKeysSegment && isDeliveryLeg) ? (state?.keys ?? "") : ""
+        keysSegment.selectedSegmentIndex = KeysAnswer(rawValue: self.strKeys).map { $0 == .withMachine ? 1 : 0 } ?? UISegmentedControl.noSegment
 
-        // Restore keys
-        if showKeysSegment, !state.keys.isEmpty {
-            self.strKeys = state.keys
-            keysSegment.selectedSegmentIndex = state.keys == "With Machine" ? 1 : 0
+        // Call outcome: only the two explicit values are answers (a legacy "Yes" is not).
+        switch state?.callCustomer {
+        case "confirmed"?: self.strCallCustomer = "confirmed"; callCustomerSegment.selectedSegmentIndex = 0
+        case "no_answer"?: self.strCallCustomer = "no_answer"; callCustomerSegment.selectedSegmentIndex = 1
+        default:           self.strCallCustomer = "";          callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment
         }
-
-        // Restore Call Customer state ("no_answer" → checklist inactive)
-        if !state.callCustomer.isEmpty {
-            self.strCallCustomer = state.callCustomer
-            let withMachine = (state.callCustomer == "no_answer")
-            callCustomerSegment.selectedSegmentIndex = withMachine ? 1 : 0
-            setCallCustomerChecklistEnabled(!withMachine)
-        }
+        setCallCustomerChecklistEnabled(!isNoAnswer)
 
         self.updateReadyToGoButton()
 
-        if seededFromServer {
-            // Keep the server copy locally too, so the list's green band and the
-            // next open agree without a network round trip.
-            saveChecklistState()
-        }
+        // The record on this phone now names the effective unit (and, seeded from
+        // the server, keeps the copy locally so the list's green band and the next
+        // open agree without a round trip). Its existence — defaults included — is
+        // what makes a second Start Delivery land here instead of the review
+        // (§3.3.1): reaching Screen 2 through the driver road IS the evidence.
+        saveChecklistState()
         // What the screen now shows IS the converged state — only edits made
         // after this point need a partial sync on exit.
         syncedSnapshot = currentLocalState()
-    }
-
-    /// The mini-checklist state the SERVER has accepted for this product+leg,
-    /// from the dispatch feed's checklist block. nil when it holds nothing.
-    private func serverSeededState() -> DriverChecklistLocalState? {
-        let checklist = checklistType == "pickup" ? self.objDispatch?.pickup_checklist : self.objDispatch?.delivery_checklist
-        guard let checklist else { return nil }
-        let state = DriverChecklistLocalState(
-            checks: (checklist.driver_checks ?? []).map { $0 == 1 },
-            callCustomer: checklist.call_customer ?? "",
-            fuel: checklist.equipment_fuel ?? "",
-            keys: checklist.equipment_key_location ?? ""
-        )
-        return (state.hasProgress || !(checklist.driver_checks ?? []).isEmpty) ? state : nil
     }
 
     // MARK: - Partial-progress sync (Laravel convergence)
@@ -1105,7 +1189,8 @@ extension DriverChecklistViewController {
                                        equipment_key_location: self.strKeys,
                                        equipment_driver_status: "",   // partial: no transition
                                        checklist_type: self.checklistType,
-                                       driver_checks: current.checks.map { $0 ? 1 : 0 })
+                                       driver_checks: current.checks.map { $0 ? 1 : 0 },
+                                       equipment_unique_id: current.equipmentUniqueId)
         syncDriverChecklistWithAPI()
         syncedSnapshot = current
     }
@@ -1137,62 +1222,144 @@ extension DriverChecklistViewController {
             equipment_key_location:  self.strKeys,
             equipment_driver_status: kDriverCheckListStatus.kArrived.rawValue,
             checklist_type: self.checklistType,
-            driver_checks: arrivedState.checks.map { $0 ? 1 : 0 }
+            driver_checks: arrivedState.checks.map { $0 ? 1 : 0 },
+            equipment_unique_id: arrivedState.equipmentUniqueId
         )
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: arrivedOperationId)
         alreadyArrived = true
         syncedSnapshot = arrivedState
-        
-        // Set current date & time
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let strArrivedDate = formatter.string(from: Date())
-        
-        if self.objDispatch?.is_delivered == false {
-            //DELIVERY CASE
-            self.objDispatch?.delivery_checklist?.arrived_at = strArrivedDate
-            self.objDispatch?.delivery_checklist?.equipment_driver_status = "Arrived"
-            self.objDispatch?.delivery_checklist?.equipment_fuel = self.strDoubleCheck
-            self.objDispatch?.delivery_checklist?.equipment_key_location = self.strKeys
-            self.objDispatch?.delivery_checklist?.is_arrived = true
-            self.objDispatch?.delivery_checklist?.is_delivered = true
-            self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.delivery_checklist)
-        }
-        else{
-            //PICKUP CASE
-            self.objDispatch?.pickup_checklist?.arrived_at = strArrivedDate
-            self.objDispatch?.pickup_checklist?.equipment_driver_status = "Arrived"
-            self.objDispatch?.pickup_checklist?.equipment_fuel = self.strDoubleCheck
-            self.objDispatch?.pickup_checklist?.equipment_key_location = self.strKeys
-            self.objDispatch?.pickup_checklist?.is_arrived = true
-            self.objDispatch?.pickup_checklist?.is_delivered = true
-            self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: self.objDispatch?.pickup_checklist)
-        }
-        
-        
+
+        // The Dispatch row copy learns the answers only; Arrived is the engine's
+        // durable step (DriverStageOverlay), never a flag written onto the row.
+        self.reportAnswersToDispatch()
         self.pushOrderDetails()
     }
 
-    /// Screen 2 → Screen 3 (Main Order). Reached from here on Arrived, or directly
-    /// from Dispatch when the effective stage is already Arrived (DeliveryWorkflowRouting).
+    /// Screen 2 → Screen 3 (Main Order) — the same construction Dispatch uses when
+    /// the effective stage is already Arrived (DeliveryWorkflowRouting, D4).
     private func pushOrderDetails() {
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-            newViewController.isOrderScreen = true
-            newViewController.selectIndex = self.selectIndex
-            newViewController.strOrderUniqueId = self.strOrderUniqueId
-            newViewController.strOrderID = self.strOrderID
-            newViewController.fromCheckListScreen = true
-            newViewController.strProductID = self.productUniqueId
+        guard let row = self.objDispatch,
+              let details = DispatchListViewController.makeOrderDetails(for: row, index: self.selectIndex) else { return }
+        self.navigationController?.pushViewController(details, animated: true)
+    }
+}
 
-            // The leg being completed is the DISPATCH ROW's leg — explicit, so Order
-            // Details never re-derives it from a feed that may already be stale
-            // (a delivery completed locally must not flip the gate to Return rules).
-            newViewController.completionLeg = self.objDispatch?.is_delivered == false ? .delivery : .return
-            newViewController.strComplateDelivery = "\(self.objDispatch?.is_delivered == false ? "Delivery" : "Return") Complete - Next Mission"
-            self.navigationController?.pushViewController(newViewController, animated: true)
+// MARK: - Driver Delivery Process Flow (2026-09-27): the effective unit, the stage, Review Assembly
+extension DriverChecklistViewController {
+
+    struct EffectiveUnit: Equatable {
+        let id: String
+        let name: String?
+        let tag: String?
+    }
+
+    /// The unit this mission is effectively on: a switch this phone made (pending,
+    /// syncing or synced — never a rejected one) outranks the row's feed copy.
+    var effectiveUnit: EffectiveUnit? {
+        if let pending = QueueLineLocalOverlay.from(self.operationsSnapshot()).pendingEquipment(for: self.productUniqueId) {
+            return EffectiveUnit(id: pending.uniqueId, name: pending.name, tag: pending.displayId)
         }
+        guard let unit = self.objDispatch?.objEquipment, let id = unit.unique_id, !id.isEmpty else { return nil }
+        return EffectiveUnit(id: id, name: unit.equipment_name, tag: unit.equipment_id)
+    }
+
+    /// The driver's trip stage for this product × leg — durable local steps over the row's server copy.
+    func effectiveTrip() -> DriverStageEffective {
+        let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
+        return DriverStageOverlay.from(self.operationsSnapshot()).effective(
+            orderProductUniqueId: self.productUniqueId, leg: self.checklistType,
+            server: DriverStagePresentation.serverState(checklist), serverObservedAt: self.serverObservedAt)
+    }
+
+    /// Where this mission is (spec §3.3) as this phone knows it right now. Being on
+    /// this screen through the driver road is itself the Screen 2 evidence.
+    var effectiveStage: DeliveryWorkflowStage {
+        let operations = self.operationsSnapshot()
+        let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
+        return DeliveryWorkflowStage.resolve(DeliveryWorkflowInputs(
+            legCompleted: EffectiveFieldState.legSatisfied(serverCompleted: checklist?.is_delivered == true,
+                                                           operations: operations,
+                                                           orderProductUniqueId: self.productUniqueId,
+                                                           isDeliveryLeg: self.isDeliveryLeg),
+            trip: self.effectiveTrip().stage,
+            assemblyGate: self.assemblyGate(operations),
+            hasDriverChecklistEvidence: true))
+    }
+
+    /// The header row above the checklist: "Name · #TAG" of the effective unit and,
+    /// on Delivery, the Review Assembly door (every state — operational before
+    /// departure, read-only after, spec §6.1).
+    private func setupDriverTools() {
+        guard driverToolsRow.superview == nil, let stack = self.viewDriverCheckList.superview as? UIStackView else { return }
+
+        unitIdentityLabel.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 15)
+        unitIdentityLabel.textColor = .primary
+        unitIdentityLabel.numberOfLines = 2
+        unitIdentityLabel.adjustsFontSizeToFitWidth = true
+        unitIdentityLabel.minimumScaleFactor = 0.8
+        unitIdentityLabel.accessibilityIdentifier = "driverChecklist.unit"
+        unitIdentityLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        driverToolsRow.axis = .horizontal
+        driverToolsRow.alignment = .center
+        driverToolsRow.spacing = 12
+        driverToolsRow.isLayoutMarginsRelativeArrangement = true
+        driverToolsRow.layoutMargins = UIEdgeInsets(top: 4, left: 16, bottom: 4, right: 16)
+        driverToolsRow.addArrangedSubview(unitIdentityLabel)
+
+        if isDeliveryLeg {
+            reviewAssemblyButton.setTitle("Review Assembly", for: .normal)
+            reviewAssemblyButton.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 14)
+            reviewAssemblyButton.setTitleColor(.secondary, for: .normal)
+            reviewAssemblyButton.layer.borderWidth = 1
+            reviewAssemblyButton.layer.borderColor = UIColor.secondary.cgColor
+            reviewAssemblyButton.layer.cornerRadius = 8
+            reviewAssemblyButton.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            reviewAssemblyButton.accessibilityIdentifier = "driverChecklist.reviewAssembly"
+            reviewAssemblyButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+            reviewAssemblyButton.addTarget(self, action: #selector(reviewAssemblyTapped), for: .touchUpInside)
+            driverToolsRow.addArrangedSubview(reviewAssemblyButton)
+        }
+
+        gateBlockerLabel.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 13)
+        gateBlockerLabel.textColor = .redText
+        gateBlockerLabel.numberOfLines = 0
+        gateBlockerLabel.textAlignment = .center
+        gateBlockerLabel.accessibilityIdentifier = "driverChecklist.blocker"
+        gateBlockerLabel.isHidden = true
+
+        stack.insertArrangedSubview(driverToolsRow, at: 0)
+        if let checklistIndex = stack.arrangedSubviews.firstIndex(of: self.viewDriverCheckList) {
+            stack.insertArrangedSubview(gateBlockerLabel, at: checklistIndex + 1)
+        } else {
+            stack.addArrangedSubview(gateBlockerLabel)
+        }
+        self.updateUnitHeader()
+    }
+
+    func updateUnitHeader() {
+        guard let unit = self.effectiveUnit else {
+            unitIdentityLabel.text = "No equipment assigned"
+            return
+        }
+        let name = (unit.name?.isEmpty == false) ? unit.name! : "Unit"
+        unitIdentityLabel.text = (unit.tag?.isEmpty == false) ? "\(name) · #\(unit.tag!)" : name
+    }
+
+    /// Review Assembly from Screen 2 — a revisit: the review returns here, and is
+    /// read-only once the phone is effectively On My Way or Arrived.
+    @objc func reviewAssemblyTapped() {
+        ChecklistEntry.openAssemblyReview(
+            on: self.navigationController,
+            orderUniqueId: self.strOrderUniqueId,
+            orderNumber: self.strOrderID,
+            focusOrderProductUniqueId: self.productUniqueId,
+            origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: self.productUniqueId,
+                                                        enteredFrom: self.effectiveStage,
+                                                        isRevisit: true),
+                                          selectIndex: self.selectIndex,
+                                          fromCheckListScreen: true))
     }
 }
 

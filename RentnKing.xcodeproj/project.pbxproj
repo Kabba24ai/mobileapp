@@ -45,6 +45,7 @@
 		5A5E000000000000000000BD /* DispatchOfflineFieldBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */; };
 		5A5E000000000000000000BE /* DispatchOfflineFieldBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */; };
 		5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */; };
+		5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */; };
 		5A5E000000000000000000B9 /* DispatchOfflineRowAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */; };
 		5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B6 /* DispatchOfflineSync.swift */; };
 		5A5E000000000000000000B5 /* DispatchOfflineWorkingSetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */; };
@@ -564,6 +565,7 @@
 		5A5E000000000000000000BF /* ChecklistContextFallbackPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContextFallbackPolicy.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineFieldBridge.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapterTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverDeliveryFlowHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapter.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B6 /* DispatchOfflineSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineSync.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B4 /* DispatchOfflineWorkingSetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineWorkingSetTests.swift; sourceTree = "<group>"; };
@@ -2205,6 +2207,7 @@
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
+				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
 				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
@@ -3027,6 +3030,7 @@
 				5A5CFADE0000000000000077 /* QueueLineFilterTests.swift in Sources */,
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
+				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
 				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,

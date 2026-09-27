@@ -1638,26 +1638,31 @@ func setFontAttributes(str : String, fontName: String , fontSize: Double) -> NSM
 
 
 ///Opens text address in maps
-func openAddressInMap(address: String?){
-    guard let address = address else {return}
+/// Opens `address` in Apple Maps. `completion(false)` reports that nothing could
+/// be opened — no address, or the geocoder failed (no service, unknown address) —
+/// so the caller can say so instead of silently doing nothing (Driver Delivery
+/// Process Flow §8: the Service Offline notice keeps the map button for a retry).
+func openAddressInMap(address: String?, completion: ((Bool) -> Void)? = nil){
+    guard let address = address, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        completion?(false)
+        return
+    }
     
     let geoCoder = CLGeocoder()
     geoCoder.geocodeAddressString(address) { (placemarks, error) in
-        guard let placemarks = placemarks?.first else {
+        guard let placemarks = placemarks?.first,
+              let location = placemarks.location?.coordinate else {
+            completion?(false)
             return
         }
-        
-        let location = placemarks.location?.coordinate
-        
-        if let lat = location?.latitude, let lon = location?.longitude{
 
-            let destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)))
-            destination.name = address
-            
-            MKMapItem.openMaps(
-                with: [destination]
-            )
-        }
+        let destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)))
+        destination.name = address
+        
+        MKMapItem.openMaps(
+            with: [destination]
+        )
+        completion?(true)
     }
 }
 

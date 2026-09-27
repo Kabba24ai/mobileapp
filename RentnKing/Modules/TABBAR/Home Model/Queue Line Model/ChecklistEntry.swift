@@ -31,7 +31,14 @@ enum ChecklistEntry {
     /// checklist so its downstream behaviour (the list row refresh, pop targets,
     /// the driver-completion flags) stays exactly what that entry point had.
     struct Origin: Equatable {
-        enum Kind: Equatable { case queueLine, orderList, orderDetails }
+        enum Kind: Equatable {
+            case queueLine, orderList, orderDetails
+            /// Driver Delivery Process Flow (2026-09-27, §6): Dispatch's Start Delivery
+            /// (first start) or the Driver Checklist's Review Assembly (a revisit) —
+            /// the review then continues to / returns to the Driver Checklist, and is
+            /// read-only once the phone is effectively On My Way or Arrived.
+            case driver(orderProductUniqueId: String, enteredFrom: DeliveryWorkflowStage, isRevisit: Bool)
+        }
         var kind: Kind
         /// The caller's row index (Order List / Order Details `selectIndex`).
         var selectIndex: Int = 0

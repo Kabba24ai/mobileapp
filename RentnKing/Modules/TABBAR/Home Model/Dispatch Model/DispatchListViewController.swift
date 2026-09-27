@@ -99,6 +99,9 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var feedObservedAt: Date?
     /// The driver's trip stage from durable Sync Engine steps (Load Map & Go / Arrived), per render.
     var driverStageOverlay = DriverStageOverlay.from([])
+    /// Seams (hosted tests inject; production reads the shared engine and the cached review).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     /// Review F4: every live-feed / Manual Dispatch request is bound to the scope that started it.
     let feedRequests = DispatchFeedRequests()
 
@@ -569,7 +572,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // stays intact — and the overlay outlives a page-1 feed replace, so the
         // row can never reinsert. Completed view stays unfiltered (retained
         // synced ops must not hide genuinely completed rows there).
-        let operations = KabbaSync.engine?.snapshot() ?? []
+        let operations = self.operationsSnapshot()
         self.driverStageOverlay = DriverStageOverlay.from(operations)
         if self.selectStatus == "1" {
             let overlay = EffectiveFieldState.CompletionOverlay.from(operations)
@@ -1637,79 +1640,121 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             return
         }
         guard sender.tag < self.arrDispatchList.count else { return }
-        // F2: the stage (button colour, Screen 2) comes from durable Sync Engine steps too.
-        let objData = self.presentedRow(sender.tag)
-        var isDriverAssign : Bool = false
-        var checklistType : String = ""
-        if objData.is_delivered == false {
-            checklistType = "delivery"
-            
-            //GET ADDRESS
-            if let objTransport = objData.delivery_employee, let _ = objTransport.name{
-                isDriverAssign = true
-            }
-        }
-        else {
-            checklistType = "pickup"
-            
-            //GET ADDRESS
-            if let objTransport = objData.pickup_employee, let _ = objTransport.name{
-                isDriverAssign = true
-            }
-            
-            
-        }
+        // The active leg's driver must be assigned before a mission can start.
+        let objData = self.arrDispatchList[sender.tag]
+        let driver = objData.is_delivered == false ? objData.delivery_employee : objData.pickup_employee
+        let isDriverAssign = driver?.name != nil
 
-        
         if isDriverAssign == false {
             self.strAssignDriver(index: sender.tag)
         }
         else {
-            var is_arrived: Bool = false
-            var ready_to_go_at: String = ""
-            var buttonColour : UIColor = .secondaryText
-
-            if objData.is_delivered == false {
-                //DELIVERY CASE
-                is_arrived = objData.delivery_checklist?.is_arrived ?? false
-                ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
-
-                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legDelivery)
-                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
-
-            }
-            else{
-                //PICKUP CASE
-                is_arrived = objData.pickup_checklist?.is_arrived ?? false
-                ready_to_go_at = objData.pickup_checklist?.ready_to_go_at ?? ""
-
-                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legPickup)
-                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
-
-            }
-
-            // Start Delivery / Start Return opens the Driver Checklist. Routing by the
-            // effective workflow stage — Assembly Review first, Main Order after
-            // Arrived (DeliveryWorkflowRouting, spec §5) — lands with the Dispatch
-            // rewiring; the derivation itself already lives in Sync Core
-            // (DeliveryWorkflowStage). Prior state never re-opens the old
-            // is_arrived shortcut straight to Order Details.
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
-                newViewController.delegate_Data = self
-                newViewController.buttonColour = buttonColour
-                newViewController.objDispatch = self.arrDispatchList[sender.tag]
-                newViewController.serverObservedAt = self.serverObservedAt(for: objData)
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
-                newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
-                newViewController.productUniqueId = objData.unique_id ?? ""
-                newViewController.checklistType = checklistType
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
+            self.openMission(at: sender.tag)
         }
+    }
 
-        
+    /// Start Delivery / Start Return: ONE derivation of where the driver is
+    /// (DeliveryWorkflowStage, spec §3.3) from the durable stores this screen
+    /// already has, then the screen that stage names (DeliveryWorkflowRouting,
+    /// §5) — the Assembly Review with the driver origin, Screen 2, or Main Order
+    /// after Arrived. Nothing here is stored; the stage IS the resume point.
+    func openMission(at index: Int) {
+        guard index < self.arrDispatchList.count else { return }
+        let raw = self.arrDispatchList[index]
+        let isDeliveryLeg = raw.is_delivered == false
+        let leg = isDeliveryLeg ? DriverChecklistLocalState.legDelivery : DriverChecklistLocalState.legPickup
+        let productId = raw.unique_id ?? ""
+        let operations = self.operationsSnapshot()
+        let checklist = isDeliveryLeg ? raw.delivery_checklist : raw.pickup_checklist
+
+        let trip = DriverStageOverlay.from(operations).effective(
+            orderProductUniqueId: productId, leg: leg,
+            server: DriverStagePresentation.serverState(checklist), serverObservedAt: self.serverObservedAt(for: raw)).stage
+        let gate = AssemblyPolicy.gate(forMission: productId,
+                                       in: self.cachedAssemblyReview(raw.order?.unique_id ?? "")?.data,
+                                       queue: QueueLineLocalOverlay.from(operations),
+                                       overlay: AssemblyLocalOverlay.from(operations))
+        let localRecord = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(
+            forKey: DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: leg)))
+        let stage = DeliveryWorkflowStage.resolve(DeliveryWorkflowInputs(
+            legCompleted: EffectiveFieldState.legSatisfied(serverCompleted: checklist?.is_delivered == true,
+                                                           operations: operations,
+                                                           orderProductUniqueId: productId,
+                                                           isDeliveryLeg: isDeliveryLeg),
+            trip: trip,
+            assemblyGate: gate,
+            hasDriverChecklistEvidence: DriverChecklistEvidence.exists(localRecord: localRecord,
+                                                                       serverChecklist: checklist?.serverCopy,
+                                                                       operations: operations,
+                                                                       orderProductUniqueId: productId,
+                                                                       leg: leg)))
+
+        switch DeliveryWorkflowRouting.destination(for: stage, isDeliveryLeg: isDeliveryLeg) {
+        case .assemblyReview:
+            ChecklistEntry.openAssemblyReview(
+                on: self.navigationController,
+                orderUniqueId: raw.order?.unique_id ?? "",
+                orderNumber: "\(raw.order?.order_number ?? "")",
+                focusOrderProductUniqueId: productId,
+                origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: productId, enteredFrom: stage, isRevisit: false),
+                                              selectIndex: index, fromCheckListScreen: true))
+        case .driverChecklist:
+            self.openDriverChecklist(at: index)
+        case .mainOrder:
+            if let details = Self.makeOrderDetails(for: raw, index: index) {
+                self.navigationController?.pushViewController(details, animated: true)
+            }
+        case .none:
+            break
+        }
+    }
+
+    /// Screen 2 for the row — the same screen whatever stage it opens in
+    /// (not started or On My Way); it derives its own state from the engine.
+    func openDriverChecklist(at index: Int) {
+        guard index < self.arrDispatchList.count else { return }
+        // F2: the stage (button colour) comes from durable Sync Engine steps too.
+        let objData = self.presentedRow(index)
+        let isDeliveryLeg = objData.is_delivered == false
+        let checklist = isDeliveryLeg ? objData.delivery_checklist : objData.pickup_checklist
+        let ready_to_go_at = checklist?.ready_to_go_at ?? ""
+        let isDriverStarted = hasSavedDriverProgress(objData, leg: isDeliveryLeg ? DriverChecklistLocalState.legDelivery : DriverChecklistLocalState.legPickup)
+        let notStarted: UIColor = isDeliveryLeg ? hexStringToUIColor(hex: "4DA3FF") : .secondaryText
+        let buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : notStarted)
+
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
+            newViewController.delegate_Data = self
+            newViewController.buttonColour = buttonColour
+            newViewController.objDispatch = self.arrDispatchList[index]
+            newViewController.serverObservedAt = self.serverObservedAt(for: objData)
+            newViewController.selectIndex = index
+            newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
+            newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
+            newViewController.productUniqueId = objData.unique_id ?? ""
+            newViewController.checklistType = isDeliveryLeg ? "delivery" : "pickup"
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+
+    /// Main Order (Screen 3) for a dispatch row — the ONE construction, shared by
+    /// Dispatch (an Arrived mission resumes here, D4) and Screen 2's Arrived tap.
+    static func makeOrderDetails(for row: SchedulesModel, index: Int) -> OrderDetailsViewController? {
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        guard let details = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController else { return nil }
+        let isDeliveryLeg = row.is_delivered == false
+        details.isOrderScreen = true
+        details.selectIndex = index
+        details.strOrderUniqueId = row.order?.unique_id ?? ""
+        details.strOrderID = "\(row.order?.order_number ?? "")"
+        details.fromCheckListScreen = true
+        details.strProductID = row.unique_id ?? ""
+        // The leg being completed is the DISPATCH ROW's leg — explicit, so Order
+        // Details never re-derives it from a feed that may already be stale
+        // (a delivery completed locally must not flip the gate to Return rules).
+        details.completionLeg = isDeliveryLeg ? .delivery : .return
+        details.strComplateDelivery = "\(isDeliveryLeg ? "Delivery" : "Return") Complete - Next Mission"
+        return details
     }
     
     /// Saved Driver Checklist progress for THIS order product + leg — local copy
@@ -1732,16 +1777,29 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     
+    /// Screen 2 reports its answers back so the card's green band and the next
+    /// restore agree without a round trip. ONLY the answers travel: the trip
+    /// stage (ready_to_go_at / arrived_at / is_arrived / is_delivered / driver
+    /// status) is derived from the Sync Engine at display time and is never
+    /// written onto the row copy — so a stale copy can never route or colour
+    /// a card on its own (spec §3.2, review F2).
     func data_updateInCurrentDic(index: Int, dicCheckList: CheckListResponeData?) {
-        guard index < self.arrDispatchList.count else { return }
+        guard index < self.arrDispatchList.count, let answers = dicCheckList else { return }
 
-        if self.arrDispatchList[index].is_delivered == false {
-            //DELIVERY CASE
-            self.arrDispatchList[index].delivery_checklist = dicCheckList
-        }
-        else{
-            //PICKUP CASE
-            self.arrDispatchList[index].pickup_checklist = dicCheckList
+        let isDeliveryLeg = self.arrDispatchList[index].is_delivered == false
+        var merged = (isDeliveryLeg ? self.arrDispatchList[index].delivery_checklist : self.arrDispatchList[index].pickup_checklist)
+            ?? Mapper<CheckListResponeData>().map(JSON: [:])
+        guard merged != nil else { return }
+        merged?.equipment_fuel = answers.equipment_fuel
+        merged?.equipment_key_location = answers.equipment_key_location
+        merged?.call_customer = answers.call_customer
+        merged?.driver_checks = answers.driver_checks
+        merged?.equipment_unique_id = answers.equipment_unique_id
+
+        if isDeliveryLeg {
+            self.arrDispatchList[index].delivery_checklist = merged
+        } else {
+            self.arrDispatchList[index].pickup_checklist = merged
         }
 
         self.rememberOfflineEdit(self.arrDispatchList[index])
