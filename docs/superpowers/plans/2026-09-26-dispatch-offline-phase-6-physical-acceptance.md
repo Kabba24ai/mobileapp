@@ -797,3 +797,57 @@ Column names were checked against `rc_kabba_staging` on 2026-09-26. The Phase 2 
 - **Launch once with the harness:** `xcrun devicectl device process launch --device 93D4CE68-DFAF-5D00-829C-9D204CFEAD35 com.RentnKingNew.app -KabbaBaseURL https://<tunnel host>/api/admin/v1/ -KabbaCompanyCode KABBA -KabbaEmail driver@staging.local -KabbaPassword <staging password>`. Later launches are from the Home screen.
 - **Lock probe:** before any automated step, `xcrun devicectl device process launch` answers "Locked" or "Launched".
 - **Screenshots:** on the phone (side button + volume up), AirDropped to the evidence folder.
+
+---
+
+## 11. Execution record
+
+### 11.1 Preflight (2026-09-26, heads backend `d53dca7a0`, mobile `88775f6`)
+- **Results:**
+
+  | Gate | Result |
+  |---|---|
+  | P0 | clean trees, no upstream, both `main` unchanged |
+  | P1 core | 547/547 |
+  | P2 signed hosted | 84/84 in three runs |
+  | P3 / P3b simulator and signed device builds | succeeded |
+  | P4 backend | Dispatch 597, Api 221, Mobile 15, Unit/Push 6, QueueLine 293, Terms 82, CustomerPortal 24 |
+  | P6 manifest | 438 of 450 |
+  | P7 fixture parity | only `dispatch_list_mixed.json` differs (known) |
+  | P8 no-polling audit | only the allowlisted hits |
+
+- **P5 note:** Orders showed one extra failure, `NoCostOrderCommunicationSuppressionTest::test_the_daily_pending_terms_sweeper_skips_it`. It is a pre-existing clock artifact: the sweeper uses Chicago's date while the test writes the app's UTC date, so it fails between 7 pm and midnight Central. It passed in the 03:47 run on 2026-09-27. Otherwise the baseline matched by name.
+- **Watch item (hosted flake):** `DispatchOfflineTermsHostedTests.testTheAgreementIsRenderedInertAndSigningStillWorks` passed but took 912 s on the first run after a fresh build (under 1.5 s in runs 2 and 3). The result bundle is kept at `~/Documents/kabba-dispatch-offline-p6-evidence/preflight/hosted-run1.xcresult`.
+
+### 11.2 G1 / G3 setup (2026-09-26)
+- **Backup:** `rc_kabba_staging` was backed up. It holds no production data (16 test orders, one `@staging.local` customer).
+- **Outbound was found live.**
+  - The `settings` table held Twilio (sid, token, from, messaging service) and SMTP (host, username, password, from) values, copied from the local database. `sms_test_mode` does not stop texts.
+  - All eight were blanked, both loyalty text switches were set to 0, and `user_devices` was cleared. Re-verified by P9.
+- **Migrate:** 7 migrations, 0 pending after.
+- **Seed:** 50 active missions across three drivers (Appendix C). M2 was delivered through the real API. M11 and M12 are excluded as designed.
+- **Server:** served over a quick tunnel. Debug build `88775f6` installed on "Rent n King" and launched once with the harness.
+- **Tunnel:** it died overnight ("Tunnel not found", 2026-09-27 08:04 UTC), as G5 warned.
+
+### 11.3 S0 finding (Gary, 2026-09-27): "+ Assign" cards under named drivers — Important; physical testing stopped (D8)
+- **What Gary saw:** assigned **Return** missions, not unassigned ones. The seed built Returns with `delivery_status='Completed'` but `is_delivered` false (the shape of backend test helper `returnLeg`). The offline working set chose the leg from the mission (Return → pickup driver), while the card and list chose it from `is_delivered` (Delivery → empty delivery slot → "+ Assign").
+- **The same drift is plausible in production.** Two endpoints before `6effd0fb4` (2026-08-23) wrote the status without the flag, and nothing backfilled them.
+- **Fixes (Gary authorized fixing only this issue):**
+  - Mobile `cfc68f2`: the assigned-only rule. `DispatchWorkload.orderRowBelongs` hides an active leg with no driver, for named drivers and All, and `rebuildRows` applies it for All.
+  - Mobile `75923d2`: the rule covers both tabs (the server ignores `schedule_status`).
+  - Mobile `718a1c3`: comment accuracy only.
+  - Backend `6f47e176c`: coverage that an unassigned line enters the working set for its driver once assigned.
+  - Backend `27cc10ed9`: `DispatchRowFields::isDelivered` (the flag **or** delivery status Completed / Close as Completed) in the offline row and the live feed's `OrderProducts\ListResource`, so a drifted row renders as its Return under its pickup driver.
+- **Staging test data:** the seeded returns were corrected to `is_delivered=1`, and the seed script was fixed.
+- **Tests:**
+  - RED on the old code: 6 core, 3 hosted, 1 backend.
+  - GREEN: core 551/551, hosted 85/85, simulator build succeeded; backend Dispatch 599, Api 221, Mobile 15, Unit/Push 6, QueueLine 293, Terms 82, CustomerPortal 24; Orders 23 and CustomerChecklists 11 are the baseline by name; manifest 438/450.
+- **Reviews:**
+  - **Scoped review:** approve with changes. It found the drift regression, the false premise for exempting Completed, and my wrong live-feed claim; all were addressed in `75923d2` and `27cc10ed9`.
+  - **Re-review:** the mobile side is correct and the "+ Assign" symptom is fixed.
+- **Open for Gary (not fixed, per D8):**
+  - **N1 Important:** a drifted Return now shows correctly, but the server's Return-completion checks read the raw flag, so completing it is refused. Remedy: a one-off data backfill (`is_delivered=1` where the status is Completed / Close as Completed and the flag is 0) or status-based checks. It needs a read-only production count first.
+  - **N2 Important (pre-existing, Phase 3 4th-review Nit):** online "All Drivers" with no download falls back to the signed-in driver's feed, not company-wide.
+  - **N3 Minor:** deploy order. Mobile `718a1c3` must ship with or after backend `27cc10ed9`.
+  - **N4 Minor:** a legacy reverse-drift row (flag true, status Pending) with no pickup driver is now hidden.
+- **Next:** reinstall build `718a1c3` and recheck S0 on a new tunnel, with the dataset re-dated to the recheck day.
