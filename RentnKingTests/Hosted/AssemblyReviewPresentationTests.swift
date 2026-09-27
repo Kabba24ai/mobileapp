@@ -667,4 +667,172 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertEqual(flow.currentRows.count, 26, "Show all restores the prioritized first page")
         XCTAssertFalse(flow.currentRows.contains(beyond.pickerRow))
     }
+
+    // MARK: - Driver Delivery Process Flow (2026-09-27), Task 11 — the driver origin
+
+    private func driverOrigin(_ product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview, isRevisit: Bool = false) -> ChecklistEntry.Origin {
+        ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: product, enteredFrom: enteredFrom, isRevisit: isRevisit),
+                              selectIndex: 0, fromCheckListScreen: true)
+    }
+
+    /// The review as Dispatch or Screen 2 opens it for the driver: focused on the mission
+    /// line, the engine replaced by `ops`, notices captured instead of presented.
+    private func loadedDriver(_ envelope: AssemblyReviewEnvelope, product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview,
+                              isRevisit: Bool = false, ops: [SyncOperation] = [], notices: (([UIAlertController]) -> Void)? = nil) -> AssemblyReviewViewController {
+        let vc = AssemblyReviewViewController()
+        vc.orderUniqueId = envelope.data.order.uniqueId
+        vc.orderNumber = envelope.data.order.orderNumber ?? ""
+        vc.focusOrderProductUniqueId = product
+        vc.origin = driverOrigin(product, enteredFrom: enteredFrom, isRevisit: isRevisit)
+        vc.operationsSnapshot = { ops }
+        vc.loadViewIfNeeded()
+        vc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        vc.apply(envelope)
+        vc.view.layoutIfNeeded()
+        return vc
+    }
+
+    private func driverOp(_ product: String, status: String, minutesAgo: Double = 5) -> SyncOperation {
+        SyncOperation(type: EffectiveFieldState.driverChecklistType, capturedAt: Date().addingTimeInterval(-60 * minutesAgo),
+                      identity: SyncBusinessIdentity(orderProductUniqueId: product),
+                      payload: .object(["order_product_unique_id": .string(product), "checklist_type": .string("delivery"),
+                                        "equipment_driver_status": .string(status)]))
+    }
+
+    /// A Dispatch list holding the mission row (un-loaded, like the adapter tests).
+    private func dispatchList(product: String, order: String) -> DispatchListViewController {
+        let list = DispatchListViewController()
+        list.arrDispatchList = [Mapper<SchedulesModel>().map(JSON: [
+            "unique_id": product, "is_delivered": false, "product_name": "Skid Steer",
+            "order": ["unique_id": order, "order_number": "9305"],
+            "delivery_employee": ["id": 7, "name": "Gary Driver"],
+        ])!]
+        list.operationsSnapshot = { [] }
+        list.cachedAssemblyReview = { _ in nil }
+        return list
+    }
+
+    func testTheDriverOriginContinuesToTheDriverChecklistOnlyAtGoAndSiblingsOfferNoForwardAction() throws {
+        let stop = loadedDriver(try threeLineReview(), product: "OP-SKID")
+        XCTAssertFalse(texts(stop).contains("Continue to Checklist"), "the yard's forward action is not the driver's")
+        let blocked = try XCTUnwrap(view(stop, "assembly.OP-SKID.continue") as? UIButton)
+        XCTAssertEqual(blocked.currentTitle, "Continue to Driver Checklist")
+        XCTAssertFalse(blocked.isEnabled, "STOP: the driver cannot start Screen 2")
+        XCTAssertEqual(blocked.accessibilityValue, "blocked")
+        XCTAssertNil(view(stop, "assembly.OP-EXC.continue"), "the mission is ONE member; siblings ride along")
+        XCTAssertNil(view(stop, "assembly.OP-RAKE.continue"))
+
+        // At GO the button is live and opens Screen 2 for the mission line through Dispatch.
+        let go = try review(groups: [[Spec(uid: "OP-SKID", name: "Skid Steer", options: [("POPT-TOOTH", "Toothed Bucket", "available")], unitState: "available")]])
+        let list = dispatchList(product: "OP-SKID", order: go.data.order.uniqueId)
+        let nav = UINavigationController(rootViewController: list)
+        let vc = loadedDriver(go, product: "OP-SKID")
+        nav.pushViewController(vc, animated: false)
+        let cont = try XCTUnwrap(view(vc, "assembly.OP-SKID.continue") as? UIButton)
+        XCTAssertTrue(cont.isEnabled)
+        cont.sendActions(for: .touchUpInside)
+        let screen2 = try XCTUnwrap(nav.topViewController as? DriverChecklistViewController, "GO → the Driver Checklist for this line")
+        XCTAssertEqual(screen2.productUniqueId, "OP-SKID")
+        XCTAssertEqual(screen2.checklistType, "delivery")
+    }
+
+    func testARevisitFromTheDriverChecklistBacksToItWhateverTheGateSays() throws {
+        let list = dispatchList(product: "OP-SKID", order: "ORD-1")
+        let screen2 = DriverChecklistViewController()
+        let nav = UINavigationController(rootViewController: list)
+        nav.pushViewController(screen2, animated: false)
+        let vc = loadedDriver(try threeLineReview(), product: "OP-SKID", enteredFrom: .driverChecklist, isRevisit: true)
+        nav.pushViewController(vc, animated: false)
+
+        let back = try XCTUnwrap(view(vc, "assembly.OP-SKID.continue") as? UIButton)
+        XCTAssertEqual(back.currentTitle, "Back to Driver Checklist")
+        XCTAssertTrue(back.isEnabled, "a revisit always returns — STOP shows on Screen 2 as a disabled Load Map & Go")
+        XCTAssertTrue((view(vc, "assembly.OP-SKID.unit.available") as! UIButton).isEnabled, "before departure the review stays operational")
+        XCTAssertNotNil(view(vc, "assembly.OP-SKID.unit.reassign"))
+        back.sendActions(for: .touchUpInside)
+        XCTAssertTrue(nav.topViewController === screen2, "pops to the Driver Checklist beneath")
+        XCTAssertEqual(nav.viewControllers.count, 2)
+    }
+
+    func testTheDriverOriginIsReadOnlyOnceThePhoneOrTheServerSaysTheTruckLeft() throws {
+        let product = "OP-SKID"
+        let confirmed = [Spec(uid: product, name: "Skid Steer", options: [("POPT-TOOTH", "Toothed Bucket", "available")], unitState: "available")]
+        let cases: [(name: String, envelope: AssemblyReviewEnvelope, enteredFrom: DeliveryWorkflowStage, ops: [SyncOperation])] = [
+            ("this phone is On My Way, server still pending", try review(groups: [confirmed]), .driverChecklist, [driverOp(product, status: "On My Way")]),
+            ("this phone is Arrived", try review(groups: [confirmed]), .driverChecklist, [driverOp(product, status: "On My Way", minutesAgo: 10), driverOp(product, status: "Arrived")]),
+            ("the server says in transit (another phone departed)", try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [("POPT-TOOTH", "Toothed Bucket", "available")], unitState: "available", stage: "in_transit")]]), .driverChecklist, []),
+            ("Screen 2 knew the row was On My Way (no local op)", try review(groups: [confirmed]), .onMyWay, []),
+        ]
+        for c in cases {
+            var notices: [UIAlertController] = []
+            let vc = loadedDriver(c.envelope, product: product, enteredFrom: c.enteredFrom, isRevisit: true, ops: c.ops)
+            vc.presentNoticeOverride = { notices.append($0) }
+
+            XCTAssertFalse((view(vc, "assembly.\(product).unit.available") as! UIButton).isEnabled, c.name)
+            XCTAssertFalse((view(vc, "assembly.\(product).option.POPT-TOOTH.available") as! UIButton).isEnabled, c.name)
+            XCTAssertNil(view(vc, "assembly.\(product).unit.reassign"), "no Change — \(c.name)")
+            XCTAssertNil(view(vc, "assembly.\(product).unit.assign"), c.name)
+            XCTAssertNil(view(vc, "assembly.\(product).continue"), "no forward action after departure — \(c.name)")
+
+            let locked = try XCTUnwrap(view(vc, "assembly.\(product).unit.locked") as? UIButton, "the lock explanation is one tap away — \(c.name)")
+            locked.sendActions(for: .touchUpInside)
+            XCTAssertEqual(notices.last?.message, AssemblyPolicy.driverLockedExplanation, c.name)
+            let optionLocked = try XCTUnwrap(view(vc, "assembly.\(product).option.POPT-TOOTH.locked") as? UIButton)
+            optionLocked.sendActions(for: .touchUpInside)
+            XCTAssertEqual(notices.count, 2, c.name)
+        }
+
+        // A yard origin with the same local On My Way is locked by the existing rule (unchanged).
+        let yard = loaded(try review(groups: [confirmed]))
+        XCTAssertTrue((view(yard, "assembly.\(product).unit.available") as! UIButton).isEnabled, "yard, nothing departed")
+    }
+
+    func testOfflineCandidatesComeFromTheWarmedFleetScopedToTheUnitsCategoryAndWarnWhenTheReplacementNeedsService() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine, "the hosted app bootstraps the Sync Engine")
+        let product = "OP-SKID"
+        let envelope = try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: "available",
+                                                  equipmentName: "Kubota SVL75", equipmentDisplayId: "1234")]])
+        for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) }
+        defer { for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) } }
+
+        let vc = loadedDriver(envelope, product: product)
+        vc.operationsSnapshot = { engine.snapshot() }
+        vc.candidatesRequest = { _, _, _, deliver in deliver(nil) }            // offline: the canonical read fails
+        let machine = { (uid: String, tag: String, name: String, category: Int, productId: Int) -> MachineModel in
+            Mapper<MachineModel>().map(JSON: ["unique_id": uid, "equipment_id": tag, "equipment_name": name, "current_status": "Available",
+                                              "product_category_id": category, "assigned_product_id": productId])!
+        }
+        vc.warmedEquipment = { [
+            machine("EQP-\(product)", "1234", "Kubota SVL75", 7, 501),          // the current unit, category 7
+            machine("EQP-SAME", "5678", "Bobcat T66", 7, 501),                  // same product family → no reason
+            machine("EQP-OTHER", "9012", "SANY SW405K", 7, 777),                // same category, other product → reason
+            machine("EQP-EXC", "3456", "Kubota KX040", 8, 900),                 // another category → not offered
+        ] }
+        var offered: [EquipmentCandidate] = []
+        var preselected: String?
+        var choose: ((EquipmentCandidate) -> Void)?
+        vc.pickerOverride = { candidates, preselect, onPicked in offered = candidates; preselected = preselect; choose = onPicked }
+        var warnings: [String] = []
+        vc.confirmOverride = { _, message, proceed in warnings.append(message); proceed() }
+
+        (view(vc, "assembly.\(product).unit.reassign") as! UIButton).sendActions(for: .touchUpInside)
+
+        XCTAssertEqual(offered.map(\.uniqueId), ["EQP-\(product)", "EQP-SAME", "EQP-OTHER"], "the warmed fleet, scoped to the unit's category")
+        XCTAssertEqual(preselected, "EQP-\(product)")
+        XCTAssertEqual(offered.map(\.requiresReason), [false, false, true], "Laravel's reason rule mirrored against the current unit's product")
+
+        let replacement = try XCTUnwrap(offered.first { $0.uniqueId == "EQP-SAME" })
+        try XCTUnwrap(choose)(replacement)
+
+        XCTAssertEqual(warnings.count, 1, "the replacement's customer-site checklist is not cached: say so before recording")
+        XCTAssertTrue(warnings[0].lowercased().contains("service"), warnings[0])
+        let op = try XCTUnwrap(engine.snapshot().first {
+            $0.type == EffectiveFieldState.equipmentSubstitutionType && $0.identity.orderProductUniqueId == product
+        }, "the switch is recorded durably through the canonical operation")
+        XCTAssertEqual(op.payload["equipment_unique_id"]?.stringValue, "EQP-SAME")
+
+        XCTAssertEqual(label(vc, "assembly.\(product).unit.title"), "Bobcat T66 · #5678", "the replacement shows now, from the durable record")
+        XCTAssertEqual((view(vc, "assembly.\(product).unit.available") as? UIButton)?.accessibilityValue, "not confirmed")
+        XCTAssertTrue(view(vc, "assemblyReview.group.QLA-\(product).gate")?.accessibilityLabel?.hasPrefix("STOP") == true, "the new machine must be confirmed before departure")
+    }
 }

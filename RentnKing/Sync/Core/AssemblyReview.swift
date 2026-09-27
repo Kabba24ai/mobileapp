@@ -895,6 +895,9 @@ enum AssemblyPolicy {
         (stage ?? .assemblyReview) >= .onMyWay || memberStage.hasLeftTheYard
     }
 
+    /// What a read-only driver review says when a locked row is tapped (spec §6.1, §11).
+    static let driverLockedExplanation = "The truck has left the yard. The equipment and its confirmations are locked until the delivery is completed or the office recalls it."
+
     /// The Save-time message, from the server's blocker labels
     /// (context.server_state.stage_blockers) merged with this phone's own
     /// derived gate. Every label is a sentence about ONE subject.

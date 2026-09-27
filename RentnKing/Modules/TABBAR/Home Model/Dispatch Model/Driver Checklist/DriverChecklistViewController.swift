@@ -1275,16 +1275,17 @@ extension DriverChecklistViewController {
     /// Where this mission is (spec §3.3) as this phone knows it right now. Being on
     /// this screen through the driver road is itself the Screen 2 evidence.
     var effectiveStage: DeliveryWorkflowStage {
-        let operations = self.operationsSnapshot()
         let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
-        return DeliveryWorkflowStage.resolve(DeliveryWorkflowInputs(
-            legCompleted: EffectiveFieldState.legSatisfied(serverCompleted: checklist?.is_delivered == true,
-                                                           operations: operations,
-                                                           orderProductUniqueId: self.productUniqueId,
-                                                           isDeliveryLeg: self.isDeliveryLeg),
-            trip: self.effectiveTrip().stage,
-            assemblyGate: self.assemblyGate(operations),
-            hasDriverChecklistEvidence: true))
+        return DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: self.productUniqueId,
+                                      isDeliveryLeg: self.isDeliveryLeg,
+                                      serverTrip: DriverStagePresentation.serverState(checklist),
+                                      serverObservedAt: self.serverObservedAt,
+                                      serverChecklist: checklist?.serverCopy,
+                                      serverLegCompleted: checklist?.is_delivered == true,
+                                      onDriverChecklist: true),
+            review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+            operations: self.operationsSnapshot())
     }
 
     /// The header row above the checklist: "Name · #TAG" of the effective unit and,

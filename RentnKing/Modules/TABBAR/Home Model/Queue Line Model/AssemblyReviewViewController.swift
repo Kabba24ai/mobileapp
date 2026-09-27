@@ -45,6 +45,18 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     /// from this screen always returns there.
     var origin: ChecklistEntry.Origin = .queueLine
 
+    // MARK: - Seams (hosted tests inject; production reads the engine, the network, the warmed fleet and presents)
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var presentNoticeOverride: ((UIAlertController) -> Void)?
+    /// The canonical candidates read; nil delivered = the request failed (offline).
+    var candidatesRequest: ((AssemblyMember, _ search: String?, _ category: String?, _ deliver: @escaping (CandidatePage?) -> Void) -> Void)?
+    /// The warmed reference fleet (DispatchOfflineReferenceWarmup keeps it fresh).
+    var warmedEquipment: () -> [MachineModel] = { getEquipmentData() }
+    /// The picker: (candidates, preselected unit, onPicked).
+    var pickerOverride: (([EquipmentCandidate], String?, @escaping (EquipmentCandidate) -> Void) -> Void)?
+    /// A confirmation: (title, message, proceed).
+    var confirmOverride: ((String, String, @escaping () -> Void) -> Void)?
+
     // MARK: - Palette (app dark theme, same values as the board)
     private enum Palette {
         static let page   = UIColor.background
@@ -64,6 +76,8 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     private(set) var employeeUniqueId: String?
     private var queueOverlay = QueueLineLocalOverlay()
     private var assemblyOverlay = AssemblyLocalOverlay()
+    /// The engine snapshot this render derived from (one read per render).
+    private var currentOperations: [SyncOperation] = []
     private var lastRefreshFailed = false
     private var isOpeningChecklist = false
     private var syncObserver: NSObjectProtocol?
@@ -181,8 +195,9 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     }
 
     private func render() {
-        queueOverlay = KabbaQueueLineSync.overlay()
-        assemblyOverlay = KabbaAssemblySync.overlay()
+        currentOperations = operationsSnapshot()
+        queueOverlay = QueueLineLocalOverlay.from(currentOperations)
+        assemblyOverlay = AssemblyLocalOverlay.from(currentOperations)
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         memberCards.removeAll()
         renderHeader()
@@ -317,7 +332,13 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         let regular = GlobalMainConstants.APP_FONT_Roboto_Regular
         let product = member.orderProductUniqueId
         let stage = AssemblyPolicy.memberStage(serverStage: member.lifecycleStage, product: product, queue: queueOverlay, assembly: assemblyOverlay)
-        let left = stage.hasLeftTheYard
+        // Yard origins: editable until the server (or a local step) says the unit
+        // left. Driver origin (spec §6.1): read-only once THIS phone is effectively
+        // On My Way / Arrived — before the server knows — or the server's member
+        // has left the yard; a tap on a locked row explains why.
+        let mission = driverMission
+        let left = mission.map { isDriverReadOnly($0, memberStage: stage) } ?? stage.hasLeftTheYard
+        let lockExplanation: (() -> Void)? = (mission != nil && left) ? { [weak self] in self?.explainDriverLock() } : nil
 
         let card = UIView()
         card.backgroundColor = Palette.card
@@ -392,6 +413,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
                 enabled: !left,
                 idPrefix: "assembly.\(product).unit",
                 identityAction: left ? nil : { [weak self] in self?.changeEquipment(for: member) },
+                lockExplanation: lockExplanation,
                 onToggle: { [weak self] in self?.toggleUnit(member, unit: unit, current: unitState) }))
         } else {
             stack.addArrangedSubview(makeAssignRow(idPrefix: "assembly.\(product).unit", enabled: !left,
@@ -415,15 +437,33 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
                 state: state,
                 enabled: !left,
                 idPrefix: "assembly.\(product).option.\(option.uniqueId)",
+                lockExplanation: lockExplanation,
                 onToggle: { [weak self] in self?.toggleOption(member, option: option, current: state) }))
         }
 
-        // 4) The checklist action — hollow and inactive at STOP, filled at GO.
-        //    Still offered once the truck has left (In Transit): the driver
-        //    completes this same Delivery Checklist at the customer — Order
-        //    Details → here → checklist → signature. Only delivered equipment
-        //    has nothing left to continue to.
-        if stage != .equipmentDelivered {
+        // 4) The forward action.
+        if let mission {
+            // Driver origin (spec §6.1): the mission is ONE member — only its card carries the
+            // action; siblings ride along. First start: "Continue to Driver Checklist", live at
+            // GO. Revisit from Screen 2: "Back to Driver Checklist", always. After departure the
+            // screen is read-only and the nav's Back is the only way out.
+            if mission.product == product, !left {
+                stack.addArrangedSubview(makeDivider())
+                let enabled = mission.isRevisit || gate.ready
+                let cont = makeButton(mission.isRevisit ? "Back to Driver Checklist" : "Continue to Driver Checklist",
+                                      fill: enabled ? Palette.cyan : .clear,
+                                      ink: enabled ? Palette.page : Palette.unconfirmed, bordered: !enabled)
+                cont.accessibilityIdentifier = "assembly.\(product).continue"
+                cont.accessibilityValue = enabled ? "enabled" : "blocked"
+                cont.isEnabled = enabled
+                cont.addAction(UIAction { [weak self] _ in self?.driverForward(mission) }, for: .touchUpInside)
+                stack.addArrangedSubview(cont)
+            }
+        } else if stage != .equipmentDelivered {
+            // Yard origins — the checklist action, hollow and inactive at STOP, filled at
+            // GO. Still offered once the truck has left (In Transit): the driver completes
+            // this same Delivery Checklist at the customer — Order Details → here →
+            // checklist → signature. Only delivered equipment has nothing left to continue to.
             stack.addArrangedSubview(makeDivider())
             let cont = makeButton("Continue to Checklist", fill: gate.ready ? Palette.cyan : .clear,
                                   ink: gate.ready ? Palette.page : Palette.unconfirmed, bordered: !gate.ready)
@@ -444,7 +484,8 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     /// filled "Available"; a Not Available reversal keeps the X. Tapping a
     /// confirmed row asks before reversing it.
     private func makeAvailabilityRow(title: String, subtitle: String?, state: AvailabilityState?, enabled: Bool,
-                                     idPrefix: String, identityAction: (() -> Void)? = nil, onToggle: @escaping () -> Void) -> UIView {
+                                     idPrefix: String, identityAction: (() -> Void)? = nil,
+                                     lockExplanation: (() -> Void)? = nil, onToggle: @escaping () -> Void) -> UIView {
         let medium = GlobalMainConstants.APP_FONT_Roboto_Medium
         let regular = GlobalMainConstants.APP_FONT_Roboto_Regular
 
@@ -514,6 +555,21 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         let row = UIStackView(arrangedSubviews: [text, controls])
         row.axis = .horizontal; row.spacing = 10; row.alignment = .center
         row.accessibilityIdentifier = "\(idPrefix).row"
+
+        if let explain = lockExplanation {
+            // Read-only driver review: the disabled controls take no touches, so the whole
+            // row answers a tap with the reason instead of silence.
+            let locked = UIButton(type: .custom)
+            locked.translatesAutoresizingMaskIntoConstraints = false
+            locked.accessibilityIdentifier = "\(idPrefix).locked"
+            locked.accessibilityLabel = "Locked"
+            locked.addAction(UIAction { _ in explain() }, for: .touchUpInside)
+            row.addSubview(locked)
+            NSLayoutConstraint.activate([
+                locked.topAnchor.constraint(equalTo: row.topAnchor), locked.bottomAnchor.constraint(equalTo: row.bottomAnchor),
+                locked.leadingAnchor.constraint(equalTo: row.leadingAnchor), locked.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            ])
+        }
         return row
     }
 
@@ -673,6 +729,10 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         guard !isChangingEquipment else { return }
         let stage = AssemblyPolicy.memberStage(serverStage: member.lifecycleStage, product: member.orderProductUniqueId,
                                                queue: queueOverlay, assembly: assemblyOverlay)
+        if let mission = driverMission, isDriverReadOnly(mission, memberStage: stage) {
+            explainDriverLock()
+            return
+        }
         if stage.hasLeftTheYard {
             showAlertMessage(strMessage: (stage == .equipmentDelivered ? PreparationLifecycle.Block.delivered : PreparationLifecycle.Block.inTransit).message)
             return
@@ -683,12 +743,13 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         // ordered product): Laravel resolves it (`category=default`) and lists that category
         // whole, in operational order. The picker's Category pill and search ask the same
         // endpoint again — Laravel still decides what is eligible and how it is classified.
-        loadCandidates(for: member, category: "default") { [weak self] page in
+        requestCandidates(for: member, category: "default") { [weak self] page in
             guard let self = self else { return }
             indicatorHide()
             self.isChangingEquipment = false
             guard let page = page else {
-                showAlertMessage(strMessage: "Could not load the equipment list. Check the connection and try again.")
+                // Offline (spec §6.3): the warmed reference fleet, scoped to the unit's category.
+                self.offerWarmedFleet(for: member, stage: stage)
                 return
             }
             // Nothing in the whole fleet → nothing to open. An empty CATEGORY still opens the
@@ -702,7 +763,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             let source = EquipmentAssignmentFlow.CandidateSource(
                 fetch: { [weak self] category, term, deliver in
                     guard let self = self else { deliver(nil); return }
-                    self.loadCandidates(for: member, search: term, category: category?.uniqueId ?? "all") { deliver($0?.candidates) }
+                    self.requestCandidates(for: member, search: term, category: category?.uniqueId ?? "all") { deliver($0?.candidates) }
                 },
                 categories: { [weak self] deliver in
                     guard let self = self else { deliver(nil); return }
@@ -715,7 +776,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     }
 
     /// One answer of the candidates read: Laravel's list and the category it is scoped to (nil = the whole fleet).
-    private struct CandidatePage {
+    struct CandidatePage {
         let candidates: [EquipmentCandidate]
         let category: EquipmentCategoryOption?
     }
@@ -845,6 +906,128 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             return
         }
         nav.pushViewController(vc, animated: true)
+    }
+
+    // MARK: - Driver origin (Driver Delivery Process Flow 2026-09-27, spec §6)
+
+    private typealias DriverMission = (product: String, enteredFrom: DeliveryWorkflowStage, isRevisit: Bool)
+
+    private var driverMission: DriverMission? {
+        if case let .driver(product, enteredFrom, isRevisit) = origin.kind { return (product, enteredFrom, isRevisit) }
+        return nil
+    }
+
+    /// The mission's stage as this screen knows it: what the opener knew (Dispatch and
+    /// Screen 2 hold the row's server copy) floored under the phone's own durable steps
+    /// and the cached gate — the same builder every driver screen uses.
+    private func driverStage(_ mission: DriverMission) -> DeliveryWorkflowStage {
+        let local = DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: mission.product, isDeliveryLeg: true),
+            review: review, operations: currentOperations)
+        return max(mission.enteredFrom, local)
+    }
+
+    private func isDriverReadOnly(_ mission: DriverMission, memberStage: AssemblyStage) -> Bool {
+        AssemblyPolicy.driverReadOnly(stage: driverStage(mission), memberStage: memberStage)
+    }
+
+    private func explainDriverLock() {
+        presentNotice(title: "Assignment locked", message: AssemblyPolicy.driverLockedExplanation)
+    }
+
+    private func presentNotice(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        if let override = presentNoticeOverride { override(alert) } else { present(alert, animated: true) }
+    }
+
+    private func confirm(title: String, message: String, action: String, proceed: @escaping () -> Void) {
+        if let override = confirmOverride { override(title, message, proceed); return }
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: action, style: .default) { _ in proceed() })
+        present(alert, animated: true)
+    }
+
+    /// First start: Screen 2 for the mission line, through the Dispatch list beneath (by
+    /// line id, never by a position a refresh may have moved). Revisit: back to Screen 2.
+    private func driverForward(_ mission: DriverMission) {
+        guard let nav = navigationController else { return }
+        let animated = nav.view.window != nil          // an off-screen stack (tests, background) pops at once
+        if mission.isRevisit {
+            if let screen2 = nav.viewControllers.last(where: { $0 is DriverChecklistViewController }) {
+                nav.popToViewController(screen2, animated: animated)
+            } else {
+                nav.popViewController(animated: animated)
+            }
+            return
+        }
+        guard !isOpeningChecklist else { return }
+        isOpeningChecklist = true
+        if let dispatch = nav.viewControllers.last(where: { $0 is DispatchListViewController }) as? DispatchListViewController,
+           dispatch.openDriverChecklist(orderProductUniqueId: mission.product) {
+            return
+        }
+        // The list no longer holds the line (a refresh moved it): back to Dispatch.
+        isOpeningChecklist = false
+        nav.popViewController(animated: animated)
+    }
+
+    /// The canonical candidates read, or the injected one.
+    private func requestCandidates(for member: AssemblyMember, search: String? = nil, category: String? = nil,
+                                   completion: @escaping (CandidatePage?) -> Void) {
+        if let override = candidatesRequest {
+            override(member, search, category, completion)
+        } else {
+            loadCandidates(for: member, search: search, category: category, completion: completion)
+        }
+    }
+
+    /// Offline substitution (spec §6.3, bounded): the warmed reference fleet scoped to the
+    /// current unit's category, through the same picker; Laravel's reason rule mirrored
+    /// against the unit the office assigned (the review carries no product id, so a unit of
+    /// that same product needs no reason, any other does); the switch recorded through the
+    /// same durable operation; a clear warning first when the replacement's customer-site
+    /// checklist is not cached on this phone.
+    private func offerWarmedFleet(for member: AssemblyMember, stage: AssemblyStage) {
+        let fleet = warmedEquipment()
+        guard !fleet.isEmpty else {
+            showAlertMessage(strMessage: "Could not load the equipment list. Check the connection and try again.")
+            return
+        }
+        let current = AssemblyPolicy.effectiveEquipment(member: member, queue: queueOverlay)
+        let currentMachine = fleet.first { $0.unique_id == current?.uniqueId }
+        let scoped = currentMachine?.category_id.map { category in fleet.filter { $0.category_id == category } } ?? fleet
+        let candidates = scoped.map { EquipmentCandidate(machine: $0, orderedProductId: currentMachine?.assigned_product_id) }
+        guard !candidates.isEmpty else {
+            showAlertMessage(strMessage: "No equipment is available to assign right now.")
+            return
+        }
+        let onPicked: (EquipmentCandidate) -> Void = { [weak self] candidate in
+            guard let self = self else { return }
+            self.warnIfReplacementNeedsService(candidate, for: member) {
+                self.applyAssignment(member, replacement: candidate, current: current, stage: stage)
+            }
+        }
+        if let override = pickerOverride {
+            override(candidates, current?.uniqueId, onPicked)
+        } else {
+            equipmentFlow.onDismiss = nil
+            equipmentFlow.pick(from: candidates, preselectUniqueId: current?.uniqueId, onPicked: onPicked)
+        }
+    }
+
+    /// §6.3: the driver may switch, depart and arrive offline, but the replacement's equipment
+    /// checklist at the customer needs service unless its context is cached — say so first.
+    private func warnIfReplacementNeedsService(_ replacement: EquipmentCandidate, for member: AssemblyMember, proceed: @escaping () -> Void) {
+        let cached = KabbaSync.checklistContexts?.cached(orderProductUniqueId: member.orderProductUniqueId, leg: .delivery)
+        let servable = cached.map {
+            ChecklistContextFallbackPolicy.canServeOffline($0, equipmentHint: replacement.uniqueId, strictUnit: true, operations: currentOperations)
+        } ?? false
+        guard !servable else { proceed(); return }
+        confirm(title: "Switch without service?",
+                message: "\(replacement.identityLine) has no saved delivery checklist on this phone. You can switch, depart and arrive; the equipment checklist at the customer will need service. Switch anyway?",
+                action: "Switch", proceed: proceed)
     }
 
     // MARK: - Scaffold + small builders

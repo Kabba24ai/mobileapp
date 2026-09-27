@@ -1662,32 +1662,19 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         guard index < self.arrDispatchList.count else { return }
         let raw = self.arrDispatchList[index]
         let isDeliveryLeg = raw.is_delivered == false
-        let leg = isDeliveryLeg ? DriverChecklistLocalState.legDelivery : DriverChecklistLocalState.legPickup
         let productId = raw.unique_id ?? ""
-        let operations = self.operationsSnapshot()
         let checklist = isDeliveryLeg ? raw.delivery_checklist : raw.pickup_checklist
 
-        let trip = DriverStageOverlay.from(operations).effective(
-            orderProductUniqueId: productId, leg: leg,
-            server: DriverStagePresentation.serverState(checklist), serverObservedAt: self.serverObservedAt(for: raw)).stage
-        let gate = AssemblyPolicy.gate(forMission: productId,
-                                       in: self.cachedAssemblyReview(raw.order?.unique_id ?? "")?.data,
-                                       queue: QueueLineLocalOverlay.from(operations),
-                                       overlay: AssemblyLocalOverlay.from(operations))
-        let localRecord = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(
-            forKey: DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: leg)))
-        let stage = DeliveryWorkflowStage.resolve(DeliveryWorkflowInputs(
-            legCompleted: EffectiveFieldState.legSatisfied(serverCompleted: checklist?.is_delivered == true,
-                                                           operations: operations,
-                                                           orderProductUniqueId: productId,
-                                                           isDeliveryLeg: isDeliveryLeg),
-            trip: trip,
-            assemblyGate: gate,
-            hasDriverChecklistEvidence: DriverChecklistEvidence.exists(localRecord: localRecord,
-                                                                       serverChecklist: checklist?.serverCopy,
-                                                                       operations: operations,
-                                                                       orderProductUniqueId: productId,
-                                                                       leg: leg)))
+        // The ONE builder Dispatch, Screen 2 and the driver-origin review share.
+        let stage = DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: productId,
+                                      isDeliveryLeg: isDeliveryLeg,
+                                      serverTrip: DriverStagePresentation.serverState(checklist),
+                                      serverObservedAt: self.serverObservedAt(for: raw),
+                                      serverChecklist: checklist?.serverCopy,
+                                      serverLegCompleted: checklist?.is_delivered == true),
+            review: self.cachedAssemblyReview(raw.order?.unique_id ?? "")?.data,
+            operations: self.operationsSnapshot())
 
         switch DeliveryWorkflowRouting.destination(for: stage, isDeliveryLeg: isDeliveryLeg) {
         case .assemblyReview:
@@ -1707,6 +1694,16 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         case .none:
             break
         }
+    }
+
+    /// Screen 2 for the mission line — the Assembly Review's "Continue to Driver
+    /// Checklist" finds the row by its id, never by a position that a refresh may
+    /// have moved. Returns false when the line is no longer in this list.
+    @discardableResult
+    func openDriverChecklist(orderProductUniqueId: String) -> Bool {
+        guard let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) else { return false }
+        self.openDriverChecklist(at: index)
+        return true
     }
 
     /// Screen 2 for the row — the same screen whatever stage it opens in
