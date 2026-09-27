@@ -761,7 +761,9 @@ extension OrderDetailsViewController {
                                    orderProductUniqueIds: lineIds,
                                    licenseConfirmed: (order?.arrLicense.count ?? 0) != 0 || legacyLicense.count != 0,
                                    termsConfirmed: order?.terms_status == "Accepted" || order?.terms_status == "Exempt",
-                                   deliveryMediaConfirmed: products.contains { $0.arrDeliveryMedia.count != 0 } || legacyDeliveryMedia.count != 0,
+                                   // D7: only a VIDEO counts — a photo-only order is not delivery-media complete.
+                                   orderHasDeliveryVideo: products.contains { $0.arrDeliveryMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") } }
+                                       || legacyDeliveryMedia.contains { !$0.isImage },
                                    deliveryChecklistConfirmed: self.checkCheckListStatus(isDelivery: true),
                                    returnMediaConfirmed: returnMediaConfirmed,
                                    returnChecklistConfirmed: returnChecklistConfirmed,

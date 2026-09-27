@@ -18,10 +18,12 @@ final class CustomerSiteRouterTests: XCTestCase {
 
     // MARK: - §10.2 the matrix, stage ≥ On My Way
 
-    func testLicenseAndTermsReturnToMainOrder() {
-        for stage in [DeliveryWorkflowStage.onMyWay, .arrived] {
-            XCTAssertEqual(route(.license, stage: stage, videoMet: false, checklistComplete: false), .mainOrder)
-            XCTAssertEqual(route(.terms, stage: stage, videoMet: false, checklistComplete: false), .mainOrder)
+    func testLicenseAndTermsReturnToMainOrderAtEveryStage() {
+        // They never had a review rule — before departure they pop to the Order
+        // Details that opened them, exactly as after it (§10.2).
+        for stage in [DeliveryWorkflowStage.assemblyReview, .driverChecklist, .onMyWay, .arrived, .delivered] {
+            XCTAssertEqual(route(.license, stage: stage, videoMet: false, checklistComplete: false), .mainOrder, "stage=\(stage)")
+            XCTAssertEqual(route(.terms, stage: stage, videoMet: false, checklistComplete: false), .mainOrder, "stage=\(stage)")
         }
     }
 
@@ -56,10 +58,11 @@ final class CustomerSiteRouterTests: XCTestCase {
 
     // MARK: - The yard band (before departure, Delivery): today's rule, untouched
 
-    func testBeforeDepartureEveryDeliveryStepKeepsTheReviewRule() {
+    func testBeforeDepartureTheChecklistAndVideoStepsKeepTheReviewRule() {
         for stage in [DeliveryWorkflowStage.assemblyReview, .driverChecklist] {
-            for step in [CustomerSiteStep.license, .terms, .checklistPrepared, .checklistCompleted, .video] {
+            for step in [CustomerSiteStep.checklistPrepared, .checklistCompleted, .video] {
                 XCTAssertEqual(route(step, stage: stage, videoMet: false, checklistComplete: false), .assemblyReview, "stage=\(stage) step=\(step)")
+                XCTAssertEqual(route(step, stage: stage, videoMet: true, checklistComplete: true), .assemblyReview, "the yard rule does not depend on the media or checklist state")
             }
         }
     }

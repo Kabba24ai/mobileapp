@@ -111,7 +111,10 @@ public struct DriverChecklistLocalState: Equatable {
     public static func restore(local: DriverChecklistLocalState?,
                                server: DriverChecklistServerCopy?,
                                effectiveUnit: String?) -> DriverChecklistLocalState? {
-        guard var record = local ?? server.map(DriverChecklistLocalState.init(server:)) else { return nil }
+        // The feed's checklist block is always present (nulls inside); a copy that
+        // holds nothing is not a record — nothing restores nothing (review 8/9 #2).
+        let serverRecord = server.flatMap { $0.isEmpty ? nil : DriverChecklistLocalState(server: $0) }
+        guard var record = local ?? serverRecord else { return nil }
 
         guard let unit = effectiveUnit, !unit.isEmpty else { return record }
         if record.equipmentUniqueId == unit { return record }

@@ -35,20 +35,27 @@ enum CustomerSiteRoute: Equatable {
     case video
     /// The equipment checklist (still incomplete after the video).
     case checklist
-    /// Today's yard rule (`ChecklistEntry.returnToReview` with its fallbacks) — before departure only.
+    /// Today's yard rule for the CHECKLIST and VIDEO steps only, before departure
+    /// (`ChecklistEntry.returnToReview` with its fallbacks). License and Terms
+    /// never go here — they return to Main Order at every stage.
     case assemblyReview
 }
 
 enum CustomerSiteRouter {
 
-    /// Where the driver goes after `step`. For a Delivery still in the yard
-    /// (stage < On My Way) the review rule is untouched; from On My Way on, and
-    /// for every Return step, the customer-site matrix of §10.2 applies.
+    /// Where the driver goes after `step`. License and Terms return to Main Order
+    /// whatever the stage (they never had a review rule). For a Delivery
+    /// checklist or video step still in the yard (stage < On My Way) the review
+    /// rule is untouched; from On My Way on, and for every Return step, the
+    /// customer-site matrix of §10.2 applies.
     static func afterStep(_ step: CustomerSiteStep,
                           stage: DeliveryWorkflowStage,
                           isDeliveryLeg: Bool,
                           videoRequirementMet: Bool,
                           checklistComplete: Bool) -> CustomerSiteRoute {
+        if step == .license || step == .terms {
+            return .mainOrder
+        }
         if isDeliveryLeg && stage < .onMyWay {
             return .assemblyReview
         }

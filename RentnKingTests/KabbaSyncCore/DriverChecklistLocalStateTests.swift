@@ -157,6 +157,20 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertNil(DriverChecklistLocalState.restore(local: nil, server: nil, effectiveUnit: unitA))
     }
 
+    func testAnAllNilServerBlockRestoresNothing() {
+        // The feed emits the checklist block for every row with nulls inside; that
+        // is not a record, so opening Screen 2 restores nothing from it — for any
+        // effective unit, including none.
+        let allNil = DriverChecklistServerCopy()
+        XCTAssertTrue(allNil.isEmpty)
+        for unit in [unitA, "", nil] as [String?] {
+            XCTAssertNil(DriverChecklistLocalState.restore(local: nil, server: allNil, effectiveUnit: unit), "effectiveUnit=\(String(describing: unit))")
+        }
+        // A copy with one real value is a record; the identity alone is enough to be one.
+        XCTAssertNotNil(DriverChecklistLocalState.restore(local: nil, server: DriverChecklistServerCopy(checks: [0, 0]), effectiveUnit: unitA))
+        XCTAssertNotNil(DriverChecklistLocalState.restore(local: nil, server: DriverChecklistServerCopy(equipmentUniqueId: unitA), effectiveUnit: unitA))
+    }
+
     // MARK: - 3. Progress detection (the green band)
 
     func testAnUntouchedScreenIsNotProgress() {

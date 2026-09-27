@@ -100,7 +100,11 @@ struct LegCompletionInputs: Equatable {
 
     var licenseConfirmed: Bool = false
     var termsConfirmed: Bool = false
-    var deliveryMediaConfirmed: Bool = false
+    /// Order-level delivery VIDEO evidence (any line): the feed's delivery media
+    /// items whose type is video, or a legacy queued delivery video. Photos never
+    /// count here (D7) — the caller filters them out. Counts only while no cycle is
+    /// known for the focus product (`activeDeliveryExecutionId` empty).
+    var orderHasDeliveryVideo: Bool = false
     var deliveryChecklistConfirmed: Bool = false
     /// Return media / checklist confirmed FOR `orderProductUniqueId`.
     var returnMediaConfirmed: Bool = false
@@ -113,8 +117,8 @@ struct LegCompletionInputs: Equatable {
     var termsIdentity: String = ""
     /// Driver Delivery Process Flow (2026-09-27, D7): the server holds a VIDEO
     /// for the focus product's active delivery cycle (`delivery_video_present`).
-    /// `deliveryMediaConfirmed` above stays the order-level legacy flag (any
-    /// photo, any line) and counts only while no cycle is known.
+    /// `orderHasDeliveryVideo` above is the order-level fallback (any line's
+    /// video) and counts only while no cycle is known.
     var deliveryVideoConfirmed: Bool = false
     /// The current delivery checklist execution for the focus product, when the
     /// phone knows it (cached context). Empty → unknown.
@@ -125,7 +129,7 @@ struct LegCompletionInputs: Equatable {
          orderProductUniqueIds: [String],
          licenseConfirmed: Bool = false,
          termsConfirmed: Bool = false,
-         deliveryMediaConfirmed: Bool = false,
+         orderHasDeliveryVideo: Bool = false,
          deliveryChecklistConfirmed: Bool = false,
          returnMediaConfirmed: Bool = false,
          returnChecklistConfirmed: Bool = false,
@@ -138,7 +142,7 @@ struct LegCompletionInputs: Equatable {
         self.orderProductUniqueIds = orderProductUniqueIds
         self.licenseConfirmed = licenseConfirmed
         self.termsConfirmed = termsConfirmed
-        self.deliveryMediaConfirmed = deliveryMediaConfirmed
+        self.orderHasDeliveryVideo = orderHasDeliveryVideo
         self.deliveryChecklistConfirmed = deliveryChecklistConfirmed
         self.returnMediaConfirmed = returnMediaConfirmed
         self.returnChecklistConfirmed = returnChecklistConfirmed
@@ -268,14 +272,14 @@ enum LegCompletionEvaluator {
 
     /// Delivery requires a VIDEO for the focus product in its current cycle
     /// (Driver Delivery Process Flow, 2026-09-27 — D7, §10.3). Photos never
-    /// satisfy it; the server's cycle truth does; the order-level legacy flag
-    /// counts only while no cycle is known. Without a focus product (a screen
-    /// that carries none) any line's video counts, as the order-wide fallback
-    /// always did.
+    /// satisfy it; the server's cycle truth does; the order-level VIDEO
+    /// evidence counts only while no cycle is known. Without a focus product (a
+    /// screen that carries none) any line's video counts, as the order-wide
+    /// fallback always did.
     private static func deliveryMedia(inputs: LegCompletionInputs, operations: [SyncOperation]) -> RequirementStatus {
         if inputs.deliveryVideoConfirmed { return .satisfied }
         let active = inputs.activeDeliveryExecutionId
-        if active.isEmpty, inputs.deliveryMediaConfirmed { return .satisfied }
+        if active.isEmpty, inputs.orderHasDeliveryVideo { return .satisfied }
 
         let targets = deliveryTargets(inputs)
         guard !targets.isEmpty else { return .incomplete }

@@ -8,9 +8,10 @@
 //
 //      Delivery requires a VIDEO for THIS product in the CURRENT cycle.
 //
-//  Photos never satisfy it on their own. Another product's video, a Return
-//  video or a superseded cycle's video never satisfies. Order-scoped legacy
-//  evidence (the order-level "media present" flag, a video op with no cycle
+//  Photos never satisfy it on their own — not as a local op, not as a feed
+//  item, not through any order-level flag. Another product's video, a Return
+//  video or a superseded cycle's video never satisfies. Order-scoped VIDEO
+//  evidence (a video item on any line of the order, a video op with no cycle
 //  id) counts only when no cycle is known for the product.
 //
 
@@ -32,17 +33,18 @@ enum MediaRequirementPolicy {
 
     /// Is the delivery video requirement met?
     /// - `serverHasVideoForCycle`: the context's `delivery_video_present` for the active cycle.
-    /// - `legacyOrderEvidence`: order-scoped evidence (the feed's order-level media flag);
-    ///   counts only while no cycle is known for the product.
+    /// - `orderHasVideo`: order-scoped VIDEO evidence (a video item on any line of the order,
+    ///   never a photo — the caller filters by media type); counts only while no cycle is
+    ///   known for the product.
     static func deliveryVideoSatisfied(serverHasVideoForCycle: Bool,
                                        operations: [SyncOperation],
                                        orderProductUniqueId: String,
                                        activeExecutionId: String?,
-                                       legacyOrderEvidence: Bool) -> Bool {
+                                       orderHasVideo: Bool) -> Bool {
         if serverHasVideoForCycle { return true }
         if !deliveryVideoEvidence(operations: operations, orderProductUniqueId: orderProductUniqueId,
                                   activeExecutionId: activeExecutionId).isEmpty { return true }
-        if (activeExecutionId ?? "").isEmpty, legacyOrderEvidence { return true }
+        if (activeExecutionId ?? "").isEmpty, orderHasVideo { return true }
         return false
     }
 }

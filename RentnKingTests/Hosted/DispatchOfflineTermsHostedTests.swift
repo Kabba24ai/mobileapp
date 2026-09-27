@@ -26,8 +26,10 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
     private let urlB = "https://tenant-b.invalid/api/admin/v1/"
     private var tenantA: String { DispatchOfflineTenant.key(baseURL: URL(string: urlA)!) }
 
-    private let orderUid = "ORD-BJVZ-CSDO"        // the fixture's order
-    private let opuid = "ORD-SCH-P8KU-S6A9"        // the fixture's mission line
+    /// The fixture's order and mission line — read from the synced Laravel fixture, never
+    /// hardcoded (a fixture regeneration renames them; the tests must follow).
+    private var orderUid: String { (try? fixturePackage())?["dispatch"]?["order"]?["unique_id"]?.stringValue ?? "" }
+    private var opuid: String { (try? fixturePackage())?["order_product_unique_id"]?.stringValue ?? "" }
     private var savedBaseURL: String?
     private var root: URL!
     private var window: UIWindow?
@@ -239,7 +241,7 @@ final class DispatchOfflineTermsHostedTests: XCTestCase {
 
         // Completion follows the existing rules: T&C is satisfied, so the override never lists it.
         let inputs = LegCompletionInputs(orderUniqueId: orderUid, orderProductUniqueId: opuid, orderProductUniqueIds: [opuid],
-                                         licenseConfirmed: true, deliveryMediaConfirmed: true, deliveryChecklistConfirmed: true,
+                                         licenseConfirmed: true, orderHasDeliveryVideo: true, deliveryChecklistConfirmed: true,
                                          termsIdentity: stored.identity)
         let decision = LegCompletionEvaluator.evaluate(leg: .delivery, inputs: inputs, operations: reloaded)
         XCTAssertEqual(decision.status(.termsAndConditions), .satisfied)

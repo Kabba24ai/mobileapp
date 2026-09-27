@@ -27,8 +27,10 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
     private var tenantA: String { DispatchOfflineTenant.key(baseURL: URL(string: urlA)!) }
     private var tenantB: String { DispatchOfflineTenant.key(baseURL: URL(string: urlB)!) }
 
-    private let orderUid = "ORD-BJVZ-CSDO"        // the fixture's order
-    private let opuid = "ORD-SCH-P8KU-S6A9"        // the fixture's mission line
+    /// The fixture's order and mission line — read from the synced Laravel fixture, never
+    /// hardcoded (a fixture regeneration renames them; the tests must follow).
+    private var orderUid: String { (try? fixturePackage())?["dispatch"]?["order"]?["unique_id"]?.stringValue ?? "" }
+    private var opuid: String { (try? fixturePackage())?["order_product_unique_id"]?.stringValue ?? "" }
     private var savedBaseURL: String?
     private var savedUser: User?
     private var root: URL!
@@ -150,7 +152,8 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         guard case .success(let context) = loadContext(offlineChecklistClient(h.contexts)) else {
             return XCTFail("the bridged context is served offline")
         }
-        XCTAssertEqual(context.executionId, "ORD-CHK-4TQ6-TKA8")
+        XCTAssertEqual(context.executionId, try fixturePackage()["checklist_context"]?["identity"]?["checklist_execution_id"]?.stringValue,
+                       "the fixture's own execution — read from the synced fixture, never hardcoded")
         XCTAssertEqual(ChecklistCaptureFactory.questionModels(from: context, isDelivery: true, preserving: [:]).count,
                        context.questions.count, "the canonical questions render")
         XCTAssertEqual(ChecklistCaptureFactory.machine(from: context)?.unique_id, context.equipment.equipmentUniqueId)
@@ -203,7 +206,9 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
     func testAMissionDownloadedByOneUserIsWorkedOfflineAsTheUserSignedInNow() throws {
         let h = try harness(storeAt: urlA)
         h.bridge.bridge(index: h.store.loadIndex()) // downloaded + bridged under Gary Driver (the package's employee)
-        XCTAssertEqual(h.contexts.load(orderProductUniqueId: opuid, leg: .delivery)?.employee?.uniqueId, "PER-VDKO-9765")
+        let downloader = try XCTUnwrap(try fixturePackage()["checklist_context"]?["employee"]?["unique_id"]?.stringValue)
+        XCTAssertNotEqual(downloader, "PER-SIGNED-IN")
+        XCTAssertEqual(h.contexts.load(orderProductUniqueId: opuid, leg: .delivery)?.employee?.uniqueId, downloader)
 
         // Gary logs out; Yolanda (same company) logs in on the same phone and works offline.
         signInUser(id: "77", uniqueId: "PER-SIGNED-IN", name: "Yolanda Driver")

@@ -72,7 +72,7 @@ final class LegCompletionEvaluatorTests: XCTestCase {
     private func inputs(product: String = "P1",
                         products: [String] = ["P1", "P2"],
                         license: Bool = false, terms: Bool = false,
-                        deliveryMedia: Bool = false, deliveryChecklist: Bool = false,
+                        orderVideo: Bool = false, deliveryChecklist: Bool = false,
                         returnMedia: Bool = false, returnChecklist: Bool = false,
                         activeReturnExecutionId: String = "") -> LegCompletionInputs {
         LegCompletionInputs(orderUniqueId: order,
@@ -80,7 +80,7 @@ final class LegCompletionEvaluatorTests: XCTestCase {
                             orderProductUniqueIds: products,
                             licenseConfirmed: license,
                             termsConfirmed: terms,
-                            deliveryMediaConfirmed: deliveryMedia,
+                            orderHasDeliveryVideo: orderVideo,
                             deliveryChecklistConfirmed: deliveryChecklist,
                             returnMediaConfirmed: returnMedia,
                             returnChecklistConfirmed: returnChecklist,
@@ -177,28 +177,28 @@ final class LegCompletionEvaluatorTests: XCTestCase {
     // MARK: - 10–14 Leg isolation: Delivery history never blocks Return
 
     func test10_licenseMissing_returnStillProceeds() {
-        let decision = evaluateReturn(inputs(license: false, terms: true, deliveryMedia: true, deliveryChecklist: true,
+        let decision = evaluateReturn(inputs(license: false, terms: true, orderVideo: true, deliveryChecklist: true,
                                              returnMedia: true, returnChecklist: true), [])
         XCTAssertTrue(decision.canProceed)
         XCTAssertFalse(decision.overrideSections.license)
     }
 
     func test11_termsMissing_returnStillProceeds() {
-        let decision = evaluateReturn(inputs(license: true, terms: false, deliveryMedia: true, deliveryChecklist: true,
+        let decision = evaluateReturn(inputs(license: true, terms: false, orderVideo: true, deliveryChecklist: true,
                                              returnMedia: true, returnChecklist: true), [])
         XCTAssertTrue(decision.canProceed)
         XCTAssertFalse(decision.overrideSections.terms)
     }
 
     func test12_deliveryVideoMissing_returnStillProceeds() {
-        let decision = evaluateReturn(inputs(license: true, terms: true, deliveryMedia: false, deliveryChecklist: true,
+        let decision = evaluateReturn(inputs(license: true, terms: true, orderVideo: false, deliveryChecklist: true,
                                              returnMedia: true, returnChecklist: true), [])
         XCTAssertTrue(decision.canProceed)
         XCTAssertEqual(decision.missing, [])
     }
 
     func test13_deliveryChecklistMissing_returnStillProceeds() {
-        let decision = evaluateReturn(inputs(license: true, terms: true, deliveryMedia: true, deliveryChecklist: false,
+        let decision = evaluateReturn(inputs(license: true, terms: true, orderVideo: true, deliveryChecklist: false,
                                              returnMedia: true, returnChecklist: true), [])
         XCTAssertTrue(decision.canProceed)
         XCTAssertEqual(decision.missing, [])
@@ -214,7 +214,7 @@ final class LegCompletionEvaluatorTests: XCTestCase {
     // MARK: - 15 Delivery regression (its rules are unchanged)
 
     func test15_deliveryCompletionStillAppliesItsOwnFourRules() {
-        let allGood = inputs(license: true, terms: true, deliveryMedia: true, deliveryChecklist: true)
+        let allGood = inputs(license: true, terms: true, orderVideo: true, deliveryChecklist: true)
         XCTAssertTrue(evaluateDelivery(allGood, []).canProceed)
 
         var noLicense = allGood; noLicense.licenseConfirmed = false
@@ -224,7 +224,7 @@ final class LegCompletionEvaluatorTests: XCTestCase {
         var noTerms = allGood; noTerms.termsConfirmed = false
         XCTAssertEqual(evaluateDelivery(noTerms, []).missing, [.termsAndConditions])
 
-        var noMedia = allGood; noMedia.deliveryMediaConfirmed = false
+        var noMedia = allGood; noMedia.orderHasDeliveryVideo = false
         XCTAssertEqual(evaluateDelivery(noMedia, []).missing, [.deliveryMedia])
 
         var noChecklist = allGood; noChecklist.deliveryChecklistConfirmed = false
@@ -264,10 +264,12 @@ final class LegCompletionEvaluatorTests: XCTestCase {
         var cycleTruth = inputs(); cycleTruth.deliveryVideoConfirmed = true; cycleTruth.activeDeliveryExecutionId = "CX-2"
         XCTAssertEqual(evaluateDelivery(cycleTruth, []).status(.deliveryMedia), .satisfied)
 
-        // The legacy order-level "media present" flag (any photo, any line) is
-        // evidence only while no cycle is known for the product.
-        XCTAssertEqual(evaluateDelivery(inputs(deliveryMedia: true), []).status(.deliveryMedia), .satisfied)
-        var known = inputs(deliveryMedia: true); known.activeDeliveryExecutionId = "CX-2"
+        // Order-level VIDEO evidence (any line) counts only while no cycle is known
+        // for the product; a photo-only order carries no such evidence (D7) and is
+        // incomplete with no cycle known and no video op.
+        XCTAssertEqual(evaluateDelivery(inputs(orderVideo: true), []).status(.deliveryMedia), .satisfied)
+        XCTAssertEqual(evaluateDelivery(inputs(orderVideo: false), []).status(.deliveryMedia), .incomplete, "photos never satisfy — on any line, in any store")
+        var known = inputs(orderVideo: true); known.activeDeliveryExecutionId = "CX-2"
         XCTAssertEqual(evaluateDelivery(known, []).status(.deliveryMedia), .incomplete, "a known cycle demands its own video")
     }
 

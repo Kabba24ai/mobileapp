@@ -251,8 +251,10 @@ final class SyncEngineTests: XCTestCase {
     }
 
     // Driver Delivery Process Flow (2026-09-27) §3.4.6: one order product's operations drain in
-    // capture order, so the server sees switch → availability → On My Way and the departure
-    // lock cannot refuse the legitimate pre-departure work; a parked op never blocks the rest.
+    // ENQUEUE order (queuedAt — the screens enqueue each step as the driver takes it, so this is
+    // the capture order in practice), so the server sees switch → availability → On My Way and
+    // the departure lock cannot refuse the legitimate pre-departure work; a parked op never
+    // blocks the rest.
     private struct DepartureHandler: SyncOperationHandler {
         let operationType: String
         func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
@@ -309,7 +311,7 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(state(engine, ops[0].id), .needsAttention)
         XCTAssertEqual(state(engine, ops[1].id), .needsAttention)
         XCTAssertEqual(state(engine, ops[2].id), .synced, "the departure is recorded whatever happened to the switch")
-        XCTAssertEqual(client.recorded.map(\.operationId), ops.map(\.id), "still strictly in capture order")
+        XCTAssertEqual(client.recorded.map(\.operationId), ops.map(\.id), "still strictly in enqueue order")
     }
 
     func testANeedsAttentionOperationDoesNotBlockTheQueue() throws {

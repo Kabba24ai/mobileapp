@@ -22,7 +22,10 @@ import Foundation
 /// The Call Customer outcome as the driver recorded it. `unset` = nothing chosen yet.
 enum CallOutcome: Equatable {
     case unset
-    /// "Confirmed" with the sub-checklist ticks in display order.
+    /// "Confirmed" with the sub-checklist ticks in display order. `ticks` MUST be
+    /// the display-length array (one entry per row, unticked = false) — a shorter
+    /// array would pass with rows still unticked. The screen keeps fixed-size
+    /// arrays for exactly this reason.
     case confirmed(ticks: [Bool])
     /// "No Answer" — an explicit, recorded call attempt (the server texts the customer).
     case noAnswer

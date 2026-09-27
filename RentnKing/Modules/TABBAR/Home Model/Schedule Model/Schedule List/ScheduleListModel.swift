@@ -159,10 +159,13 @@ struct CheckListResponeData: Mappable{
         equipment_unique_id <- map["equipment_unique_id"]
     }
 
-    /// The server's copy as the Sync Core reads it (nil when the block holds nothing at all).
-    var serverCopy: DriverChecklistServerCopy {
-        DriverChecklistServerCopy(callCustomer: call_customer, fuel: equipment_fuel, keys: equipment_key_location,
-                                  checks: driver_checks, equipmentUniqueId: equipment_unique_id)
+    /// The server's copy as the Sync Core reads it. The feed emits this block for
+    /// every row with nulls inside when nothing was ever recorded — that is nil
+    /// here, so an untouched leg is never mistaken for a record.
+    var serverCopy: DriverChecklistServerCopy? {
+        let copy = DriverChecklistServerCopy(callCustomer: call_customer, fuel: equipment_fuel, keys: equipment_key_location,
+                                             checks: driver_checks, equipmentUniqueId: equipment_unique_id)
+        return copy.isEmpty ? nil : copy
     }
 }
 

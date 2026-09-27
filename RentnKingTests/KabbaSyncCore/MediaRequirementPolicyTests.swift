@@ -31,7 +31,7 @@ final class MediaRequirementPolicyTests: XCTestCase {
 
     private func satisfied(_ ops: [SyncOperation], server: Bool = false, active: String? = "CX-1", legacy: Bool = false) -> Bool {
         MediaRequirementPolicy.deliveryVideoSatisfied(serverHasVideoForCycle: server, operations: ops,
-                                                      orderProductUniqueId: "P1", activeExecutionId: active, legacyOrderEvidence: legacy)
+                                                      orderProductUniqueId: "P1", activeExecutionId: active, orderHasVideo: legacy)
     }
 
     func testPhotosNeverSatisfyTheDeliveryRequirement() {
