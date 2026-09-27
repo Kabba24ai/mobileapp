@@ -273,10 +273,11 @@ public enum DispatchWorkload {
     ///     view. Neither server source sends one (the feed and the offline
     ///     selector both require the active leg's driver); it is reached by a
     ///     driver cleared on this phone, or a legacy row whose delivered flag
-    ///     disagreed with its status — which the server now serializes from
-    ///     the status (DispatchRowFields::isDelivered). Display-time only: the
-    ///     row may stay in caches for a later assignment. An explicit
-    ///     Unassigned view is a separate, future enhancement.
+    ///     disagreed with its status. The server now PRESENTS such a row as
+    ///     its Return (DispatchRowFields::isDelivered); the stored flag itself
+    ///     is not repaired. Display-time only: the row may stay in caches for
+    ///     a later assignment. An explicit Unassigned view is a separate,
+    ///     future enhancement.
     public static func orderRowBelongs(selectedDriverId: Int?,
                                        isDelivered: Bool,
                                        deliveryEmployeeId: Int?,

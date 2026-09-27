@@ -591,8 +591,9 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // server applies the identical rule; caches and Sync Engine work are
         // never touched (display-time only). Phase 6 locked rule: only ASSIGNED
         // missions render — for a named driver AND for All Drivers, on both
-        // tabs (the server serves active work to each) — so a row whose active
-        // leg has no driver never renders in a normal Dispatch view.
+        // tabs (the server ignores schedule_status, so each tab gets active
+        // work) — so a row whose active leg has no driver never renders in a
+        // normal Dispatch view.
         let selectedDriverId = Int(self.selectDriverID)   // "" (All Drivers) → nil
         rows = rows.filter { row in
             guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
