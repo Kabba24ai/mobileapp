@@ -45,6 +45,10 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         unitA = try XCTUnwrap(equipment["unique_id"]?.stringValue)
         unitAName = try XCTUnwrap(equipment["equipment_name"]?.stringValue)
         unitATag = try XCTUnwrap(equipment["equipment_id"]?.stringValue)
+        // The routing tests rely on the fixture row carrying a server mini-checklist copy
+        // (evidence) — say so if a regeneration ever nulls it.
+        XCTAssertNotNil(try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: try XCTUnwrap(package["dispatch"]?["row"]))).delivery_checklist?.serverCopy,
+                        "fixture precondition: dispatch.row.delivery_checklist holds server progress")
         savedBaseURL = UserDefaults.standard.baseURL
         // No real server: the engine's drain fails fast and the operations stay pending.
         UserDefaults.standard.baseURL = "https://driver-flow.invalid/api/admin/v1/"
@@ -250,6 +254,25 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertEqual(details.completionLeg, .delivery)
         XCTAssertEqual(details.strProductID, productId)
         XCTAssertEqual(details.strOrderUniqueId, orderUid)
+    }
+
+    func testStartDeliveryOnASyncedArrivedRowStillOpensOrderDetails() throws {
+        // The Arrived op synced and the feed refreshed: the row's checklist block now carries
+        // is_delivered (the server's Arrived latch, delivery_is_delivered), is_arrived and the
+        // stamps, no local op remains standing — the line is NOT complete; it resumes at Main Order.
+        var json = try XCTUnwrap(package["dispatch"]?["row"])
+        json = setting(json, ["delivery_checklist", "is_delivered"], .bool(true))
+        json = setting(json, ["delivery_checklist", "is_arrived"], .bool(true))
+        json = setting(json, ["delivery_checklist", "arrived_at"], .string("2026-09-27 10:05:00"))
+        json = setting(json, ["delivery_checklist", "ready_to_go_at"], .string("2026-09-27 09:40:00"))
+        json = setting(json, ["delivery_checklist", "equipment_driver_status"], .string("Arrived"))
+        let synced = try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: json))
+        XCTAssertEqual(synced.is_delivered, false, "row-level: still the delivery leg")
+
+        let (list, nav) = dispatch(synced, ops: [], review: try review(go: true))
+        start(list)
+        let details = try XCTUnwrap(nav.topViewController as? OrderDetailsViewController, "Arrived per the server → Main Order, never a dead Start button")
+        XCTAssertEqual(details.completionLeg, .delivery)
     }
 
     func testStartReturnNeverOpensTheReview() throws {

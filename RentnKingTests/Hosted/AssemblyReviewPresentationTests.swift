@@ -670,20 +670,23 @@ final class AssemblyReviewPresentationTests: XCTestCase {
 
     // MARK: - Driver Delivery Process Flow (2026-09-27), Task 11 — the driver origin
 
-    private func driverOrigin(_ product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview, isRevisit: Bool = false) -> ChecklistEntry.Origin {
+    private func driverOrigin(_ product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview, isRevisit: Bool = false,
+                              serverTrip: DriverStageServerState? = nil, observedAt: Date? = nil) -> ChecklistEntry.Origin {
         ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: product, enteredFrom: enteredFrom, isRevisit: isRevisit),
-                              selectIndex: 0, fromCheckListScreen: true)
+                              selectIndex: 0, fromCheckListScreen: true,
+                              missionServerTrip: serverTrip, missionServerObservedAt: observedAt)
     }
 
     /// The review as Dispatch or Screen 2 opens it for the driver: focused on the mission
     /// line, the engine replaced by `ops`, notices captured instead of presented.
     private func loadedDriver(_ envelope: AssemblyReviewEnvelope, product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview,
-                              isRevisit: Bool = false, ops: [SyncOperation] = [], notices: (([UIAlertController]) -> Void)? = nil) -> AssemblyReviewViewController {
+                              isRevisit: Bool = false, ops: [SyncOperation] = [],
+                              serverTrip: DriverStageServerState? = nil, observedAt: Date? = nil) -> AssemblyReviewViewController {
         let vc = AssemblyReviewViewController()
         vc.orderUniqueId = envelope.data.order.uniqueId
         vc.orderNumber = envelope.data.order.orderNumber ?? ""
         vc.focusOrderProductUniqueId = product
-        vc.origin = driverOrigin(product, enteredFrom: enteredFrom, isRevisit: isRevisit)
+        vc.origin = driverOrigin(product, enteredFrom: enteredFrom, isRevisit: isRevisit, serverTrip: serverTrip, observedAt: observedAt)
         vc.operationsSnapshot = { ops }
         vc.loadViewIfNeeded()
         vc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
@@ -782,9 +785,51 @@ final class AssemblyReviewPresentationTests: XCTestCase {
             XCTAssertEqual(notices.count, 2, c.name)
         }
 
-        // A yard origin with the same local On My Way is locked by the existing rule (unchanged).
-        let yard = loaded(try review(groups: [confirmed]))
-        XCTAssertTrue((view(yard, "assembly.\(product).unit.available") as! UIButton).isEnabled, "yard, nothing departed")
+        // A yard origin with the same local On My Way is locked by the EXISTING rule (the local
+        // step promotes the member to In Transit) — unchanged by the driver origin.
+        let yard = AssemblyReviewViewController()
+        yard.orderUniqueId = "ORD-YARD"
+        yard.focusAssemblyKey = nil
+        yard.operationsSnapshot = { [self.driverOp(product, status: "On My Way")] }
+        yard.loadViewIfNeeded()
+        yard.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        yard.apply(try review(groups: [confirmed]))
+        yard.view.layoutIfNeeded()
+        XCTAssertFalse((view(yard, "assembly.\(product).unit.available") as! UIButton).isEnabled, "yard: In Transit locally")
+        XCTAssertNil(view(yard, "assembly.\(product).unit.reassign"))
+        XCTAssertNil(view(yard, "assembly.\(product).unit.locked"), "the lock explanation belongs to the driver origin")
+    }
+
+    /// Review of T10/T11 (C2): a retained local On My Way the server has since been observed
+    /// to recall (Delivery Status → Pending, a new assignment) must not lock the review — the
+    /// driver has to be able to confirm the new unit and reach Screen 2 again. The review
+    /// derives the stage from the SAME inputs Dispatch had: the row's server copy and when it
+    /// was asked for, carried in the origin.
+    func testAnOfficeRecallObservedByTheOpenerUnlocksTheReviewDespiteARetainedLocalDeparture() throws {
+        let product = "OP-SKID"
+        let envelope = try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: "available")]])
+        var departed = driverOp(product, status: "On My Way", minutesAgo: 30)
+        departed.state = .synced
+        departed.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date().addingTimeInterval(-25 * 60), statusCode: 200,
+                                                     requestId: nil, replayed: false, serverReceivedAt: nil, data: nil)
+        let recalledRow = DriverStageServerState(readyToGoAt: nil, arrivedAt: nil, isArrived: false)   // the office recalled the trip
+        let observedAfterRecall = Date().addingTimeInterval(-5 * 60)
+
+        let vc = loadedDriver(envelope, product: product, enteredFrom: .assemblyReview, ops: [departed],
+                              serverTrip: recalledRow, observedAt: observedAfterRecall)
+        XCTAssertTrue((view(vc, "assembly.\(product).unit.available") as! UIButton).isEnabled, "recalled: editable again")
+        XCTAssertNotNil(view(vc, "assembly.\(product).unit.reassign"))
+        XCTAssertNil(view(vc, "assembly.\(product).unit.locked"))
+        let cont = try XCTUnwrap(view(vc, "assembly.\(product).continue") as? UIButton, "the way forward exists again")
+        XCTAssertEqual(cont.currentTitle, "Continue to Driver Checklist")
+        XCTAssertTrue(cont.isEnabled, "GO")
+
+        // The same local step with NO recall observed (the opener saw the departed row) locks.
+        let departedRow = DriverStageServerState(readyToGoAt: "2026-09-27 09:40:00", arrivedAt: nil, isArrived: false)
+        let locked = loadedDriver(envelope, product: product, enteredFrom: .onMyWay, ops: [departed],
+                                  serverTrip: departedRow, observedAt: observedAfterRecall)
+        XCTAssertFalse((view(locked, "assembly.\(product).unit.available") as! UIButton).isEnabled)
+        XCTAssertNil(view(locked, "assembly.\(product).continue"))
     }
 
     func testOfflineCandidatesComeFromTheWarmedFleetScopedToTheUnitsCategoryAndWarnWhenTheReplacementNeedsService() throws {
@@ -814,22 +859,27 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         vc.pickerOverride = { candidates, preselect, onPicked in offered = candidates; preselected = preselect; choose = onPicked }
         var warnings: [String] = []
         vc.confirmOverride = { _, message, proceed in warnings.append(message); proceed() }
+        var reasonsAsked: [String] = []
+        vc.equipmentFlow.reasonPromptOverride = { candidate, done in reasonsAsked.append(candidate.uniqueId); done("Direct match unavailable") }
 
         (view(vc, "assembly.\(product).unit.reassign") as! UIButton).sendActions(for: .touchUpInside)
 
         XCTAssertEqual(offered.map(\.uniqueId), ["EQP-\(product)", "EQP-SAME", "EQP-OTHER"], "the warmed fleet, scoped to the unit's category")
         XCTAssertEqual(preselected, "EQP-\(product)")
-        XCTAssertEqual(offered.map(\.requiresReason), [false, false, true], "Laravel's reason rule mirrored against the current unit's product")
+        XCTAssertEqual(offered.map(\.requiresReason), [true, true, true],
+                       "offline the review has no ordered-product id: every replacement asks for a reason (over-asking never parks an operation)")
 
         let replacement = try XCTUnwrap(offered.first { $0.uniqueId == "EQP-SAME" })
         try XCTUnwrap(choose)(replacement)
 
         XCTAssertEqual(warnings.count, 1, "the replacement's customer-site checklist is not cached: say so before recording")
         XCTAssertTrue(warnings[0].lowercased().contains("service"), warnings[0])
+        XCTAssertEqual(reasonsAsked, ["EQP-SAME"], "then the reason, then the record")
         let op = try XCTUnwrap(engine.snapshot().first {
             $0.type == EffectiveFieldState.equipmentSubstitutionType && $0.identity.orderProductUniqueId == product
         }, "the switch is recorded durably through the canonical operation")
         XCTAssertEqual(op.payload["equipment_unique_id"]?.stringValue, "EQP-SAME")
+        XCTAssertEqual(op.payload["reason"]?.stringValue, "Direct match unavailable")
 
         XCTAssertEqual(label(vc, "assembly.\(product).unit.title"), "Bobcat T66 · #5678", "the replacement shows now, from the durable record")
         XCTAssertEqual((view(vc, "assembly.\(product).unit.available") as? UIButton)?.accessibilityValue, "not confirmed")

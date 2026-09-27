@@ -83,7 +83,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     private var syncObserver: NSObjectProtocol?
     private var didScrollToFocus = false
     /// The same equipment picker / confirmation / reason flow the Delivery Checklist uses.
-    private lazy var equipmentFlow = EquipmentAssignmentFlow(host: self)
+    lazy var equipmentFlow = EquipmentAssignmentFlow(host: self)
     private var isChangingEquipment = false
 
     // MARK: - Views
@@ -334,10 +334,12 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         let stage = AssemblyPolicy.memberStage(serverStage: member.lifecycleStage, product: product, queue: queueOverlay, assembly: assemblyOverlay)
         // Yard origins: editable until the server (or a local step) says the unit
         // left. Driver origin (spec §6.1): read-only once THIS phone is effectively
-        // On My Way / Arrived — before the server knows — or the server's member
-        // has left the yard; a tap on a locked row explains why.
+        // On My Way / Arrived — before the server knows — or the SERVER's member has
+        // left the yard; a tap on a locked row explains why. The driver's own local
+        // steps are judged by the mission stage (which knows an observed office
+        // recall), never by the yard's local In Transit promotion.
         let mission = driverMission
-        let left = mission.map { isDriverReadOnly($0, memberStage: stage) } ?? stage.hasLeftTheYard
+        let left = mission.map { isDriverReadOnly($0, memberStage: member.lifecycleStage) } ?? stage.hasLeftTheYard
         let lockExplanation: (() -> Void)? = (mission != nil && left) ? { [weak self] in self?.explainDriverLock() } : nil
 
         let card = UIView()
@@ -729,7 +731,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         guard !isChangingEquipment else { return }
         let stage = AssemblyPolicy.memberStage(serverStage: member.lifecycleStage, product: member.orderProductUniqueId,
                                                queue: queueOverlay, assembly: assemblyOverlay)
-        if let mission = driverMission, isDriverReadOnly(mission, memberStage: stage) {
+        if let mission = driverMission, isDriverReadOnly(mission, memberStage: member.lifecycleStage) {
             explainDriverLock()
             return
         }
@@ -917,14 +919,17 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         return nil
     }
 
-    /// The mission's stage as this screen knows it: what the opener knew (Dispatch and
-    /// Screen 2 hold the row's server copy) floored under the phone's own durable steps
-    /// and the cached gate — the same builder every driver screen uses.
+    /// The mission's stage as this screen knows it — the same builder, with the SAME inputs
+    /// the opener had: the Dispatch row's server copy of the trip and when it was asked for
+    /// (carried in the origin), the engine and the cached gate. A retained local On My Way
+    /// that the server was since observed to have recalled therefore does not lock this
+    /// screen. Only an opener that carried no server copy falls back to its stage as a floor.
     private func driverStage(_ mission: DriverMission) -> DeliveryWorkflowStage {
         let local = DriverMissionStage.stage(
-            DriverMissionStage.Inputs(orderProductUniqueId: mission.product, isDeliveryLeg: true),
+            DriverMissionStage.Inputs(orderProductUniqueId: mission.product, isDeliveryLeg: true,
+                                      serverTrip: origin.missionServerTrip, serverObservedAt: origin.missionServerObservedAt),
             review: review, operations: currentOperations)
-        return max(mission.enteredFrom, local)
+        return origin.missionServerTrip == nil ? max(mission.enteredFrom, local) : local
     }
 
     private func isDriverReadOnly(_ mission: DriverMission, memberStage: AssemblyStage) -> Bool {
@@ -953,7 +958,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     /// line id, never by a position a refresh may have moved). Revisit: back to Screen 2.
     private func driverForward(_ mission: DriverMission) {
         guard let nav = navigationController else { return }
-        let animated = nav.view.window != nil          // an off-screen stack (tests, background) pops at once
+        let animated = nav.isViewLoaded && nav.view.window != nil   // an off-screen stack (tests, background) pops at once
         if mission.isRevisit {
             if let screen2 = nav.viewControllers.last(where: { $0 is DriverChecklistViewController }) {
                 nav.popToViewController(screen2, animated: animated)
@@ -968,8 +973,11 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
            dispatch.openDriverChecklist(orderProductUniqueId: mission.product) {
             return
         }
-        // The list no longer holds the line (a refresh moved it): back to Dispatch.
+        // The list no longer holds the line (a refresh moved it, or there is no Dispatch
+        // beneath): say so, then back to Dispatch.
         isOpeningChecklist = false
+        presentNotice(title: "Delivery not on your list",
+                      message: "This delivery is no longer on your Dispatch list. Pull to refresh and start it from there.")
         nav.popViewController(animated: animated)
     }
 
@@ -984,11 +992,11 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     }
 
     /// Offline substitution (spec §6.3, bounded): the warmed reference fleet scoped to the
-    /// current unit's category, through the same picker; Laravel's reason rule mirrored
-    /// against the unit the office assigned (the review carries no product id, so a unit of
-    /// that same product needs no reason, any other does); the switch recorded through the
-    /// same durable operation; a clear warning first when the replacement's customer-site
-    /// checklist is not cached on this phone.
+    /// current unit's category, through the same picker; EVERY replacement asks for a reason
+    /// (the review carries no ordered-product id, and the office-assigned unit may itself be
+    /// a substitute — over-asking never parks an operation, a missed reason would); the switch
+    /// recorded through the same durable operation; a clear warning first when the
+    /// replacement's customer-site checklist is not cached on this phone.
     private func offerWarmedFleet(for member: AssemblyMember, stage: AssemblyStage) {
         let fleet = warmedEquipment()
         guard !fleet.isEmpty else {
@@ -998,7 +1006,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         let current = AssemblyPolicy.effectiveEquipment(member: member, queue: queueOverlay)
         let currentMachine = fleet.first { $0.unique_id == current?.uniqueId }
         let scoped = currentMachine?.category_id.map { category in fleet.filter { $0.category_id == category } } ?? fleet
-        let candidates = scoped.map { EquipmentCandidate(machine: $0, orderedProductId: currentMachine?.assigned_product_id) }
+        let candidates = scoped.map { EquipmentCandidate(machine: $0, orderedProductId: nil) }   // nil ordered product → reason required
         guard !candidates.isEmpty else {
             showAlertMessage(strMessage: "No equipment is available to assign right now.")
             return

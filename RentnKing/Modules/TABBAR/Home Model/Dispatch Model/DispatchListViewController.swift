@@ -1664,15 +1664,19 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         let isDeliveryLeg = raw.is_delivered == false
         let productId = raw.unique_id ?? ""
         let checklist = isDeliveryLeg ? raw.delivery_checklist : raw.pickup_checklist
+        let serverTrip = DriverStagePresentation.serverState(checklist)
+        let observedAt = self.serverObservedAt(for: raw)
 
-        // The ONE builder Dispatch, Screen 2 and the driver-origin review share.
+        // The ONE builder Dispatch, Screen 2 and the driver-origin review share. The leg's
+        // completion is the ROW's flag (is_delivered / is_returned): the checklist block's
+        // `is_delivered` is the server's Arrived latch (delivery_is_delivered), not completion.
         let stage = DriverMissionStage.stage(
             DriverMissionStage.Inputs(orderProductUniqueId: productId,
                                       isDeliveryLeg: isDeliveryLeg,
-                                      serverTrip: DriverStagePresentation.serverState(checklist),
-                                      serverObservedAt: self.serverObservedAt(for: raw),
+                                      serverTrip: serverTrip,
+                                      serverObservedAt: observedAt,
                                       serverChecklist: checklist?.serverCopy,
-                                      serverLegCompleted: checklist?.is_delivered == true),
+                                      serverLegCompleted: isDeliveryLeg ? raw.is_delivered == true : raw.is_returned == true),
             review: self.cachedAssemblyReview(raw.order?.unique_id ?? "")?.data,
             operations: self.operationsSnapshot())
 
@@ -1684,7 +1688,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 orderNumber: "\(raw.order?.order_number ?? "")",
                 focusOrderProductUniqueId: productId,
                 origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: productId, enteredFrom: stage, isRevisit: false),
-                                              selectIndex: index, fromCheckListScreen: true))
+                                              selectIndex: index, fromCheckListScreen: true,
+                                              missionServerTrip: serverTrip, missionServerObservedAt: observedAt))
         case .driverChecklist:
             self.openDriverChecklist(at: index)
         case .mainOrder:

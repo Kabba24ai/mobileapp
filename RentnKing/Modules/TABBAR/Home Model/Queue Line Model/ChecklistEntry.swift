@@ -44,6 +44,12 @@ enum ChecklistEntry {
         var selectIndex: Int = 0
         /// Order Details reached through Dispatch's driver flow.
         var fromCheckListScreen: Bool = false
+        /// Driver origin only: the Dispatch row's server copy of the trip and when it was
+        /// asked for — the review derives the mission's stage from EXACTLY the inputs the
+        /// opener had (an office recall observed by Dispatch / Screen 2 is not undone by a
+        /// retained local On My Way step).
+        var missionServerTrip: DriverStageServerState? = nil
+        var missionServerObservedAt: Date? = nil
 
         static let queueLine = Origin(kind: .queueLine)
     }

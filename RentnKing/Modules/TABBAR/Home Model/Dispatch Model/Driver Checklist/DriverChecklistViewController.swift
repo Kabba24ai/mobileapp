@@ -277,14 +277,16 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
 
             // The rows built in code sit in the same vertical stack as the checklist
             // and the status view: the unit / Review Assembly row above, the gate
-            // sentence below (only while it says something).
+            // sentence below (only while it says something). viewArrivedMain is a
+            // sibling in that stack, so its origin already includes the tools row;
+            // viewReadytoGo is nested inside viewDriverCheckList, so it does not.
             let spacing = (self.viewDriverCheckList.superview as? UIStackView)?.spacing ?? 0
-            getHeight += self.driverToolsRow.isHidden ? 0 : self.driverToolsRow.frame.size.height + spacing
             
             if arrived {
                 getHeight = getHeight + self.viewArrivedMain!.frame.origin.y + self.viewArrivedMain!.frame.size.height
             }
             else {
+                getHeight += self.driverToolsRow.isHidden ? 0 : self.driverToolsRow.frame.size.height + spacing
                 if self.objDispatch?.is_delivered == true {
                     getHeight = getHeight + self.viewReadytoGo!.frame.origin.y + self.viewReadytoGo!.frame.size.height + self.viewCallCustomerSubChecklist.frame.size.height
                 }
@@ -971,8 +973,9 @@ extension DriverChecklistViewController {
     }
     
     @IBAction func btnReadytoGo_Action(_ sender: UIButton) {
-        // F2: a departure is recorded once — a replayed tap or stale screen never queues another.
-        guard !passedChecklistStage, !alreadyArrived else { return }
+        // F2: a departure is recorded once — a replayed tap or stale screen never queues another;
+        // the durable trip (engine over the row) decides too, not only this screen's flags (§8).
+        guard !passedChecklistStage, !alreadyArrived, self.effectiveTrip().recordsDeparture else { return }
 
         // The gate is re-evaluated at the tap, not trusted from the button state (§7).
         let decision = self.gateDecision
@@ -1276,13 +1279,16 @@ extension DriverChecklistViewController {
     /// this screen through the driver road is itself the Screen 2 evidence.
     var effectiveStage: DeliveryWorkflowStage {
         let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
+        // The leg's completion is the ROW's flag; the checklist block's `is_delivered` is the
+        // server's Arrived latch, never completion.
+        let legCompleted = self.isDeliveryLeg ? self.objDispatch?.is_delivered == true : self.objDispatch?.is_returned == true
         return DriverMissionStage.stage(
             DriverMissionStage.Inputs(orderProductUniqueId: self.productUniqueId,
                                       isDeliveryLeg: self.isDeliveryLeg,
                                       serverTrip: DriverStagePresentation.serverState(checklist),
                                       serverObservedAt: self.serverObservedAt,
                                       serverChecklist: checklist?.serverCopy,
-                                      serverLegCompleted: checklist?.is_delivered == true,
+                                      serverLegCompleted: legCompleted,
                                       onDriverChecklist: true),
             review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
             operations: self.operationsSnapshot())
@@ -1360,7 +1366,10 @@ extension DriverChecklistViewController {
                                                         enteredFrom: self.effectiveStage,
                                                         isRevisit: true),
                                           selectIndex: self.selectIndex,
-                                          fromCheckListScreen: true))
+                                          fromCheckListScreen: true,
+                                          missionServerTrip: DriverStagePresentation.serverState(
+                                              self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist),
+                                          missionServerObservedAt: self.serverObservedAt))
     }
 }
 

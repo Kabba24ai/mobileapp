@@ -72,6 +72,8 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
     private var onPicked: ((EquipmentCandidate) -> Void)?
     /// Called on every dismissal (Cancel, Select, refusal) — the host restores scroll state.
     var onDismiss: (() -> Void)?
+    /// Hosted tests inject the reason a person would pick (nil = cancelled); production presents the sheet.
+    var reasonPromptOverride: ((EquipmentCandidate, @escaping (String?) -> Void) -> Void)?
 
     private var source: CandidateSource?
     /// The list the current category opened with (no search term) — "Show all" returns to it.
@@ -566,6 +568,13 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
                                           onApplied: @escaping (EquipmentCandidate, String?, String) -> Void) {
         guard replacement.requiresReason else {
             enqueue(target, replacement: replacement, reason: nil, onApplied: onApplied)
+            return
+        }
+        if let override = reasonPromptOverride {
+            override(replacement) { [weak self] reason in
+                guard let reason = reason?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty else { return }
+                self?.enqueue(target, replacement: replacement, reason: reason, onApplied: onApplied)
+            }
             return
         }
         let sheet = UIAlertController(title: PreparationPolicy.switchReasonTitle(),
