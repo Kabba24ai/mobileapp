@@ -119,9 +119,9 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertTrue(partial.hasProgress)
     }
 
-    func testTheRecordCarriesNoRoutingRule() {
-        // The green-band predicate is an input to DeliveryWorkflowStage, never
-        // a destination: nothing on the record says where Start Delivery goes.
+    func testAProgressedRecordIsWorkflowEvidence() {
+        // The green-band predicate is an input to DeliveryWorkflowStage (evidence),
+        // never a destination: nothing on the record says where Start Delivery goes.
         let progressed = DriverChecklistLocalState(checks: [true, true, true, true],
                                                    callCustomer: "no_answer",
                                                    fuel: "Full",

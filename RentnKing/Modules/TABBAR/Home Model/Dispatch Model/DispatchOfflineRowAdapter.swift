@@ -46,6 +46,11 @@ enum DriverStagePresentation {
         if effective.stage == .arrived {
             updated.arrived_at = effective.arrivedAt
             updated.is_arrived = true
+        } else {
+            // Self-consistent with the whole-arrival rule (spec §3.3.2): a stale
+            // is_arrived without a stamp never survives on the presented row.
+            updated.arrived_at = nil
+            updated.is_arrived = false
         }
         var shown = row
         if isDeliveryLeg { shown.delivery_checklist = updated } else { shown.pickup_checklist = updated }

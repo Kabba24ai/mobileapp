@@ -410,6 +410,7 @@
 		5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000007E /* QueueLineOperationTests.swift */; };
 		5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000080 /* ReleasePolicyTests.swift */; };
 		5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */; };
+		5A5F00000000000000000005 /* DeliveryWorkflowStageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */; };
 		5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */; };
 		5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000016 /* TermsOperationsTests.swift */; };
 		5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */; };
@@ -883,6 +884,7 @@
 		5A5C0000000000000000007E /* QueueLineOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineOperationTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000080 /* ReleasePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicyTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalStateTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryWorkflowStageTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldStateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000016 /* TermsOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperationsTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleTests.swift; sourceTree = "<group>"; };
@@ -2217,6 +2219,7 @@
 				5A5C0000000000000000007E /* QueueLineOperationTests.swift */,
 				5A5C00000000000000000080 /* ReleasePolicyTests.swift */,
 				5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */,
+				5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */,
 				5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */,
 				5A5CFADE0000000000000016 /* TermsOperationsTests.swift */,
 				5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */,
@@ -2893,6 +2896,7 @@
 				5A5C0000000000000000007F /* QueueLineOperationTests.swift in Sources */,
 				5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */,
 				5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */,
+				5A5F00000000000000000005 /* DeliveryWorkflowStageTests.swift in Sources */,
 				5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */,
 				5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */,
 				5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */,
