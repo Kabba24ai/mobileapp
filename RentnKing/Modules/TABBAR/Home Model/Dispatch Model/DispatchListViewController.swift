@@ -589,23 +589,18 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // predicate makes the card leave the previous driver's rendered
         // workload on the SAME rebuild, whatever path updated the row. The
         // server applies the identical rule; caches and Sync Engine work are
-        // never touched (display-time only).
-        // Phase 6 locked rule: the Pending working queue shows only ASSIGNED
-        // missions — for a named driver AND for All Drivers — so a row whose
-        // active leg has no driver never renders there. The Completed history
-        // keeps its pre-existing membership (includeUnassigned).
+        // never touched (display-time only). Phase 6 locked rule: only ASSIGNED
+        // missions render — for a named driver AND for All Drivers, on both
+        // tabs (the server serves active work to each) — so a row whose active
+        // leg has no driver never renders in a normal Dispatch view.
         let selectedDriverId = Int(self.selectDriverID)   // "" (All Drivers) → nil
-        let workingQueue = self.selectStatus == "1"
-        if workingQueue || selectedDriverId != nil {
-            rows = rows.filter { row in
-                guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
-                let objData = self.arrDispatchList[i]
-                return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
-                                                        isDelivered: objData.is_delivered == true,
-                                                        deliveryEmployeeId: objData.delivery_employee?.id,
-                                                        pickupEmployeeId: objData.pickup_employee?.id,
-                                                        includeUnassigned: !workingQueue)
-            }
+        rows = rows.filter { row in
+            guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
+            let objData = self.arrDispatchList[i]
+            return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
+                                                    isDelivered: objData.is_delivered == true,
+                                                    deliveryEmployeeId: objData.delivery_employee?.id,
+                                                    pickupEmployeeId: objData.pickup_employee?.id)
         }
         self.arrRows = rows
     }

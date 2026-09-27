@@ -206,11 +206,10 @@ final class DispatchOfflineRowAdapterTests: XCTestCase {
         XCTAssertEqual(shown("4"), ["P6-ASSIGNED-DELIVERY-A"], "driver A: only the pending delivery assigned to them")
         XCTAssertEqual(shown("7"), ["P6-ASSIGNED-RETURN-B"], "driver B: only the return assigned to them")
 
-        // The Completed history is out of scope: its membership is unchanged.
+        // The Completed tab gets the same active-work feed (the server ignores schedule_status): same rule.
         list.selectStatus = "2"
-        XCTAssertEqual(shown("").count, 4, "Completed + All: every row, as before")
-        XCTAssertEqual(Set(shown("4")), ["P6-ASSIGNED-DELIVERY-A", "P6-UNASSIGNED-DELIVERY", "P6-UNASSIGNED-RETURN"],
-                       "Completed + a named driver: the pre-Phase-6 rule")
+        XCTAssertEqual(Set(shown("")), ["P6-ASSIGNED-DELIVERY-A", "P6-ASSIGNED-RETURN-B"], "Completed tab + All")
+        XCTAssertEqual(shown("4"), ["P6-ASSIGNED-DELIVERY-A"], "Completed tab + driver A")
     }
 }
 

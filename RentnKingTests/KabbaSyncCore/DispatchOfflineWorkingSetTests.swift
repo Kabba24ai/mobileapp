@@ -144,7 +144,9 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
 
     /// The list screen filters live-feed and saved-list rows with the SAME predicate, reading the
     /// row's own `is_delivered` and employees. On identical rows it must present exactly what the
-    /// offline working set presents, for every driver and for All.
+    /// offline working set presents, for every driver and for All. Premise: the server contract that
+    /// a row's `is_delivered` follows its active leg — for a legacy row delivered by status only too
+    /// (backend DispatchOfflineRowParityTest::test_a_row_delivered_by_status_only_renders_as_its_return…).
     func testOnlineAndOfflinePresentationAgreeOnDriverMembership() {
         let missions = fleet + unassigned
         download(missions)

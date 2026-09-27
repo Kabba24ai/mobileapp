@@ -244,17 +244,6 @@ final class DispatchWorkloadTests: XCTestCase {
                                                         deliveryEmployeeId: nil, pickupEmployeeId: nil))
     }
 
-    func testTheCompletedHistoryKeepsThePrePhase6Membership() {
-        // includeUnassigned reproduces the old rule exactly: a missing active-leg driver is never
-        // hidden, All shows everything, and an assigned active leg still decides for a named driver.
-        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: true, deliveryEmployeeId: 7,
-                                                       pickupEmployeeId: nil, includeUnassigned: true))
-        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false, deliveryEmployeeId: nil,
-                                                       pickupEmployeeId: nil, includeUnassigned: true))
-        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: 9, isDelivered: true, deliveryEmployeeId: 9,
-                                                        pickupEmployeeId: 7, includeUnassigned: true))
-    }
-
     // MARK: - One-tap On My Way – Navigate (2026-09)
 
     private func statusOp(_ status: String, task: String, state: SyncState = .pending) -> SyncOperation {
