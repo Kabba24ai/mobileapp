@@ -595,7 +595,9 @@ final class DispatchOfflineFieldBridgeTests: XCTestCase {
     }
 
     func testANeverOpenedReturnWorksFullyOfflineThroughRelaunch() throws {
-        try runTheNeverOpenedMissionOffline(m("R", "r1", leg: .return))
+        var mission = m("R", "r1", leg: .return)
+        mission.pickupDriverId = 4   // the server lists a Return only once its return leg has a driver
+        try runTheNeverOpenedMissionOffline(mission)
     }
 
     // MARK: - Substitution: an old unit's context never satisfies the replacement

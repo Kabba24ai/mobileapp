@@ -166,6 +166,52 @@ final class DispatchOfflineRowAdapterTests: XCTestCase {
         XCTAssertTrue(labels.contains("Dispatch isn't downloaded to this phone yet"))
         XCTAssertFalse(labels.contains("No results found."))
     }
+
+    // MARK: - Phase 6 locked rule (Gary, 2026-09-27): only ASSIGNED missions in normal Dispatch views
+
+    private func listRow(_ uid: String, delivered: Bool, deliveryDriver: Int?, pickupDriver: Int?) throws -> SchedulesModel {
+        let base = try fixtureRow()
+        func employee(_ id: Int?) -> JSONValue {
+            guard let id = id, case .object(var e)? = base["delivery_employee"] else { return .null }
+            e["id"] = .number(Double(id))
+            e["name"] = .string("Driver \(id)")
+            return .object(e)
+        }
+        var row = setting(base, "unique_id", .string(uid))
+        row = setting(row, "is_delivered", .bool(delivered))
+        row = setting(row, "delivery_status", .string(delivered ? "Completed" : "Pending"))
+        row = setting(row, "delivery_employee", employee(deliveryDriver))
+        row = setting(row, "pickup_employee", employee(pickupDriver))
+        return try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: row))
+    }
+
+    /// The list screen's own filter (`rebuildRows`) — the ONE gate the live feed, the saved list and
+    /// the offline cache all pass through: a named driver sees their assigned missions, All sees every
+    /// assigned mission, and a mission whose ACTIVE leg has no driver is never shown.
+    func testTheDispatchListShowsOnlyAssignedMissionsForEveryDriverAndAll() throws {
+        let list = DispatchListViewController()   // the view is never loaded: no network, no feed request
+        list.selectStatus = "1"
+        list.arrDispatchList = [
+            try listRow("P6-ASSIGNED-DELIVERY-A", delivered: false, deliveryDriver: 4, pickupDriver: nil),
+            try listRow("P6-ASSIGNED-RETURN-B", delivered: true, deliveryDriver: 4, pickupDriver: 7),
+            try listRow("P6-UNASSIGNED-DELIVERY", delivered: false, deliveryDriver: nil, pickupDriver: 7),
+            try listRow("P6-UNASSIGNED-RETURN", delivered: true, deliveryDriver: 4, pickupDriver: nil),
+        ]
+        func shown(_ driver: String) -> [String] {
+            list.selectDriverID = driver
+            list.rebuildRows()
+            return (0..<list.arrRows.count).compactMap { list.orderIndexForRow($0) }.map { list.arrDispatchList[$0].unique_id ?? "" }
+        }
+        XCTAssertEqual(Set(shown("")), ["P6-ASSIGNED-DELIVERY-A", "P6-ASSIGNED-RETURN-B"], "All: every assigned mission, no unassigned one")
+        XCTAssertEqual(shown("4"), ["P6-ASSIGNED-DELIVERY-A"], "driver A: only the pending delivery assigned to them")
+        XCTAssertEqual(shown("7"), ["P6-ASSIGNED-RETURN-B"], "driver B: only the return assigned to them")
+
+        // The Completed history is out of scope: its membership is unchanged.
+        list.selectStatus = "2"
+        XCTAssertEqual(shown("").count, 4, "Completed + All: every row, as before")
+        XCTAssertEqual(Set(shown("4")), ["P6-ASSIGNED-DELIVERY-A", "P6-UNASSIGNED-DELIVERY", "P6-UNASSIGNED-RETURN"],
+                       "Completed + a named driver: the pre-Phase-6 rule")
+    }
 }
 
 private final class OfflineClient: SyncHTTPClient {

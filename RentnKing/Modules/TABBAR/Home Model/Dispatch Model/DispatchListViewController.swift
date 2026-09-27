@@ -590,14 +590,21 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // workload on the SAME rebuild, whatever path updated the row. The
         // server applies the identical rule; caches and Sync Engine work are
         // never touched (display-time only).
-        if let selectedDriverId = Int(self.selectDriverID) {
+        // Phase 6 locked rule: the Pending working queue shows only ASSIGNED
+        // missions — for a named driver AND for All Drivers — so a row whose
+        // active leg has no driver never renders there. The Completed history
+        // keeps its pre-existing membership (includeUnassigned).
+        let selectedDriverId = Int(self.selectDriverID)   // "" (All Drivers) → nil
+        let workingQueue = self.selectStatus == "1"
+        if workingQueue || selectedDriverId != nil {
             rows = rows.filter { row in
                 guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
                 let objData = self.arrDispatchList[i]
                 return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
                                                         isDelivered: objData.is_delivered == true,
                                                         deliveryEmployeeId: objData.delivery_employee?.id,
-                                                        pickupEmployeeId: objData.pickup_employee?.id)
+                                                        pickupEmployeeId: objData.pickup_employee?.id,
+                                                        includeUnassigned: !workingQueue)
             }
         }
         self.arrRows = rows

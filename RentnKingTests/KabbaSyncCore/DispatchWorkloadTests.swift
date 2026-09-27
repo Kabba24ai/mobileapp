@@ -189,8 +189,10 @@ final class DispatchWorkloadTests: XCTestCase {
 
     // MARK: - Render-time driver membership (driver-filter reconciliation, 2026-09)
 
-    func testAllDriversAlwaysBelongs() {
+    func testAllDriversShowsEveryAssignedMission() {
         XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false,
+                                                       deliveryEmployeeId: 7, pickupEmployeeId: 9))
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: true,
                                                        deliveryEmployeeId: 7, pickupEmployeeId: 9))
     }
 
@@ -214,11 +216,43 @@ final class DispatchWorkloadTests: XCTestCase {
                        "a completed delivery no longer keeps the row under the delivery driver")
     }
 
-    func testMissingActiveLegEmployeeNeverHidesTheRow() {
-        // The server scoped the row in; hiding on missing serialized data
-        // would drop legitimate work.
-        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: false,
-                                                       deliveryEmployeeId: nil, pickupEmployeeId: 9))
+    // Phase 6 locked rule (Gary, 2026-09-27): only ASSIGNED work is shown. A mission whose ACTIVE
+    // leg has no driver is hidden from every normal Dispatch view — every named driver and All.
+
+    func testAnUnassignedDeliveryIsHiddenFromEveryNamedDriver() {
+        for driver in [7, 9] {
+            XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: driver, isDelivered: false,
+                                                            deliveryEmployeeId: nil, pickupEmployeeId: 9),
+                           "driver \(driver): a pending delivery with no delivery driver is unassigned — even if the return names someone")
+        }
+    }
+
+    func testAnUnassignedReturnIsHiddenFromEveryNamedDriver() {
+        for driver in [7, 9] {
+            XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: driver, isDelivered: true,
+                                                            deliveryEmployeeId: 7, pickupEmployeeId: nil),
+                           "driver \(driver): a delivered row with no return driver is unassigned — the finished delivery's driver doesn't count")
+        }
+    }
+
+    func testAllDriversHidesUnassignedMissions() {
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false,
+                                                        deliveryEmployeeId: nil, pickupEmployeeId: 9))
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: true,
+                                                        deliveryEmployeeId: 7, pickupEmployeeId: nil))
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false,
+                                                        deliveryEmployeeId: nil, pickupEmployeeId: nil))
+    }
+
+    func testTheCompletedHistoryKeepsThePrePhase6Membership() {
+        // includeUnassigned reproduces the old rule exactly: a missing active-leg driver is never
+        // hidden, All shows everything, and an assigned active leg still decides for a named driver.
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: 7, isDelivered: true, deliveryEmployeeId: 7,
+                                                       pickupEmployeeId: nil, includeUnassigned: true))
+        XCTAssertTrue(DispatchWorkload.orderRowBelongs(selectedDriverId: nil, isDelivered: false, deliveryEmployeeId: nil,
+                                                       pickupEmployeeId: nil, includeUnassigned: true))
+        XCTAssertFalse(DispatchWorkload.orderRowBelongs(selectedDriverId: 9, isDelivered: true, deliveryEmployeeId: 9,
+                                                        pickupEmployeeId: 7, includeUnassigned: true))
     }
 
     // MARK: - One-tap On My Way – Navigate (2026-09)

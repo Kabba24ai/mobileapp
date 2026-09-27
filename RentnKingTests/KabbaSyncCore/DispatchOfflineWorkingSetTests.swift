@@ -94,9 +94,72 @@ final class DispatchOfflineWorkingSetTests: XCTestCase {
         XCTAssertEqual(everyone.count, 6)
     }
 
-    func testAnActiveLegWithoutADriverIsNeverHidden() {
-        download([M(opuid: "ORD-SCH-X", revision: F.revision("x"), deliveryDriverId: nil)])
-        XCTAssertEqual(ids(rows(DispatchOfflineQuery(selectedDriverId: gary, dates: .all))), ["ORD-SCH-X"])
+    // Phase 6 locked rule (Gary, 2026-09-27): only ASSIGNED work is presented. A named driver sees
+    // the missions whose ACTIVE leg is theirs, All shows every assigned mission, and a mission whose
+    // active leg has no driver is hidden everywhere (it may stay cached for a later assignment).
+
+    /// An unassigned pending delivery, and a delivered row whose return has no driver yet.
+    private var unassigned: [M] {
+        [
+            M(opuid: "ORD-SCH-UD", revision: F.revision("ud"), effectiveDate: today, deliveryDriverId: nil, pickupDriverId: gary),
+            M(opuid: "ORD-SCH-UR", leg: .return, revision: F.revision("ur"), effectiveDate: today, deliveryDriverId: gary, pickupDriverId: nil),
+        ]
+    }
+
+    func testUnassignedMissionsAreHiddenFromEveryDriverAndAllWhileAssignedOnesShowNormally() {
+        download(fleet + unassigned)
+
+        XCTAssertEqual(ids(rows(DispatchOfflineQuery(selectedDriverId: gary, dates: .all))), ["ORD-SCH-1", "ORD-SCH-2", "ORD-SCH-6"],
+                       "driver A: only their assigned missions, never the unassigned ones")
+        XCTAssertEqual(ids(rows(DispatchOfflineQuery(selectedDriverId: blake, dates: .all))), ["ORD-SCH-3", "ORD-SCH-4"],
+                       "driver B: only their assigned missions")
+        XCTAssertEqual(Set(ids(rows(DispatchOfflineQuery(selectedDriverId: nil, dates: .all)))), Set(fleet.map(\.opuid)),
+                       "All: every assigned mission, no unassigned one")
+        let cached = store.loadIndex().entries.first { $0.missionKey == unassigned[0].key }
+        XCTAssertNotNil(cached.flatMap { store.readyPackage(for: $0) }, "hidden, not deleted: it stays cached for a later assignment")
+    }
+
+    func testAnUnassignedMissionAppearsForItsDriverOnceAssignedAndReconciled() {
+        // Cached while unassigned (an older revision)…
+        download(fleet + [unassigned[0]])
+        XCTAssertFalse(ids(rows(DispatchOfflineQuery(selectedDriverId: nil, dates: .all))).contains("ORD-SCH-UD"))
+
+        // …then the office assigns it to Jerome: the next reconciliation brings the new revision.
+        var assigned = unassigned[0]
+        assigned.deliveryDriverId = jerome
+        assigned.revision = F.revision("ud-assigned")
+        download(fleet + [assigned])
+
+        XCTAssertTrue(ids(rows(DispatchOfflineQuery(selectedDriverId: jerome, dates: .all))).contains("ORD-SCH-UD"), "the driver it was assigned to")
+        XCTAssertFalse(ids(rows(DispatchOfflineQuery(selectedDriverId: gary, dates: .all))).contains("ORD-SCH-UD"),
+                       "not the return leg's driver: the ACTIVE leg (the pending delivery) decides")
+        XCTAssertFalse(ids(rows(DispatchOfflineQuery(selectedDriverId: blake, dates: .all))).contains("ORD-SCH-UD"))
+        XCTAssertTrue(ids(rows(DispatchOfflineQuery(selectedDriverId: nil, dates: .all))).contains("ORD-SCH-UD"), "and All")
+
+        // A mission the server never listed while unassigned appears the same way once it's assigned.
+        let newlyListed = M(opuid: "ORD-SCH-NEW", revision: F.revision("new"), effectiveDate: today, deliveryDriverId: blake)
+        download(fleet + [assigned, newlyListed])
+        XCTAssertTrue(ids(rows(DispatchOfflineQuery(selectedDriverId: blake, dates: .all))).contains("ORD-SCH-NEW"))
+    }
+
+    /// The list screen filters live-feed and saved-list rows with the SAME predicate, reading the
+    /// row's own `is_delivered` and employees. On identical rows it must present exactly what the
+    /// offline working set presents, for every driver and for All.
+    func testOnlineAndOfflinePresentationAgreeOnDriverMembership() {
+        let missions = fleet + unassigned
+        download(missions)
+        for driver in [nil, gary, blake, jerome] as [Int?] {
+            let offline = Set(ids(rows(DispatchOfflineQuery(selectedDriverId: driver, dates: .all))))
+            let online = Set(missions.filter { m in
+                let row = F.package(m)["dispatch"]?["row"]
+                return DispatchWorkload.orderRowBelongs(selectedDriverId: driver,
+                                                        isDelivered: row?["is_delivered"]?.boolValue == true,
+                                                        deliveryEmployeeId: row?["delivery_employee"]?["id"]?.intValue,
+                                                        pickupEmployeeId: row?["pickup_employee"]?["id"]?.intValue)
+            }.map(\.opuid))
+            XCTAssertEqual(online, offline, "driver \(driver.map(String.init) ?? "All")")
+            XCTAssertFalse(online.contains("ORD-SCH-UD") || online.contains("ORD-SCH-UR"))
+        }
     }
 
     // MARK: - Filters
