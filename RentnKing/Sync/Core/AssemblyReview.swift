@@ -878,6 +878,23 @@ enum AssemblyPolicy {
         review.group(containing: orderProductUniqueId).map { gate(for: $0, queue: queue, overlay: overlay) }
     }
 
+    /// The driver's mission gate (Driver Delivery Process Flow, 2026-09-27,
+    /// spec §3.3 / §6.4): nil when this phone holds no review for the order —
+    /// which the stage derivation reads as honestly STOP, never a bypass.
+    static func gate(forMission orderProductUniqueId: String, in review: AssemblyReview?,
+                     queue: QueueLineLocalOverlay, overlay: AssemblyLocalOverlay) -> LocalGate? {
+        guard let review else { return nil }
+        return gate(forMember: orderProductUniqueId, in: review, queue: queue, overlay: overlay)
+    }
+
+    /// The driver-origin review is read-only (spec §6.1 / §11, D8/D9) once this
+    /// phone is effectively On My Way or Arrived — before the server knows —
+    /// and whenever the server's member has left the yard (another phone
+    /// departed). nil stage = no local derivation yet: only the server decides.
+    static func driverReadOnly(stage: DeliveryWorkflowStage?, memberStage: AssemblyStage) -> Bool {
+        (stage ?? .assemblyReview) >= .onMyWay || memberStage.hasLeftTheYard
+    }
+
     /// The Save-time message, from the server's blocker labels
     /// (context.server_state.stage_blockers) merged with this phone's own
     /// derived gate. Every label is a sentence about ONE subject.

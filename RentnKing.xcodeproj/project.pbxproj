@@ -79,6 +79,9 @@
 		5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
 		5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
 		5A5F00000000000000000002 /* DeliveryWorkflowStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */; };
+		5A5F00000000000000000027 /* LoadMapAndGoDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000026 /* LoadMapAndGoDecision.swift */; };
+		5A5F00000000000000000024 /* MediaRequirementPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000023 /* MediaRequirementPolicy.swift */; };
+		5A5F00000000000000000021 /* CustomerSiteRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000020 /* CustomerSiteRouter.swift */; };
 		5A5F00000000000000000011 /* DriverChecklistGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000010 /* DriverChecklistGate.swift */; };
 		5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
@@ -412,6 +415,9 @@
 		5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000080 /* ReleasePolicyTests.swift */; };
 		5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */; };
 		5A5F00000000000000000005 /* DeliveryWorkflowStageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */; };
+		5A5F00000000000000000035 /* LoadMapAndGoDecisionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000034 /* LoadMapAndGoDecisionTests.swift */; };
+		5A5F00000000000000000033 /* MediaRequirementPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000032 /* MediaRequirementPolicyTests.swift */; };
+		5A5F00000000000000000031 /* CustomerSiteRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000030 /* CustomerSiteRouterTests.swift */; };
 		5A5F00000000000000000009 /* DriverChecklistContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000008 /* DriverChecklistContractTests.swift */; };
 		5A5F00000000000000000007 /* DriverChecklistGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000006 /* DriverChecklistGateTests.swift */; };
 		5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */; };
@@ -465,6 +471,9 @@
 		5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000045 /* ReleasePolicy.swift */; };
 		5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */; };
 		5A5F00000000000000000003 /* DeliveryWorkflowStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */; };
+		5A5F00000000000000000028 /* LoadMapAndGoDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000026 /* LoadMapAndGoDecision.swift */; };
+		5A5F00000000000000000025 /* MediaRequirementPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000023 /* MediaRequirementPolicy.swift */; };
+		5A5F00000000000000000022 /* CustomerSiteRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000020 /* CustomerSiteRouter.swift */; };
 		5A5F00000000000000000012 /* DriverChecklistGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000010 /* DriverChecklistGate.swift */; };
 		5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
@@ -585,6 +594,9 @@
 		5A5C00000000000000000045 /* ReleasePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicy.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalState.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryWorkflowStage.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000026 /* LoadMapAndGoDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadMapAndGoDecision.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000023 /* MediaRequirementPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRequirementPolicy.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000020 /* CustomerSiteRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteRouter.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000010 /* DriverChecklistGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistGate.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000006 /* EffectiveFieldState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldState.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000011 /* TermsOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperations.swift; sourceTree = "<group>"; };
@@ -890,6 +902,9 @@
 		5A5C00000000000000000080 /* ReleasePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleasePolicyTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistLocalStateTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryWorkflowStageTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000034 /* LoadMapAndGoDecisionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadMapAndGoDecisionTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000032 /* MediaRequirementPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRequirementPolicyTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000030 /* CustomerSiteRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteRouterTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000008 /* DriverChecklistContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistContractTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000006 /* DriverChecklistGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistGateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldStateTests.swift; sourceTree = "<group>"; };
@@ -2091,6 +2106,9 @@
 				5A5C00000000000000000045 /* ReleasePolicy.swift */,
 				5A5CFADE0000000000000001 /* DriverChecklistLocalState.swift */,
 				5A5F00000000000000000001 /* DeliveryWorkflowStage.swift */,
+				5A5F00000000000000000026 /* LoadMapAndGoDecision.swift */,
+				5A5F00000000000000000023 /* MediaRequirementPolicy.swift */,
+				5A5F00000000000000000020 /* CustomerSiteRouter.swift */,
 				5A5F00000000000000000010 /* DriverChecklistGate.swift */,
 				5A5CFADE0000000000000006 /* EffectiveFieldState.swift */,
 				5A5CFADE0000000000000011 /* TermsOperations.swift */,
@@ -2228,6 +2246,9 @@
 				5A5C00000000000000000080 /* ReleasePolicyTests.swift */,
 				5A5CFADE0000000000000004 /* DriverChecklistLocalStateTests.swift */,
 				5A5F00000000000000000004 /* DeliveryWorkflowStageTests.swift */,
+				5A5F00000000000000000034 /* LoadMapAndGoDecisionTests.swift */,
+				5A5F00000000000000000032 /* MediaRequirementPolicyTests.swift */,
+				5A5F00000000000000000030 /* CustomerSiteRouterTests.swift */,
 				5A5F00000000000000000008 /* DriverChecklistContractTests.swift */,
 				5A5F00000000000000000006 /* DriverChecklistGateTests.swift */,
 				5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */,
@@ -2616,6 +2637,9 @@
 				5A5C00000000000000000046 /* ReleasePolicy.swift in Sources */,
 				5A5CFADE0000000000000002 /* DriverChecklistLocalState.swift in Sources */,
 				5A5F00000000000000000002 /* DeliveryWorkflowStage.swift in Sources */,
+				5A5F00000000000000000027 /* LoadMapAndGoDecision.swift in Sources */,
+				5A5F00000000000000000024 /* MediaRequirementPolicy.swift in Sources */,
+				5A5F00000000000000000021 /* CustomerSiteRouter.swift in Sources */,
 				5A5F00000000000000000011 /* DriverChecklistGate.swift in Sources */,
 				5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */,
@@ -2908,6 +2932,9 @@
 				5A5C00000000000000000081 /* ReleasePolicyTests.swift in Sources */,
 				5A5CFADE0000000000000005 /* DriverChecklistLocalStateTests.swift in Sources */,
 				5A5F00000000000000000005 /* DeliveryWorkflowStageTests.swift in Sources */,
+				5A5F00000000000000000035 /* LoadMapAndGoDecisionTests.swift in Sources */,
+				5A5F00000000000000000033 /* MediaRequirementPolicyTests.swift in Sources */,
+				5A5F00000000000000000031 /* CustomerSiteRouterTests.swift in Sources */,
 				5A5F00000000000000000009 /* DriverChecklistContractTests.swift in Sources */,
 				5A5F00000000000000000007 /* DriverChecklistGateTests.swift in Sources */,
 				5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */,
@@ -2946,6 +2973,9 @@
 				5A5C000000000000000000C5 /* ReleasePolicy.swift in Sources */,
 				5A5CFADE0000000000000003 /* DriverChecklistLocalState.swift in Sources */,
 				5A5F00000000000000000003 /* DeliveryWorkflowStage.swift in Sources */,
+				5A5F00000000000000000028 /* LoadMapAndGoDecision.swift in Sources */,
+				5A5F00000000000000000025 /* MediaRequirementPolicy.swift in Sources */,
+				5A5F00000000000000000022 /* CustomerSiteRouter.swift in Sources */,
 				5A5F00000000000000000012 /* DriverChecklistGate.swift in Sources */,
 				5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */,

@@ -441,6 +441,28 @@ final class PreparationLifecycleTests: XCTestCase {
         XCTAssertNil(PreparationPolicy.block(for: returnLeg))
     }
 
+    // ── 9b. The phone's own trip stage locks the checklist (spec §10.2, D9) ──
+
+    func testTheEffectiveTripStageBlocksBeforeTheCachedContextIsConsulted() throws {
+        // A cached context whose in_transit is stale (false) — the phone departed offline.
+        let stale = try ChecklistContext.decode(envelopeData: contextJSON(status: "prepared", queueStaged: true, inTransit: false))
+
+        XCTAssertEqual(PreparationPolicy.block(for: stale, tripStage: .onMyWay), .inTransit)
+        XCTAssertEqual(PreparationPolicy.block(for: stale, tripStage: .arrived), .inTransit, "Arrived is still on the road for the yard's purposes")
+        XCTAssertNil(PreparationPolicy.block(for: stale, tripStage: .notStarted), "not departed: the existing rule (the context) decides")
+        XCTAssertFalse(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .onMyWay))
+        XCTAssertFalse(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .arrived))
+        XCTAssertTrue(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .notStarted))
+    }
+
+    func testADeliveredLegOutranksTheTripStageAndReturnIgnoresIt() throws {
+        let delivered = try ChecklistContext.decode(envelopeData: contextJSON(status: "completed", isDelivered: true, executionStatus: "completed"))
+        XCTAssertEqual(PreparationPolicy.block(for: delivered, tripStage: .arrived), .delivered)
+
+        let returnLeg = try ChecklistContext.decode(envelopeData: contextJSON(leg: "return"))
+        XCTAssertNil(PreparationPolicy.block(for: returnLeg, tripStage: .arrived), "Return has no pre-departure phase to protect")
+    }
+
     // ── 11. Multi-line isolation ─────────────────────────────────────────
 
     func testDiscardingOneProductsPreparationLeavesSiblingsStaged() {

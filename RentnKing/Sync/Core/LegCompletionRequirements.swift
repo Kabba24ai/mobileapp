@@ -111,6 +111,14 @@ struct LegCompletionInputs: Equatable {
     /// Phase 5: the identity of the verified frozen Terms agreement this phone
     /// holds for the order. Empty → none held.
     var termsIdentity: String = ""
+    /// Driver Delivery Process Flow (2026-09-27, D7): the server holds a VIDEO
+    /// for the focus product's active delivery cycle (`delivery_video_present`).
+    /// `deliveryMediaConfirmed` above stays the order-level legacy flag (any
+    /// photo, any line) and counts only while no cycle is known.
+    var deliveryVideoConfirmed: Bool = false
+    /// The current delivery checklist execution for the focus product, when the
+    /// phone knows it (cached context). Empty → unknown.
+    var activeDeliveryExecutionId: String = ""
 
     init(orderUniqueId: String,
          orderProductUniqueId: String,
@@ -122,7 +130,9 @@ struct LegCompletionInputs: Equatable {
          returnMediaConfirmed: Bool = false,
          returnChecklistConfirmed: Bool = false,
          activeReturnExecutionId: String = "",
-         termsIdentity: String = "") {
+         termsIdentity: String = "",
+         deliveryVideoConfirmed: Bool = false,
+         activeDeliveryExecutionId: String = "") {
         self.orderUniqueId = orderUniqueId
         self.orderProductUniqueId = orderProductUniqueId
         self.orderProductUniqueIds = orderProductUniqueIds
@@ -134,6 +144,8 @@ struct LegCompletionInputs: Equatable {
         self.returnChecklistConfirmed = returnChecklistConfirmed
         self.activeReturnExecutionId = activeReturnExecutionId
         self.termsIdentity = termsIdentity
+        self.deliveryVideoConfirmed = deliveryVideoConfirmed
+        self.activeDeliveryExecutionId = activeDeliveryExecutionId
     }
 }
 
@@ -218,7 +230,7 @@ enum LegCompletionEvaluator {
         case .driverLicense:
             return orderScoped(confirmed: inputs.licenseConfirmed, types: [EffectiveFieldState.licenseMediaType], inputs: inputs, operations: operations)
         case .deliveryMedia:
-            return orderScoped(confirmed: inputs.deliveryMediaConfirmed, types: [EffectiveFieldState.deliveryMediaType], inputs: inputs, operations: operations)
+            return deliveryMedia(inputs: inputs, operations: operations)
         case .deliveryChecklist:
             return deliveryChecklist(inputs: inputs, operations: operations)
         case .returnMedia:
@@ -254,8 +266,29 @@ enum LegCompletionEvaluator {
         return signed.isEmpty ? legacy : .satisfied
     }
 
-    /// The delivery checklist is satisfied by a durable completion for ANY line
-    /// of the order (the pre-existing `effectiveLegCompleted` rule).
+    /// Delivery requires a VIDEO for the focus product in its current cycle
+    /// (Driver Delivery Process Flow, 2026-09-27 — D7, §10.3). Photos never
+    /// satisfy it; the server's cycle truth does; the order-level legacy flag
+    /// counts only while no cycle is known. Without a focus product (a screen
+    /// that carries none) any line's video counts, as the order-wide fallback
+    /// always did.
+    private static func deliveryMedia(inputs: LegCompletionInputs, operations: [SyncOperation]) -> RequirementStatus {
+        if inputs.deliveryVideoConfirmed { return .satisfied }
+        let active = inputs.activeDeliveryExecutionId
+        if active.isEmpty, inputs.deliveryMediaConfirmed { return .satisfied }
+
+        let targets = deliveryTargets(inputs)
+        guard !targets.isEmpty else { return .incomplete }
+        return best(targets.map { product in
+            status(from: MediaRequirementPolicy.deliveryVideoEvidence(operations: operations,
+                                                                      orderProductUniqueId: product,
+                                                                      activeExecutionId: active.isEmpty ? nil : active))
+        })
+    }
+
+    /// The delivery checklist is satisfied by a durable completion for the
+    /// focus product (2026-09-27: product-scoped — a sibling line's completion
+    /// never speaks for this one); without a focus product, any line as before.
     private static func deliveryChecklist(inputs: LegCompletionInputs, operations: [SyncOperation]) -> RequirementStatus {
         if inputs.deliveryChecklistConfirmed { return .satisfied }
         let targets = deliveryTargets(inputs)
@@ -357,11 +390,12 @@ enum LegCompletionEvaluator {
         return inputs.orderProductUniqueIds.filter { !$0.isEmpty }
     }
 
-    /// Delivery evaluation targets: every line (any-line rule), else the focus product.
+    /// Delivery evaluation targets: the focus product when the screen names one
+    /// (2026-09-27 — product-scoped, like Return always was), else every line
+    /// (the order-wide fallback for screens that carry no focus product).
     private static func deliveryTargets(_ inputs: LegCompletionInputs) -> [String] {
-        let all = inputs.orderProductUniqueIds.filter { !$0.isEmpty }
-        if !all.isEmpty { return all }
-        return inputs.orderProductUniqueId.isEmpty ? [] : [inputs.orderProductUniqueId]
+        if !inputs.orderProductUniqueId.isEmpty { return [inputs.orderProductUniqueId] }
+        return inputs.orderProductUniqueIds.filter { !$0.isEmpty }
     }
 
     /// A pre-Phase-3 queue item migrated into the engine (`legacy_customer_checklist.submit`)

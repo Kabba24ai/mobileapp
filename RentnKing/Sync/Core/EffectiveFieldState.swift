@@ -214,7 +214,17 @@ enum EffectiveFieldState {
                                               orderProductUniqueId: String,
                                               activeExecutionId: String = "") -> Bool {
         if serverHasVideo { return true }
-        guard !orderProductUniqueId.isEmpty else { return false }
+        return !deliveryVideoEvidence(in: operations, orderProductUniqueId: orderProductUniqueId,
+                                      activeExecutionId: activeExecutionId).isEmpty
+    }
+
+    /// The durable delivery-media operations that carry a VIDEO for this
+    /// product and count for the active cycle (the ONE evidence rule behind
+    /// `deliveryVideoSatisfied` and `MediaRequirementPolicy`, 2026-09-27).
+    static func deliveryVideoEvidence(in operations: [SyncOperation],
+                                      orderProductUniqueId: String,
+                                      activeExecutionId: String = "") -> [SyncOperation] {
+        guard !orderProductUniqueId.isEmpty else { return [] }
 
         // Preparation-cycle identity (2026-09): a walk-around video is evidence
         // about ONE physical machine. When the caller knows which cycle is
@@ -223,7 +233,7 @@ enum EffectiveFieldState {
         let superseded = supersededExecutionIds(in: operations)
         let discardedAt = lastDiscardAt(in: operations, orderProductUniqueId: orderProductUniqueId)
 
-        return operations.contains { op in
+        return operations.filter { op in
             guard op.type == deliveryMediaType,
                   countsAsDurableEvidence(op.state),
                   op.identity.orderProductUniqueId == orderProductUniqueId,

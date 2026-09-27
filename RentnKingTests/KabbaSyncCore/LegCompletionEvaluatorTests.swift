@@ -59,6 +59,16 @@ final class LegCompletionEvaluatorTests: XCTestCase {
         op(EffectiveFieldState.returnRestartType, product: product, execution: execution, queuedAt: queuedAt)
     }
 
+    private func deliveryVideo(product: String = "P1", execution: String? = nil, state: SyncState = .pending) -> SyncOperation {
+        op(EffectiveFieldState.deliveryMediaType, product: product, execution: execution, state: state,
+           assets: [SyncAsset(clientMediaId: "dv-\(product)", relativePath: "\(product)/delivery.mov", mimeType: "video/quicktime", fieldName: "media")])
+    }
+
+    private func deliveryPhoto(product: String = "P1", execution: String? = nil) -> SyncOperation {
+        op(EffectiveFieldState.deliveryMediaType, product: product, execution: execution,
+           assets: [SyncAsset(clientMediaId: "dp-\(product)", relativePath: "\(product)/delivery.jpg", mimeType: "image/jpeg", fieldName: "media")])
+    }
+
     private func inputs(product: String = "P1",
                         products: [String] = ["P1", "P2"],
                         license: Bool = false, terms: Bool = false,
@@ -220,17 +230,54 @@ final class LegCompletionEvaluatorTests: XCTestCase {
         var noChecklist = allGood; noChecklist.deliveryChecklistConfirmed = false
         XCTAssertEqual(evaluateDelivery(noChecklist, []).missing, [.deliveryChecklist])
 
-        // Durable local delivery evidence satisfies delivery, exactly as before.
+        // Durable local delivery evidence satisfies delivery — the media op must
+        // carry a VIDEO now (D7, 2026-09-27); a bare media op never did film anything.
         XCTAssertTrue(evaluateDelivery(inputs(), [
             op(EffectiveFieldState.licenseMediaType, product: nil),
             op(EffectiveFieldState.termsAcceptedType),
-            op(EffectiveFieldState.deliveryMediaType),
+            deliveryVideo(),
             op(EffectiveFieldState.deliveryCompleteType),
         ]).canProceed)
 
         // Return work never satisfies a Delivery requirement.
         let returnOnly = evaluateDelivery(inputs(), [returnComplete(), returnVideo()])
         XCTAssertEqual(returnOnly.missing, [.termsAndConditions, .driverLicense, .deliveryMedia, .deliveryChecklist])
+    }
+
+    // MARK: - Driver Delivery Process Flow (2026-09-27): D7 video + product-scoped checklist
+
+    func testDeliveryMediaRequiresAVideoForTheFocusProductInTheActiveCycle_photosNeverSatisfy() {
+        // Was: any photo or video, any product, any cycle satisfied delivery media (§2.3 S8).
+        XCTAssertEqual(evaluateDelivery(inputs(), [deliveryPhoto()]).status(.deliveryMedia), .incomplete, "photos never satisfy (D7)")
+        XCTAssertEqual(evaluateDelivery(inputs(), [deliveryVideo()]).status(.deliveryMedia), .satisfied)
+        XCTAssertEqual(evaluateDelivery(inputs(), [deliveryVideo(product: "P2")]).status(.deliveryMedia), .incomplete, "a sibling's video is not this product's")
+
+        var withCycle = inputs(); withCycle.activeDeliveryExecutionId = "CX-2"
+        XCTAssertEqual(evaluateDelivery(withCycle, [deliveryVideo(execution: "CX-1")]).status(.deliveryMedia), .incomplete, "the superseded cycle's video never satisfies the current one")
+        XCTAssertEqual(evaluateDelivery(withCycle, [deliveryVideo(execution: "CX-2")]).status(.deliveryMedia), .satisfied)
+
+        let parked = deliveryVideo(execution: "CX-2", state: .needsAttention)
+        XCTAssertEqual(evaluateDelivery(withCycle, [parked]).status(.deliveryMedia), .satisfiedNeedsAttention(operationId: parked.id))
+    }
+
+    func testServerVideoForTheCycleSatisfiesAndOrderLevelMediaCountsOnlyWithoutACycle() {
+        var cycleTruth = inputs(); cycleTruth.deliveryVideoConfirmed = true; cycleTruth.activeDeliveryExecutionId = "CX-2"
+        XCTAssertEqual(evaluateDelivery(cycleTruth, []).status(.deliveryMedia), .satisfied)
+
+        // The legacy order-level "media present" flag (any photo, any line) is
+        // evidence only while no cycle is known for the product.
+        XCTAssertEqual(evaluateDelivery(inputs(deliveryMedia: true), []).status(.deliveryMedia), .satisfied)
+        var known = inputs(deliveryMedia: true); known.activeDeliveryExecutionId = "CX-2"
+        XCTAssertEqual(evaluateDelivery(known, []).status(.deliveryMedia), .incomplete, "a known cycle demands its own video")
+    }
+
+    func testDeliveryChecklistIsScopedToTheFocusProduct_theAnyLineRuleOnlyWithoutAFocus() {
+        // Was: a durable completion for ANY line of the order satisfied the focus product (§2.3 S4).
+        XCTAssertEqual(evaluateDelivery(inputs(), [op(EffectiveFieldState.deliveryCompleteType, product: "P2")]).status(.deliveryChecklist), .incomplete,
+                       "a sibling line's completion is not this product's")
+        XCTAssertEqual(evaluateDelivery(inputs(), [op(EffectiveFieldState.deliveryCompleteType, product: "P1")]).status(.deliveryChecklist), .satisfied)
+        // No focus product (a screen that carries none): any line, as before.
+        XCTAssertEqual(evaluateDelivery(inputs(product: ""), [op(EffectiveFieldState.deliveryCompleteType, product: "P2")]).status(.deliveryChecklist), .satisfied)
     }
 
     // MARK: - 16–21 Identity / safety

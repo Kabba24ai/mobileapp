@@ -250,6 +250,68 @@ final class SyncEngineTests: XCTestCase {
         XCTAssertEqual(client.recorded.map(\.operationId), [first.id, first.id, second.id])
     }
 
+    // Driver Delivery Process Flow (2026-09-27) §3.4.6: one order product's operations drain in
+    // capture order, so the server sees switch → availability → On My Way and the departure
+    // lock cannot refuse the legitimate pre-departure work; a parked op never blocks the rest.
+    private struct DepartureHandler: SyncOperationHandler {
+        let operationType: String
+        func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
+            var body = operation.payload.objectValue ?? [:]
+            body["operation_id"] = .string(operation.id)
+            return SyncHTTPRequest(method: "POST", path: operation.type, headers: ["X-Operation-Id": operation.id],
+                                   jsonBody: .object(body), operationId: operation.id)
+        }
+    }
+
+    private func departureEngine() throws -> SyncEngine {
+        SyncEngine(store: try store(), httpClient: client,
+                   handlers: [DepartureHandler(operationType: PreparationOperationBuilder.substitutionType),
+                              DepartureHandler(operationType: AssemblyOperationBuilder.availabilityType),
+                              DepartureHandler(operationType: EffectiveFieldState.driverChecklistType)],
+                   policy: SyncRetryPolicy(backoffSchedule: [0.05]))
+    }
+
+    private func departureSequence(_ engine: SyncEngine, product: String = "ORD-SCH-1") throws -> [SyncOperation] {
+        let t0 = Date().addingTimeInterval(-600)
+        let switchOp = try engine.enqueue(type: PreparationOperationBuilder.substitutionType,
+                                          payload: .object(["order_product_unique_id": .string(product), "equipment_unique_id": .string("EQP-B"), "performed_by": .string("PER-1")]),
+                                          identity: SyncBusinessIdentity(orderProductUniqueId: product, equipmentUniqueId: "EQP-B"),
+                                          capturedAt: t0, displayTitle: "switch")
+        let availability = try engine.enqueue(type: AssemblyOperationBuilder.availabilityType,
+                                              payload: .object(["order_product_unique_id": .string(product), "subject_type": .string("unit"), "subject_key": .string("EQP-B"), "state": .string("available"), "performed_by": .string("PER-1")]),
+                                              identity: SyncBusinessIdentity(orderProductUniqueId: product, equipmentUniqueId: "EQP-B"),
+                                              capturedAt: t0.addingTimeInterval(60), displayTitle: "available")
+        let onMyWay = try engine.enqueue(type: EffectiveFieldState.driverChecklistType,
+                                         payload: .object(["order_product_unique_id": .string(product), "checklist_type": .string("delivery"), "equipment_driver_status": .string("On My Way"), "equipment_unique_id": .string("EQP-B")]),
+                                         identity: SyncBusinessIdentity(orderProductUniqueId: product),
+                                         capturedAt: t0.addingTimeInterval(120), displayTitle: "On My Way")
+        return [switchOp, availability, onMyWay]
+    }
+
+    func testSwitchThenAvailabilityThenOnMyWayDrainInCaptureOrder() throws {
+        client.defaultResult = Fixtures.ok()
+        let engine = try departureEngine()
+        let ops = try departureSequence(engine)
+
+        waitUntil { ops.allSatisfy { engine.operation(id: $0.id)?.state == .synced } }
+        XCTAssertEqual(client.recorded.map(\.operationId), ops.map(\.id), "the server sees switch → availability → On My Way")
+        XCTAssertEqual(client.recorded.map(\.path), [PreparationOperationBuilder.substitutionType, AssemblyOperationBuilder.availabilityType, EffectiveFieldState.driverChecklistType])
+    }
+
+    func testAParkedSwitchNeverHoldsBackTheDeparture() throws {
+        // The office reassigned meanwhile: the switch is refused (409, terminal) and parks;
+        // the availability and the On My Way behind it are still sent (D1 — never a lost departure).
+        client.enqueue(Fixtures.failure(409, code: "QUEUE_ASSIGNMENT_CHANGED"), Fixtures.failure(409, code: "QUEUE_ASSIGNMENT_CHANGED"), Fixtures.ok())
+        let engine = try departureEngine()
+        let ops = try departureSequence(engine)
+
+        waitUntil { engine.operation(id: ops[2].id)?.state == .synced }
+        XCTAssertEqual(state(engine, ops[0].id), .needsAttention)
+        XCTAssertEqual(state(engine, ops[1].id), .needsAttention)
+        XCTAssertEqual(state(engine, ops[2].id), .synced, "the departure is recorded whatever happened to the switch")
+        XCTAssertEqual(client.recorded.map(\.operationId), ops.map(\.id), "still strictly in capture order")
+    }
+
     func testANeedsAttentionOperationDoesNotBlockTheQueue() throws {
         client.enqueue(Fixtures.failure(422, code: "VALIDATION_FAILED"), Fixtures.ok())
         let engine = makeEngine(store: try store(), client: client)

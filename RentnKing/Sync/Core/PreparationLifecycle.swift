@@ -78,6 +78,19 @@ enum PreparationPolicy {
         return nil
     }
 
+    /// The same cutoff, read from the phone's EFFECTIVE trip stage first
+    /// (Driver Delivery Process Flow, 2026-09-27, spec §10.2 / D9): once this
+    /// phone is On My Way or Arrived the assignment is locked, whatever a
+    /// cached context's `in_transit` says (it may be stale offline). A
+    /// delivered leg still outranks everything; Return has no cutoff.
+    static func block(for context: ChecklistContext, tripStage: DriverTripStage) -> PreparationLifecycle.Block? {
+        guard context.leg.isDelivery else { return nil }
+
+        if context.isCompleted || context.serverState.isDelivered { return .delivered }
+        if tripStage >= .onMyWay { return .inTransit }
+        return block(for: context)
+    }
+
     /// May the operator open the equipment picker for this product? An
     /// office-assigned unit is the PRESELECTED default, never a lock —
     /// substituting before departure is routine yard work.
@@ -90,6 +103,12 @@ enum PreparationPolicy {
     /// nothing to restart.
     static func mayRestartChecklist(_ context: ChecklistContext, hasLocalAnswers: Bool) -> Bool {
         guard block(for: context) == nil else { return false }
+        return hasPreparationToDiscard(context, hasLocalAnswers: hasLocalAnswers)
+    }
+
+    /// Trip-stage-aware restart rule: never after departure (spec §10.2).
+    static func mayRestartChecklist(_ context: ChecklistContext, hasLocalAnswers: Bool, tripStage: DriverTripStage) -> Bool {
+        guard block(for: context, tripStage: tripStage) == nil else { return false }
         return hasPreparationToDiscard(context, hasLocalAnswers: hasLocalAnswers)
     }
 

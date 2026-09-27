@@ -419,6 +419,31 @@ final class AssemblyReviewTests: XCTestCase {
         XCTAssertEqual(g.requiredCount, 3)
     }
 
+    // Driver Delivery Process Flow (2026-09-27) §6.1 / §11: the driver's review is read-only
+    // once THIS phone is On My Way or Arrived (before the server knows), and whenever the
+    // server's member has left the yard (another phone departed).
+    func testTheDriversReviewIsReadOnlyAfterDeparture() {
+        XCTAssertTrue(AssemblyPolicy.driverReadOnly(stage: .onMyWay, memberStage: .pending))
+        XCTAssertTrue(AssemblyPolicy.driverReadOnly(stage: .arrived, memberStage: .pending))
+        XCTAssertTrue(AssemblyPolicy.driverReadOnly(stage: .delivered, memberStage: .pending))
+        XCTAssertFalse(AssemblyPolicy.driverReadOnly(stage: .driverChecklist, memberStage: .pending))
+        XCTAssertFalse(AssemblyPolicy.driverReadOnly(stage: .assemblyReview, memberStage: .staged))
+        XCTAssertTrue(AssemblyPolicy.driverReadOnly(stage: nil, memberStage: .inTransit), "no local stage, the server says the truck left")
+        XCTAssertTrue(AssemblyPolicy.driverReadOnly(stage: .driverChecklist, memberStage: .equipmentDelivered))
+        XCTAssertFalse(AssemblyPolicy.driverReadOnly(stage: nil, memberStage: .pending))
+    }
+
+    func testTheMissionsGateIsNilWithoutAReviewAndTheGroupsGateWithOne() throws {
+        let data = try review().data
+        let member = data.assemblies[0].members[0].orderProductUniqueId
+
+        XCTAssertNil(AssemblyPolicy.gate(forMission: member, in: nil, queue: QueueLineLocalOverlay(), overlay: AssemblyLocalOverlay()),
+                     "no review on this phone = no gate (§6.4: honestly STOP, never a bypass)")
+        XCTAssertNil(AssemblyPolicy.gate(forMission: "ORD-SCH-NOPE", in: data, queue: QueueLineLocalOverlay(), overlay: AssemblyLocalOverlay()))
+        XCTAssertEqual(AssemblyPolicy.gate(forMission: member, in: data, queue: QueueLineLocalOverlay(), overlay: AssemblyLocalOverlay()),
+                       AssemblyPolicy.gate(for: data.assemblies[0], queue: QueueLineLocalOverlay(), overlay: AssemblyLocalOverlay()))
+    }
+
     func testMembersThatLeftTheYardImposeNothingOnTheGate() throws {
         let data = try reviewVariant { member, index in
             if index == 1 { member["lifecycle_stage"] = "in_transit"; member["in_transit"] = true }
