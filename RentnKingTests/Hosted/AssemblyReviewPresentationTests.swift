@@ -37,6 +37,7 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         var dependsOn: String? = nil
         var equipmentName: String? = nil
         var equipmentDisplayId: String? = nil
+        var includedOptions: Set<String> = []
     }
 
     /// A review built from the fixture member as a template: ONE dependent
@@ -59,7 +60,7 @@ final class AssemblyReviewPresentationTests: XCTestCase {
             m["status"] = s.stage == "staged" ? "staged" : "pending"
             m["staged"] = s.stage == "staged"
             m["product_options"] = s.options.map { (key, label, state) -> [String: Any] in
-                ["unique_id": key, "name": label, "included": false,
+                ["unique_id": key, "name": label, "included": s.includedOptions.contains(key),
                  "availability": ["state": state as Any, "acknowledged_by": (state == nil ? NSNull() : "Field Employee") as Any, "acknowledged_at": NSNull(), "note": NSNull()]]
             }
             var availability = m["availability"] as! [String: Any]
@@ -169,7 +170,7 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertEqual(unconfirmed.accessibilityValue, "not confirmed")
         XCTAssertEqual(view(vc, "assembly.OP-EXC.option.POPT-NOBKT.icon")?.accessibilityLabel, "Not confirmed")
         XCTAssertEqual((view(vc, "assembly.OP-EXC.option.POPT-NOBKT.icon") as? UIImageView)?.tintColor, UIColor.redText, "a red X")
-        XCTAssertEqual(label(vc, "assembly.OP-EXC.option.POPT-NOBKT.state"), "Not yet confirmed")
+        XCTAssertEqual(label(vc, "assembly.OP-EXC.option.POPT-NOBKT.state") ?? "", "", "an unconfirmed option carries no helper copy — the red X and Available say it")
 
         let confirmed = view(vc, "assembly.OP-SKID.option.POPT-TOOTH.available") as! UIButton
         XCTAssertTrue(confirmed.isSelected)
@@ -669,6 +670,123 @@ final class AssemblyReviewPresentationTests: XCTestCase {
     }
 
     // MARK: - Driver Delivery Process Flow (2026-09-27), Task 11 — the driver origin
+
+    // MARK: - Status badges as Back shortcuts; unconfirmed rows without helper copy (2026-09-28)
+
+    /// The review pushed over a root screen — a badge tap must land back on that root.
+    private func pushed(_ vc: AssemblyReviewViewController) -> (root: UIViewController, nav: UINavigationController) {
+        let root = UIViewController()
+        let nav = UINavigationController(rootViewController: root)
+        nav.pushViewController(vc, animated: false)
+        return (root, nav)
+    }
+
+    /// Taps the badge's own control (the badge stays a label; the control is its overlay).
+    private func tapBadge(_ vc: UIViewController, _ id: String) -> Bool {
+        guard let badge = view(vc, id), let button = badge.subviews.compactMap({ $0 as? UIButton }).first else { return false }
+        button.sendActions(for: .touchUpInside)
+        return true
+    }
+
+    private func badgeStyle(_ vc: UIViewController, _ id: String) -> (text: UIColor?, background: UIColor?) {
+        let label = view(vc, id) as? UILabel
+        return (label?.textColor, label?.backgroundColor)
+    }
+
+    func testInTransitBadgesOnTheHeaderAndTheCardPopToThePreviousScreenLikeTheBackArrow() throws {
+        let envelope = try review(groups: [[Spec(uid: "OP-T", name: "Skid Steer", options: [("POPT-TOOTH", "Toothed Bucket", "available")],
+                                                 unitState: "available", stage: "in_transit")]])
+        for id in ["assemblyReview.group.QLA-OP-T.stage", "assembly.OP-T.stage"] {
+            let vc = loaded(envelope)
+            XCTAssertEqual(label(vc, id), "In Transit", id)
+            let (root, nav) = pushed(vc)
+            let opsBefore = KabbaSync.engine?.snapshot().count
+            let unitButton = view(vc, "assembly.OP-T.unit.available") as? UIButton
+            XCTAssertTrue(tapBadge(vc, id), "\(id) is tappable")
+            XCTAssertTrue(nav.topViewController === root, "\(id) returns to the previous screen, like the back arrow")
+            XCTAssertEqual(KabbaSync.engine?.snapshot().count, opsBefore, "navigation only: no operation recorded")
+            XCTAssertEqual(unitButton?.accessibilityValue, "confirmed", "navigation only: the confirmation is untouched")
+            XCTAssertEqual(label(vc, "assembly.OP-T.stage"), "In Transit", "navigation only: the stage is untouched")
+        }
+    }
+
+    func testEquipmentDeliveredBadgesOnTheHeaderAndTheCardPopToThePreviousScreenLikeTheBackArrow() throws {
+        let envelope = try review(groups: [[Spec(uid: "OP-D", name: "Boom Lift", options: [], unitState: "available", stage: "equipment_delivered")]])
+        for id in ["assemblyReview.group.QLA-OP-D.stage", "assembly.OP-D.stage"] {
+            let vc = loaded(envelope)
+            XCTAssertEqual(label(vc, id), "Equipment Delivered", id)
+            let (root, nav) = pushed(vc)
+            let opsBefore = KabbaSync.engine?.snapshot().count
+            XCTAssertTrue(tapBadge(vc, id), "\(id) is tappable")
+            XCTAssertTrue(nav.topViewController === root, "\(id) returns to the previous screen, like the back arrow")
+            XCTAssertEqual(KabbaSync.engine?.snapshot().count, opsBefore, "navigation only: no operation recorded")
+            XCTAssertEqual(label(vc, "assembly.OP-D.stage"), "Equipment Delivered", "navigation only: the stage is untouched")
+        }
+    }
+
+    func testTheDriversPostDepartureReviewBadgesPopBackAndTheUnitStaysLocked() throws {
+        // The driver's own On My Way promotes the line to In Transit and locks the review;
+        // the badge is a way back, never a way around the lock.
+        let product = "OP-GONE"
+        let envelope = try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: "available", stage: "staged")]])
+        let vc = loadedDriver(envelope, product: product, enteredFrom: .driverChecklist, isRevisit: true,
+                              ops: [driverOp(product, status: "On My Way")])
+        XCTAssertEqual(label(vc, "assembly.\(product).stage"), "In Transit")
+        XCTAssertNil(view(vc, "assembly.\(product).unit.reassign"), "post-departure: the unit cannot be changed")
+        let (root, nav) = pushed(vc)
+        XCTAssertTrue(tapBadge(vc, "assembly.\(product).stage"))
+        XCTAssertTrue(nav.topViewController === root)
+        XCTAssertNil(view(vc, "assembly.\(product).unit.reassign"), "still locked after the tap")
+        XCTAssertFalse((view(vc, "assembly.\(product).unit.available") as? UIButton)?.isEnabled ?? true, "still read-only after the tap")
+    }
+
+    func testPendingAndStagedBadgesAreNotBackShortcuts() throws {
+        let envelope = try review(groups: [[Spec(uid: "OP-P", name: "Skid Steer", options: [], unitState: nil, stage: "pending")],
+                                           [Spec(uid: "OP-S", name: "Auger", options: [], unitState: "available", stage: "staged")]])
+        let vc = loaded(envelope)
+        for id in ["assembly.OP-P.stage", "assembly.OP-S.stage", "assemblyReview.group.QLA-OP-P.stage"] {
+            XCTAssertFalse(tapBadge(vc, id), "\(id): a pre-departure badge is a status, not a control")
+        }
+    }
+
+    func testInTransitReadsBlackOnTheLightBlueBadgeAndEquipmentDeliveredIsUnchanged() throws {
+        let envelope = try review(groups: [[Spec(uid: "OP-T", name: "Skid Steer", options: [], unitState: "available", stage: "in_transit")],
+                                           [Spec(uid: "OP-D", name: "Boom Lift", options: [], unitState: "available", stage: "equipment_delivered")]])
+        let vc = loaded(envelope)
+        for id in ["assemblyReview.group.QLA-OP-T.stage", "assembly.OP-T.stage"] {
+            let style = badgeStyle(vc, id)
+            XCTAssertEqual(style.text, .black, "\(id): black text")
+            XCTAssertEqual(style.background, UIColor.secondary, "\(id): the light-blue badge itself is unchanged")
+        }
+        XCTAssertEqual(badgeStyle(vc, "assembly.OP-D.stage").text, .white, "Equipment Delivered keeps its styling")
+    }
+
+    func testUnconfirmedRowsShowNoHelperCopyWhileEverythingElseAboutThemIsUnchanged() throws {
+        var line = Spec(uid: "OP-U", name: "Mini Excavator",
+                        options: [("POPT-NOBKT", "No Bucket", nil), ("POPT-INC", "Included Bucket", nil), ("POPT-24", "24 Inch - Bucket", "available")],
+                        unitState: nil, stage: "pending")
+        line.includedOptions = ["POPT-INC"]
+        let vc = loaded(try review(groups: [[line]]))
+
+        // No helper copy under the unconfirmed unit or options (included or not) — the rows keep their names.
+        for id in ["assembly.OP-U.unit.state", "assembly.OP-U.option.POPT-NOBKT.state", "assembly.OP-U.option.POPT-INC.state"] {
+            XCTAssertEqual(label(vc, id) ?? "", "", id)
+            XCTAssertTrue(view(vc, id)?.isHidden ?? true, "\(id): an empty state line takes no room")
+        }
+        XCTAssertEqual(label(vc, "assembly.OP-U.unit.title"), "Mini Excavator Unit · #U-OP-U")
+        XCTAssertEqual(label(vc, "assembly.OP-U.option.POPT-INC.title"), "Included Bucket")
+        XCTAssertFalse(texts(vc).contains { $0.localizedCaseInsensitiveContains("not yet confirmed") }, "no 'Not yet confirmed' anywhere")
+
+        // The red X, the Available button and STOP are exactly as before.
+        XCTAssertEqual(view(vc, "assembly.OP-U.unit.icon")?.accessibilityLabel, "Not confirmed")
+        XCTAssertEqual((view(vc, "assembly.OP-U.unit.available") as? UIButton)?.accessibilityValue, "not confirmed")
+        XCTAssertEqual((view(vc, "assembly.OP-U.option.POPT-NOBKT.available") as? UIButton)?.accessibilityValue, "not confirmed")
+        XCTAssertTrue(view(vc, "assemblyReview.group.QLA-OP-U.gate")?.accessibilityLabel?.hasPrefix("STOP") == true)
+
+        // A confirmed row still says so.
+        XCTAssertTrue((label(vc, "assembly.OP-U.option.POPT-24.state") ?? "").hasPrefix("Available"), "confirmed presentation unchanged")
+        XCTAssertFalse(view(vc, "assembly.OP-U.option.POPT-24.state")?.isHidden ?? true)
+    }
 
     private func driverOrigin(_ product: String, enteredFrom: DeliveryWorkflowStage = .assemblyReview, isRevisit: Bool = false,
                               serverTrip: DriverStageServerState? = nil, observedAt: Date? = nil) -> ChecklistEntry.Origin {

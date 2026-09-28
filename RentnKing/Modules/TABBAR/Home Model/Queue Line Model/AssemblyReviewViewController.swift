@@ -121,7 +121,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         setNavigationBarFor(controller: self, title: "Assembly Review", isTransperent: true,
                             hideShadowImage: true, leftIcon: "icon_back", rightIcon: "", isDetailsScree: false,
                             leftActionHandler: { [weak self] in
-                                self?.navigationController?.popViewController(animated: true)
+                                self?.popToPreviousScreen()
                             })
 
         // Back from the checklist (or first arrival): cache + local decisions NOW …
@@ -505,6 +505,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         stateLine.numberOfLines = 0
         stateLine.attributedText = attr(subtitle ?? "", Palette.subtle, rFont(regular, 12))
         stateLine.accessibilityIdentifier = "\(idPrefix).state"
+        stateLine.isHidden = (subtitle ?? "").isEmpty
 
         var titleViews: [UIView] = [name]
         if identityAction != nil {
@@ -671,34 +672,64 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         switch stage {
         case .pending: return makeBadge("Pending", bg: .clear, text: Palette.amber, bordered: true)
         case .staged: return makeBadge("Staged", bg: Palette.green, text: .white, bordered: false)
-        case .inTransit: return makeBadge("In Transit", bg: Palette.cyan, text: .white, bordered: false)
-        case .equipmentDelivered: return makeBadge("Equipment Delivered", bg: Palette.subtle, text: .white, bordered: false)
+        case .inTransit: return backShortcut(makeBadge("In Transit", bg: Palette.cyan, text: .black, bordered: false))
+        case .equipmentDelivered: return backShortcut(makeBadge("Equipment Delivered", bg: Palette.subtle, text: .white, bordered: false))
         }
     }
+
+    /// The screen's one way back — the nav bar's arrow, and (after departure) the
+    /// In Transit / Equipment Delivered badges as a field shortcut to it. Navigation
+    /// only: nothing about the assembly, the trip or the checklist changes.
+    func popToPreviousScreen() {
+        navigationController?.popViewController(animated: CustomerSiteNavigation.animated(navigationController))
+    }
+
+    /// The badge keeps its look and its text; an invisible control over it (with a little
+    /// extra hit room around the edges) performs the same pop as the nav bar's arrow.
+    private func backShortcut(_ badge: UIView) -> UIView {
+        badge.isUserInteractionEnabled = true
+        badge.accessibilityTraits.insert(.button)
+        badge.accessibilityHint = "Returns to the previous screen"
+        (badge as? AssemblyPaddedLabel)?.hitInsets = Self.badgeHitInsets
+        let tap = AssemblyHitPaddedButton(type: .custom)
+        tap.hitInsets = Self.badgeHitInsets
+        tap.isAccessibilityElement = false   // the badge itself is the element; VoiceOver's tap lands here
+        tap.translatesAutoresizingMaskIntoConstraints = false
+        tap.addAction(UIAction { [weak self] _ in self?.popToPreviousScreen() }, for: .touchUpInside)
+        badge.addSubview(tap)
+        NSLayoutConstraint.activate([
+            tap.topAnchor.constraint(equalTo: badge.topAnchor), tap.bottomAnchor.constraint(equalTo: badge.bottomAnchor),
+            tap.leadingAnchor.constraint(equalTo: badge.leadingAnchor), tap.trailingAnchor.constraint(equalTo: badge.trailingAnchor),
+        ])
+        return badge
+    }
+
+    /// Extra hit room around a navigational badge (the drawn badge stays the same size).
+    private static let badgeHitInsets = UIEdgeInsets(top: -10, left: -10, bottom: -10, right: -10)
 
     /// The unit row's state line — always about the EFFECTIVE unit: a decision this
     /// phone made about it, else the server's acknowledgement for its episode, else
     /// "not yet confirmed" (a machine assigned on this phone starts unconfirmed).
-    private func confirmedText(unit member: AssemblyMember, effective: AssemblyPolicy.EffectiveEquipment, overlay: AssemblyLocalOverlay) -> String {
+    private func confirmedText(unit member: AssemblyMember, effective: AssemblyPolicy.EffectiveEquipment, overlay: AssemblyLocalOverlay) -> String? {
         if let local = overlay.unitDecision(product: member.orderProductUniqueId, equipmentUniqueId: effective.uniqueId) {
             return local.isPendingSync ? "\(local.state.title) · pending sync" : "\(local.state.title) · confirmed on this phone"
         }
         if effective.fromLocalSwitch {
-            return effective.pendingSync ? "Assigned on this phone · pending sync · not yet confirmed" : "Assigned on this phone · not yet confirmed"
+            // An unconfirmed row needs no helper copy (the red X and Available say it); what
+            // stays is the fact only this phone knows — the assignment made here.
+            return effective.pendingSync ? "Assigned on this phone · pending sync" : "Assigned on this phone"
         }
         guard member.availability.unit.equipmentUniqueId == nil || member.availability.unit.equipmentUniqueId == effective.uniqueId,
-              let state = member.availability.unit.state else { return "Not yet confirmed" }
+              let state = member.availability.unit.state else { return nil }
         let who = member.availability.unit.acknowledgedBy.map { " by \($0)" } ?? ""
         return state.title + who
     }
 
-    private func confirmedText(option: AssemblyProductOption, member: AssemblyMember, overlay: AssemblyLocalOverlay) -> String {
+    private func confirmedText(option: AssemblyProductOption, member: AssemblyMember, overlay: AssemblyLocalOverlay) -> String? {
         if let local = overlay.optionDecision(product: member.orderProductUniqueId, frozenOptionKey: option.uniqueId) {
             return local.isPendingSync ? "\(local.state.title) · pending sync" : "\(local.state.title) · confirmed on this phone"
         }
-        guard let state = option.availability.state else {
-            return option.included ? "Not yet confirmed · included with the order" : "Not yet confirmed"
-        }
+        guard let state = option.availability.state else { return nil }   // unconfirmed: the red X and Available say it
         let who = option.availability.acknowledgedBy.map { " by \($0)" } ?? ""
         let note = option.availability.note.map { " · \($0)" } ?? ""
         return state.title + who + note
@@ -1159,10 +1190,23 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
 /// Label with configurable content insets (chips / badges).
 final class AssemblyPaddedLabel: UILabel {
     var insets = UIEdgeInsets.zero
+    /// Negative insets widen the touch area beyond the drawn badge (navigational badges).
+    var hitInsets = UIEdgeInsets.zero
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.inset(by: hitInsets).contains(point)
+    }
     override func drawText(in rect: CGRect) { super.drawText(in: rect.inset(by: insets)) }
     override var intrinsicContentSize: CGSize {
         let s = super.intrinsicContentSize
         return CGSize(width: s.width + insets.left + insets.right, height: s.height + insets.top + insets.bottom)
+    }
+}
+
+/// The invisible control over a navigational badge; accepts touches in the same widened area.
+final class AssemblyHitPaddedButton: UIButton {
+    var hitInsets = UIEdgeInsets.zero
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.inset(by: hitInsets).contains(point)
     }
 }
 
