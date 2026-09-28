@@ -536,7 +536,9 @@ Mobile worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p6`, b
 | T12 | `db13d96` | `CustomerSiteNavigation`; Main Order mission bar + read-only Review Assembly; CheckList Deliv opens the checklist directly after departure; media carries the active cycle; product-scoped completion inputs; post-departure checklist blocks; every customer-site exit through the router; License/Terms → Main Order |
 | T13 | `9db7841` | the Return band: the leg's own media rule (`mediaRequirementMet`), Return exits, a Return upload falls back to a Return checklist |
 | T14 review fixes | `a83c578` | a recalled local departure never hollows out the mission's gate (`DriverMissionStage.queueOverlay`), the unit can change again after a recall, Main Order's checklist entry is judged for the mission line (multi-line orders), Return fallback asserted, minors |
-| T15 | (this commit) | P1–P16 in `docs/dispatch-offline-phase-6/PHYSICAL_ACCEPTANCE.md`; this record |
+| T15 | `0e023f9` | P1–P16 in `docs/dispatch-offline-phase-6/PHYSICAL_ACCEPTANCE.md`; this record |
+| closing review fix | `b35739b` | fuel / keys apply to the EFFECTIVE unit (closing review I-1): a switched unit's `requires_*` from the warmed fleet, unknown = ask, read at gate time; the columns rebuilt when the predicates change; +3 hosted tests |
+| closing docs | (this commit) | this record (closing reviews, deviations 7–8, the gate re-run at `b35739b`); P3 check line |
 
 ### Plan deviations (recorded as found)
 
@@ -546,6 +548,8 @@ Mobile worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p6`, b
 4. Every completion / reopen writer locks the row → the unit → the soft row; decisions and the write come from the locked row (`writeAgainstRow`).
 5. `Origin.Kind.driver` is `(orderProductUniqueId, enteredFrom, isRevisit)` as planned, and `Origin` additionally carries the opener's server copy of the trip so the review derives the stage from the same inputs (review C2).
 6. Offline candidates always ask a reason (the review has no ordered-product id).
+7. The availability delivered-check also refuses a line with a hard `equipment_id` (`QUEUE_ITEM_DELIVERED`), consistent with switch / reset and pinned by `test_a_hard_assigned_line_is_delivered_for_availability_too` — a behaviour change outside the lock (closing review, backend M4).
+8. Screen 2 reads a switched unit's fuel / key predicates from the warmed equipment list (`Equipment\ListResource` carries `requires_*`) because the candidates rows and the `current_equipment` blocks do not carry them yet (closing review, backend M3); a unit the phone knows nothing about asks both — including a unit added or changed since the fleet was last warmed (≤ 12 h).
 
 ### Task 14 probes
 
@@ -568,7 +572,9 @@ Ten rules inverted one at a time, each caught by the named suite, each restored 
 
 Every task commit went to a fresh independent reviewer; every Critical / Important was fixed before the next task started (dispositions, Minors and Nits in `~/Documents/kabba-dispatch-offline-p6-evidence/driver-flow/REVIEW_LOG.md`). Criticals found and fixed: the checklist block's `is_delivered` used as leg completion (would have killed Start Delivery after a synced Arrived), and the review deriving its stage from fewer inputs than its opener (a recall would have locked it). Importants found and fixed: the D5 identity hole through the server copy; the deadlock-prone lock orders (`completeDelivery`, `reopenDelivery`, the mobile signed completion); stale-copy decisions in `completeDelivery`; `restore` on an all-null server block; D7 photo carve-out; the offline reason rule.
 
-### Closing gate (2026-09-27, backend `5949ea083`, mobile `a83c578` + this docs commit)
+Whole-branch closing reviews (fresh reviewers, both repos, after the docs commit): backend `27cc10ed9..5949ea083` — no Critical / Important; 5 Minors (a legacy client's `Ready to Go` on a departed row rewinds the status without a recall; the reset endpoint's `DELIVERY_DEPARTED` body has no `current_equipment` as the contract doc says; `requires_*` absent from the candidates / `current_equipment` / presenter equipment blocks; deviation 7; the pre-existing `CustomerChecklists\RemoveController` unit → row order) and nits recorded. Mobile `7c292d0..0e023f9` — no Critical; one Important, I-1 (fuel / keys applicability judged on the row's unit after a switch), fixed in `b35739b` and re-reviewed by a fresh reviewer (no Critical / Important; 2 Minors — a one-run-loop window between an engine change and the deferred refresh in which a Load Map & Go tap judges the new unit against columns built for the old one, hardening = refresh before reading the gate at tap; the whole warmed fleet is decoded on the main thread on every memo miss while a switch is pending — and 3 nits recorded); 4 Minors (the no-unit exception ignores this phone's pending switch; the legacy online Submit path can pop to the completed checklist; the Orders list beneath Order Details no longer learns of a saved license; the hosted `review(go:)` fixture precondition is unasserted) and 5 nits recorded. Every disposition in REVIEW_LOG.md.
+
+### Closing gate (2026-09-27, backend `5949ea083`, mobile `b35739b` + this docs commit; the mobile gates re-run after the I-1 fix)
 
 Backend, one directory at a time (`PHP_INI_SCAN_DIR=":/Users/garyjezorski/.config/kabba-php-ini" php artisan test tests/Feature/<dir>`):
 
@@ -588,8 +594,8 @@ Mobile:
 
 | Gate | Result |
 |---|---|
-| `xcrun swift test` (KabbaSyncCore) | 616 passed (baseline 551 → 616) |
-| Hosted `RentnKingHostedTests` (signed, simulator `15352B6A-…`) | 116 passed, 0 skipped (baseline 77; the Phase 4 classes that were silently skipping 8 tests now run) |
+| `xcrun swift test` (KabbaSyncCore) | 616 passed (baseline 551 → 616; unchanged by `b35739b`) |
+| Hosted `RentnKingHostedTests` (signed, simulator `15352B6A-…`) | 119 passed, 0 skipped (baseline 77; the Phase 4 classes that were silently skipping 8 tests now run; +3 for the I-1 fix) |
 | Simulator build (`CODE_SIGNING_ALLOWED=NO`) | BUILD SUCCEEDED |
 | No-polling grep gate (P8) | exactly the allowed set (CLWaterWave `CADisplayLink`, SyncEngine retry timer, KabbaSync BG refresh + 1 s checks, SyncStatusUI toasts, DispatchOfflineSync deadline; backend: the one `dispatch:offline-wake` schedule line); this branch added no `asyncAfter` under `Sync/` and removed Screen 2's 1.5 s Maps delay |
 | Contract parity | `diff -r RentnKingTests/KabbaSyncCore/Fixtures tests/Fixtures/mobile-contract` → identical |

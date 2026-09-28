@@ -275,6 +275,7 @@ For each line, Claude changes a mission and waits a minute. You then do the one 
 - [ ] Tap the unit's name again → pick the **other** spare unit → a **reason** is asked. Pick one.
 - [ ] Tap **Available** on the unit (and options) → **GO** → Continue to Driver Checklist.
 - [ ] Fuel and Keys are **blank** (the unit changed); Call is as you left it.
+- [ ] The Fuel / Keys columns follow the **new** unit, not the one the row started with: when Claude names a spare whose needs differ (a keyed diesel unit for an electric line, or the reverse), the Driver Checklist asks exactly what the new unit needs — both, one, or neither (then the call alone enables Load Map & Go).
 - [ ] **CHECKPOINT.** Claude confirms the server shows the new unit assigned, the old confirmation retired, the old checklist cycle superseded.
 
 ### P4 — Review Assembly, before and after departure (mission P4)
