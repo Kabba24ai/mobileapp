@@ -160,8 +160,24 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         list.btnStatusCallClicked(button)
     }
 
+    /// This phone's durable Available acknowledgement for a unit on the mission line.
+    private func availabilityOp(unit: Unit) -> SyncOperation {
+        SyncOperation(type: AssemblyOperationBuilder.availabilityType, capturedAt: Date(),
+                      identity: SyncBusinessIdentity(orderProductUniqueId: productId, equipmentUniqueId: unit.id),
+                      payload: .object(["order_product_unique_id": .string(productId),
+                                        "subject_type": .string(AvailabilitySubject.unit.rawValue),
+                                        "subject_key": .string(unit.id),
+                                        "state": .string(AvailabilityState.available.rawValue)]))
+    }
+
+    /// A unit as the warmed equipment list (the fleet the review offers offline) knows it.
+    private func machine(_ unit: Unit, requiresFuel: Bool, requiresKeys: Bool) throws -> MachineModel {
+        try XCTUnwrap(MachineModel(JSON: ["unique_id": unit.id, "equipment_name": unit.name, "equipment_id": unit.tag,
+                                          "requires_fuel_check": requiresFuel, "requires_key_check": requiresKeys]))
+    }
+
     private func screen2(_ row: SchedulesModel, ops: [SyncOperation] = [], review: AssemblyReviewEnvelope? = nil,
-                         observedAt: Date? = nil) throws -> DriverChecklistViewController {
+                         observedAt: Date? = nil, fleet: [MachineModel] = []) throws -> DriverChecklistViewController {
         let storyboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         let vc = try XCTUnwrap(storyboard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController)
         vc.objDispatch = row
@@ -172,6 +188,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         vc.checklistType = row.is_delivered == false ? "delivery" : "pickup"
         vc.operationsSnapshot = { ops }
         vc.cachedAssemblyReview = { _ in review }
+        vc.warmedEquipment = { fleet }            // never the device's own equipment list
         vc.loadViewIfNeeded()
         vc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         vc.view.layoutIfNeeded()
@@ -348,6 +365,69 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertFalse(vc.btnReadytoGo.isEnabled)
         select(vc.callCustomerSegment, 1)
         XCTAssertTrue(vc.btnReadytoGo.isEnabled, "the call alone, with GO")
+    }
+
+    // MARK: - Fuel / keys apply to the EFFECTIVE unit (D2 / D5 / D11; closing review I-1)
+
+    func testASwitchToAUnitNeedingFuelAndKeysAsksThemEvenWhenTheRowsUnitNeededNeither() throws {
+        // The row's unit is electric with a keypad (the yard asks nothing); on this phone the
+        // driver switched to a keyed diesel unit of the same category and acknowledged it
+        // Available. Screen 2 asks fuel and keys for THAT unit, and binds the answers to it.
+        let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false),
+                             ops: [switchOp(to: unitB), availabilityOp(unit: unitB)], review: try review(go: true),
+                             fleet: [try machine(unitB, requiresFuel: true, requiresKeys: true)])
+        XCTAssertNotNil(vc.fuelSegment.superview, "the replacement's fuel sign-off applies, not the row's")
+        XCTAssertNotNil(vc.keysSegment.superview, "the replacement's key sign-off applies, not the row's")
+        select(vc.callCustomerSegment, 1)
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled, "the call alone must not pass for a unit that needs fuel and keys")
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel)
+        select(vc.fuelSegment, 1)
+        select(vc.keysSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+
+        let stored = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: DriverChecklistLocalState.legDelivery)))
+        XCTAssertEqual(stored?.equipmentUniqueId, unitB.id, "the answers bind to the replacement (D5)")
+        XCTAssertEqual(stored?.fuel, FuelAnswer.full.rawValue)
+        XCTAssertEqual(stored?.keys, KeysAnswer.withMachine.rawValue)
+    }
+
+    func testASwitchToAUnitThePhoneKnowsNothingAboutAsksBothSignOffs() throws {
+        // The replacement is not in the warmed list: unknown = ask; a silent skip is never safe.
+        let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false),
+                             ops: [switchOp(to: unitB), availabilityOp(unit: unitB)], review: try review(go: true), fleet: [])
+        XCTAssertNotNil(vc.fuelSegment.superview)
+        XCTAssertNotNil(vc.keysSegment.superview)
+        select(vc.callCustomerSegment, 1)
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel)
+    }
+
+    func testTheColumnsAndTheGateFollowASwitchMadeWhileTheScreenIsOpen() throws {
+        // The row's unit needs both. The driver goes to Review Assembly and switches to an
+        // electric keypad unit; back on Screen 2 the columns are gone and the call alone passes.
+        let vc = try screen2(try row(evidence: false), review: try review(go: true),
+                             fleet: [try machine(unitB, requiresFuel: false, requiresKeys: false)])
+        XCTAssertNotNil(vc.fuelSegment.superview)
+        select(vc.fuelSegment, 0)                       // Not Full — recorded for the row's unit
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+
+        vc.operationsSnapshot = { [self.switchOp(to: self.unitB), self.availabilityOp(unit: self.unitB)] }
+        vc.refreshDerivedState()                        // viewWillAppear / the engine's change notice
+        XCTAssertNil(vc.fuelSegment.superview, "the electric replacement asks no fuel question")
+        XCTAssertNil(vc.keysSegment.superview)
+        XCTAssertEqual(vc.unitIdentityLabel.text, "\(unitB.name) · #\(unitB.tag)")
+        select(vc.callCustomerSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "the call alone, with GO, for a unit needing neither")
+
+        // The switch is rejected and retired (no durable local op): the row's unit asks again,
+        // and unit A's earlier Not Full never comes back pre-filled (D5).
+        vc.operationsSnapshot = { [] }
+        vc.refreshDerivedState()
+        XCTAssertNotNil(vc.fuelSegment.superview)
+        XCTAssertNotNil(vc.keysSegment.superview)
+        XCTAssertEqual(vc.fuelSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "a replaced unit starts unanswered")
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel)
     }
 
     func testReturnHasNoFuelKeysAssemblyTermOrReviewAssembly() throws {

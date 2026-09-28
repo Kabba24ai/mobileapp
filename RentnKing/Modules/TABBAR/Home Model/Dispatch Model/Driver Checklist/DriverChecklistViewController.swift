@@ -124,11 +124,20 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     var isReachable: () -> Bool = { NetworkReachabilityManager()?.isReachable == true }
     var openMaps: (String, @escaping (Bool) -> Void) -> Void = { address, done in openAddressInMap(address: address, completion: done) }
     var presentNoticeOverride: ((UIAlertController) -> Void)?
+    /// The warmed equipment list — the fleet the review offers offline, and where a unit this
+    /// phone switched to is looked up for its fuel / key predicates.
+    var warmedEquipment: () -> [MachineModel] = { getEquipmentData() }
 
-    // Whether each toggle is shown — driven by the equipment's is_fuel / is_key flags.
-    // Shown when the flag is true (or missing); hidden only when explicitly false.
+    // Whether each toggle is shown — the EFFECTIVE unit's fuel / key predicates
+    // (`effectiveUnitApplicability`); the columns are rebuilt whenever they change.
     private var showFuelSegment = true
     private var showKeysSegment = true
+    /// The built fuel / keys row and the predicates it was built for (nil = not built yet).
+    private var fuelKeysRow: UIStackView?
+    private var fuelKeysBuiltFor: FuelKeysApplicability?
+    /// The last applicability derived, keyed by the effective unit's id — the warmed fleet
+    /// is decoded only when the effective unit changes, never on every tick.
+    private var applicabilityMemo: (unitId: String, applies: FuelKeysApplicability)?
 
     private let callDeliveryCustomerSubItems = [
         "Verify delivery address",
@@ -191,13 +200,19 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     /// made on the review rebinds the fuel / keys answers, D5) and the gate.
     func refreshDerivedState() {
         guard self.isViewLoaded else { return }
+        self.applicabilityMemo = nil
         self.updateUnitHeader()
         if !passedChecklistStage && !alreadyArrived {
-            // Re-run the restore against the effective unit; what the server has
-            // accepted is unchanged by this, so the partial-sync baseline stays.
+            // The fuel / keys columns follow the EFFECTIVE unit's predicates (a switch on
+            // the review can bring a keyed diesel unit onto an electric line); then re-run
+            // the restore against that unit. What the server has accepted is unchanged by
+            // this, so the partial-sync baseline stays.
+            var rebuilt = false
+            if self.checklistType != "pickup" { rebuilt = self.setupFuelKeysSegments() }
             let synced = self.syncedSnapshot
             self.restoreChecklistState()
             self.syncedSnapshot = synced
+            if rebuilt { self.setupHeader() }
         }
         self.updateReadyToGoButton()
     }
@@ -649,9 +664,16 @@ extension DriverChecklistViewController {
         }
     }
 
-    /// Delivery only — replaces the fuel/keys dropdowns with two labelled toggles side by side.
-    private func setupFuelKeysSegments() {
-        guard fuelSegment.superview == nil else { return }
+    /// Delivery only — replaces the fuel/keys dropdowns with two labelled toggles side by
+    /// side, built for the EFFECTIVE unit's predicates and rebuilt when they change (a
+    /// switch on Review Assembly rebinds which sign-offs apply, D2 / D5 / D11).
+    /// Returns true when the columns were (re)built.
+    @discardableResult
+    private func setupFuelKeysSegments() -> Bool {
+        let applies = self.effectiveUnitApplicability
+        guard fuelKeysBuiltFor != applies else { return false }
+        fuelKeysBuiltFor = applies
+        tearDownFuelKeysSegments()
 
         // Hide the original dropdowns / titles
 //        self.txtDoubleCheck.isHidden = true
@@ -661,12 +683,11 @@ extension DriverChecklistViewController {
 //        self.viewkeys.isHidden = true
 //        self.con_keys.constant = 0
 
-        // Ask only what the yard's own predicate requires (requires_fuel_check /
-        // requires_key_check, D5); a cached row that predates it falls back to the
-        // display flag; unknown = ask (a silent skip is never safe).
-        let unit = self.objDispatch?.objEquipment
-        self.showFuelSegment = DriverChecklistGate.fuelRequired(requiresFuelCheck: unit?.requires_fuel_check, isFuel: unit?.is_fuel)
-        self.showKeysSegment = DriverChecklistGate.keysRequired(requiresKeyCheck: unit?.requires_key_check, isKey: unit?.is_key)
+        // Ask only what the yard's own predicate requires of the EFFECTIVE unit
+        // (requires_fuel_check / requires_key_check, D5); a copy that predates it falls
+        // back to the display flag; unknown = ask (a silent skip is never safe).
+        self.showFuelSegment = applies.fuel
+        self.showKeysSegment = applies.keys
 
         // If the equipment has neither fuel nor keys, hide the whole container.
         if !showFuelSegment && !showKeysSegment {
@@ -675,7 +696,7 @@ extension DriverChecklistViewController {
             self.strDoubleCheck = ""
             self.strKeys = ""
             self.updateReadyToGoButton()
-            return
+            return true
         }
 
         // Host the labelled segments side-by-side; transparent container, no border
@@ -714,6 +735,7 @@ extension DriverChecklistViewController {
         row.spacing = 12
         row.translatesAutoresizingMaskIntoConstraints = false
         self.viewDoubleCheck.addSubview(row)
+        self.fuelKeysRow = row
         NSLayoutConstraint.activate([
             row.leadingAnchor.constraint(equalTo: viewDoubleCheck.leadingAnchor, constant: 16),
             row.trailingAnchor.constraint(equalTo: viewDoubleCheck.trailingAnchor, constant: -16),
@@ -730,6 +752,7 @@ extension DriverChecklistViewController {
 //        }
 
         self.updateReadyToGoButton()
+        return true
     }
 
     private func makeSegmentColumn(title: String, segment: UISegmentedControl) -> UIStackView {
@@ -742,7 +765,9 @@ extension DriverChecklistViewController {
         lbl.numberOfLines = 1
 
         styleChecklistSegment(segment)
-        segment.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        if !segment.constraints.contains(where: { $0.firstItem === segment && $0.firstAttribute == .height }) {
+            segment.heightAnchor.constraint(equalToConstant: 32).isActive = true   // once; the control outlives a rebuild
+        }
 
         let column = UIStackView(arrangedSubviews: [lbl, segment])
         column.axis = .vertical
@@ -853,12 +878,13 @@ extension DriverChecklistViewController {
     /// ∧ (keys n/a ∨ With Machine) — every term explicit, no default passes.
     private var gateDecision: DriverChecklistGateDecision {
         let checks = isDeliveryLeg ? callDeliveryCustomerChecks : callReturnCustomerChecks
+        let applies = self.effectiveUnitApplicability   // judged on the EFFECTIVE unit, at gate time
         return DriverChecklistGate.evaluate(DriverChecklistGateInputs(
             isDeliveryLeg: isDeliveryLeg,
             call: CallOutcome(callCustomer: self.strCallCustomer, ticks: checks),
-            fuelRequired: isDeliveryLeg && self.showFuelSegment,
+            fuelRequired: isDeliveryLeg && applies.fuel,
             fuel: FuelAnswer(rawValue: self.strDoubleCheck),
-            keysRequired: isDeliveryLeg && self.showKeysSegment,
+            keysRequired: isDeliveryLeg && applies.keys,
             keys: KeysAnswer(rawValue: self.strKeys),
             assemblyReady: isDeliveryLeg ? self.assemblyGate(self.operationsSnapshot())?.ready : nil))
     }
@@ -1276,6 +1302,43 @@ extension DriverChecklistViewController {
         }
         guard let unit = self.objDispatch?.objEquipment, let id = unit.unique_id, !id.isEmpty else { return nil }
         return EffectiveUnit(id: id, name: unit.equipment_name, tag: unit.equipment_id)
+    }
+
+    /// Which of the fuel / keys sign-offs apply (D2 / D11) — to the EFFECTIVE unit.
+    struct FuelKeysApplicability: Equatable {
+        let fuel: Bool
+        let keys: Bool
+    }
+
+    /// The row's own copy answers while the mission is on the row's unit; a unit this phone
+    /// switched to is looked up in the warmed fleet (the list the review offered it from,
+    /// which carries the yard's predicates); a unit the phone knows nothing about asks both —
+    /// a silent skip is never safe. Memoised per effective unit; `refreshDerivedState` forgets.
+    var effectiveUnitApplicability: FuelKeysApplicability {
+        let rowUnit = self.objDispatch?.objEquipment
+        let effectiveId = self.effectiveUnit?.id ?? ""
+        if let memo = self.applicabilityMemo, memo.unitId == effectiveId { return memo.applies }
+        var unit = rowUnit
+        if !effectiveId.isEmpty, effectiveId != (rowUnit?.unique_id ?? "") {
+            unit = self.warmedEquipment().first { $0.unique_id == effectiveId }
+        }
+        let applies = FuelKeysApplicability(
+            fuel: DriverChecklistGate.fuelRequired(requiresFuelCheck: unit?.requires_fuel_check, isFuel: unit?.is_fuel),
+            keys: DriverChecklistGate.keysRequired(requiresKeyCheck: unit?.requires_key_check, isKey: unit?.is_key))
+        self.applicabilityMemo = (effectiveId, applies)
+        return applies
+    }
+
+    /// Removes the built fuel / keys row so `setupFuelKeysSegments` can build it again for
+    /// another unit; the controls come back unanswered (nothing is ever preselected).
+    private func tearDownFuelKeysSegments() {
+        fuelKeysRow?.removeFromSuperview()
+        fuelKeysRow = nil
+        for segment in [fuelSegment, keysSegment] {
+            segment.removeTarget(self, action: nil, for: .valueChanged)
+            segment.removeFromSuperview()
+            segment.selectedSegmentIndex = UISegmentedControl.noSegment
+        }
     }
 
     /// The driver's trip stage for this product × leg — durable local steps over the row's server copy.
