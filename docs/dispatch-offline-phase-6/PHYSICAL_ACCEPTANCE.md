@@ -239,6 +239,119 @@ For each line, Claude changes a mission and waits a minute. You then do the one 
 
 ---
 
+## Driver Delivery Process Flow — P1 to P16 (added 2026-09-27, do these after A–P above)
+
+**Same rules as above.** Test server only. Never the Login screen. "Fully offline" = Airplane Mode ON and Wi-Fi OFF, and **stay offline until Claude says**. Every scenario uses a mission Claude adds and names (P1, P2 …). Evidence goes under `~/Documents/kabba-dispatch-offline-p6-evidence/driver-flow/`. The design behind these steps is `docs/superpowers/specs/2026-09-27-driver-delivery-process-flow-design.md` (§16).
+
+**New words you will see:**
+- **Review Assembly** — a button on the Driver Checklist (and on Order Details after Arrived). It opens the Assembly Review. Before you leave the yard you can change things there; after Load Map & Go it is read-only and tapping a row explains why.
+- **Load Map & Go** stays grey until the assembly says **GO**, the call is recorded (**Confirmed** with every box ticked, or **No Answer**), **Fuel = Full** and **Keys = With Machine**. A sentence under the button tells you what is still missing. Nothing is pre-selected any more.
+- **Service Offline** — the message Load Map & Go shows when there is no signal: the status is saved and will sync; the map button stays for a retry.
+
+---
+
+### P1 — First delivery, online, start to finish (mission P1)
+- [ ] Phone online. Dispatch → mission P1 → **Start Delivery**. The **Assembly Review** opens (not the Driver Checklist). It says **STOP**. **Screenshot.**
+- [ ] Tap **Available** on the unit and on every option. It says **GO**. **Continue to Driver Checklist** becomes filled. Tap it.
+- [ ] On the Driver Checklist nothing is selected: Call Customer, Fuel and Keys all blank. Load Map & Go is grey and a sentence says what is missing. **Screenshot.**
+- [ ] The header shows the unit as **"Name · #TAG"** and a **Review Assembly** button.
+- [ ] Tap **Confirmed** and tick every box → the sentence changes to Fuel. Tap **Full** → Keys. Tap **With Machine** → Load Map & Go turns green.
+- [ ] Tap **Load Map & Go**. Apple Maps opens. Come back to the app: it shows **On My Way** with the Arrived button. You see the "Pending Sync → Synced" toast.
+- [ ] Tap **Arrived**. **Order Details** opens. The bar under the title reads **"Delivery Arrived · Name · #TAG"** with a **Review Assembly** button. **Screenshot.**
+- [ ] Do **License**, then **Terms**. Each returns to Order Details.
+- [ ] Tap **CheckList Deliv**. The equipment checklist opens **directly** (no Assembly Review). Answer it and **Save**. The **Video** screen opens. Record a video and submit → back on Order Details.
+- [ ] **Complete Delivery**. It should not ask for an override. Dispatch shows.
+- [ ] **CHECKPOINT.** Claude confirms on the test server: On My Way once, Arrived once, completion once, media once, terms once, and the unit's id stored with the fuel/keys answers.
+
+### P2 — Force-quit and come back at every stage (mission P2)
+- [ ] Start Delivery → Assembly Review → confirm everything (GO). **Do not tap Continue.** Force-quit. Reopen, Start Delivery again → the review opens again at GO. Tap Continue.
+- [ ] On the Driver Checklist tap **No Answer** and **Full**. Force-quit. Reopen, Start Delivery → the Driver Checklist opens with No Answer and Full still selected.
+- [ ] Tap **With Machine** → **Load Map & Go** (dismiss Maps). Force-quit. Reopen, Start Delivery → the Driver Checklist opens **On My Way**.
+- [ ] Tap **Arrived**. Force-quit. Reopen, Start Delivery → **Order Details opens directly**. **Screenshot.**
+- [ ] **CHECKPOINT.** Claude confirms no step was sent twice.
+
+### P3 — Change the unit before leaving (mission P3, Claude names two spare units)
+- [ ] Start Delivery → Assembly Review. Tap the unit's name → the picker opens. Pick the **direct match** spare unit Claude named → **no reason** is asked. The row shows the new unit, unconfirmed, **STOP**.
+- [ ] Tap the unit's name again → pick the **other** spare unit → a **reason** is asked. Pick one.
+- [ ] Tap **Available** on the unit (and options) → **GO** → Continue to Driver Checklist.
+- [ ] Fuel and Keys are **blank** (the unit changed); Call is as you left it.
+- [ ] **CHECKPOINT.** Claude confirms the server shows the new unit assigned, the old confirmation retired, the old checklist cycle superseded.
+
+### P4 — Review Assembly, before and after departure (mission P4)
+- [ ] Start Delivery → review → GO → Continue. On the Driver Checklist tap **Review Assembly**. Change nothing. Tap **Back to Driver Checklist**. You are back on the same Driver Checklist with your answers.
+- [ ] Record the call, Full, With Machine → **Load Map & Go** (dismiss Maps). Tap **Review Assembly** again → every row is grey, no Change/Assign button, no Continue. Tap a row → a message explains the truck has left. **Screenshot.** Back.
+- [ ] Tap **Arrived** → Order Details → tap **Review Assembly** in the bar → same read-only review. Back.
+- [ ] **CHECKPOINT.** Claude confirms no new operations were created by the review visits.
+
+### P5 — Fully offline first start (mission P5 — never open it online)
+- [ ] Phone online on Dispatch. Claude adds P5. Wait one minute (it downloads). **Do not open it.**
+- [ ] Go **fully offline**. Force-quit, reopen. Start Delivery → the Assembly Review opens from the saved copy ("Offline · showing the saved assembly"). Confirm everything → GO → Continue.
+- [ ] Record the call, Full, With Machine → **Load Map & Go**. You see **Service Offline** ("…saved on this phone and will sync…"). The screen shows On My Way. **Screenshot.**
+- [ ] **Stay offline until Claude says.** **CHECKPOINT** (Claude copies the phone's saved data).
+- [ ] Wi-Fi on. Within a minute Settings says **All synced**. **CHECKPOINT.** Claude confirms each operation reached the server exactly once.
+
+### P6 — Offline switch, confirm, depart, then reconnect (mission P6)
+- [ ] Online: let P6 download. **Fully offline.** Start Delivery → review. Tap the unit's name → the picker shows the saved fleet list for that category. Pick a spare unit → a message warns its **checklist needs service**; tap **Switch**; give a reason if asked.
+- [ ] Tap **Available** on the new unit and options → GO → Continue → call, Full, With Machine → **Load Map & Go** → Service Offline.
+- [ ] **Stay offline until Claude says.** Settings shows **3 pending** (switch, confirm, On My Way). **Screenshot.**
+- [ ] Wi-Fi on. **CHECKPOINT — the exact drain check:** Claude reads the server log and confirms the three requests arrived in this order — **switch → availability → On My Way** — all accepted (200), **none** Needs Attention, and the server's assignment is the new unit. Then Claude opens the new unit's checklist context on the phone (it loads now that there is service).
+
+### P7 — The trap that started all this (mission P7, online)
+- [ ] Online. Start Delivery → review → GO → Continue → call, Full, With Machine → Load Map & Go → **Arrived**. Wait for **All synced**.
+- [ ] Force-quit. Reopen. Start Delivery → Order Details. Tap **CheckList Deliv** → the equipment checklist opens **directly**; the Assembly Review never shows. **Screenshot.**
+- [ ] Answer and **Save** → Video → record → submit → back on Order Details (not the review). **Complete Delivery.**
+- [ ] **CHECKPOINT.**
+
+### P8 — The call (mission P8)
+- [ ] Start Delivery → GO → Continue → **Full**, **With Machine**, leave the call blank → Load Map & Go stays grey; the sentence says to record the call.
+- [ ] Tap **Confirmed**, tick all but one box → still grey.
+- [ ] Tap **No Answer** → green. Tap **Load Map & Go**.
+- [ ] **CHECKPOINT.** Claude confirms the No-Answer text was recorded **once** on the test server (outbound texting is disabled there).
+
+### P9 — Fuel and Keys (missions P9a, P9b — P9b's unit needs neither fuel nor keys)
+- [ ] P9a: GO → Continue → No Answer → **Not Full** → grey with the fuel sentence. **Full** + **Missing** → grey with the keys sentence. **Full** + **With Machine** → green. **Screenshot of each.**
+- [ ] P9b: GO → Continue → the Fuel and Keys columns are **not shown**. **No Answer** alone turns Load Map & Go green.
+- [ ] **CHECKPOINT.**
+
+### P10 — The office changes the unit while you are on the Driver Checklist (mission P10)
+- [ ] Online. Start Delivery → GO → Continue → call, Full, With Machine → **do not** tap Load Map & Go. Tell Claude "ready for P10".
+- [ ] Claude reassigns the unit on the test server. Pull back to Dispatch and Start Delivery again (or wait for the refresh).
+- [ ] Load Map & Go is grey; the sentence says to confirm the assembly; **Review Assembly** → the new unit is unconfirmed (STOP). Tap Available → GO → Back.
+- [ ] Fuel and Keys are asked again for the new unit. Answer them → green.
+- [ ] **CHECKPOINT.**
+
+### P11 — Return regression (mission P11, a Return)
+- [ ] Start Return → the Driver Checklist opens directly (no Assembly Review, **no Review Assembly button**, **no Fuel/Keys**). The call is blank and Load Map & Go is grey. Tap **No Answer** → green.
+- [ ] Load Map & Go → **Arrived** → Order Details → Return checklist → Video (if asked) → **Complete**.
+- [ ] **CHECKPOINT.** Claude confirms the Return looks exactly as before except the explicit call.
+
+### P12 — Nothing can change the unit after Load Map & Go (mission P12)
+- [ ] Start Delivery → GO → Continue → call, Full, With Machine → **Load Map & Go**.
+- [ ] Try to change the unit from each of these: **Review Assembly** on the Driver Checklist (rows grey); **Order Details → CheckList Deliv → tap the unit** (refused: "already on its way"); the **Queue Line** card for this order (grey); the **Orders** list → this order → its Assembly Review (grey).
+- [ ] **CHECKPOINT.** Claude confirms the server's assignment never changed.
+
+### P13 — Same, after Arrived (mission P13)
+- [ ] Repeat P12's steps, but tap **Arrived** first and start each attempt from **Order Details** and its **Review Assembly**.
+- [ ] **CHECKPOINT.**
+
+### P14 — The office cannot change it either (mission P14 — Claude drives the web pages)
+- [ ] Start Delivery → … → **Load Map & Go**. Tell Claude "P14 On My Way".
+- [ ] Claude tries, on the test server's admin pages: **Dispatch** (assign), **Order Details** (assign, remove, assign-and-complete with a *different* unit), **Schedules**, **Schedule Assignment**, **Schedule Conflicts**. Each is refused. Assign-and-complete with the **same** unit still completes.
+- [ ] Tap **Arrived** (use a second mission if the first was completed). Tell Claude "P14 Arrived". Claude repeats the five pages.
+- [ ] **CHECKPOINT.**
+
+### P15 — A legitimate recall (mission P15 — Claude performs the office action)
+- [ ] Start Delivery → … → **Load Map & Go** → **Arrived**. Tell Claude "P15 arrived".
+- [ ] Claude recalls the trip on the test server: **Order Details → the line's Delivery Status → Pending** (the approved recall door; Reschedule is refused at Arrived by design).
+- [ ] Pull Dispatch to refresh. Start Delivery → the **Assembly Review** opens, editable again. Change the unit, tap Available → GO → Continue → Fuel and Keys are asked again → **Load Map & Go**.
+- [ ] **CHECKPOINT.** Claude confirms the lock released (`is_arrived` cleared on the feed) and the second On My Way was recorded once.
+
+### P16 — The yard is unchanged (any Queue Line card)
+- [ ] Queue Line → a card → Assembly Review → **Continue to Checklist** → answer → **Save** → Video → submit → you are back on the **Assembly Review**.
+- [ ] **CHECKPOINT.**
+
+---
+
 ## When Phase 6 is finished
 
 - [ ] Settings › Sync Status says **All synced**, and **0 need attention** (Claude helps discard test leftovers).

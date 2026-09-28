@@ -504,4 +504,94 @@ In scope: everything in the file map. Out of scope: the web writer refactor, the
 
 ## Execution record
 
-_(filled task by task: date, task, commit SHA, focused test result, regression counts, probes, review notes)_
+Executed 2026-09-27 (one session, subagent-driven, task by task, a fresh independent reviewer per commit; LOCAL ONLY — nothing pushed, merged, deployed; production never contacted; the flag stays off; no version bump, archive or upload).
+
+### Commits
+
+Backend worktree `/Users/garyjezorski/Documents/kabba2_AI-dispatch-offline`, branch `feature/dispatch-offline-phase-6` (from `27cc10ed9`):
+
+| Task | Commit | Content |
+|---|---|---|
+| T1 | `541e25de0` | `DeliveryDepartureLock` (predicate, guard, `recallFields()`), `DeliveryDepartureLockedException`, envelope 409 + corrective action, `ApiErrorCode::DeliveryDeparted` |
+| T2 | `e69e3f8f3` | switch / reset / availability guarded; offline drain test (switch → availability → On My Way) |
+| T3 | `ff6bd722c` | web writers (Schedules assign, Orders assign-and-complete, Remove, completeDelivery backstop, AutoAssign skip); writer-inventory pin |
+| T4 | `4b6f7cfd0` | recall paths release the lock (`recallFields()`): reopenDelivery, CustomerChecklists Remove, SyncOnScheduleUpdate, Reschedule, Reorder |
+| review fixes | `c2c6978b4`, `5346cd883`, `0995463ae` | T1–T4 review findings; lock order (switch locks the row first), locked re-checks, the inventory pin as a chain walk |
+| T5 | `862ed2381` | D5 contract: `equipment_unique_id` on the driver checklist + feed, `requires_fuel_check` / `requires_key_check`, docs, 4 shape-changed fixtures |
+| review fixes | `7053950b3`, `c6174dbc9`, `f311bc133` | a new unit identity retires the fuel/keys answers it does not restate (D5 hole); completion writers lock the row before the unit; reopen locks first; decisions and the write from the locked row; null identity = omitted |
+| review notes | `5949ea083` | lock-order comments; Assign & Complete locks the unit right after the row; docblock order; null-identity block placement |
+
+Mobile worktree `/Users/garyjezorski/Documents/mobileapp-dispatch-offline-p6`, branch `feature/dispatch-offline-phase-6` (from `7c292d0`):
+
+| Task | Commit | Content |
+|---|---|---|
+| T7 | `e78e73a` (+ `7324ffe`) | `DeliveryWorkflowStage` / `Routing` / `Evidence`, whole-arrival `DriverStageServerState`, `equipmentUniqueId` on the v2 record; `DriverChecklistRouting` retired |
+| docs | `c0d5272` | spec/plan amendment: the Arrived recall is Delivery Status → Pending (A3) |
+| T8 | `c585da0` | `DriverChecklistGate`, unit-bound `restore`, app models, synced fixtures |
+| T9 | `0405e63` | `PreparationPolicy.block(for:tripStage:)`, `AssemblyPolicy.driverReadOnly` / `gate(forMission:)`, `CustomerSiteRouter`, `MediaRequirementPolicy`, `LoadMapAndGoDecision`, evaluator D7 / product scoping |
+| review fixes | `64930fa` | empty server copy restores nothing; video-only order evidence (D7); License/Terms → Main Order at every stage; the two Phase 4 hosted classes read ids from the synced fixture (8 tests were silently skipping) |
+| T10 | `dd34642` | Dispatch routes by stage; the Driver Checklist: nothing preselected, the explicit gate + blocker sentence, `requires_*` columns, unit header, Review Assembly, `equipment_unique_id` on every save, Load Map & Go records then Maps / Service Offline; answers-only row copy |
+| T11 | `0f853ec` | `DriverMissionStage` (one builder); Assembly Review driver origin (Continue / Back to Driver Checklist, read-only after departure with the lock explanation, offline candidates from the warmed fleet with the needs-service warning) |
+| review fixes | `009dbf4` | the ROW's leg flag (the checklist block's `is_delivered` is the Arrived latch); the review derives from the opener's server copy (origin carries `missionServerTrip` / `missionServerObservedAt`) and the server member stage; every offline replacement asks a reason; header height; `recordsDeparture` guard; fallback notice |
+| T12 | `db13d96` | `CustomerSiteNavigation`; Main Order mission bar + read-only Review Assembly; CheckList Deliv opens the checklist directly after departure; media carries the active cycle; product-scoped completion inputs; post-departure checklist blocks; every customer-site exit through the router; License/Terms → Main Order |
+| T13 | `9db7841` | the Return band: the leg's own media rule (`mediaRequirementMet`), Return exits, a Return upload falls back to a Return checklist |
+| T14 review fixes | `a83c578` | a recalled local departure never hollows out the mission's gate (`DriverMissionStage.queueOverlay`), the unit can change again after a recall, Main Order's checklist entry is judged for the mission line (multi-line orders), Return fallback asserted, minors |
+| T15 | (this commit) | P1–P16 in `docs/dispatch-offline-phase-6/PHYSICAL_ACCEPTANCE.md`; this record |
+
+### Plan deviations (recorded as found)
+
+1. `SyncOnScheduleUpdate`'s Pending branch requeues a dispatch-started Queue Line latch once the row is no longer departed (otherwise post-recall availability was refused `QUEUE_ITEM_DELIVERED`).
+2. The web schedule editor's `$wasCompleted` (counts `delivery_is_delivered`, set by Arrived) refuses Reschedule at Arrived — the Arrived recall is **Delivery Status → Pending** through every door; Reschedule recalls at On My Way (spec A3, `c0d5272`).
+3. The D5 rule also lives on the server (`7053950b3`): a save naming a different unit retires the fuel/keys answers it does not restate.
+4. Every completion / reopen writer locks the row → the unit → the soft row; decisions and the write come from the locked row (`writeAgainstRow`).
+5. `Origin.Kind.driver` is `(orderProductUniqueId, enteredFrom, isRevisit)` as planned, and `Origin` additionally carries the opener's server copy of the trip so the review derives the stage from the same inputs (review C2).
+6. Offline candidates always ask a reason (the review has no ordered-product id).
+
+### Task 14 probes
+
+Ten rules inverted one at a time, each caught by the named suite, each restored — full table in `~/Documents/kabba-dispatch-offline-p6-evidence/driver-flow/PROBES.md`:
+
+| # | Rule inverted | Failing test(s) |
+|---|---|---|
+| 1 | fuel: Not Full passes | `DriverChecklistGateTests.testNotFullNeverEnablesDeparture`, `testNoDefaultEverPasses`, `testBlockersAreListedInGateOrder` |
+| 2 | keys: Missing passes | `testKeysUnansweredOrMissingBlocksWhereKeysApply`, `testNoDefaultEverPasses`, `testBlockersAreListedInGateOrder` |
+| 3 | assembly: no review passes | `testAssemblyStopOrUnknownBlocksFirst` |
+| 4 | `driverReadOnly` only at Arrived | `AssemblyReviewTests.testTheDriversReviewIsReadOnlyAfterDeparture` |
+| 5 | `resolve`: STOP rewinds On My Way | `DeliveryWorkflowStageTests.testOnMyWayIsOnMyWayEvenWhenTheAssemblyGateIsStopOrMissing` |
+| 6 | router: review after departure | `testEveryStageHasExactlyOneDeliveryDestination`, `testNoStageAtOrBeyondOnMyWayIsEverRoutedToTheReview` |
+| 7 | `restore` keeps fuel for another unit | `DriverChecklistLocalStateTests.testAReplacedUnitResetsFuelAndKeysButKeepsTheCall` (+2) |
+| 8 | `block(for:tripStage:)` ignores the trip | `PreparationLifecycleTests.testTheEffectiveTripStageBlocksBeforeTheCachedContextIsConsulted` |
+| 9 | `is_arrived` trusted alone | `DriverTripStageTests.testServerArrivedIsTrustedOnlyWhenWhole` |
+| 10 | `equipment_unique_id` dropped from the departure payload | `DriverDeliveryFlowHostedTests.testLoadMapAndGoRecordsOnMyWayBoundToTheUnitBeforeDecidingHowToNavigate` |
+
+### Reviews
+
+Every task commit went to a fresh independent reviewer; every Critical / Important was fixed before the next task started (dispositions, Minors and Nits in `~/Documents/kabba-dispatch-offline-p6-evidence/driver-flow/REVIEW_LOG.md`). Criticals found and fixed: the checklist block's `is_delivered` used as leg completion (would have killed Start Delivery after a synced Arrived), and the review deriving its stage from fewer inputs than its opener (a recall would have locked it). Importants found and fixed: the D5 identity hole through the server copy; the deadlock-prone lock orders (`completeDelivery`, `reopenDelivery`, the mobile signed completion); stale-copy decisions in `completeDelivery`; `restore` on an all-null server block; D7 photo carve-out; the offline reason rule.
+
+### Closing gate (2026-09-27, backend `5949ea083`, mobile `a83c578` + this docs commit)
+
+Backend, one directory at a time (`PHP_INI_SCAN_DIR=":/Users/garyjezorski/.config/kabba-php-ini" php artisan test tests/Feature/<dir>`):
+
+| Directory | Result | Baseline |
+|---|---|---|
+| Dispatch | 600 passed | 599 → 600 (+1 this branch) |
+| Api | 230 passed | 221 → 230 |
+| Mobile | 15 passed | 15 |
+| QueueLine | 295 passed | 293 → 295 |
+| Orders | 673 passed, 23 failed | the 23 failing names are IDENTICAL to the Phase 6 baseline (`baseline-known-failures.txt`) |
+| OrderManagement | 120 passed, 6 failed | the 6 pre-existing failures (DependentProductFilterTest ×5, RefundedOrderScheduleClosureTest ×1) fail identically on `main` |
+| CustomerChecklists | 42 passed, 11 failed | the 11 failing names IDENTICAL to the baseline |
+| Terms / CustomerPortal / Unit/Push | 82 / 24 / 6 passed | unchanged (at `0995463ae`; untouched since) |
+| Manifest | `manifest statements at 50 missions: 438 (ceiling 450)`, 2 passed | ≤ 450 |
+
+Mobile:
+
+| Gate | Result |
+|---|---|
+| `xcrun swift test` (KabbaSyncCore) | 616 passed (baseline 551 → 616) |
+| Hosted `RentnKingHostedTests` (signed, simulator `15352B6A-…`) | 116 passed, 0 skipped (baseline 77; the Phase 4 classes that were silently skipping 8 tests now run) |
+| Simulator build (`CODE_SIGNING_ALLOWED=NO`) | BUILD SUCCEEDED |
+| No-polling grep gate (P8) | exactly the allowed set (CLWaterWave `CADisplayLink`, SyncEngine retry timer, KabbaSync BG refresh + 1 s checks, SyncStatusUI toasts, DispatchOfflineSync deadline; backend: the one `dispatch:offline-wake` schedule line); this branch added no `asyncAfter` under `Sync/` and removed Screen 2's 1.5 s Maps delay |
+| Contract parity | `diff -r RentnKingTests/KabbaSyncCore/Fixtures tests/Fixtures/mobile-contract` → identical |
+
+Nothing pushed, merged or deployed; production never contacted; the wake flag stays off; no version bump, archive or upload. Physical acceptance (P1–P16) has NOT started — it waits for Gary's go after the report.
