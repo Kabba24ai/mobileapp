@@ -790,9 +790,10 @@ extension OrderDetailsViewController {
                                    orderProductUniqueIds: lineIds,
                                    licenseConfirmed: (order?.arrLicense.count ?? 0) != 0 || legacyLicense.count != 0,
                                    termsConfirmed: order?.terms_status == "Accepted" || order?.terms_status == "Exempt",
-                                   // D7: only a VIDEO counts — a photo-only order is not delivery-media complete.
-                                   orderHasDeliveryVideo: products.contains { $0.arrDeliveryMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") } }
-                                       || legacyDeliveryMedia.contains { !$0.isImage },
+                                   // D7: only a VIDEO counts — a photo-only order is not delivery-media complete;
+                                   // with a focus line, only THAT line's video (the checklist's rule).
+                                   orderHasDeliveryVideo: (focusProduct.map { [$0] } ?? products).contains { $0.arrDeliveryMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") } }
+                                       || legacyDeliveryMedia.contains { !$0.isImage && (focus.isEmpty || ($0.productID ?? "") == focus) },
                                    deliveryChecklistConfirmed: deliveryChecklistConfirmed,
                                    returnMediaConfirmed: returnMediaConfirmed,
                                    returnChecklistConfirmed: returnChecklistConfirmed,
@@ -1448,8 +1449,13 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
         guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: effective leg state (server ∨ durable local completion),
-        // never the raw server flag alone.
-        if self.effectiveLegCompleted(isDelivery: true) {
+        // never the raw server flag alone. On the driver road the MISSION LINE decides — a
+        // sibling delivered earlier never sends this line to the view-mode checklist.
+        let missionProduct = self.missionStage == nil ? nil : self.objOrderData.arrProduct.first { $0.unique_id == self.strProductID }
+        let legDone = missionProduct.map {
+            CustomerSiteNavigation.checklistComplete(product: $0, isDeliveryLeg: true, operations: self.operationsSnapshot())
+        } ?? self.effectiveLegCompleted(isDelivery: true)
+        if legDone {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true

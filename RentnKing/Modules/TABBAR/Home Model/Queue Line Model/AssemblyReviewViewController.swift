@@ -198,6 +198,11 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         currentOperations = operationsSnapshot()
         queueOverlay = QueueLineLocalOverlay.from(currentOperations)
         assemblyOverlay = AssemblyLocalOverlay.from(currentOperations)
+        if let mission = driverMission, origin.missionServerTrip != nil {
+            // Driver origin: a local departure the opener's server copy shows recalled is not
+            // standing — it neither locks this screen nor hollows out the mission's gate.
+            queueOverlay = DriverMissionStage.queueOverlay(driverInputs(mission), operations: currentOperations)
+        }
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         memberCards.removeAll()
         renderHeader()
@@ -731,11 +736,14 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         guard !isChangingEquipment else { return }
         let stage = AssemblyPolicy.memberStage(serverStage: member.lifecycleStage, product: member.orderProductUniqueId,
                                                queue: queueOverlay, assembly: assemblyOverlay)
-        if let mission = driverMission, isDriverReadOnly(mission, memberStage: member.lifecycleStage) {
-            explainDriverLock()
-            return
-        }
-        if stage.hasLeftTheYard {
+        if let mission = driverMission {
+            // The driver's rule, the same the rows use: the mission stage (which knows an
+            // observed recall) plus the SERVER's member stage — never the yard's local promotion.
+            if isDriverReadOnly(mission, memberStage: member.lifecycleStage) {
+                explainDriverLock()
+                return
+            }
+        } else if stage.hasLeftTheYard {
             showAlertMessage(strMessage: (stage == .equipmentDelivered ? PreparationLifecycle.Block.delivered : PreparationLifecycle.Block.inTransit).message)
             return
         }
@@ -924,11 +932,13 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     /// (carried in the origin), the engine and the cached gate. A retained local On My Way
     /// that the server was since observed to have recalled therefore does not lock this
     /// screen. Only an opener that carried no server copy falls back to its stage as a floor.
+    private func driverInputs(_ mission: DriverMission) -> DriverMissionStage.Inputs {
+        DriverMissionStage.Inputs(orderProductUniqueId: mission.product, isDeliveryLeg: true,
+                                  serverTrip: origin.missionServerTrip, serverObservedAt: origin.missionServerObservedAt)
+    }
+
     private func driverStage(_ mission: DriverMission) -> DeliveryWorkflowStage {
-        let local = DriverMissionStage.stage(
-            DriverMissionStage.Inputs(orderProductUniqueId: mission.product, isDeliveryLeg: true,
-                                      serverTrip: origin.missionServerTrip, serverObservedAt: origin.missionServerObservedAt),
-            review: review, operations: currentOperations)
+        let local = DriverMissionStage.stage(driverInputs(mission), review: review, operations: currentOperations)
         return origin.missionServerTrip == nil ? max(mission.enteredFrom, local) : local
     }
 
@@ -974,10 +984,10 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             return
         }
         // The list no longer holds the line (a refresh moved it, or there is no Dispatch
-        // beneath): say so, then back to Dispatch.
+        // beneath): say so (a toast survives the pop; an alert from a leaving screen may not),
+        // then back to Dispatch.
         isOpeningChecklist = false
-        presentNotice(title: "Delivery not on your list",
-                      message: "This delivery is no longer on your Dispatch list. Pull to refresh and start it from there.")
+        KabbaSync.showConfirmationToast("This delivery is no longer on your Dispatch list — pull to refresh.", duration: 2.5)
         nav.popViewController(animated: animated)
     }
 

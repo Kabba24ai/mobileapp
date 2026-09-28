@@ -180,6 +180,16 @@ struct QueueLineLocalOverlay: Equatable {
     func isCompletedLocally(_ orderProductUniqueId: String) -> Bool { completedLocally.contains(orderProductUniqueId) }
     func isInTransitLocally(_ orderProductUniqueId: String) -> Bool { inTransitLocally.contains(orderProductUniqueId) }
 
+    /// The overlay without this product's local In Transit promotion — for a driver screen
+    /// that knows (from the row's server copy) the office has since recalled that departure
+    /// (Driver Delivery Process Flow 2026-09-27, §3.4.4): the recalled step must neither lock
+    /// the review nor exclude the line from its own assembly gate.
+    func withoutLocalTransit(for orderProductUniqueId: String) -> QueueLineLocalOverlay {
+        var copy = self
+        copy.inTransitLocally.remove(orderProductUniqueId)
+        return copy
+    }
+
     static func from(_ operations: [SyncOperation]) -> QueueLineLocalOverlay {
         var overlay = QueueLineLocalOverlay()
 

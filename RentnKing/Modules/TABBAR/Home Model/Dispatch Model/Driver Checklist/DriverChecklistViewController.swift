@@ -832,10 +832,21 @@ extension DriverChecklistViewController {
     /// (nil = no review on this phone → honestly STOP, §6.4). Delivery only.
     private func assemblyGate(_ operations: [SyncOperation]) -> AssemblyPolicy.LocalGate? {
         guard isDeliveryLeg else { return nil }
-        return AssemblyPolicy.gate(forMission: self.productUniqueId,
-                                   in: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
-                                   queue: QueueLineLocalOverlay.from(operations),
-                                   overlay: AssemblyLocalOverlay.from(operations))
+        return DriverMissionStage.assemblyGate(self.missionInputs(), review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                               operations: operations)
+    }
+
+    /// The same inputs Dispatch built this screen from (the row's server copy of the trip and
+    /// when it was asked for) — every derivation here reads them.
+    private func missionInputs() -> DriverMissionStage.Inputs {
+        let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
+        return DriverMissionStage.Inputs(orderProductUniqueId: self.productUniqueId,
+                                         isDeliveryLeg: self.isDeliveryLeg,
+                                         serverTrip: DriverStagePresentation.serverState(checklist),
+                                         serverObservedAt: self.serverObservedAt,
+                                         serverChecklist: checklist?.serverCopy,
+                                         serverLegCompleted: self.isDeliveryLeg ? self.objDispatch?.is_delivered == true : self.objDispatch?.is_returned == true,
+                                         onDriverChecklist: true)
     }
 
     /// The departure gate (spec §7): Assembly GO ∧ Call complete ∧ (fuel n/a ∨ Full)
@@ -1278,20 +1289,10 @@ extension DriverChecklistViewController {
     /// Where this mission is (spec §3.3) as this phone knows it right now. Being on
     /// this screen through the driver road is itself the Screen 2 evidence.
     var effectiveStage: DeliveryWorkflowStage {
-        let checklist = self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist
         // The leg's completion is the ROW's flag; the checklist block's `is_delivered` is the
-        // server's Arrived latch, never completion.
-        let legCompleted = self.isDeliveryLeg ? self.objDispatch?.is_delivered == true : self.objDispatch?.is_returned == true
-        return DriverMissionStage.stage(
-            DriverMissionStage.Inputs(orderProductUniqueId: self.productUniqueId,
-                                      isDeliveryLeg: self.isDeliveryLeg,
-                                      serverTrip: DriverStagePresentation.serverState(checklist),
-                                      serverObservedAt: self.serverObservedAt,
-                                      serverChecklist: checklist?.serverCopy,
-                                      serverLegCompleted: legCompleted,
-                                      onDriverChecklist: true),
-            review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
-            operations: self.operationsSnapshot())
+        // server's Arrived latch, never completion (see missionInputs).
+        DriverMissionStage.stage(self.missionInputs(), review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                 operations: self.operationsSnapshot())
     }
 
     /// The header row above the checklist: "Name · #TAG" of the effective unit and,

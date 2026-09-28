@@ -160,10 +160,12 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         list.btnStatusCallClicked(button)
     }
 
-    private func screen2(_ row: SchedulesModel, ops: [SyncOperation] = [], review: AssemblyReviewEnvelope? = nil) throws -> DriverChecklistViewController {
+    private func screen2(_ row: SchedulesModel, ops: [SyncOperation] = [], review: AssemblyReviewEnvelope? = nil,
+                         observedAt: Date? = nil) throws -> DriverChecklistViewController {
         let storyboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         let vc = try XCTUnwrap(storyboard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController)
         vc.objDispatch = row
+        vc.serverObservedAt = observedAt          // Dispatch sets it before the push — before the view loads
         vc.productUniqueId = row.unique_id ?? ""
         vc.strOrderUniqueId = row.order?.unique_id ?? ""
         vc.strOrderID = "\(row.order?.order_number ?? "")"
@@ -578,6 +580,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         vc.isOrderScreen = true
         vc.fromCheckListScreen = true
         vc.completionLeg = .delivery
+        vc.missionServerTrip = DriverStagePresentation.serverState(try row().delivery_checklist)   // as makeOrderDetails sets it
         vc.operationsSnapshot = { ops }
         vc.cachedAssemblyReview = { _ in review }
         vc.cachedChecklistContext = { _ in context }
@@ -701,7 +704,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         // The screen itself: the target it hands the shared flow carries the block.
         let vc = try checklist(floor: .onMyWay, ops: [], context: stale)
         XCTAssertEqual(vc.missionStage, .onMyWay)
-        XCTAssertEqual(vc.assignmentTarget(for: stale, productIndex: 0)?.block, .inTransit)
+        XCTAssertEqual(vc.assignmentTarget(for: stale, productIndex: 0).block, .inTransit)
         XCTAssertFalse(vc.restartIsAllowed(atProductIndex: 0))
     }
 
@@ -869,6 +872,14 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertTrue(video.routeAfterUpload())
         XCTAssertTrue(nav.topViewController === details, "past the review, to Main Order")
 
+        // With no checklist beneath, the fallback is a RETURN checklist for the line.
+        nav.setViewControllers([nav.viewControllers[0], details, video], animated: false)
+        video.operationsSnapshot = { [] }
+        XCTAssertTrue(video.routeAfterUpload())
+        let pushed = try XCTUnwrap(nav.topViewController as? CheckListViewController)
+        XCTAssertFalse(pushed.isDeliveryType, "a Return upload never pushes a Delivery checklist")
+        XCTAssertEqual(pushed.focusOrderProductUniqueId, productId)
+
         // Submit: pickup media missing → Video; present → Main Order.
         let cu = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             .instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController)
@@ -888,5 +899,63 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         cu.operationsSnapshot = { [self.returnMediaOp()] }
         cu.routeAfterSubmit()
         XCTAssertTrue(nav.topViewController === details, "Return Submit with pickup media → Main Order, never the review")
+    }
+
+    // MARK: - Review of 009dbf4 / db13d96: the recalled departure and the multi-line order
+
+    /// C1: a recalled local departure (observed by the opener) must not exclude the mission line
+    /// from its own assembly gate — Dispatch must route an unconfirmed replacement to the review,
+    /// and Screen 2's assembly term must block.
+    func testARecalledDepartureNeverHollowsOutTheAssemblyGate() throws {
+        var departed = driverOp(status: "On My Way", minutesAgo: 30)
+        departed.state = .synced
+        departed.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date().addingTimeInterval(-25 * 60), statusCode: 200,
+                                                     requestId: nil, replayed: false, serverReceivedAt: nil, data: nil)
+        let observedAfterRecall = Date().addingTimeInterval(-5 * 60)
+
+        // Dispatch: the recalled row (not departed on the server), the retained step, STOP review → the review, not Screen 2.
+        let (list, nav) = dispatch(try row(evidence: true), ops: [departed], review: try review(go: false))
+        list.feedObservedAt = observedAfterRecall
+        list.offlineObservedAt[productId] = observedAfterRecall
+        start(list)
+        XCTAssertNotNil(driverOrigin(nav.topViewController), "an unconfirmed replacement is STOP → the yard gate, never Screen 2")
+
+        // Screen 2 (reached anyway): the assembly term blocks even with call / fuel / keys answered.
+        let screen = try screen2(try row(evidence: true), ops: [departed], review: try review(go: false), observedAt: observedAfterRecall)
+        select(screen.callCustomerSegment, 1)
+        select(screen.fuelSegment, 1)
+        select(screen.keysSegment, 1)
+        XCTAssertFalse(screen.btnReadytoGo.isEnabled)
+        XCTAssertEqual(screen.gateBlockerLabel.text, DriverChecklistGate.blockerAssembly)
+        XCTAssertFalse(screen.viewDriverCheckList.isHidden, "not in the On My Way state — the step was recalled")
+    }
+
+    /// I2: CheckList Deliv is judged for the MISSION line — a sibling line delivered earlier
+    /// must not send the driver to the view-mode checklist (or the review) for this line.
+    func testMainOrderChecklistEntryIsJudgedForTheMissionLineNotTheOrder() throws {
+        var order = try jsonObject(try XCTUnwrap(package["order_details"]))
+        var products = try XCTUnwrap(order["order_products"] as? [[String: Any]])
+        var sibling = products[0]
+        sibling["unique_id"] = "ORD-SCH-SIBLING"
+        sibling["is_delivered"] = true
+        sibling["delivery_status"] = "Completed"
+        products.insert(sibling, at: 0)                       // the delivered sibling comes FIRST in the order
+        order["order_products"] = products
+
+        let vc = try orderDetails(ops: arrivedOps)
+        vc.objOrderData = try XCTUnwrap(OrdersListModel(JSON: order))
+        let nav = UINavigationController(rootViewController: DispatchListViewController())
+        nav.pushViewController(vc, animated: false)
+        vc.btnCheckListDelivClicked(UIButton())
+        let checklist = try XCTUnwrap(nav.topViewController as? CheckListViewController, "the mission line is not complete: its checklist opens directly")
+        XCTAssertEqual(checklist.focusOrderProductUniqueId, productId)
+
+        // The mission line itself complete → the view-mode checklist as before.
+        let done = try orderDetails(ops: arrivedOps + [deliveryCompleteOp()])
+        done.objOrderData = try XCTUnwrap(OrdersListModel(JSON: order))
+        let doneNav = UINavigationController(rootViewController: DispatchListViewController())
+        doneNav.pushViewController(done, animated: false)
+        done.btnCheckListDelivClicked(UIButton())
+        XCTAssertNotNil(doneNav.topViewController as? CheckListUpdateViewController)
     }
 }

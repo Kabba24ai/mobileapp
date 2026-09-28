@@ -54,13 +54,20 @@ enum DriverMissionStage {
             serverObservedAt: i.serverObservedAt)
     }
 
+    /// The Queue Line overlay a driver screen reads for this mission: a local departure the
+    /// server was since OBSERVED to have recalled (the trip derives < On My Way) is not
+    /// standing, so it neither locks the review nor excludes the line from its own gate.
+    static func queueOverlay(_ i: Inputs, operations: [SyncOperation]) -> QueueLineLocalOverlay {
+        let overlay = QueueLineLocalOverlay.from(operations)
+        return trip(i, operations: operations).stage >= .onMyWay ? overlay : overlay.withoutLocalTransit(for: i.orderProductUniqueId)
+    }
+
     /// The mission's assembly gate as this phone knows it (nil = no review on this
     /// phone → honestly STOP, §6.4). Return has no assembly gate.
-    static func assemblyGate(orderProductUniqueId: String, isDeliveryLeg: Bool,
-                             review: AssemblyReview?, operations: [SyncOperation]) -> AssemblyPolicy.LocalGate? {
-        guard isDeliveryLeg else { return nil }
-        return AssemblyPolicy.gate(forMission: orderProductUniqueId, in: review,
-                                   queue: QueueLineLocalOverlay.from(operations),
+    static func assemblyGate(_ i: Inputs, review: AssemblyReview?, operations: [SyncOperation]) -> AssemblyPolicy.LocalGate? {
+        guard i.isDeliveryLeg else { return nil }
+        return AssemblyPolicy.gate(forMission: i.orderProductUniqueId, in: review,
+                                   queue: queueOverlay(i, operations: operations),
                                    overlay: AssemblyLocalOverlay.from(operations))
     }
 
@@ -84,8 +91,7 @@ enum DriverMissionStage {
                                                            orderProductUniqueId: i.orderProductUniqueId,
                                                            isDeliveryLeg: i.isDeliveryLeg),
             trip: trip(i, operations: operations).stage,
-            assemblyGate: assemblyGate(orderProductUniqueId: i.orderProductUniqueId, isDeliveryLeg: i.isDeliveryLeg,
-                                       review: review, operations: operations),
+            assemblyGate: assemblyGate(i, review: review, operations: operations),
             hasDriverChecklistEvidence: evidence))
     }
 }

@@ -885,4 +885,38 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertEqual((view(vc, "assembly.\(product).unit.available") as? UIButton)?.accessibilityValue, "not confirmed")
         XCTAssertTrue(view(vc, "assemblyReview.group.QLA-\(product).gate")?.accessibilityLabel?.hasPrefix("STOP") == true, "the new machine must be confirmed before departure")
     }
+
+    /// Review of 009dbf4 (C1): the recalled local departure must not EXCLUDE the mission line
+    /// from its own gate either — an unconfirmed replacement is STOP, Continue disabled, and the
+    /// unit can be changed again (I1: the change is not refused as In Transit).
+    func testARecalledDepartureDoesNotExcludeTheMissionFromItsOwnGateAndTheUnitCanChange() throws {
+        let product = "OP-SKID"
+        let unconfirmed = try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: nil,
+                                                    equipmentName: "Kubota SVL75", equipmentDisplayId: "1234")]])
+        var departed = driverOp(product, status: "On My Way", minutesAgo: 30)
+        departed.state = .synced
+        departed.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date().addingTimeInterval(-25 * 60), statusCode: 200,
+                                                     requestId: nil, replayed: false, serverReceivedAt: nil, data: nil)
+        let recalledRow = DriverStageServerState(readyToGoAt: nil, arrivedAt: nil, isArrived: false)
+        let vc = loadedDriver(unconfirmed, product: product, enteredFrom: .assemblyReview, ops: [departed],
+                              serverTrip: recalledRow, observedAt: Date().addingTimeInterval(-5 * 60))
+
+        XCTAssertTrue(view(vc, "assemblyReview.group.QLA-\(product).gate")?.accessibilityLabel?.hasPrefix("STOP") == true,
+                      "the line counts in its own gate — nothing is confirmed")
+        let cont = try XCTUnwrap(view(vc, "assembly.\(product).continue") as? UIButton)
+        XCTAssertFalse(cont.isEnabled, "no departure on an unconfirmed replacement")
+        XCTAssertNotEqual(view(vc, "assembly.\(product).stage")?.accessibilityLabel, "In Transit", "the recalled step is not standing")
+
+        // I1: the unit can be changed again — the picker opens (offline fallback through the seams).
+        vc.candidatesRequest = { _, _, _, deliver in deliver(nil) }
+        vc.warmedEquipment = { [Mapper<MachineModel>().map(JSON: ["unique_id": "EQP-\(product)", "equipment_id": "1234", "equipment_name": "Kubota SVL75",
+                                                                    "current_status": "Available", "product_category_id": 7])!,
+                                Mapper<MachineModel>().map(JSON: ["unique_id": "EQP-B", "equipment_id": "5678", "equipment_name": "Bobcat T66",
+                                                                    "current_status": "Available", "product_category_id": 7])!] }
+        var offered: [EquipmentCandidate] = []
+        vc.pickerOverride = { candidates, _, _ in offered = candidates }
+        let change = try XCTUnwrap(view(vc, "assembly.\(product).unit.reassign") as? UIButton)
+        change.sendActions(for: .touchUpInside)
+        XCTAssertEqual(offered.map(\.uniqueId), ["EQP-\(product)", "EQP-B"], "not refused as In Transit")
+    }
 }

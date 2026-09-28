@@ -2817,14 +2817,6 @@ extension CheckListViewController {
         // person its Save / Complete payloads carry); the signed-in account only when nobody
         // is selected yet. Never a separate "Performed By" picker.
         let target = self.assignmentTarget(for: context, productIndex: productIndex)
-            ?? EquipmentAssignmentFlow.Target(orderUniqueId: context.identity.orderUniqueId,
-                                              orderProductUniqueId: context.identity.orderProductUniqueId,
-                                              supersededExecutionId: context.executionId,
-                                              currentEquipmentUniqueId: context.equipment.equipmentUniqueId,
-                                              currentEquipmentCode: context.equipment.equipmentCode,
-                                              block: self.preparationBlock(for: context),
-                                              confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
-                                              performedByUniqueId: nil)
 
         self.equipmentFlow.apply(target, replacement: candidate) { [weak self] _, _, _ in
             guard let self = self else { return }
@@ -2849,7 +2841,7 @@ extension CheckListViewController {
     /// What the shared flow needs to know about the focused line's change: the physical
     /// block from the phone's effective trip stage (locked after departure), what a switch
     /// would discard, and who performs it.
-    func assignmentTarget(for context: ChecklistContext, productIndex: Int) -> EquipmentAssignmentFlow.Target? {
+    func assignmentTarget(for context: ChecklistContext, productIndex: Int) -> EquipmentAssignmentFlow.Target {
         let performedBy = PreparationPolicy.performedBy(selectedEmployeeUniqueId: selectedEmployeeUniqueId(atProductIndex: productIndex),
                                                         contextEmployeeUniqueId: context.employee?.uniqueId)
         return EquipmentAssignmentFlow.Target(
