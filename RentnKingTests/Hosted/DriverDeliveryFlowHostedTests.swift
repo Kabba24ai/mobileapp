@@ -138,11 +138,13 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         return op
     }
 
-    private func switchOp(to unit: Unit) -> SyncOperation {
-        SyncOperation(type: EffectiveFieldState.equipmentSubstitutionType, capturedAt: Date(),
-                      identity: SyncBusinessIdentity(orderProductUniqueId: productId, equipmentUniqueId: unit.id),
-                      payload: .object(["order_product_unique_id": .string(productId), "equipment_unique_id": .string(unit.id),
-                                        "equipment_name": .string(unit.name), "equipment_display_id": .string(unit.tag)]))
+    private func switchOp(to unit: Unit, at: Date = Date(), state: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: EffectiveFieldState.equipmentSubstitutionType, capturedAt: at, queuedAt: at,
+                               identity: SyncBusinessIdentity(orderProductUniqueId: productId, equipmentUniqueId: unit.id),
+                               payload: .object(["order_product_unique_id": .string(productId), "equipment_unique_id": .string(unit.id),
+                                                 "equipment_name": .string(unit.name), "equipment_display_id": .string(unit.tag)]))
+        op.state = state
+        return op
     }
 
     private func dispatch(_ row: SchedulesModel, ops: [SyncOperation] = [], review: AssemblyReviewEnvelope? = nil)
@@ -161,13 +163,15 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
     }
 
     /// This phone's durable Available acknowledgement for a unit on the mission line.
-    private func availabilityOp(unit: Unit) -> SyncOperation {
-        SyncOperation(type: AssemblyOperationBuilder.availabilityType, capturedAt: Date(),
-                      identity: SyncBusinessIdentity(orderProductUniqueId: productId, equipmentUniqueId: unit.id),
-                      payload: .object(["order_product_unique_id": .string(productId),
-                                        "subject_type": .string(AvailabilitySubject.unit.rawValue),
-                                        "subject_key": .string(unit.id),
-                                        "state": .string(AvailabilityState.available.rawValue)]))
+    private func availabilityOp(unit: Unit, at: Date = Date(), state: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: AssemblyOperationBuilder.availabilityType, capturedAt: at, queuedAt: at,
+                               identity: SyncBusinessIdentity(orderProductUniqueId: productId, equipmentUniqueId: unit.id),
+                               payload: .object(["order_product_unique_id": .string(productId),
+                                                 "subject_type": .string(AvailabilitySubject.unit.rawValue),
+                                                 "subject_key": .string(unit.id),
+                                                 "state": .string(AvailabilityState.available.rawValue)]))
+        op.state = state
+        return op
     }
 
     /// A unit as the warmed equipment list (the fleet the review offers offline) knows it.
@@ -1037,5 +1041,58 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         doneNav.pushViewController(done, animated: false)
         done.btnCheckListDelivClicked(UIButton())
         XCTAssertNotNil(doneNav.topViewController as? CheckListUpdateViewController)
+    }
+
+    // MARK: - Assignment episodes (2026-09-29) — the departure gate and fuel / keys never revive across a switch
+
+    /// The order #6009 sequence on the row's unit A: A Available → switch B → B Available → switch back A.
+    private func backToA(state: SyncState) -> [SyncOperation] {
+        let a = Unit(id: unitA, name: unitAName, tag: unitATag)
+        let base = Date().addingTimeInterval(-600)
+        let t = { (i: Int) in base.addingTimeInterval(Double(i) * 60) }
+        return [availabilityOp(unit: a, at: t(0), state: state), switchOp(to: unitB, at: t(1), state: state),
+                availabilityOp(unit: unitB, at: t(2), state: state), switchOp(to: a, at: t(3), state: state)]
+    }
+
+    func testLoadMapAndGoStaysBlockedWhenTheUnitComesBackAfterASwitchUntilItIsConfirmedAgain() throws {
+        for state in [SyncState.pending, .synced] {
+            // The cached review says the server confirmed A — before the switches.
+            let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false),
+                                 ops: backToA(state: state), review: try review(go: true))
+            select(vc.callCustomerSegment, 1)
+            XCTAssertFalse(vc.btnReadytoGo.isEnabled, "\(state): A came back as a new assignment — its old confirmation is gone")
+            XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerAssembly, "\(state)")
+
+            let a = Unit(id: unitA, name: unitAName, tag: unitATag)
+            vc.operationsSnapshot = { self.backToA(state: state) + [self.availabilityOp(unit: a, at: Date(), state: state)] }
+            vc.refreshDerivedState()
+            select(vc.callCustomerSegment, 1)
+            XCTAssertTrue(vc.btnReadytoGo.isEnabled, "\(state): a fresh Available on the new episode reopens the gate")
+        }
+    }
+
+    func testFuelAndKeysAnsweredForAUnitDoNotReviveWhenThatUnitComesBackAfterASwitch() throws {
+        // Screen 2 answered fuel and keys for A. On the review the driver switched A → B → A without
+        // returning to Screen 2 in between; back on Screen 2 both start unanswered (call kept).
+        let vc = try screen2(try row(evidence: false), review: try review(go: true),
+                             fleet: [try machine(unitB, requiresFuel: true, requiresKeys: true)])
+        select(vc.callCustomerSegment, 1)
+        select(vc.fuelSegment, 1)
+        select(vc.keysSegment, 1)
+        XCTAssertEqual(vc.fuelSegment.selectedSegmentIndex, 1)
+        let a = Unit(id: unitA, name: unitAName, tag: unitATag)
+        let base = Date().addingTimeInterval(-600)
+        vc.operationsSnapshot = { [self.switchOp(to: self.unitB, at: base), self.switchOp(to: a, at: base.addingTimeInterval(60))] }
+        vc.refreshDerivedState()
+        XCTAssertEqual(vc.unitIdentityLabel.text, "\(unitAName) · #\(unitATag)", "the same unit, a new assignment")
+        XCTAssertEqual(vc.fuelSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "A's earlier fuel answer never speaks for A's new episode")
+        XCTAssertEqual(vc.keysSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 1, "the call belongs to the mission and stays")
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+
+        let stored = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: DriverChecklistLocalState.legDelivery)))
+        XCTAssertEqual(stored?.equipmentUniqueId, unitA)
+        XCTAssertEqual(stored?.fuel, "")
+        XCTAssertFalse((stored?.assignmentEpisode ?? "").isEmpty, "the record is bound to the episode the last switch started")
     }
 }

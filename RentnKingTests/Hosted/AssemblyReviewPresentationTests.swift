@@ -116,10 +116,11 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         ]])
     }
 
-    private func loaded(_ envelope: AssemblyReviewEnvelope, focusKey: String? = nil) -> AssemblyReviewViewController {
+    private func loaded(_ envelope: AssemblyReviewEnvelope, focusKey: String? = nil, ops: [SyncOperation]? = nil) -> AssemblyReviewViewController {
         let vc = AssemblyReviewViewController()
         vc.orderUniqueId = envelope.data.order.uniqueId
         vc.focusAssemblyKey = focusKey
+        if let ops = ops { vc.operationsSnapshot = { ops } }
         vc.loadViewIfNeeded()
         vc.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         vc.apply(envelope)
@@ -1036,5 +1037,130 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         let change = try XCTUnwrap(view(vc, "assembly.\(product).unit.reassign") as? UIButton)
         change.sendActions(for: .touchUpInside)
         XCTAssertEqual(offered.map(\.uniqueId), ["EQP-\(product)", "EQP-B"], "not refused as In Transit")
+    }
+
+    // MARK: Assignment episodes (2026-09-29) — switching back never revives a confirmation
+
+    private func episodeOp(type: String, product: String, payload: [String: JSONValue], unit: String, at: Date, state: SyncState) -> SyncOperation {
+        var op = SyncOperation(type: type, capturedAt: at, queuedAt: at,
+                               identity: SyncBusinessIdentity(orderProductUniqueId: product, equipmentUniqueId: unit),
+                               payload: .object(payload.merging(["order_product_unique_id": .string(product)]) { a, _ in a }), assets: [])
+        op.state = state
+        return op
+    }
+
+    private func availabilityOp(_ product: String, unit: String, at: Date, state: SyncState) -> SyncOperation {
+        episodeOp(type: AssemblyOperationBuilder.availabilityType, product: product,
+                  payload: ["subject_type": .string(AvailabilitySubject.unit.rawValue), "subject_key": .string(unit),
+                            "state": .string(AvailabilityState.available.rawValue)], unit: unit, at: at, state: state)
+    }
+
+    private func switchOp(_ product: String, to unit: String, name: String, tag: String, at: Date, state: SyncState) -> SyncOperation {
+        episodeOp(type: EffectiveFieldState.equipmentSubstitutionType, product: product,
+                  payload: ["equipment_unique_id": .string(unit), "equipment_name": .string(name), "equipment_display_id": .string(tag)],
+                  unit: unit, at: at, state: state)
+    }
+
+    func testSwitchingBackToAPreviouslyConfirmedUnitShowsStopAndNoConfirmationUntilAFreshAvailable() throws {
+        // Order #6009 (2026-09-29): U11 Available → switch U03 → U03 Available → switch back U11.
+        // The cached review still says the server confirmed U11 — for the episode the first switch ended.
+        let envelope = try review(groups: [[Spec(uid: "OP-U", name: "Skid Steer", options: [], unitState: "available",
+                                                 equipmentName: "P6 Skid Steer U11", equipmentDisplayId: "P6-U11")]])
+        let base = Date().addingTimeInterval(-600)
+        let t = { (i: Int) in base.addingTimeInterval(Double(i) * 60) }
+        for state in [SyncState.pending, .synced] {
+            let sequence = [
+                availabilityOp("OP-U", unit: "EQP-OP-U", at: t(0), state: state),
+                switchOp("OP-U", to: "EQP-U03", name: "P6 Skid Steer U03", tag: "P6-U03", at: t(1), state: state),
+                availabilityOp("OP-U", unit: "EQP-U03", at: t(2), state: state),
+                switchOp("OP-U", to: "EQP-OP-U", name: "P6 Skid Steer U11", tag: "P6-U11", at: t(3), state: state),
+            ]
+            let vc = loaded(envelope, ops: sequence)
+            XCTAssertEqual(label(vc, "assembly.OP-U.unit.title"), "P6 Skid Steer U11 · #P6-U11", "\(state)")
+            XCTAssertEqual(view(vc, "assemblyReview.group.QLA-OP-U.gate")?.accessibilityLabel, "STOP · 0 of 1 confirmed",
+                           "\(state): the unit came back as a NEW assignment — nothing confirms it yet")
+            XCTAssertEqual(label(vc, "assembly.OP-U.unit.state") ?? "", "", "\(state): no 'confirmed on this phone', no server acknowledgement")
+            XCTAssertEqual(view(vc, "assembly.OP-U.unit.icon")?.accessibilityLabel, "Not confirmed", "\(state)")
+
+            // A fresh Available on the second episode confirms it exactly as any first confirmation would.
+            let fresh = loaded(envelope, ops: sequence + [availabilityOp("OP-U", unit: "EQP-OP-U", at: t(4), state: state)])
+            XCTAssertEqual(view(fresh, "assemblyReview.group.QLA-OP-U.gate")?.accessibilityLabel, "GO · Confirmed", "\(state)")
+            XCTAssertEqual(label(fresh, "assembly.OP-U.unit.state"),
+                           state == .synced ? "Available · confirmed on this phone" : "Available · pending sync", "\(state)")
+        }
+    }
+
+    func testRecordingASwitchRetiresTheDriverChecklistsFuelAndKeysAtOnce() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine, "the hosted app bootstraps the Sync Engine")
+        let product = "OP-EPI"
+        let envelope = try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: "available",
+                                                  equipmentName: "Kubota SVL75", equipmentDisplayId: "1234")]])
+        let key = DriverChecklistLocalState.key(orderProductUniqueId: product, leg: DriverChecklistLocalState.legDelivery)
+        for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) }
+        defer {
+            for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) }
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        // Screen 2 answered fuel and keys for the row's unit, on the row's own episode.
+        UserDefaults.standard.set(DriverChecklistLocalState(checks: [true, true, false, false], callCustomer: "confirmed", fuel: "Full",
+                                                            keys: "With Machine", equipmentUniqueId: "EQP-\(product)", assignmentEpisode: "").dictionary(),
+                                  forKey: key)
+
+        let vc = loadedDriver(envelope, product: product)
+        vc.operationsSnapshot = { engine.snapshot() }
+        vc.candidatesRequest = { _, _, _, deliver in deliver(nil) }            // offline: the warmed fleet
+        let machine = { (uid: String, tag: String, name: String) -> MachineModel in
+            Mapper<MachineModel>().map(JSON: ["unique_id": uid, "equipment_id": tag, "equipment_name": name, "current_status": "Available",
+                                              "product_category_id": 7, "assigned_product_id": 501])!
+        }
+        vc.warmedEquipment = { [machine("EQP-\(product)", "1234", "Kubota SVL75"), machine("EQP-SAME", "5678", "Bobcat T66")] }
+        var offered: [EquipmentCandidate] = []
+        var choose: ((EquipmentCandidate) -> Void)?
+        vc.pickerOverride = { candidates, _, onPicked in offered = candidates; choose = onPicked }
+        vc.confirmOverride = { _, _, proceed in proceed() }
+        vc.equipmentFlow.reasonPromptOverride = { _, done in done("Direct match unavailable") }
+        (view(vc, "assembly.\(product).unit.reassign") as! UIButton).sendActions(for: .touchUpInside)
+        try XCTUnwrap(choose)(try XCTUnwrap(offered.first { $0.uniqueId == "EQP-SAME" }))
+
+        let op = try XCTUnwrap(engine.snapshot().first {
+            $0.type == EffectiveFieldState.equipmentSubstitutionType && $0.identity.orderProductUniqueId == product
+        })
+        let record = try XCTUnwrap(DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: key)))
+        XCTAssertEqual(record.fuel, "", "the answers were given for the assignment that just ended")
+        XCTAssertEqual(record.keys, "")
+        XCTAssertEqual(record.callCustomer, "confirmed", "the call belongs to the mission")
+        XCTAssertEqual(record.checks, [true, true, false, false])
+        XCTAssertEqual(record.equipmentUniqueId, "EQP-SAME")
+        XCTAssertEqual(record.assignmentEpisode, op.id, "bound to the episode the switch started — nothing depends on the operation surviving a prune")
+    }
+
+    func testAReturnLegSwitchLeavesTheDeliveryChecklistsFuelAndKeysAlone() throws {
+        // The yard checklist can switch a unit on the RETURN leg; that is not a delivery episode and
+        // the completed delivery's mini-checklist record is history — it stays exactly as written.
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let product = "OP-RET"
+        let key = DriverChecklistLocalState.key(orderProductUniqueId: product, leg: DriverChecklistLocalState.legDelivery)
+        for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) }
+        defer {
+            for op in engine.snapshot() where op.identity.orderProductUniqueId == product { try? engine.discard(operationId: op.id) }
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        let written = DriverChecklistLocalState(checks: [true, true, true, true], callCustomer: "confirmed", fuel: "Full",
+                                                keys: "With Machine", equipmentUniqueId: "EQP-\(product)", assignmentEpisode: "")
+        UserDefaults.standard.set(written.dictionary(), forKey: key)
+
+        let host = loaded(try review(groups: [[Spec(uid: product, name: "Skid Steer", options: [], unitState: "available")]]))
+        host.equipmentFlow.reasonPromptOverride = { _, done in done("Return swap") }
+        let target = EquipmentAssignmentFlow.Target(orderUniqueId: "ORD-RET", orderProductUniqueId: product, supersededExecutionId: "",
+                                                    currentEquipmentUniqueId: "EQP-\(product)", currentEquipmentCode: "U-\(product)",
+                                                    block: nil, confirmation: .none, performedByUniqueId: "PER-0007", isDeliveryLeg: false)
+        var recorded: String?
+        host.equipmentFlow.apply(target, replacement: EquipmentCandidate(uniqueId: "EQP-SAME", displayId: "5678", name: "Bobcat T66",
+                                                                          statusLabel: "Available", requiresReason: true)) { _, _, operationId in
+            recorded = operationId
+        }
+        XCTAssertNotNil(recorded, "the return switch itself is recorded")
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: key)), written,
+                       "a Return switch is not a delivery episode: the delivery record is untouched")
     }
 }

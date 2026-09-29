@@ -2852,7 +2852,8 @@ extension CheckListViewController {
             currentEquipmentCode: context.equipment.equipmentCode,
             block: self.preparationBlock(for: context),
             confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
-            performedByUniqueId: performedBy)
+            performedByUniqueId: performedBy,
+            isDeliveryLeg: context.leg.isDelivery)
     }
 
     /// "Delete Checklist / Start Over" — same supersession, same unit.

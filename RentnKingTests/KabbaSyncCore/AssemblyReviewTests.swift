@@ -468,8 +468,8 @@ final class AssemblyReviewTests: XCTestCase {
 
     // MARK: Assignment on this phone (2026-09-14) — a machine is never confirmed by being assigned
 
-    private func switchOp(product: String, to unit: String, name: String, tag: String, state: SyncState = .pending) -> SyncOperation {
-        var op = SyncOperation(type: PreparationOperationBuilder.substitutionType, capturedAt: Date(), queuedAt: Date(),
+    private func switchOp(product: String, to unit: String, name: String, tag: String, state: SyncState = .pending, at: Date = Date()) -> SyncOperation {
+        var op = SyncOperation(type: PreparationOperationBuilder.substitutionType, capturedAt: at, queuedAt: at,
                                identity: SyncBusinessIdentity(orderUniqueId: "ORD-0001", orderProductUniqueId: product, equipmentUniqueId: unit),
                                payload: .object(["order_product_unique_id": .string(product), "equipment_unique_id": .string(unit),
                                                  "equipment_name": .string(name), "equipment_display_id": .string(tag)]),
@@ -534,5 +534,229 @@ final class AssemblyReviewTests: XCTestCase {
         XCTAssertFalse(gate.ready)
         XCTAssertTrue(gate.blockers.contains("Harley Rake Spare has not been confirmed Available."), "\(gate.blockers)")
         XCTAssertFalse(gate.blockers.contains { $0.hasSuffix("needs a machine assigned.") }, "assigned now — the blocker is the missing confirmation")
+    }
+
+    // MARK: Assignment episodes (2026-09-29) — a switch retires every earlier unit confirmation
+
+    /// This phone's durable availability decision about a unit (or a frozen option) of the line.
+    private func availabilityOp(product: String, subject: AvailabilitySubject = .unit, key: String, state: AvailabilityState = .available,
+                                at: Date, syncState: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: AssemblyOperationBuilder.availabilityType, capturedAt: at, queuedAt: at,
+                               identity: SyncBusinessIdentity(orderUniqueId: "ORD-0001", orderProductUniqueId: product,
+                                                              equipmentUniqueId: subject == .unit ? key : nil),
+                               payload: .object(["order_product_unique_id": .string(product),
+                                                 "subject_type": .string(subject.rawValue), "subject_key": .string(key),
+                                                 "state": .string(state.rawValue), "performed_by": .string("PER-0007")]),
+                               assets: [])
+        op.state = syncState
+        return op
+    }
+
+    /// The fixture's confirmed member: its server unit A was acknowledged Available on 2026-09-27.
+    private func episodeFixture() throws -> (member: AssemblyMember, group: AssemblyGroup, unitA: String, unitAName: String) {
+        let data = try review().data
+        let member = data.assemblies[0].members[0]
+        XCTAssertEqual(member.availability.unit.state, .available, "fixture precondition: the server confirmed unit A")
+        return (member, data.assemblies[0], try XCTUnwrap(member.equipment?.uniqueId), try XCTUnwrap(member.equipment?.name))
+    }
+
+    /// The physical-acceptance sequence of 2026-09-29 (order #6009): A Available → switch B → B Available →
+    /// switch back A → (a fresh A Available). `through` = how many of the five steps happened.
+    private func episodeSequence(_ product: String, unitA: String, through: Int, syncState: SyncState) -> [SyncOperation] {
+        let base = Date().addingTimeInterval(-600)
+        let t = { (i: Int) in base.addingTimeInterval(Double(i) * 60) }
+        let steps: [SyncOperation] = [
+            availabilityOp(product: product, key: unitA, at: t(0), syncState: syncState),
+            switchOp(product: product, to: "EQP-B", name: "Unit B", tag: "B-1", state: syncState, at: t(1)),
+            availabilityOp(product: product, key: "EQP-B", at: t(2), syncState: syncState),
+            switchOp(product: product, to: unitA, name: "Unit A", tag: "A-1", state: syncState, at: t(3)),
+            availabilityOp(product: product, key: unitA, at: t(4), syncState: syncState),
+        ]
+        return Array(steps.prefix(through))
+    }
+
+    private func effective(_ ops: [SyncOperation], _ f: (member: AssemblyMember, group: AssemblyGroup, unitA: String, unitAName: String))
+        -> (state: AvailabilityState?, gate: AssemblyPolicy.LocalGate, overlay: AssemblyLocalOverlay) {
+        let overlay = AssemblyLocalOverlay.from(ops)
+        let queue = QueueLineLocalOverlay.from(ops)
+        return (AssemblyPolicy.unitState(member: f.member, queue: queue, overlay: overlay),
+                AssemblyPolicy.gate(for: f.group, queue: queue, overlay: overlay), overlay)
+    }
+
+    func testASwitchRetiresTheEarlierUnitConfirmationSoTheReplacementStartsUnconfirmed() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let r = effective(episodeSequence(product, unitA: f.unitA, through: 2, syncState: .pending), f)
+        XCTAssertNil(r.overlay.unitDecision(product: product, equipmentUniqueId: "EQP-B"), "assignment is not confirmation")
+        XCTAssertNil(r.overlay.unitDecision(product: product, equipmentUniqueId: f.unitA), "the decision about the unit it left went with its episode")
+        XCTAssertNil(r.state)
+        XCTAssertFalse(r.gate.ready)
+        XCTAssertTrue(r.gate.blockers.contains("Unit B has not been confirmed Available."), "\(r.gate.blockers)")
+    }
+
+    func testAConfirmationAfterTheSwitchConfirmsTheReplacement() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let r = effective(episodeSequence(product, unitA: f.unitA, through: 3, syncState: .pending), f)
+        XCTAssertEqual(r.overlay.unitDecision(product: product, equipmentUniqueId: "EQP-B")?.state, .available)
+        XCTAssertEqual(r.state, .available)
+        XCTAssertFalse(r.gate.blockers.contains("Unit B has not been confirmed Available."), "\(r.gate.blockers)")
+    }
+
+    func testSwitchingBackToAPreviouslyConfirmedUnitDoesNotReviveItsConfirmationWhileTheOperationsArePending() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let r = effective(episodeSequence(product, unitA: f.unitA, through: 4, syncState: .pending), f)
+        XCTAssertNil(r.overlay.unitDecision(product: product, equipmentUniqueId: f.unitA), "A's first confirmation belongs to a retired episode")
+        XCTAssertNil(r.overlay.unitDecision(product: product, equipmentUniqueId: "EQP-B"))
+        XCTAssertNil(r.state, "the review's cached server acknowledgement of A predates the switches — it never revives either")
+        XCTAssertFalse(r.gate.ready)
+        XCTAssertTrue(r.gate.blockers.contains("\(f.unitAName) has not been confirmed Available."), "\(r.gate.blockers)")
+    }
+
+    func testSwitchingBackToAPreviouslyConfirmedUnitDoesNotReviveItsConfirmationAfterEverythingSynced() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let r = effective(episodeSequence(product, unitA: f.unitA, through: 4, syncState: .synced), f)
+        XCTAssertNil(r.overlay.unitDecision(product: product, equipmentUniqueId: f.unitA))
+        XCTAssertNil(r.state)
+        XCTAssertFalse(r.gate.ready)
+        XCTAssertTrue(r.gate.blockers.contains("\(f.unitAName) has not been confirmed Available."), "\(r.gate.blockers)")
+    }
+
+    func testAFreshConfirmationOnTheSecondEpisodeConfirmsTheUnitAgain() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        for syncState in [SyncState.pending, .synced] {
+            let r = effective(episodeSequence(product, unitA: f.unitA, through: 5, syncState: syncState), f)
+            XCTAssertEqual(r.overlay.unitDecision(product: product, equipmentUniqueId: f.unitA)?.state, .available, "\(syncState)")
+            XCTAssertEqual(r.state, .available, "\(syncState)")
+            XCTAssertFalse(r.gate.blockers.contains("\(f.unitAName) has not been confirmed Available."), "\(syncState): \(r.gate.blockers)")
+        }
+    }
+
+    func testOtherLinesAndTheLinesOwnOptionsKeepTheirDecisionsAcrossASwitch() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let base = Date().addingTimeInterval(-900)
+        var ops = episodeSequence(product, unitA: f.unitA, through: 4, syncState: .pending)
+        ops.append(availabilityOp(product: "ORD-SCH-OTHER", key: "EQP-X", at: base))                                     // another line's unit
+        ops.append(availabilityOp(product: product, subject: .option, key: "POPT-ITM-TOOTH", at: base))                    // this line's option
+        let overlay = AssemblyLocalOverlay.from(ops)
+        XCTAssertEqual(overlay.unitDecision(product: "ORD-SCH-OTHER", equipmentUniqueId: "EQP-X")?.state, .available, "another line is untouched")
+        XCTAssertEqual(overlay.optionDecision(product: product, frozenOptionKey: "POPT-ITM-TOOTH")?.state, .available,
+                       "options are the line's own, not the unit's episode (the server ledger keeps them too)")
+        XCTAssertNil(overlay.unitDecision(product: product, equipmentUniqueId: f.unitA))
+    }
+
+    func testARejectedSwitchIsNotAnEpisodeBoundary() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let base = Date().addingTimeInterval(-600)
+        let ops = [availabilityOp(product: product, key: f.unitA, at: base, syncState: .synced),
+                   switchOp(product: product, to: "EQP-B", name: "Unit B", tag: "B-1", state: .needsAttention, at: base.addingTimeInterval(60))]
+        let r = effective(ops, f)
+        XCTAssertEqual(r.overlay.unitDecision(product: product, equipmentUniqueId: f.unitA)?.state, .available, "the server refused the switch: nothing changed")
+        XCTAssertEqual(r.state, .available)
+    }
+
+    func testAServerAcknowledgementMadeAfterThePhonesSwitchStillCounts() throws {
+        // The office confirmed the unit AFTER this phone switched to it (the feed has caught up):
+        // that acknowledgement belongs to the current episode and satisfies the gate.
+        let switchedAt = Date().addingTimeInterval(-600)
+        let data = try reviewVariant { member, index in
+            guard index == 0 else { return }
+            var availability = member["availability"] as! [String: Any]
+            var unit = availability["unit"] as! [String: Any]
+            unit["acknowledged_at"] = KabbaISO8601.string(from: switchedAt.addingTimeInterval(120))
+            availability["unit"] = unit
+            member["availability"] = availability
+        }
+        let member = data.assemblies[0].members[0]
+        let unitA = try XCTUnwrap(member.equipment?.uniqueId)
+        let ops = [switchOp(product: member.orderProductUniqueId, to: unitA, name: "Unit A", tag: "A-1", state: .synced, at: switchedAt)]
+        XCTAssertEqual(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)), .available)
+
+        // …while one made BEFORE the switch belongs to the episode the switch ended.
+        let stale = try reviewVariant { member, index in
+            guard index == 0 else { return }
+            var availability = member["availability"] as! [String: Any]
+            var unit = availability["unit"] as! [String: Any]
+            unit["acknowledged_at"] = KabbaISO8601.string(from: switchedAt.addingTimeInterval(-120))
+            availability["unit"] = unit
+            member["availability"] = availability
+        }
+        XCTAssertNil(AssemblyPolicy.unitState(member: stale.assemblies[0].members[0], queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)))
+    }
+
+    private func reviewWithAcknowledgement(at value: Any) throws -> AssemblyReview {
+        try reviewVariant { member, index in
+            guard index == 0 else { return }
+            var availability = member["availability"] as! [String: Any]
+            var unit = availability["unit"] as! [String: Any]
+            unit["acknowledged_at"] = value
+            availability["unit"] = unit
+            member["availability"] = availability
+        }
+    }
+
+    func testAServerAcknowledgementNeverCountsWhileThePhonesSwitchIsStillOnItsWay() throws {
+        // Even one stamped after the switch: the server cannot have acknowledged an episode it has not received.
+        let switchedAt = Date().addingTimeInterval(-600)
+        let data = try reviewWithAcknowledgement(at: KabbaISO8601.string(from: switchedAt.addingTimeInterval(120)))
+        let member = data.assemblies[0].members[0]
+        let unitA = try XCTUnwrap(member.equipment?.uniqueId)
+        for state in [SyncState.pending, .syncing] {
+            let ops = [switchOp(product: member.orderProductUniqueId, to: unitA, name: "Unit A", tag: "A-1", state: state, at: switchedAt)]
+            XCTAssertNil(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)), "\(state)")
+        }
+    }
+
+    func testAServerAcknowledgementWithoutATimeNeverCountsAfterALocalSwitch() throws {
+        let data = try reviewWithAcknowledgement(at: NSNull())
+        let member = data.assemblies[0].members[0]
+        XCTAssertEqual(member.availability.unit.state, .available)
+        XCTAssertNil(member.availability.unit.acknowledgedAt)
+        XCTAssertEqual(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay(), overlay: AssemblyLocalOverlay()), .available,
+                       "no switch on this phone: the server's word stands as before")
+        let unitA = try XCTUnwrap(member.equipment?.uniqueId)
+        let ops = [switchOp(product: member.orderProductUniqueId, to: unitA, name: "Unit A", tag: "A-1", state: .synced, at: Date().addingTimeInterval(-600))]
+        XCTAssertNil(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)))
+    }
+
+    func testARejectedSwitchAfterAnAcceptedOneKeepsTheAcceptedUnit() throws {
+        let f = try episodeFixture()
+        let product = f.member.orderProductUniqueId
+        let base = Date().addingTimeInterval(-600)
+        let ops = [switchOp(product: product, to: "EQP-B", name: "Unit B", tag: "B-1", state: .synced, at: base),
+                   switchOp(product: product, to: "EQP-C", name: "Unit C", tag: "C-1", state: .needsAttention, at: base.addingTimeInterval(60))]
+        let queue = QueueLineLocalOverlay.from(ops)
+        XCTAssertEqual(queue.pendingEquipment(for: product)?.uniqueId, "EQP-B", "the server holds B; the refused C changed nothing")
+        XCTAssertEqual(AssemblyPolicy.effectiveEquipment(member: f.member, queue: queue)?.uniqueId, "EQP-B")
+        XCTAssertNil(AssemblyPolicy.unitState(member: f.member, queue: queue, overlay: AssemblyLocalOverlay.from(ops)),
+                     "B is a machine assigned on this phone: it starts unconfirmed, and A's acknowledgement is not about it")
+    }
+
+    func testTheServersReceiptTimeOfASyncedSwitchOutranksThePhonesCaptureTime() throws {
+        // Server clock against server clock whenever the switch's acknowledgement carries the
+        // server's receipt time; the phone's capture time is only the fallback.
+        let stamp = Date().addingTimeInterval(-600)                                     // the review's acknowledgement
+        let data = try reviewWithAcknowledgement(at: KabbaISO8601.string(from: stamp))
+        let member = data.assemblies[0].members[0]
+        let unitA = try XCTUnwrap(member.equipment?.uniqueId)
+        func synced(capturedAt: Date, serverReceivedAt: Date) -> [SyncOperation] {
+            var op = switchOp(product: member.orderProductUniqueId, to: unitA, name: "Unit A", tag: "A-1", state: .synced, at: capturedAt)
+            op.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date(), statusCode: 200, requestId: nil, replayed: false,
+                                                   serverReceivedAt: serverReceivedAt, data: nil)
+            return [op]
+        }
+        // Phone says the switch came before the acknowledgement (a fast phone clock); the server knows it came after.
+        var ops = synced(capturedAt: stamp.addingTimeInterval(-60), serverReceivedAt: stamp.addingTimeInterval(60))
+        XCTAssertNil(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)),
+                     "the acknowledgement predates the switch on the server's clock: it belongs to the ended episode")
+        // Phone says after (a slow phone clock); the server knows the switch came first.
+        ops = synced(capturedAt: stamp.addingTimeInterval(60), serverReceivedAt: stamp.addingTimeInterval(-60))
+        XCTAssertEqual(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)), .available,
+                       "acknowledged after the server received the switch: current for this episode")
     }
 }

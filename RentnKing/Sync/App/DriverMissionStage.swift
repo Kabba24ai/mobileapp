@@ -94,4 +94,22 @@ enum DriverMissionStage {
             assemblyGate: assemblyGate(i, review: review, operations: operations),
             hasDriverChecklistEvidence: evidence))
     }
+
+    /// A switch just recorded on this phone started a new assignment episode of the line
+    /// (2026-09-29): the driver mini-checklist's fuel / keys answers — given for the assignment
+    /// that ended — are retired from the durable record NOW, not only at the next restore, so
+    /// the switch operation being pruned later can never let them back in. The call and its
+    /// ticks stay (they belong to the mission). A line with no record gets none: a record's
+    /// existence is checklist evidence (§3.3.1), never something a switch creates. Should the
+    /// server later refuse the switch, the record names a unit that never came and the restore
+    /// clears it again: the driver is re-asked for the unit that stayed — never handed old answers.
+    static func retireFuelAndKeys(orderProductUniqueId: String, replacementUnit: String, episode: String) {
+        let key = DriverChecklistLocalState.key(orderProductUniqueId: orderProductUniqueId, leg: DriverChecklistLocalState.legDelivery)
+        guard var record = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: key)) else { return }
+        record.fuel = ""
+        record.keys = ""
+        record.equipmentUniqueId = replacementUnit
+        record.assignmentEpisode = episode
+        UserDefaults.standard.set(record.dictionary(), forKey: key)
+    }
 }

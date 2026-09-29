@@ -236,4 +236,63 @@ final class DriverChecklistLocalStateTests: XCTestCase {
                                                                   keys: "With Machine"))
     }
 
+
+    // MARK: Assignment episodes (2026-09-29) — fuel / keys never cross a switch, even back to the same unit
+
+    private func recordForA(episode: String) -> DriverChecklistLocalState {
+        DriverChecklistLocalState(checks: [true, false, true, false], callCustomer: "confirmed",
+                                  fuel: "Full", keys: "With Machine", equipmentUniqueId: unitA, assignmentEpisode: episode)
+    }
+
+    func testTheSameUnitInTheSameEpisodeRestoresEverything() {
+        XCTAssertEqual(DriverChecklistLocalState.restore(local: recordForA(episode: "SW-1"), server: nil, effectiveUnit: unitA, assignmentEpisode: "SW-1"),
+                       recordForA(episode: "SW-1"))
+        XCTAssertEqual(DriverChecklistLocalState.restore(local: recordForA(episode: ""), server: nil, effectiveUnit: unitA, assignmentEpisode: ""),
+                       recordForA(episode: ""), "no switch on this phone, the row's unit: as before")
+    }
+
+    func testTheSameUnitInANewEpisodeResetsFuelAndKeysButKeepsTheCall() {
+        // Answered for A on the row's episode, then A → B → A on the review: A is a NEW assignment.
+        let restored = DriverChecklistLocalState.restore(local: recordForA(episode: ""), server: nil, effectiveUnit: unitA, assignmentEpisode: "SW-2")
+        XCTAssertEqual(restored?.checks, [true, false, true, false])
+        XCTAssertEqual(restored?.callCustomer, "confirmed")
+        XCTAssertEqual(restored?.fuel, "", "the answer given for A's earlier episode never speaks for A's new one")
+        XCTAssertEqual(restored?.keys, "")
+        XCTAssertEqual(restored?.equipmentUniqueId, unitA)
+        XCTAssertEqual(restored?.assignmentEpisode, "SW-2", "the record now belongs to the current episode")
+
+        let later = DriverChecklistLocalState.restore(local: recordForA(episode: "SW-1"), server: nil, effectiveUnit: unitA, assignmentEpisode: "SW-3")
+        XCTAssertEqual(later?.fuel, "")
+        XCTAssertEqual(later?.keys, "")
+        XCTAssertEqual(later?.assignmentEpisode, "SW-3")
+    }
+
+    func testTheServerCopyNeverSpeaksForAnEpisodeThisPhoneStarted() {
+        let server = DriverChecklistServerCopy(callCustomer: "no_answer", fuel: "Full", keys: "With Machine", checks: [0, 1, 0, 0], equipmentUniqueId: unitA)
+        let afterASwitch = DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitA, assignmentEpisode: "SW-1")
+        XCTAssertEqual(afterASwitch?.callCustomer, "no_answer")
+        XCTAssertEqual(afterASwitch?.fuel, "")
+        XCTAssertEqual(afterASwitch?.keys, "")
+        XCTAssertEqual(afterASwitch?.assignmentEpisode, "SW-1")
+        XCTAssertEqual(DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitA, assignmentEpisode: "")?.fuel, "Full",
+                       "no local switch: the server's answers for the row's unit restore as before")
+    }
+
+    func testTheEpisodeRoundTripsThroughTheDictionaryAndIsEmptyWhenAbsent() {
+        let record = recordForA(episode: "SW-9")
+        XCTAssertEqual(record.dictionary()["assignment_episode"] as? String, "SW-9")
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: record.dictionary()), record)
+        let legacy = DriverChecklistLocalState(dictionary: ["fuel": "Full", "equipment_unique_id": unitA])
+        XCTAssertEqual(legacy?.assignmentEpisode, "", "a record written before episodes existed reads as the row's episode")
+    }
+
+    func testAnEpisodeNoLongerRetainedOnThePhoneIsStillNotTheRecordedOne() {
+        // The switch the record was bound to was pruned (retention window): "" ≠ "SW-1" — fuel and
+        // keys clear (a spurious re-ask at worst); they never revive.
+        let restored = DriverChecklistLocalState.restore(local: recordForA(episode: "SW-1"), server: nil, effectiveUnit: unitA, assignmentEpisode: "")
+        XCTAssertEqual(restored?.fuel, "")
+        XCTAssertEqual(restored?.keys, "")
+        XCTAssertEqual(restored?.callCustomer, "confirmed")
+        XCTAssertEqual(restored?.assignmentEpisode, "")
+    }
 }

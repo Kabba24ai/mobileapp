@@ -1142,12 +1142,14 @@ extension DriverChecklistViewController {
     /// The screen's controls as one value (pickup has no fuel/keys — both stay ""),
     /// bound to the unit the answers were given for (D5).
     private func currentLocalState() -> DriverChecklistLocalState {
-        DriverChecklistLocalState(
+        let pending = self.localSwitch   // one engine read: the unit and its episode always agree
+        return DriverChecklistLocalState(
             checks: checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks,
             callCustomer: self.strCallCustomer,
             fuel: self.strDoubleCheck,
             keys: self.strKeys,
-            equipmentUniqueId: self.effectiveUnit?.id ?? ""
+            equipmentUniqueId: self.effectiveUnit(given: pending)?.id ?? "",
+            assignmentEpisode: pending?.operationId ?? ""
         )
     }
 
@@ -1165,7 +1167,9 @@ extension DriverChecklistViewController {
         // belong to the mission and always come back.
         let stored = DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: localStateKey))
         let serverCopy = (checklistType == "pickup" ? self.objDispatch?.pickup_checklist : self.objDispatch?.delivery_checklist)?.serverCopy
-        let state = DriverChecklistLocalState.restore(local: stored, server: serverCopy, effectiveUnit: self.effectiveUnit?.id)
+        let pending = self.localSwitch
+        let state = DriverChecklistLocalState.restore(local: stored, server: serverCopy, effectiveUnit: self.effectiveUnit(given: pending)?.id,
+                                                      assignmentEpisode: pending?.operationId ?? "")
 
         if let state {
             if checklistType == "pickup" {
@@ -1296,8 +1300,18 @@ extension DriverChecklistViewController {
 
     /// The unit this mission is effectively on: a switch this phone made (pending,
     /// syncing or synced — never a rejected one) outranks the row's feed copy.
-    var effectiveUnit: EffectiveUnit? {
-        if let pending = QueueLineLocalOverlay.from(self.operationsSnapshot()).pendingEquipment(for: self.productUniqueId) {
+    var effectiveUnit: EffectiveUnit? { effectiveUnit(given: localSwitch) }
+
+    /// This phone's standing switch for the line (pending, syncing or synced — never a rejected
+    /// one): the start of the line's current assignment episode; nil = the row's own assignment.
+    /// Its operation id is the episode the fuel / keys answers bind to (D5, 2026-09-29): the same
+    /// unit switched away from and back to is a new episode and starts unanswered.
+    var localSwitch: QueueLineLocalOverlay.PendingEquipment? {
+        QueueLineLocalOverlay.from(self.operationsSnapshot()).pendingEquipment(for: self.productUniqueId)
+    }
+
+    private func effectiveUnit(given pending: QueueLineLocalOverlay.PendingEquipment?) -> EffectiveUnit? {
+        if let pending = pending {
             return EffectiveUnit(id: pending.uniqueId, name: pending.name, tag: pending.displayId)
         }
         guard let unit = self.objDispatch?.objEquipment, let id = unit.unique_id, !id.isEmpty else { return nil }

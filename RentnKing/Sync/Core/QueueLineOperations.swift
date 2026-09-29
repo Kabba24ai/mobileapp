@@ -170,6 +170,10 @@ struct QueueLineLocalOverlay: Equatable {
         let displayId: String?
         let operationId: String
         let syncState: SyncState
+        /// When the switch was captured on this phone — the start of the line's current assignment episode.
+        let capturedAt: Date
+        /// The server's receipt time of the switch, when its acknowledgement carried one (server clock).
+        let serverReceivedAt: Date?
         var isPendingSync: Bool { syncState == .pending || syncState == .syncing }
     }
 
@@ -207,17 +211,17 @@ struct QueueLineLocalOverlay: Equatable {
                 overlay.stagedLocally.remove(product)
                 overlay.pendingStage[product] = nil
                 overlay.attention[product] = nil
-                // A switch names the replacement unit; a rejected one changed nothing.
-                if op.type == EffectiveFieldState.equipmentSubstitutionType {
-                    if op.state == .needsAttention {
-                        overlay.pendingEquipment[product] = nil
-                    } else if let unit = op.payload["equipment_unique_id"]?.stringValue, !unit.isEmpty {
-                        overlay.pendingEquipment[product] = PendingEquipment(
-                            uniqueId: unit,
-                            name: op.payload["equipment_name"]?.stringValue,
-                            displayId: op.payload["equipment_display_id"]?.stringValue,
-                            operationId: op.id, syncState: op.state)
-                    }
+                // A switch names the replacement unit; a rejected one changed nothing — including
+                // the accepted switch before it, which keeps naming the unit the server holds
+                // (2026-09-29).
+                if op.type == EffectiveFieldState.equipmentSubstitutionType, op.state != .needsAttention,
+                   let unit = op.payload["equipment_unique_id"]?.stringValue, !unit.isEmpty {
+                    overlay.pendingEquipment[product] = PendingEquipment(
+                        uniqueId: unit,
+                        name: op.payload["equipment_name"]?.stringValue,
+                        displayId: op.payload["equipment_display_id"]?.stringValue,
+                        operationId: op.id, syncState: op.state, capturedAt: op.capturedAt,
+                        serverReceivedAt: op.acknowledgment?.serverReceivedAt)
                 }
                 continue
             }

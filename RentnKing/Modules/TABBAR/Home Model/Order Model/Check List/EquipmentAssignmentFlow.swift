@@ -44,6 +44,10 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
         /// The employee physically staging (resolved by the host — the checklist's
         /// employee row before the login account); nil refuses the change.
         var performedByUniqueId: String?
+        /// The leg the switch is for: only a DELIVERY switch starts a new assignment episode
+        /// for the driver mini-checklist's fuel / keys (the review is delivery-only; the yard
+        /// checklist passes its leg — a Return switch must leave the delivery's record alone).
+        var isDeliveryLeg: Bool = true
     }
 
     /// Where the picker's candidates come from when it has to ask again (2026-09-18):
@@ -646,6 +650,13 @@ final class EquipmentAssignmentFlow: NSObject, UIPickerViewDataSource, UIPickerV
             return
         }
         guard let op = operation else { return }   // same unit → nothing recorded, nothing to apply
+        // A new assignment episode of the line (2026-09-29): the driver mini-checklist's fuel / keys
+        // answers for the one that ended are retired from their durable record at once — here, so
+        // every host that records a delivery switch (the review, the yard checklist) retires them.
+        if target.isDeliveryLeg {
+            DriverMissionStage.retireFuelAndKeys(orderProductUniqueId: target.orderProductUniqueId,
+                                                 replacementUnit: replacement.uniqueId, episode: op.id)
+        }
         onApplied(replacement, reason, op.id)
     }
 

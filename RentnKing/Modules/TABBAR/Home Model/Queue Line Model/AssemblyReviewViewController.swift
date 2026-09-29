@@ -720,6 +720,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             return effective.pendingSync ? "Assigned on this phone · pending sync" : "Assigned on this phone"
         }
         guard member.availability.unit.equipmentUniqueId == nil || member.availability.unit.equipmentUniqueId == effective.uniqueId,
+              AssemblyPolicy.serverAcknowledgementIsCurrent(member: member, queue: queueOverlay),   // not one from an episode a local switch ended
               let state = member.availability.unit.state else { return nil }
         let who = member.availability.unit.acknowledgedBy.map { " by \($0)" } ?? ""
         return state.title + who
@@ -896,7 +897,8 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             performedByUniqueId: performer)
         equipmentFlow.apply(target, replacement: replacement) { [weak self] _, _, operationId in
             guard let self = self else { return }
-            // The operation is durable: the replacement shows NOW (overlay), unconfirmed,
+            // The operation is durable (and the driver's fuel / keys answers for the ended episode
+            // already retired by the flow): the replacement shows NOW (overlay), unconfirmed,
             // and the gate recomputes — STOP until the yard confirms the new machine.
             self.render()
             KabbaSync.showStatusToast(for: operationId)

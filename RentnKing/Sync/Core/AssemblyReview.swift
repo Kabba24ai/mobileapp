@@ -629,14 +629,24 @@ struct AssemblyLocalOverlay: Equatable {
     /// "Staged + Not Available → Pending".
     var unstagedLocally: Set<String> = []
 
-    /// A unit decision is about ONE unit: keyed by the equipment unique id it
-    /// named, so a decision for unit A never reads as a decision about unit B
-    /// after a reassignment (the same episode rule as the server ledger).
+    /// A unit decision is about ONE unit in ONE assignment episode: keyed by the
+    /// equipment unique id it named, so a decision for unit A never reads as a
+    /// decision about unit B, and retired by the next durable switch of the line
+    /// (`retireUnitDecisions`), so a decision about A never survives A being
+    /// switched away from and back to — the server ledger's live-episode rule.
     static func unitKey(_ equipmentUniqueId: String) -> String { "unit:\(equipmentUniqueId)" }
     static func optionKey(_ frozenOptionKey: String) -> String { "option:\(frozenOptionKey)" }
 
     func decision(product: String, subjectKey: String) -> Decision? {
         availability[product]?[subjectKey]
+    }
+
+    /// An assignment episode of the line ended: every unit decision goes with it. Option
+    /// decisions are the line's own and stay (the server ledger keeps them across a switch too).
+    mutating func retireUnitDecisions(for product: String) {
+        guard let decisions = availability[product] else { return }
+        let kept = decisions.filter { !$0.key.hasPrefix(Self.unitKey("")) }
+        availability[product] = kept.isEmpty ? nil : kept
     }
 
     func unitDecision(product: String, equipmentUniqueId: String?) -> Decision? {
@@ -695,6 +705,20 @@ struct AssemblyLocalOverlay: Equatable {
 
             case EffectiveFieldState.deliveryPrepareType:
                 if op.payload["mark_staged"]?.boolValue == true { lastStagingSave[product] = op.queuedAt }
+
+            case EffectiveFieldState.equipmentSubstitutionType:
+                // Assignment-episode boundary (2026-09-29, order #6009): a durable switch made on
+                // THIS phone — pending, syncing or synced; a rejected one changed nothing — ends the
+                // line's assignment episode, so every earlier unit decision is retired with it: the
+                // one about the unit it leaves and the one about a unit it comes back to. Only a
+                // decision captured after the switch can confirm the effective unit — locally,
+                // before the server has heard of the switch, as its ledger will judge once it has.
+                // Options keep theirs; the Not Available / Pending mirror below is not a unit
+                // decision and is not reset (the server leaves the line Pending too). A switch made
+                // in the office creates no operation here and is NOT a boundary on this phone —
+                // a known gap, recorded 2026-09-29.
+                guard op.state != .needsAttention else { break }
+                overlay.retireUnitDecisions(for: product)
 
             default:
                 break
@@ -792,18 +816,39 @@ enum AssemblyPolicy {
 
     /// Effective unit / option states once this phone's durable decisions are layered on.
     /// The unit state is the EFFECTIVE unit's: the server's acknowledgement counts only
-    /// while it names that same unit (its episode), and a local decision only when it
-    /// was made about that unit — a replacement machine always starts unconfirmed.
+    /// while it names that same unit and, after a switch made on this phone, only while it
+    /// is current for that switch's episode (`serverAcknowledgementIsCurrent`); a local
+    /// decision only when it was made about that unit after the latest switch — a
+    /// replacement machine, and a machine that comes back, always start unconfirmed.
     static func unitState(member: AssemblyMember, queue: QueueLineLocalOverlay, overlay: AssemblyLocalOverlay) -> AvailabilityState? {
         guard let unit = effectiveEquipment(member: member, queue: queue) else { return nil }
         if let local = overlay.unitDecision(product: member.orderProductUniqueId, equipmentUniqueId: unit.uniqueId) {
             return local.state
         }
         guard !unit.fromLocalSwitch,
-              member.availability.unit.equipmentUniqueId == nil || member.availability.unit.equipmentUniqueId == unit.uniqueId else {
+              member.availability.unit.equipmentUniqueId == nil || member.availability.unit.equipmentUniqueId == unit.uniqueId,
+              serverAcknowledgementIsCurrent(member: member, queue: queue) else {
             return nil
         }
         return member.availability.unit.state
+    }
+
+    /// Does the review's server acknowledgement of the unit speak for the CURRENT assignment
+    /// episode? Always, while this phone has made no durable switch on the line. After one: never
+    /// while that switch is still on its way (the server cannot have acknowledged an episode it
+    /// has not received — exact and clock-free), and once it has synced only when the
+    /// acknowledgement is later than the switch: the cached review may still carry the
+    /// acknowledgement of the episode the switch ended — a unit switched away from and back to is
+    /// a NEW episode of the same unit (order #6009, 2026-09-29). Unknown time = no.
+    static func serverAcknowledgementIsCurrent(member: AssemblyMember, queue: QueueLineLocalOverlay) -> Bool {
+        guard let local = queue.pendingEquipment(for: member.orderProductUniqueId) else { return true }
+        guard local.syncState == .synced else { return false }
+        guard let stamp = member.availability.unit.acknowledgedAt, let acknowledgedAt = KabbaISO8601.date(from: stamp) else { return false }
+        // Server clock against server clock when the switch's acknowledgement carried the server's
+        // receipt time; otherwise against this phone's capture time (the queue-line envelope sends
+        // no receipt time yet — a phone clock behind the server by more than the gap between the
+        // old acknowledgement and the switch would misjudge; recorded 2026-09-29).
+        return acknowledgedAt > (local.serverReceivedAt ?? local.capturedAt)
     }
 
     static func optionState(member: AssemblyMember, option: AssemblyProductOption, overlay: AssemblyLocalOverlay) -> AvailabilityState? {
