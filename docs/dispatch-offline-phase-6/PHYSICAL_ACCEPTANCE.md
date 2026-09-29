@@ -245,7 +245,8 @@ For each line, Claude changes a mission and waits a minute. You then do the one 
 
 **New words you will see:**
 - **Review Assembly** — a button on the Driver Checklist (and on Order Details after Arrived). It opens the Assembly Review. Before you leave the yard you can change things there; after Load Map & Go it is read-only and tapping a row explains why.
-- **Load Map & Go** stays grey until the assembly says **GO**, the call is recorded (**Confirmed** with every box ticked, or **No Answer**), **Fuel = Full** and **Keys = With Machine**. A sentence under the button tells you what is still missing. Nothing is pre-selected any more.
+- **Load Map & Go** stays grey until the assembly says **GO**, the call is recorded (the three-step call below, or **No Answer**), **Fuel = Full** and **Keys = With Machine**. A sentence under the button tells you what is still missing. Nothing is pre-selected any more.
+- **Call Customer (2026-09-29)** — on a Delivery the four boxes are gone. Under "1. Call Customer" you see three buttons: **Delivery Address**, **Equipment Order**, **Unloading Situation**. Tapping any of them (or **Confirmed**) starts the guided call at the address; each page shows the real information from the order and a **Verify …** button; the third page asks for one unloading situation (**Other** needs a note). When all three are done, **Confirmed** lights up by itself — you can never tap it on. **No Answer** is still a tap. After Confirmed, each button opens its own page to review the information. Return keeps its own three ticks.
 - **Service Offline** — the message Load Map & Go shows when there is no signal: the status is saved and will sync; the map button stays for a retry.
 
 ---
@@ -255,7 +256,7 @@ For each line, Claude changes a mission and waits a minute. You then do the one 
 - [ ] Tap **Available** on the unit and on every option. It says **GO**. **Continue to Driver Checklist** becomes filled. Tap it.
 - [ ] On the Driver Checklist nothing is selected: Call Customer, Fuel and Keys all blank. Load Map & Go is grey and a sentence says what is missing. **Screenshot.**
 - [ ] The header shows the unit as **"Name · #TAG"** and a **Review Assembly** button.
-- [ ] Tap **Confirmed** and tick every box → the sentence changes to Fuel. Tap **Full** → Keys. Tap **With Machine** → Load Map & Go turns green.
+- [ ] Tap **Delivery Address** → the call opens on the address; **Verify Address** → Equipment Order (product + options); **Verify Equipment** → Unloading Situation; pick one → **Confirm Call**. Back on the checklist **Confirmed** is lit and the sentence changes to Fuel. Tap **Full** → Keys. Tap **With Machine** → Load Map & Go turns green. *(Accepted 2026-09-28 with the earlier four-tick call; the wording here is the 2026-09-29 wizard.)*
 - [ ] Tap **Load Map & Go**. Apple Maps opens. Come back to the app: it shows **On My Way** with the Arrived button. You see the "Pending Sync → Synced" toast.
 - [ ] Tap **Arrived**. **Order Details** opens. The bar under the title reads **"Delivery Arrived · Name · #TAG"** with a **Review Assembly** button. **Screenshot.**
 - [ ] Do **License**, then **Terms**. Each returns to Order Details.
@@ -303,11 +304,16 @@ For each line, Claude changes a mission and waits a minute. You then do the one 
 - [ ] Answer and **Save** → Video → record → submit → back on Order Details (not the review). **Complete Delivery.**
 - [ ] **CHECKPOINT.**
 
-### P8 — The call (mission P8)
-- [ ] Start Delivery → GO → Continue → **Full**, **With Machine**, leave the call blank → Load Map & Go stays grey; the sentence says to record the call.
-- [ ] Tap **Confirmed**, tick all but one box → still grey.
-- [ ] Tap **No Answer** → green. Tap **Load Map & Go**.
-- [ ] **CHECKPOINT.** Claude confirms the No-Answer text was recorded **once** on the test server (outbound texting is disabled there).
+### P8 — The call, as the three-step wizard (mission P8; 2026-09-29 redesign)
+- [ ] **P8-A — untouched call → blocked.** Start Delivery → GO → Continue → **Full**, **With Machine**, leave the call alone. Under "1. Call Customer" the three buttons (**Delivery Address**, **Equipment Order**, **Unloading Situation**) are unchecked and the line under them says to tap a step. Load Map & Go is grey; the sentence says to complete the customer call. Tap **Confirmed** → it does **not** light up; the call opens on the address instead. **Screenshot**, then Back.
+- [ ] **P8-B — Address only → blocked.** Tap **Equipment Order** → the call still opens on **Delivery Address** (it always starts there). The page shows the real address; tap **Verify Address** → the Equipment Order page. Back out (Back arrow). On the checklist the first button is checked, the line says **1 of 3 verified**, Load Map & Go is grey.
+- [ ] **P8-C — Address + Equipment → blocked.** Tap any button → the call opens on the address again; **Verify Address** → the page shows the **product and its Product Options** (no separate Attachments step); **Verify Equipment** → Unloading Situation. Back out. **2 of 3 verified**, still grey.
+- [ ] **P8-D — Unloading completed → Confirmed automatically.** Tap any button → address → **Verify Address** → **Verify Equipment** → choose **Other** → the button stays grey until you type a note → type one → **Confirm Call**. Back on the checklist all three are checked, **Confirmed** is lit by itself, the line says the call is confirmed, and Load Map & Go is **green** (Full + With Machine from P8-A). **Screenshot.**
+- [ ] **P8-E — review.** Tap **Delivery Address** → the address page opens directly (button reads **Done**). Tap **Equipment Order** → product + options directly. Tap **Unloading Situation** → your choice and note are shown; change to **Unload on the street** → **Save**. Confirmed stays lit throughout. **Screenshot** of the unloading page.
+- [ ] **CHECKPOINT.** Claude confirms the server holds the three verified steps and derived `confirmed` for P8, no text was sent, and the phone's saves synced once each. Do **not** tap Load Map & Go on P8 yet.
+- [ ] **P8-F — fresh mission → No Answer → satisfied.** Claude names P8b. Start Delivery → GO → Continue → **Full**, **With Machine** → tap **No Answer** → Load Map & Go turns green; the three buttons stay unchecked and the line says the call was skipped (No Answer). Tap **Load Map & Go** (dismiss Maps). **CHECKPOINT.** Claude confirms the No-Answer text was recorded **once** on the test server (outbound texting is disabled there).
+- [ ] **P8-G — offline partial wizard survives.** Claude names P8c. Online, let it download; then **fully offline**. Start Delivery → GO → Continue → tap **Delivery Address** → **Verify Address** → **Verify Equipment** → Back out (2 of 3). Force-quit. Reopen → Dispatch → Start Delivery → the checklist shows **2 of 3 verified**. Tap a button → the call starts at the address again → verify both → choose **Easy access** → **Confirm Call** → Confirmed lit, still offline. **Stay offline until Claude says.** **CHECKPOINT** (Claude copies the phone's saved data). Wi-Fi on → All synced → **CHECKPOINT** (Claude confirms the partial saves and the confirmed state reached the server, each once).
+- [ ] **P8-H — completed call → equipment substitution.** On P8 (call confirmed, Full, With Machine from P8-D): tap **Review Assembly** → change the unit to the spare Claude names → **Available** → GO → Back. On the checklist **Confirmed and the three checks are still there**, while Fuel and Keys are blank again for the new unit (or hidden, if the spare needs neither). Answer them → green. **Screenshot.** **CHECKPOINT.** Claude confirms the server kept the three steps and the derived confirmed on the new assignment, with fuel / keys retired.
 
 ### P9 — Fuel and Keys (missions P9a, P9b — P9b's unit needs neither fuel nor keys)
 - [ ] P9a: GO → Continue → No Answer → **Not Full** → grey with the fuel sentence. **Full** + **Missing** → grey with the keys sentence. **Full** + **With Machine** → green. **Screenshot of each.**

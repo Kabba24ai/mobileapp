@@ -106,7 +106,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
     /// mini-checklist copy; `pickup` makes it the Return leg; `requires*` set the
     /// yard's fuel / key predicates; `unit` swaps the assigned machine.
     private func row(evidence: Bool = true, pickup: Bool = false, requiresFuel: Bool = true, requiresKeys: Bool = true,
-                     unit: Unit? = nil) throws -> SchedulesModel {
+                     unit: Unit? = nil, options: [String]? = nil) throws -> SchedulesModel {
         var json = try XCTUnwrap(package["dispatch"]?["row"])
         if !evidence { json = setting(json, ["delivery_checklist"], emptyChecklistBlock) }
         json = setting(json, ["is_delivered"], .bool(pickup))
@@ -116,6 +116,11 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
             json = setting(json, ["equipment", "unique_id"], .string(unit.id))
             json = setting(json, ["equipment", "equipment_name"], .string(unit.name))
             json = setting(json, ["equipment", "equipment_id"], .string(unit.tag))
+        }
+        if let options {
+            // The checkout-frozen Product Options the row carries (product_data.product_option_items).
+            json = setting(json, ["product_data", "product_option_items"],
+                           .array(options.map { .object(["name": .string($0), "price": .number(0), "included": .bool(true)]) }))
         }
         return try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: json))
     }
@@ -321,7 +326,7 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertEqual(vc.fuelSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
         XCTAssertEqual(vc.keysSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
         XCTAssertFalse(vc.btnReadytoGo.isEnabled)
-        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCall, "GO, so the call is the first unmet term")
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCallWizard, "GO, so the call is the first unmet term")
 
         select(vc.callCustomerSegment, 1)                      // No Answer — a complete call
         XCTAssertFalse(vc.btnReadytoGo.isEnabled)
@@ -343,12 +348,17 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertTrue(vc.btnReadytoGo.isEnabled, "GO + No Answer + Full + With Machine")
         XCTAssertTrue(vc.gateBlockerLabel.isHidden)
 
-        select(vc.callCustomerSegment, 0)                      // Confirmed, no ticks yet
-        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
-        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCall)
+        // "Confirmed" cannot be tapped into existence: the segment falls back to the
+        // derived state and the wizard opens (from Delivery Address); the gate blocks.
+        let nav = UINavigationController(rootViewController: vc)
+        select(vc.callCustomerSegment, 0)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 1, "still No Answer — nothing was verified")
+        XCTAssertTrue(nav.topViewController is CustomerCallWizardViewController)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "No Answer still stands until a step is verified")
 
-        tickEveryCallCheck(vc)
-        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "Confirmed with every check")
+        completeCall(vc, nav: nav)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0, "Confirmed — derived from the three verified steps")
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "the verified call with Full + With Machine")
     }
 
     func testTheAssemblyTermBlocksUntilGo() throws {
@@ -608,6 +618,472 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertEqual(copy.call_customer, "no_answer")
         XCTAssertEqual(copy.driver_checks, [1, 1, 1, 1])
         XCTAssertEqual(copy.equipment_unique_id, unitB.id)
+    }
+
+    // MARK: - Call Customer wizard (2026-09-29): Delivery's three-step customer call
+
+    private func wizard(_ nav: UINavigationController, file: StaticString = #filePath, line: UInt = #line) throws -> CustomerCallWizardViewController {
+        let wizard = try XCTUnwrap(nav.topViewController as? CustomerCallWizardViewController, "the wizard is open", file: file, line: line)
+        wizard.loadViewIfNeeded()
+        return wizard
+    }
+
+    private func choose(_ wizard: CustomerCallWizardViewController, _ code: String, note: String? = nil) throws {
+        let index = try XCTUnwrap(UnloadingSituation.codes.firstIndex(of: code))
+        wizard.choiceButtons[index].sendActions(for: .touchUpInside)
+        if let note {
+            wizard.noteField.text = note
+            wizard.textViewDidChange(wizard.noteField)
+        }
+    }
+
+    /// Runs the whole call from wherever the screen is: opens the wizard through the
+    /// first control, verifies the address and the equipment, records the situation.
+    private func completeCall(_ vc: DriverChecklistViewController, nav: UINavigationController,
+                              situation: String = "easy_access", note: String? = nil) {
+        if !(nav.topViewController is CustomerCallWizardViewController) {
+            vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        }
+        guard let wizard = try? wizard(nav) else { return }
+        XCTAssertEqual(wizard.step, .address, "an unfinished call always starts at Delivery Address")
+        wizard.primaryTapped()                               // Verify Address
+        wizard.primaryTapped()                               // Verify Equipment
+        try? choose(wizard, situation, note: note)
+        wizard.primaryTapped()                               // Confirm Call
+    }
+
+    private var localRecord: DriverChecklistLocalState? {
+        DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey:
+            DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: DriverChecklistLocalState.legDelivery)))
+    }
+
+    func testAFreshDeliveryShowsThreeUnverifiedStepsAndNoAttachmentsRow() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let titles = vc.viewCallCustomerStackChecklist.arrangedSubviews.compactMap { row in
+            row.subviews.compactMap { $0 as? UILabel }.first?.text
+        }
+        XCTAssertEqual(titles, ["Delivery Address", "Equipment Order", "Unloading Situation"])
+        XCTAssertEqual(vc.callCustomerCheckboxButtons.count, 3)
+        XCTAssertTrue(vc.callCustomerCheckboxButtons.allSatisfy { !$0.isSelected })
+        XCTAssertFalse(titles.contains { $0.localizedCaseInsensitiveContains("attachment") }, "attachments are Product Options inside Equipment Order")
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusStart)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCallWizard)
+    }
+
+    func testConfirmedCannotBeAssertedAndAnyUnfinishedStepOpensTheWizardAtTheAddress() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+
+        select(vc.callCustomerSegment, 0)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "Confirmed is derived, never tapped")
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(try wizard(nav).step, .address)
+        nav.popViewController(animated: false)
+
+        // The third control, untouched call: still Delivery Address (all-or-nothing, sequential).
+        vc.callCustomerCheckboxButtons[2].sendActions(for: .touchUpInside)
+        let opened = try wizard(nav)
+        XCTAssertEqual(opened.step, .address)
+        XCTAssertEqual(opened.mode, .call)
+        XCTAssertEqual(opened.addressLabel.text, try XCTUnwrap(try row().order?.objDeliveryAddress?.full_address), "the actual cached address")
+        XCTAssertEqual(opened.primaryButton.currentTitle, CustomerCallWizardViewController.verifyAddressTitle)
+    }
+
+    func testEachVerifiedStepAdvancesPersistsAndOnlyTheThirdDerivesConfirmed() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let options = ["Bucket 72\"", "Pallet forks"]
+        let vc = try screen2(try row(evidence: false, options: options), review: try review(go: true))
+        vc.operationsSnapshot = { engine.snapshot() }
+        vc.isReachable = { false }                            // zero service: nothing here needs a response
+        let nav = UINavigationController(rootViewController: vc)
+        select(vc.fuelSegment, 1)
+        select(vc.keysSegment, 1)
+
+        vc.callCustomerCheckboxButtons[1].sendActions(for: .touchUpInside)
+        let wizard = try wizard(nav)
+        XCTAssertEqual(wizard.stepLabel.text, "Step 1 of 3")
+
+        wizard.primaryTapped()                                // Verify Address
+        XCTAssertEqual(wizard.step, .equipment, "advances directly to Equipment Order")
+        XCTAssertEqual(vc.callVerification, CustomerCallVerification(addressVerified: true))
+        XCTAssertEqual(localRecord?.addressVerified, true, "persisted locally at once")
+        XCTAssertEqual(localRecord?.callCustomer, "")
+        XCTAssertTrue(vc.callCustomerCheckboxButtons[0].isSelected)
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusPartial(1))
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled, "address only → blocked")
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCallWizard)
+        XCTAssertEqual(wizard.productLabel.text, try row().product_name, "the primary product")
+        for option in options { XCTAssertTrue(wizard.optionsLabel.text?.contains(option) == true, "every Product Option: \(option)") }
+        XCTAssertEqual(wizard.primaryButton.currentTitle, CustomerCallWizardViewController.verifyEquipmentTitle)
+
+        wizard.primaryTapped()                                // Verify Equipment
+        XCTAssertEqual(wizard.step, .unloading)
+        XCTAssertEqual(vc.callVerification, CustomerCallVerification(addressVerified: true, equipmentVerified: true))
+        XCTAssertEqual(localRecord?.equipmentVerified, true)
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled, "address + equipment → blocked")
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
+        XCTAssertEqual(wizard.choiceButtons.count, 5)
+        XCTAssertFalse(wizard.primaryButton.isEnabled, "exactly one situation is required")
+
+        try choose(wizard, "other")
+        XCTAssertFalse(wizard.primaryButton.isEnabled, "Other needs a note")
+        wizard.primaryTapped()
+        XCTAssertEqual(nav.topViewController, wizard, "an empty Other note never completes the step")
+        XCTAssertFalse(vc.callVerification.isComplete)
+
+        try choose(wizard, "other", note: "Back lot, gate code 4411")
+        XCTAssertTrue(wizard.primaryButton.isEnabled)
+        wizard.primaryTapped()                                // Confirm Call
+        XCTAssertEqual(nav.topViewController, vc, "the wizard closes on the third step")
+        XCTAssertTrue(vc.callVerification.isComplete)
+        XCTAssertEqual(vc.callVerification.unloading, .other(note: "Back lot, gate code 4411"))
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0, "Confirmed — automatically")
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusConfirmed)
+        XCTAssertTrue(vc.callCustomerCheckboxButtons.allSatisfy(\.isSelected))
+        XCTAssertEqual(localRecord?.callCustomer, "confirmed")
+        XCTAssertEqual(localRecord?.unloadingSituation, "other")
+        XCTAssertEqual(localRecord?.unloadingNote, "Back lot, gate code 4411")
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "GO + verified call + Full + With Machine — with no network at all")
+
+        // Each step queued a durable partial save through the existing engine; the last carries everything.
+        let saves = engine.snapshot().filter {
+            $0.type == EffectiveFieldState.driverChecklistType && $0.payload["order_product_unique_id"]?.stringValue == productId
+        }
+        XCTAssertEqual(saves.count, 3)
+        let first = try XCTUnwrap(saves.min { $0.capturedAt < $1.capturedAt })
+        XCTAssertEqual(first.payload["address_verified"]?.boolValue, true)
+        XCTAssertNil(first.payload["equipment_verified"], "a step not yet verified is absent — never an explicit false that could un-verify the server's copy")
+        XCTAssertNil(first.payload["unloading_situation"])
+        let last = try XCTUnwrap(saves.max { $0.capturedAt < $1.capturedAt })
+        XCTAssertEqual(last.payload["address_verified"]?.boolValue, true)
+        XCTAssertEqual(last.payload["equipment_verified"]?.boolValue, true)
+        XCTAssertEqual(last.payload["unloading_situation"]?.stringValue, "other")
+        XCTAssertEqual(last.payload["unloading_note"]?.stringValue, "Back lot, gate code 4411")
+        XCTAssertEqual(last.payload["call_customer"]?.stringValue, "confirmed")
+        XCTAssertNil(last.payload["driver_checks"], "the delivery leg sends the steps, not ticks")
+        XCTAssertNil(last.payload["equipment_driver_status"], "a partial save is not a transition")
+        XCTAssertEqual(last.state, .pending, "it waits in the durable queue for service")
+    }
+
+    func testFuelAndKeysStillBlockAfterTheVerifiedCall() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+        completeCall(vc, nav: nav)
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel)
+        select(vc.fuelSegment, 0)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel, "Not Full still blocks")
+        select(vc.fuelSegment, 1)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerKeys)
+        select(vc.keysSegment, 0)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerKeys, "Missing still blocks")
+        select(vc.keysSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+    }
+
+    func testPartialWizardProgressSurvivesLeavingTheScreenAndARelaunch() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        try wizard(nav).primaryTapped()                       // address only
+        nav.popViewController(animated: false)                // backs out mid-call
+
+        // Re-entry (a new screen instance = a relaunch): the step is still verified and
+        // the call still starts at the address (all-or-nothing until complete).
+        let again = try screen2(try row(evidence: false), review: try review(go: true))
+        XCTAssertEqual(again.callVerification, CustomerCallVerification(addressVerified: true))
+        XCTAssertTrue(again.callCustomerCheckboxButtons[0].isSelected)
+        XCTAssertEqual(again.callStatusLabel.text, DriverChecklistViewController.callStatusPartial(1))
+        XCTAssertFalse(again.btnReadytoGo.isEnabled)
+        let againNav = UINavigationController(rootViewController: again)
+        again.callCustomerCheckboxButtons[2].sendActions(for: .touchUpInside)
+        let reopened = try wizard(againNav)
+        XCTAssertEqual(reopened.step, .address)
+        reopened.primaryTapped(); reopened.primaryTapped()    // two steps now
+        againNav.popViewController(animated: false)
+
+        let third = try screen2(try row(evidence: false), review: try review(go: true))
+        XCTAssertEqual(third.callVerification, CustomerCallVerification(addressVerified: true, equipmentVerified: true))
+        XCTAssertEqual(third.callStatusLabel.text, DriverChecklistViewController.callStatusPartial(2))
+        XCTAssertFalse(third.btnReadytoGo.isEnabled)
+    }
+
+    func testNoAnswerSatisfiesTheCallOfflineWithoutPretendingTheStepsWereVerified() throws {
+        let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false), review: try review(go: true))
+        vc.isReachable = { false }
+        select(vc.callCustomerSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "No Answer alone, with GO and a unit needing neither")
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusNoAnswer)
+        XCTAssertTrue(vc.callCustomerCheckboxButtons.allSatisfy { !$0.isSelected }, "no step is marked verified")
+        XCTAssertEqual(vc.callVerification, .notStarted)
+        XCTAssertEqual(localRecord?.callCustomer, "no_answer")
+        XCTAssertEqual(localRecord?.addressVerified, false)
+
+        // Later the customer answers: the wizard starts at the address and No Answer is dropped
+        // the moment a step is verified; the whole call is then required again.
+        let nav = UINavigationController(rootViewController: vc)
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        vc.callCustomerCheckboxButtons[1].sendActions(for: .touchUpInside)
+        let wizard = try wizard(nav)
+        XCTAssertEqual(wizard.step, .address)
+        // Opening the wizard hides the checklist (viewWillDisappear) — that push must NOT
+        // flush the transient No Answer to the server: it would text the customer the
+        // driver is now talking to. A real exit still syncs.
+        vc.viewWillDisappear(false)
+        XCTAssertFalse(engine.snapshot().contains {
+            $0.payload["order_product_unique_id"]?.stringValue == productId && $0.payload["call_customer"]?.stringValue == "no_answer"
+        }, "no No Answer save is queued by opening the wizard")
+        wizard.primaryTapped()
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "No Answer no longer stands")
+        XCTAssertEqual(localRecord?.callCustomer, "")
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCallWizard)
+
+        // And No Answer after partial progress clears the steps again.
+        nav.popViewController(animated: false)
+        select(vc.callCustomerSegment, 1)
+        XCTAssertEqual(vc.callVerification, .notStarted)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+    }
+
+    func testTheCallSurvivesAnEquipmentSwitchWhileFuelAndKeysFollowTheReplacement() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true),
+                             fleet: [try machine(unitB, requiresFuel: true, requiresKeys: true)])
+        let nav = UINavigationController(rootViewController: vc)
+        completeCall(vc, nav: nav, situation: "unload_on_street")
+        select(vc.fuelSegment, 1)
+        select(vc.keysSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+
+        // The driver switches to unit B on Review Assembly (durable local switch + Available).
+        let at = Date()
+        vc.operationsSnapshot = { [self.switchOp(to: self.unitB, at: at), self.availabilityOp(unit: self.unitB, at: at.addingTimeInterval(1))] }
+        DriverMissionStage.retireFuelAndKeys(orderProductUniqueId: productId, replacementUnit: unitB.id, episode: "SW-1")
+        vc.refreshDerivedState()
+
+        XCTAssertTrue(vc.callVerification.isComplete, "the call belongs to the mission, not the unit")
+        XCTAssertEqual(vc.callVerification.unloading, .unloadOnStreet)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0, "still Confirmed")
+        XCTAssertEqual(vc.fuelSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "fuel follows the replacement")
+        XCTAssertEqual(vc.keysSegment.selectedSegmentIndex, UISegmentedControl.noSegment)
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerFuel, "the call term is satisfied; fuel is the next")
+
+        // Partial progress survives a switch the same way.
+        forgetLocalRecords()
+        let partial = try screen2(try row(evidence: false), review: try review(go: true), fleet: [try machine(unitB, requiresFuel: true, requiresKeys: true)])
+        let partialNav = UINavigationController(rootViewController: partial)
+        partial.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        try wizard(partialNav).primaryTapped()
+        partialNav.popViewController(animated: false)
+        partial.operationsSnapshot = { [self.switchOp(to: self.unitB, at: at), self.availabilityOp(unit: self.unitB, at: at.addingTimeInterval(1))] }
+        partial.refreshDerivedState()
+        XCTAssertEqual(partial.callVerification, CustomerCallVerification(addressVerified: true))
+        XCTAssertEqual(partial.callStatusLabel.text, DriverChecklistViewController.callStatusPartial(1))
+    }
+
+    func testAfterConfirmedEachControlOpensItsOwnPageForReviewWithoutClearingTheCall() throws {
+        let options = ["Bucket 72\""]
+        let vc = try screen2(try row(evidence: false, options: options), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+        completeCall(vc, nav: nav, situation: "alternate_location")
+        XCTAssertTrue(vc.callVerification.isComplete)
+
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        let address = try wizard(nav)
+        XCTAssertEqual(address.mode, .review(.address))
+        XCTAssertEqual(address.step, .address)
+        XCTAssertEqual(address.addressLabel.text, try XCTUnwrap(try row().order?.objDeliveryAddress?.full_address))
+        XCTAssertEqual(address.primaryButton.currentTitle, CustomerCallWizardViewController.doneTitle)
+        address.primaryTapped()
+        XCTAssertEqual(nav.topViewController, vc)
+        XCTAssertTrue(vc.callVerification.isComplete, "a review never clears Confirmed")
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0)
+
+        vc.callCustomerCheckboxButtons[1].sendActions(for: .touchUpInside)
+        let equipment = try wizard(nav)
+        XCTAssertEqual(equipment.mode, .review(.equipment))
+        XCTAssertTrue(equipment.optionsLabel.text?.contains("Bucket 72\"") == true)
+        equipment.primaryTapped()
+        XCTAssertTrue(vc.callVerification.isComplete)
+
+        vc.callCustomerCheckboxButtons[2].sendActions(for: .touchUpInside)
+        let unloading = try wizard(nav)
+        XCTAssertEqual(unloading.mode, .review(.unloading))
+        XCTAssertEqual(unloading.draftUnloading, .alternateLocation, "the saved choice is shown")
+        XCTAssertEqual(unloading.primaryButton.currentTitle, CustomerCallWizardViewController.saveChoiceTitle)
+        try choose(unloading, "easy_access")
+        unloading.primaryTapped()
+        XCTAssertEqual(nav.topViewController, vc)
+        XCTAssertEqual(vc.callVerification.unloading, .easyAccess, "the new valid choice is persisted")
+        XCTAssertEqual(localRecord?.unloadingSituation, "easy_access")
+        XCTAssertTrue(vc.callVerification.isComplete, "and the call stays confirmed")
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0)
+    }
+
+    func testADoubleTapOpensOneWizardAndAStaleSnapshotNeverRegressesTheRecord() throws {
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        vc.callCustomerCheckboxButtons[1].sendActions(for: .touchUpInside)   // the classic double-tap
+        XCTAssertEqual(nav.viewControllers.count, 2, "one wizard, never two")
+
+        // Even a wizard holding an older snapshot can only add: the record is monotonic.
+        completeCall(vc, nav: nav, situation: "easy_access")
+        XCTAssertTrue(vc.callVerification.isComplete)
+        vc.applyCallVerification(CustomerCallVerification(addressVerified: true))   // a stale hand-back
+        XCTAssertTrue(vc.callVerification.isComplete, "a stale snapshot never un-verifies a step")
+        XCTAssertEqual(vc.callVerification.unloading, .easyAccess)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0)
+    }
+
+    func testACallRestartedAfterNoAnswerTravelsWithoutTheEarlierSteps() throws {
+        // The call was completed (and synced); the driver then taps No Answer — local only —
+        // and, the customer calling back, starts again. The first save of the new call must
+        // carry ONLY what is verified now, so the server (which replaces the stored steps
+        // with what a payload carries) never confirms it from the call before.
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        vc.operationsSnapshot = { engine.snapshot() }
+        let nav = UINavigationController(rootViewController: vc)
+        completeCall(vc, nav: nav, situation: "other", note: "Back lot")
+        XCTAssertTrue(vc.callVerification.isComplete)
+
+        select(vc.callCustomerSegment, 1)                     // No Answer: the steps are cleared locally
+        XCTAssertEqual(vc.callVerification, .notStarted)
+        discardTestOperations()                               // (the earlier saves are not under test)
+
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        let wizard = try wizard(nav)
+        XCTAssertEqual(wizard.mode, .call)
+        XCTAssertEqual(wizard.step, .address)
+        wizard.primaryTapped()                                // Verify Address
+
+        XCTAssertEqual(vc.callVerification, CustomerCallVerification(addressVerified: true))
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusPartial(1))
+        let saves = engine.snapshot().filter { $0.payload["order_product_unique_id"]?.stringValue == productId }
+        XCTAssertEqual(saves.count, 1)
+        let save = try XCTUnwrap(saves.first)
+        XCTAssertEqual(save.payload["address_verified"]?.boolValue, true)
+        XCTAssertNil(save.payload["equipment_verified"], "not verified in THIS call")
+        XCTAssertNil(save.payload["unloading_situation"], "no situation in THIS call")
+        XCTAssertNil(save.payload["unloading_note"])
+        XCTAssertNil(save.payload["call_customer"], "neither confirmed nor No Answer")
+    }
+
+    func testThePrimaryButtonIgnoresTouchesRightAfterAPageChange() throws {
+        // The same button verifies the next page: a double-tap must not verify a page unread.
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        let wizard = try wizard(nav)
+        XCTAssertTrue(wizard.primaryButton.isUserInteractionEnabled)
+        wizard.primaryTapped()                                // Verify Address → Equipment Order
+        XCTAssertEqual(wizard.step, .equipment)
+        XCTAssertFalse(wizard.primaryButton.isUserInteractionEnabled, "locked for a moment after the page change")
+        RunLoop.current.run(until: Date().addingTimeInterval(CustomerCallWizardViewController.pageChangeTouchLockout + 0.2))
+        XCTAssertTrue(wizard.primaryButton.isUserInteractionEnabled)
+    }
+
+    func testOnlyARealExitSyncsWhileTheWizardIsUpAndBack() throws {
+        // A window, so UIKit drives the appearance callbacks for real.
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false), review: try review(go: true))
+        vc.operationsSnapshot = { engine.snapshot() }
+        let nav = UINavigationController(rootViewController: vc)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = nav
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        let ops = { engine.snapshot().filter { $0.payload["order_product_unique_id"]?.stringValue == self.productId } }
+
+        select(vc.callCustomerSegment, 1)                     // No Answer — local only for now
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        XCTAssertTrue(nav.topViewController is CustomerCallWizardViewController)
+        XCTAssertTrue(ops().isEmpty, "opening the wizard flushes nothing")
+
+        nav.popViewController(animated: false)                // the driver backs out, No Answer still standing
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        XCTAssertEqual(nav.topViewController, vc)
+        XCTAssertTrue(ops().isEmpty, "coming back flushes nothing either")
+
+        nav.pushViewController(UIViewController(), animated: false)   // a real exit (Order Details, Dispatch…)
+        RunLoop.current.run(until: Date().addingTimeInterval(0.6))
+        let saves = ops()
+        XCTAssertEqual(saves.count, 1, "exactly one partial save on a real exit")
+        XCTAssertEqual(saves.first?.payload["call_customer"]?.stringValue, "no_answer")
+        XCTAssertNil(saves.first?.payload["address_verified"])
+    }
+
+    func testLoadMapAndGoCarriesTheVerifiedCallWithTheDeparture() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let vc = try screen2(try row(evidence: false), review: try review(go: true))
+        vc.operationsSnapshot = { engine.snapshot() }
+        vc.isReachable = { false }
+        vc.presentNoticeOverride = { _ in }
+        let nav = UINavigationController(rootViewController: vc)
+        completeCall(vc, nav: nav, situation: "other", note: "Back lot")
+        select(vc.fuelSegment, 1)
+        select(vc.keysSegment, 1)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+
+        vc.btnReadytoGo_Action(UIButton())
+        let departure = try XCTUnwrap(engine.snapshot().first {
+            $0.payload["order_product_unique_id"]?.stringValue == productId && $0.payload["equipment_driver_status"]?.stringValue == "On My Way"
+        })
+        XCTAssertEqual(departure.payload["call_customer"]?.stringValue, "confirmed")
+        XCTAssertEqual(departure.payload["address_verified"]?.boolValue, true)
+        XCTAssertEqual(departure.payload["equipment_verified"]?.boolValue, true)
+        XCTAssertEqual(departure.payload["unloading_situation"]?.stringValue, "other")
+        XCTAssertEqual(departure.payload["unloading_note"]?.stringValue, "Back lot")
+        XCTAssertEqual(departure.payload["equipment_unique_id"]?.stringValue, unitA)
+        XCTAssertNil(departure.payload["driver_checks"])
+    }
+
+    func testARowFromBeforeTheWizardIsNotConfirmedUntilTheStepsAreVerified() throws {
+        // The retired four-tick claim on the server row (Confirmed + every tick) carries no verification.
+        var json = try XCTUnwrap(package["dispatch"]?["row"])
+        json = setting(json, ["delivery_checklist", "call_customer"], .string("confirmed"))
+        json = setting(json, ["delivery_checklist", "driver_checks"], .array([.number(1), .number(1), .number(1), .number(1)]))
+        json = setting(json, ["delivery_checklist", "address_verified"], .bool(false))
+        json = setting(json, ["delivery_checklist", "equipment_verified"], .bool(false))
+        json = setting(json, ["delivery_checklist", "unloading_situation"], .null)
+        let legacy = try XCTUnwrap(DispatchOfflineRowAdapter.schedulesModel(from: json))
+        let vc = try screen2(legacy, review: try review(go: true))
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, UISegmentedControl.noSegment, "a bare 'confirmed' is not a verified call")
+        XCTAssertEqual(vc.callVerification, .notStarted)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCallWizard)
+    }
+
+    func testReturnKeepsItsOwnCallTicksAndSendsThem() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let vc = try screen2(try row(evidence: false, pickup: true), review: nil)
+        vc.operationsSnapshot = { engine.snapshot() }
+        let titles = vc.viewCallCustomerStackChecklist.arrangedSubviews.compactMap { row in
+            row.subviews.compactMap { $0 as? UILabel }.first?.text
+        }
+        XCTAssertEqual(titles, ["Pickup ready; no extension", "Equipment is accessible", "Key is in the unit"], "Return's ticks are pickup questions — untouched")
+        XCTAssertNil(vc.callStatusLabel.superview, "no wizard status line on Return")
+        select(vc.callCustomerSegment, 0)
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0, "Return's Confirmed is explicit")
+        XCTAssertFalse(vc.btnReadytoGo.isEnabled)
+        XCTAssertEqual(vc.gateBlockerLabel.text, DriverChecklistGate.blockerCall)
+        tickEveryCallCheck(vc)
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled)
+
+        vc.isReachable = { false }
+        vc.presentNoticeOverride = { _ in }
+        vc.btnReadytoGo_Action(UIButton())
+        let departure = try XCTUnwrap(engine.snapshot().first {
+            $0.payload["order_product_unique_id"]?.stringValue == productId && $0.payload["checklist_type"]?.stringValue == "pickup"
+        })
+        XCTAssertEqual(departure.payload["driver_checks"]?.arrayValue?.compactMap { $0.intValue }, [1, 1, 1])
+        XCTAssertEqual(departure.payload["call_customer"]?.stringValue, "confirmed")
+        XCTAssertNil(departure.payload["address_verified"], "the wizard's keys never travel on Return")
     }
 
     // MARK: - Task 12 — Main Order hub, post-departure checklist entry, customer-site exits

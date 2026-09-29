@@ -295,4 +295,93 @@ final class DriverChecklistLocalStateTests: XCTestCase {
         XCTAssertEqual(restored?.callCustomer, "confirmed")
         XCTAssertEqual(restored?.assignmentEpisode, "")
     }
+
+    // MARK: - Call Customer wizard (2026-09-29): the three steps live in the record, never bound to the unit
+
+    private let completeCall = CustomerCallVerification(addressVerified: true, equipmentVerified: true, unloading: .other(note: "Back lot"))
+
+    private func verifiedRecord(_ call: CustomerCallVerification, episode: String = "") -> DriverChecklistLocalState {
+        var record = DriverChecklistLocalState(callCustomer: "", fuel: "Full", keys: "With Machine", equipmentUniqueId: unitA, assignmentEpisode: episode)
+        record.callVerification = call
+        return record
+    }
+
+    func testTheStepsRoundTripThroughTheDictionary() {
+        let record = verifiedRecord(completeCall)
+        let dictionary = record.dictionary()
+        XCTAssertEqual(dictionary["address_verified"] as? Bool, true)
+        XCTAssertEqual(dictionary["equipment_verified"] as? Bool, true)
+        XCTAssertEqual(dictionary["unloading_situation"] as? String, "other")
+        XCTAssertEqual(dictionary["unloading_note"] as? String, "Back lot")
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: dictionary), record)
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: dictionary)?.callVerification, completeCall)
+
+        let partial = verifiedRecord(CustomerCallVerification(addressVerified: true))
+        XCTAssertEqual(DriverChecklistLocalState(dictionary: partial.dictionary())?.callVerification, CustomerCallVerification(addressVerified: true))
+    }
+
+    func testARecordWrittenBeforeTheWizardReadsAsNotCompleted() {
+        // The retired four-tick model: "confirmed" with every box ticked carries no verification.
+        let legacy = DriverChecklistLocalState(dictionary: ["deliveryChecks": [1, 1, 1, 1], "call_customer": "confirmed", "fuel": "Full"])
+        XCTAssertEqual(legacy?.callVerification, CustomerCallVerification.notStarted)
+        XCTAssertEqual(legacy?.callCustomer, "confirmed", "kept as recorded")
+        XCTAssertFalse(legacy?.deliveryCallOutcome.isComplete ?? true, "a bare 'confirmed' never confirms a delivery call")
+        XCTAssertEqual(legacy?.deliveryCallOutcome, .wizard(.notStarted))
+    }
+
+    func testTheDeliveryOutcomeAndNoAnswerAreDerivedFromTheRecord() {
+        XCTAssertEqual(DriverChecklistLocalState(callCustomer: "no_answer").deliveryCallOutcome, .noAnswer)
+        XCTAssertTrue(verifiedRecord(completeCall).deliveryCallOutcome.isComplete)
+        XCTAssertEqual(verifiedRecord(completeCall).callCustomer, "confirmed", "the derived value is what the wire carries")
+        XCTAssertEqual(verifiedRecord(CustomerCallVerification(addressVerified: true)).callCustomer, "", "a partly verified call is not confirmed")
+
+        // Recording No Answer clears the steps; starting the wizard clears No Answer.
+        var record = verifiedRecord(CustomerCallVerification(addressVerified: true, equipmentVerified: true))
+        record.recordNoAnswer()
+        XCTAssertEqual(record.callCustomer, "no_answer")
+        XCTAssertEqual(record.callVerification, CustomerCallVerification.notStarted)
+        record.callVerification = CustomerCallVerification(addressVerified: true)
+        XCTAssertEqual(record.callCustomer, "")
+        XCTAssertEqual(record.deliveryCallOutcome, .wizard(CustomerCallVerification(addressVerified: true)))
+    }
+
+    func testTheStepsSurviveAReplacedUnitAndANewEpisodeWhileFuelAndKeysReset() {
+        for (unit, episode) in [(unitB, ""), (unitA, "SW-2")] {
+            let restored = DriverChecklistLocalState.restore(local: verifiedRecord(completeCall), server: nil, effectiveUnit: unit, assignmentEpisode: episode)
+            XCTAssertEqual(restored?.callVerification, completeCall, "unit=\(unit) episode=\(episode)")
+            XCTAssertEqual(restored?.callCustomer, "confirmed")
+            XCTAssertEqual(restored?.fuel, "")
+            XCTAssertEqual(restored?.keys, "")
+        }
+        let partial = DriverChecklistLocalState.restore(local: verifiedRecord(CustomerCallVerification(addressVerified: true)), server: nil, effectiveUnit: unitB)
+        XCTAssertEqual(partial?.callVerification, CustomerCallVerification(addressVerified: true), "partial progress survives a switch too")
+    }
+
+    func testTheServerCopyCarriesTheStepsUnderTheSameRules() {
+        let server = DriverChecklistServerCopy(callCustomer: "confirmed", fuel: "Full", keys: "With Machine", equipmentUniqueId: unitA,
+                                               addressVerified: true, equipmentVerified: true, unloadingSituation: "unload_on_street", unloadingNote: nil)
+        let sameUnit = DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitA)
+        XCTAssertEqual(sameUnit?.callVerification, CustomerCallVerification(addressVerified: true, equipmentVerified: true, unloading: .unloadOnStreet))
+        XCTAssertEqual(sameUnit?.fuel, "Full")
+        let otherUnit = DriverChecklistLocalState.restore(local: nil, server: server, effectiveUnit: unitB)
+        XCTAssertEqual(otherUnit?.callVerification, sameUnit?.callVerification)
+        XCTAssertEqual(otherUnit?.fuel, "")
+
+        // A legacy row the feed reports with the steps false is not confirmed, whatever the column says.
+        let legacy = DriverChecklistServerCopy(callCustomer: "confirmed", checks: [1, 1, 1, 1], addressVerified: false, equipmentVerified: false)
+        XCTAssertFalse(DriverChecklistLocalState(server: legacy).deliveryCallOutcome.isComplete)
+        XCTAssertTrue(legacy.isEmpty == false, "the column value alone is still a record")
+        XCTAssertTrue(DriverChecklistServerCopy(addressVerified: false, equipmentVerified: false).isEmpty, "the feed's false-for-missing is not a record")
+    }
+
+    func testTheStepsAreProgress() {
+        XCTAssertTrue(verifiedRecord(CustomerCallVerification(addressVerified: true)).hasProgress)
+        var fresh = DriverChecklistLocalState()
+        XCTAssertFalse(fresh.hasProgress)
+        fresh.callVerification = CustomerCallVerification(unloading: .other(note: ""))
+        XCTAssertTrue(fresh.hasProgress, "a chosen Other awaiting its note is progress")
+        XCTAssertTrue(DriverChecklistLocalState.serverHasProgress(driverChecks: nil, callCustomer: nil, fuel: nil, keys: nil, addressVerified: true))
+        XCTAssertTrue(DriverChecklistLocalState.serverHasProgress(driverChecks: nil, callCustomer: nil, fuel: nil, keys: nil, unloadingSituation: "easy_access"))
+        XCTAssertFalse(DriverChecklistLocalState.serverHasProgress(driverChecks: nil, callCustomer: nil, fuel: nil, keys: nil, addressVerified: false, equipmentVerified: false))
+    }
 }

@@ -150,5 +150,11 @@ final class DeliveryWorkflowStageTests: XCTestCase {
         XCTAssertTrue(exists(server: DriverChecklistServerCopy(keys: "Missing")))
         XCTAssertTrue(exists(server: DriverChecklistServerCopy(checks: [0, 0, 0, 0])))
         XCTAssertTrue(exists(server: DriverChecklistServerCopy(equipmentUniqueId: "EQP-A")))
+        // Call Customer wizard (2026-09-29): a verified step is evidence; the feed's
+        // false-for-missing on an untouched row is NOT (it would route every fresh
+        // Start Delivery past the review).
+        XCTAssertTrue(exists(server: DriverChecklistServerCopy(addressVerified: true)))
+        XCTAssertTrue(exists(server: DriverChecklistServerCopy(unloadingSituation: "other", unloadingNote: "")))
+        XCTAssertFalse(exists(server: DriverChecklistServerCopy(addressVerified: false, equipmentVerified: false)))
     }
 }

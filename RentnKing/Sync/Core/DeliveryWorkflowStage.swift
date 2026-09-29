@@ -101,18 +101,35 @@ public struct DriverChecklistServerCopy: Equatable {
     public var checks: [Int]?
     /// D5: the unit the fuel/keys answers were given for.
     public var equipmentUniqueId: String?
+    /// Call Customer wizard (2026-09-29): the three verified steps of the delivery
+    /// call as the feed reports them. The feed says `false` for a row that was never
+    /// verified (missing = not completed), so only `true` is a recorded value.
+    public var addressVerified: Bool?
+    public var equipmentVerified: Bool?
+    public var unloadingSituation: String?
+    public var unloadingNote: String?
 
     public init(callCustomer: String? = nil, fuel: String? = nil, keys: String? = nil,
-                checks: [Int]? = nil, equipmentUniqueId: String? = nil) {
+                checks: [Int]? = nil, equipmentUniqueId: String? = nil,
+                addressVerified: Bool? = nil, equipmentVerified: Bool? = nil,
+                unloadingSituation: String? = nil, unloadingNote: String? = nil) {
         self.callCustomer = callCustomer
         self.fuel = fuel
         self.keys = keys
         self.checks = checks
         self.equipmentUniqueId = equipmentUniqueId
+        self.addressVerified = addressVerified
+        self.equipmentVerified = equipmentVerified
+        self.unloadingSituation = unloadingSituation
+        self.unloadingNote = unloadingNote
     }
 
+    /// Nothing recorded. A `false` step is the feed's "never verified", not a record —
+    /// otherwise every untouched row would count as Screen 2 evidence.
     var isEmpty: Bool {
         callCustomer == nil && fuel == nil && keys == nil && checks == nil && equipmentUniqueId == nil
+            && addressVerified != true && equipmentVerified != true
+            && (unloadingSituation ?? "").isEmpty
     }
 }
 

@@ -4,11 +4,11 @@
     "orders": [
         {
             "dispatch_source": "order",
-            "dispatch_item_id": "order:ORD-SCH-RPW4-35VD:delivery",
+            "dispatch_item_id": "order:ORD-SCH-G3JP-WK2P:delivery",
             "fulfillment_leg": "delivery",
-            "sort_key": "2026-09-27|00001",
+            "sort_key": "2026-09-29|00001",
             "id": 1,
-            "unique_id": "ORD-SCH-RPW4-35VD",
+            "unique_id": "ORD-SCH-G3JP-WK2P",
             "product_name": "Excavator",
             "price": "$100.00",
             "quantity": 1,
@@ -37,7 +37,7 @@
             "delivery_store_id": "",
             "delivery_by": 2,
             "delivery_priority": 1,
-            "delivery_date": "27/09/2026",
+            "delivery_date": "29/09/2026",
             "delivery_time": "",
             "dispatch_delivery_date": "",
             "is_delivery_overdue": false,
@@ -54,7 +54,11 @@
                 "is_arrived": false,
                 "call_customer": null,
                 "driver_checks": null,
-                "equipment_unique_id": null
+                "equipment_unique_id": null,
+                "address_verified": false,
+                "equipment_verified": false,
+                "unloading_situation": null,
+                "unloading_note": null
             },
             "pickup_status": "Pending",
             "pickup_transport_mode": "",
@@ -87,7 +91,7 @@
             "is_returned": false,
             "order": {
                 "id": 1,
-                "unique_id": "ORD-RNPT-I2ZJ",
+                "unique_id": "ORD-2YWC-SZDU",
                 "order_number": "1642",
                 "customer_name": "Cody Cash",
                 "customer_email": "",
@@ -95,7 +99,7 @@
                 "company_name": "",
                 "company_website": "",
                 "status": "",
-                "order_date": "27/09/2026",
+                "order_date": "29/09/2026",
                 "subtotal": "$0.00",
                 "is_tax_exempt": "No",
                 "tax_amount": "$0.00",
@@ -151,7 +155,7 @@
                 "no_cost_reason": null,
                 "no_cost_reason_label": null,
                 "terms_status": "Pending",
-                "terms_page": "http://kabba.local/terms-and-conditions/ORD-RNPT-I2ZJ/mobile",
+                "terms_page": "http://kabba.local/terms-and-conditions/ORD-2YWC-SZDU/mobile",
                 "terms_accepted_at": ""
             },
             "start_hours": 0,
@@ -171,9 +175,9 @@
             "pickup_store": null,
             "delivery_employee": {
                 "id": 2,
-                "unique_id": "PER-WDYJ-XVQB",
+                "unique_id": "PER-AANC-ZYHK",
                 "full_name": "Gary Driver",
-                "email": "drv_6ab9319066b99@example.com",
+                "email": "drv_6abbcdff880a6@example.com",
                 "status": "Active"
             },
             "pickup_employee": null,
@@ -195,13 +199,13 @@
     },
     "manual_jobs": [
         {
-            "unique_id": "MDT-NMGB-DQXM",
+            "unique_id": "MDT-KTNU-AGLU",
             "is_manual": true,
             "type": "Equipment Drop-Off",
             "description": "Pick up repaired equipment",
             "status": "Assigned",
             "priority": null,
-            "date": "27/09/2026",
+            "date": "29/09/2026",
             "time": null,
             "location_name": "Acme",
             "address": "123 Main Street, Clarksville, 37040",
@@ -228,8 +232,8 @@
             },
             "destination_store": null,
             "dispatch_source": "manual",
-            "dispatch_item_id": "manual:MDT-NMGB-DQXM",
-            "sort_key": "2026-09-27|09999",
+            "dispatch_item_id": "manual:MDT-KTNU-AGLU",
+            "sort_key": "2026-09-29|09999",
             "driver": {
                 "id": 2,
                 "name": "Gary Driver"

@@ -101,14 +101,31 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     /// reached anyway): the Arrived status is shown and the button just
     /// continues to Order Details without re-firing the Arrived mutation.
     private var alreadyArrived = false
+    /// True while this screen is handing over to the Call Customer wizard: that push is
+    /// not an exit, so it must not flush the record (a No Answer tapped seconds before
+    /// the customer called back would reach the server — and text them — mid-call).
+    /// Each verified step syncs on its own; a real exit still syncs.
+    private var isOpeningCallWizard = false
+    /// True from the push until this screen reappears: the status line under the three
+    /// controls may have changed while the wizard was up, so the header is re-measured then
+    /// (measuring off-window, while the wizard covers this screen, sees stale frames).
+    private var callWizardWasOpen = false
 
     // Side-by-side toggles replacing the fuel/keys dropdowns (delivery only)
     let fuelSegment = UISegmentedControl(items: ["Not Full", "Full"])
     let keysSegment = UISegmentedControl(items: ["Missing", "With Machine"])
 
-    // Call Customer outcome, shown next to the "1. Call Customer" title:
-    // Confirmed (every check required) or No Answer (an explicit, recorded attempt).
+    // Call Customer outcome, shown next to the "1. Call Customer" title. Delivery
+    // (Call Customer wizard, 2026-09-29): "Confirmed" is DERIVED from the three
+    // verified steps — tapping it opens the wizard, never confirms; "No Answer"
+    // is the explicit, recorded escape. Return: Confirmed (every check) or No Answer.
     let callCustomerSegment = UISegmentedControl(items: ["Confirmed", "No Answer"])
+    /// Delivery: the three verified steps (address, equipment order, unloading
+    /// situation). Persisted with the record on every change; never bound to a unit.
+    private(set) var callVerification: CustomerCallVerification = .notStarted
+    /// Delivery: one line under the three controls — "Tap a step to start the call",
+    /// "2 of 3 verified", "Call confirmed", or "No Answer recorded — call skipped".
+    let callStatusLabel = UILabel()
 
     // Driver Delivery Process Flow (2026-09-27): the effective unit ("Name · #TAG"),
     // the Review Assembly door (Delivery, every state) and the one sentence that
@@ -139,13 +156,11 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     /// is decoded only when the effective unit changes, never on every tick.
     private var applicabilityMemo: (unitId: String, applies: FuelKeysApplicability)?
 
-    private let callDeliveryCustomerSubItems = [
-        "Verify delivery address",
-        "Verify Equipment order",
-        "Verify Attachments",
-        "Ask about unloading situation"
-    ]
-    
+    /// Delivery: the three controls of the Call Customer wizard (the retired four
+    /// ticks — address, equipment, attachments, unloading — are replaced; Product
+    /// Options are shown inside Equipment Order, so "attachments" has no row).
+    private var callDeliveryCustomerSubItems: [String] { CustomerCallVerification.Step.allCases.map(\.title) }
+
     private let callReturnCustomerSubItems = [
         "Pickup ready; no extension",
         "Equipment is accessible",
@@ -160,8 +175,9 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     ]
     
     
-    private var callDeliveryCustomerChecks: [Bool] = [false, false, false, false]
+    /// Return's call sub-checklist ticks (Delivery has none — see `callVerification`).
     private var callReturnCustomerChecks: [Bool] = [false, false, false]
+    /// One per row: Return's checkboxes, Delivery's step status icons (tap = the wizard).
     private(set) var callCustomerCheckboxButtons: [UIButton] = []
 
     /// The header row built in code: the effective unit + Review Assembly.
@@ -341,9 +357,21 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
         } rightActionHandler: {sender, SelectTag  in
         }
 
-        // Back from the Assembly Review (a switch, an acknowledgement) or from
-        // anywhere else: the unit header and the gate reflect the engine now.
+        // Back from the Assembly Review (a switch, an acknowledgement), the Call Customer
+        // wizard or anywhere else: the unit header and the gate reflect the engine now.
+        self.isOpeningCallWizard = false
         self.refreshDerivedState()
+        if self.callWizardWasOpen {
+            // The status line under the three controls changed while the wizard was up.
+            // The flag is cleared only once this screen has really come back
+            // (viewDidAppear): a cancelled back-swipe from the wizard passes through here too.
+            self.setupHeader()
+        }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        self.callWizardWasOpen = false
     }
     
   
@@ -815,6 +843,21 @@ extension DriverChecklistViewController {
     private var isNoAnswer: Bool { callCustomerSegment.selectedSegmentIndex == 1 }
 
     @objc private func callCustomerSegmentChanged(_ sender: UISegmentedControl) {
+        if isDeliveryLeg {
+            // Delivery (Call Customer wizard): Confirmed can only be DERIVED. Tapping it
+            // starts the call (from Delivery Address) — the segment shows the derived
+            // state again; No Answer is recorded as the explicit escape.
+            switch sender.selectedSegmentIndex {
+            case 0:
+                self.refreshCallCustomerControls()
+                if !self.callVerification.isComplete { self.openCallWizard() }
+            case 1:
+                self.recordNoAnswer()
+            default:
+                self.refreshCallCustomerControls()
+            }
+            return
+        }
         switch sender.selectedSegmentIndex {
         case 0: self.strCallCustomer = "confirmed"
         case 1: self.strCallCustomer = "no_answer"
@@ -877,11 +920,14 @@ extension DriverChecklistViewController {
     /// The departure gate (spec §7): Assembly GO ∧ Call complete ∧ (fuel n/a ∨ Full)
     /// ∧ (keys n/a ∨ With Machine) — every term explicit, no default passes.
     private var gateDecision: DriverChecklistGateDecision {
-        let checks = isDeliveryLeg ? callDeliveryCustomerChecks : callReturnCustomerChecks
         let applies = self.effectiveUnitApplicability   // judged on the EFFECTIVE unit, at gate time
+        // Delivery: the call is the wizard's derived outcome — never the segment's claim.
+        let call = isDeliveryLeg
+            ? CallOutcome(callCustomer: self.strCallCustomer, verification: self.callVerification)
+            : CallOutcome(callCustomer: self.strCallCustomer, ticks: callReturnCustomerChecks)
         return DriverChecklistGate.evaluate(DriverChecklistGateInputs(
             isDeliveryLeg: isDeliveryLeg,
-            call: CallOutcome(callCustomer: self.strCallCustomer, ticks: checks),
+            call: call,
             fuelRequired: isDeliveryLeg && applies.fuel,
             fuel: FuelAnswer(rawValue: self.strDoubleCheck),
             keysRequired: isDeliveryLeg && applies.keys,
@@ -914,11 +960,14 @@ extension DriverChecklistViewController {
         viewCallCustomerSubChecklist.addSubview(stackView)
         
         let arrCustomer : [String] = checklistType != "pickup" ? callDeliveryCustomerSubItems : callReturnCustomerSubItems
-        
+        let stepIds = ["address", "equipment", "unloading"]
+
         for (index, item) in arrCustomer.enumerated() {
             let rowView = UIView()
             rowView.translatesAutoresizingMaskIntoConstraints = false
-            
+
+            // Return: a checkbox the driver ticks. Delivery: the step's status icon —
+            // filled once the wizard verified it; tapping it opens the wizard.
             let checkbox = UIButton(type: .custom)
             checkbox.tag = index
             checkbox.setImage(UIImage(systemName: "square"), for: .normal)
@@ -926,35 +975,62 @@ extension DriverChecklistViewController {
             checkbox.tintColor = .primary
             checkbox.translatesAutoresizingMaskIntoConstraints = false
             checkbox.addTarget(self, action: #selector(callCustomerCheckboxTapped(_:)), for: .touchUpInside)
-            
+
             let label = UILabel()
             label.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16, text: item)
             label.translatesAutoresizingMaskIntoConstraints = false
             label.isUserInteractionEnabled = false
-            
+
             rowView.addSubview(checkbox)
             rowView.addSubview(label)
-            
+
             let tapGesture = UITapGestureRecognizer(target: self, action: #selector(callCustomerRowTapped(_:)))
             rowView.tag = index
             rowView.isUserInteractionEnabled = true
             rowView.addGestureRecognizer(tapGesture)
-            
-            NSLayoutConstraint.activate([
+
+            var constraints = [
                 rowView.heightAnchor.constraint(equalToConstant: 36),
                 checkbox.leadingAnchor.constraint(equalTo: rowView.leadingAnchor),
                 checkbox.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
                 checkbox.widthAnchor.constraint(equalToConstant: 25),
                 checkbox.heightAnchor.constraint(equalToConstant: 25),
                 label.leadingAnchor.constraint(equalTo: checkbox.trailingAnchor, constant: 8),
-                label.trailingAnchor.constraint(equalTo: rowView.trailingAnchor),
                 label.centerYAnchor.constraint(equalTo: rowView.centerYAnchor)
-            ])
-            
+            ]
+            if isDeliveryLeg {
+                // A status / action button: the chevron says "opens something".
+                let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
+                chevron.tintColor = .secondary
+                chevron.translatesAutoresizingMaskIntoConstraints = false
+                rowView.addSubview(chevron)
+                rowView.accessibilityIdentifier = "driverChecklist.call.step.\(stepIds[index])"
+                checkbox.accessibilityIdentifier = "driverChecklist.call.step.\(stepIds[index]).status"
+                constraints += [
+                    chevron.trailingAnchor.constraint(equalTo: rowView.trailingAnchor),
+                    chevron.centerYAnchor.constraint(equalTo: rowView.centerYAnchor),
+                    label.trailingAnchor.constraint(lessThanOrEqualTo: chevron.leadingAnchor, constant: -8)
+                ]
+            } else {
+                constraints.append(label.trailingAnchor.constraint(equalTo: rowView.trailingAnchor))
+            }
+            NSLayoutConstraint.activate(constraints)
+
             viewCallCustomerStackChecklist.addArrangedSubview(rowView)
-            
+
             //stackView.addArrangedSubview(rowView)
             callCustomerCheckboxButtons.append(checkbox)
+        }
+
+        if isDeliveryLeg {
+            // The one-line state of the call under the three controls.
+            callStatusLabel.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 13)
+            callStatusLabel.textColor = .secondaryText
+            callStatusLabel.numberOfLines = 0
+            callStatusLabel.accessibilityIdentifier = "driverChecklist.call.status"
+            viewCallCustomerStackChecklist.addArrangedSubview(callStatusLabel)
+            callCustomerSegment.accessibilityIdentifier = "driverChecklist.call.segment"
+            refreshCallCustomerControls()
         }
         
 //        NSLayoutConstraint.activate([
@@ -971,8 +1047,9 @@ extension DriverChecklistViewController {
             sender.isSelected = callReturnCustomerChecks[sender.tag]
         }
         else{
-            callDeliveryCustomerChecks[sender.tag].toggle()
-            sender.isSelected = callDeliveryCustomerChecks[sender.tag]
+            // Delivery: a step is verified in the wizard, never by a tap here.
+            self.openCallWizard(from: CustomerCallVerification.Step(rawValue: sender.tag))
+            return
         }
         updateReadyToGoButton()
         self.saveChecklistState()
@@ -986,9 +1063,8 @@ extension DriverChecklistViewController {
             checkbox.isSelected = callReturnCustomerChecks[index]
         }
         else{
-            let checkbox = callCustomerCheckboxButtons[index]
-            callDeliveryCustomerChecks[index].toggle()
-            checkbox.isSelected = callDeliveryCustomerChecks[index]
+            self.openCallWizard(from: CustomerCallVerification.Step(rawValue: index))
+            return
         }
         updateReadyToGoButton()
         self.saveChecklistState()
@@ -1038,8 +1114,9 @@ extension DriverChecklistViewController {
                                                               equipment_key_location: self.strKeys,
                                                               equipment_driver_status: kDriverCheckListStatus.kOnMyWay.rawValue,
                                                               checklist_type: self.checklistType,
-                                                              driver_checks: readyToGoState.checks.map { $0 ? 1 : 0 },
-                                                              equipment_unique_id: readyToGoState.equipmentUniqueId)
+                                                              driver_checks: self.wireDriverChecks(readyToGoState),
+                                                              equipment_unique_id: readyToGoState.equipmentUniqueId,
+                                                              call_verification: self.wireCallVerification(readyToGoState))
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: readyToGoOperationId)
         passedChecklistStage = true
@@ -1081,6 +1158,12 @@ extension DriverChecklistViewController {
         block?.call_customer = state.callCustomer.isEmpty ? nil : state.callCustomer
         block?.driver_checks = state.checks.map { $0 ? 1 : 0 }
         block?.equipment_unique_id = state.equipmentUniqueId.isEmpty ? nil : state.equipmentUniqueId
+        if isDeliveryLeg {
+            block?.address_verified = state.addressVerified
+            block?.equipment_verified = state.equipmentVerified
+            block?.unloading_situation = state.unloadingSituation.isEmpty ? nil : state.unloadingSituation
+            block?.unloading_note = state.unloadingNote.isEmpty ? nil : state.unloadingNote
+        }
         if isDeliveryLeg { self.objDispatch?.delivery_checklist = block } else { self.objDispatch?.pickup_checklist = block }
         self.delegate_Data?.data_updateInCurrentDic(index: self.selectIndex, dicCheckList: block)
     }
@@ -1143,13 +1226,18 @@ extension DriverChecklistViewController {
     /// bound to the unit the answers were given for (D5).
     private func currentLocalState() -> DriverChecklistLocalState {
         let pending = self.localSwitch   // one engine read: the unit and its episode always agree
+        let call = isDeliveryLeg ? callVerification : .notStarted
         return DriverChecklistLocalState(
-            checks: checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks,
+            checks: checklistType == "pickup" ? callReturnCustomerChecks : [],
             callCustomer: self.strCallCustomer,
             fuel: self.strDoubleCheck,
             keys: self.strKeys,
             equipmentUniqueId: self.effectiveUnit(given: pending)?.id ?? "",
-            assignmentEpisode: pending?.operationId ?? ""
+            assignmentEpisode: pending?.operationId ?? "",
+            addressVerified: call.addressVerified,
+            equipmentVerified: call.equipmentVerified,
+            unloadingSituation: call.unloadingCode,
+            unloadingNote: call.unloadingNote
         )
     }
 
@@ -1171,16 +1259,13 @@ extension DriverChecklistViewController {
         let state = DriverChecklistLocalState.restore(local: stored, server: serverCopy, effectiveUnit: self.effectiveUnit(given: pending)?.id,
                                                       assignmentEpisode: pending?.operationId ?? "")
 
-        if let state {
-            if checklistType == "pickup" {
-                callReturnCustomerChecks = callReturnCustomerChecks.indices.map { $0 < state.checks.count ? state.checks[$0] : false }
-            } else {
-                callDeliveryCustomerChecks = callDeliveryCustomerChecks.indices.map { $0 < state.checks.count ? state.checks[$0] : false }
-            }
+        if let state, checklistType == "pickup" {
+            callReturnCustomerChecks = callReturnCustomerChecks.indices.map { $0 < state.checks.count ? state.checks[$0] : false }
         }
-        let checks = checklistType == "pickup" ? callReturnCustomerChecks : callDeliveryCustomerChecks
-        for (i, btn) in callCustomerCheckboxButtons.enumerated() where i < checks.count {
-            btn.isSelected = checks[i]
+        if !isDeliveryLeg {
+            for (i, btn) in callCustomerCheckboxButtons.enumerated() where i < callReturnCustomerChecks.count {
+                btn.isSelected = callReturnCustomerChecks[i]
+            }
         }
 
         // Fuel / keys: the recorded answer, or nothing selected.
@@ -1189,13 +1274,27 @@ extension DriverChecklistViewController {
         self.strKeys = (showKeysSegment && isDeliveryLeg) ? (state?.keys ?? "") : ""
         keysSegment.selectedSegmentIndex = KeysAnswer(rawValue: self.strKeys).map { $0 == .withMachine ? 1 : 0 } ?? UISegmentedControl.noSegment
 
-        // Call outcome: only the two explicit values are answers (a legacy "Yes" is not).
-        switch state?.callCustomer {
-        case "confirmed"?: self.strCallCustomer = "confirmed"; callCustomerSegment.selectedSegmentIndex = 0
-        case "no_answer"?: self.strCallCustomer = "no_answer"; callCustomerSegment.selectedSegmentIndex = 1
-        default:           self.strCallCustomer = "";          callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+        if isDeliveryLeg {
+            // Delivery (Call Customer wizard): the three steps restore as recorded and the
+            // outcome is DERIVED from them — a stored "confirmed" without the steps (a record
+            // or row written before the wizard) reads as not started; No Answer restores as
+            // the escape only while no step was recorded.
+            self.callVerification = state?.callVerification ?? .notStarted
+            switch state.map({ CallOutcome(callCustomer: $0.callCustomer, verification: $0.callVerification) }) {
+            case .noAnswer?: self.strCallCustomer = "no_answer"
+            case .wizard(let call)?: self.strCallCustomer = call.isComplete ? "confirmed" : ""
+            default: self.strCallCustomer = ""
+            }
+            refreshCallCustomerControls()
+        } else {
+            // Return: only the two explicit values are answers (a legacy "Yes" is not).
+            switch state?.callCustomer {
+            case "confirmed"?: self.strCallCustomer = "confirmed"; callCustomerSegment.selectedSegmentIndex = 0
+            case "no_answer"?: self.strCallCustomer = "no_answer"; callCustomerSegment.selectedSegmentIndex = 1
+            default:           self.strCallCustomer = "";          callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+            }
+            setCallCustomerChecklistEnabled(!isNoAnswer)
         }
-        setCallCustomerChecklistEnabled(!isNoAnswer)
 
         self.updateReadyToGoButton()
 
@@ -1214,6 +1313,11 @@ extension DriverChecklistViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        // Handing over to the Call Customer wizard is not an exit (see isOpeningCallWizard) —
+        // nor is a cancelled back-swipe from it (appearance calls come in pairs then, with the
+        // wizard still on top). A real exit (the wizard is not on top) still syncs.
+        let wizardOnTop = self.navigationController?.topViewController is CustomerCallWizardViewController
+        if isOpeningCallWizard || wizardOnTop { isOpeningCallWizard = false; return }
         syncPartialProgressIfNeeded()
     }
 
@@ -1233,10 +1337,22 @@ extension DriverChecklistViewController {
                                        equipment_key_location: self.strKeys,
                                        equipment_driver_status: "",   // partial: no transition
                                        checklist_type: self.checklistType,
-                                       driver_checks: current.checks.map { $0 ? 1 : 0 },
-                                       equipment_unique_id: current.equipmentUniqueId)
+                                       driver_checks: self.wireDriverChecks(current),
+                                       equipment_unique_id: current.equipmentUniqueId,
+                                       call_verification: self.wireCallVerification(current))
         syncDriverChecklistWithAPI()
         syncedSnapshot = current
+    }
+
+    /// Return's ticks travel; Delivery sends none (the wizard replaced them).
+    private func wireDriverChecks(_ state: DriverChecklistLocalState) -> [Int]? {
+        isDeliveryLeg ? nil : state.checks.map { $0 ? 1 : 0 }
+    }
+
+    /// Delivery's verified steps travel on every save (the server derives Confirmed
+    /// from them); Return has no wizard.
+    private func wireCallVerification(_ state: DriverChecklistLocalState) -> CustomerCallVerification? {
+        isDeliveryLeg ? state.callVerification : nil
     }
 
     @objc private func btnArrivedClicked() {
@@ -1266,8 +1382,9 @@ extension DriverChecklistViewController {
             equipment_key_location:  self.strKeys,
             equipment_driver_status: kDriverCheckListStatus.kArrived.rawValue,
             checklist_type: self.checklistType,
-            driver_checks: arrivedState.checks.map { $0 ? 1 : 0 },
-            equipment_unique_id: arrivedState.equipmentUniqueId
+            driver_checks: self.wireDriverChecks(arrivedState),
+            equipment_unique_id: arrivedState.equipmentUniqueId,
+            call_verification: self.wireCallVerification(arrivedState)
         )
         syncDriverChecklistWithAPI()
         KabbaSync.showStatusToast(for: arrivedOperationId)
@@ -1448,6 +1565,114 @@ extension DriverChecklistViewController {
                                           missionServerTrip: DriverStagePresentation.serverState(
                                               self.isDeliveryLeg ? self.objDispatch?.delivery_checklist : self.objDispatch?.pickup_checklist),
                                           missionServerObservedAt: self.serverObservedAt))
+    }
+}
+
+// MARK: - Call Customer wizard (2026-09-29): Delivery's three-step customer call
+extension DriverChecklistViewController {
+
+    static let callStatusStart = "Tap a step to start the customer call."
+    static let callStatusConfirmed = "Call confirmed — all three verified. Tap a step to review it."
+    static let callStatusNoAnswer = "No Answer recorded — the call is skipped. Tap a step if the customer answers."
+
+    static func callStatusPartial(_ verified: Int) -> String {
+        "\(verified) of 3 verified — tap to continue the call."
+    }
+
+    /// What the wizard shows — from the cached row this screen already has.
+    var callWizardContext: CustomerCallWizardContext {
+        CustomerCallWizardContext(
+            customerName: self.objDispatch?.order?.customer_name ?? "",
+            customerPhone: self.objDispatch?.order?.customer_phone ?? "",
+            deliveryAddress: self.objDispatch?.order?.objDeliveryAddress?.full_address ?? "",
+            productName: self.objDispatch?.product_name ?? "",
+            productOptions: (self.objDispatch?.objProduct?.arrProductOptions ?? []).compactMap { option in
+                let name = (option.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return name.isEmpty ? nil : name
+            })
+    }
+
+    /// The Delivery call as the gate judges it right now.
+    var deliveryCallOutcome: CallOutcome {
+        CallOutcome(callCustomer: self.strCallCustomer, verification: self.callVerification)
+    }
+
+    /// Opens the wizard. Before the call is complete it ALWAYS starts at Delivery
+    /// Address (the call is one continuous conversation); once Confirmed, the tapped
+    /// step opens directly for review. Never past departure.
+    func openCallWizard(from step: CustomerCallVerification.Step? = nil) {
+        // One wizard at a time: a second tap during the push animation must not stack
+        // another (its stale snapshot could hand back an older record after the first
+        // completed the call). The navigation stack is the truth: the wizard is the top
+        // view controller from the moment it is pushed.
+        guard isDeliveryLeg, !passedChecklistStage, !alreadyArrived,
+              let navigation = self.navigationController, navigation.topViewController === self else { return }
+        let mode: CustomerCallWizardViewController.Mode = callVerification.isComplete ? .review(step ?? .address) : .call
+        let wizard = CustomerCallWizardViewController(context: self.callWizardContext, verification: self.callVerification, mode: mode)
+        wizard.onStepVerified = { [weak self] verified in self?.applyCallVerification(verified) }
+        self.isOpeningCallWizard = true          // consumed by viewWillDisappear; reset on viewWillAppear
+        self.callWizardWasOpen = true            // the header is re-measured when this screen comes back
+        navigation.pushViewController(wizard, animated: true)
+    }
+
+    /// A step was verified (or a saved unloading choice changed): persist it at once —
+    /// locally (UserDefaults) and as a durable partial save (offline-safe) — and let
+    /// the derived outcome update the controls and the gate. Any recorded step
+    /// retires a standing No Answer (the customer answered after all).
+    func applyCallVerification(_ verified: CustomerCallVerification) {
+        // Monotonic merge: the wizard only ever ADDS a verified step or replaces the
+        // unloading choice — a snapshot that is behind this record (a wizard opened
+        // earlier) can never un-verify what a later one completed.
+        var merged = self.callVerification
+        merged.addressVerified = merged.addressVerified || verified.addressVerified
+        merged.equipmentVerified = merged.equipmentVerified || verified.equipmentVerified
+        if let unloading = verified.unloading { merged.unloading = unloading }
+        self.callVerification = merged
+        self.strCallCustomer = merged.isComplete ? "confirmed" : ""
+        self.refreshCallCustomerControls()
+        self.updateReadyToGoButton()
+        self.saveChecklistState()
+        self.syncPartialProgressIfNeeded()
+    }
+
+    /// No Answer: the explicit, recorded escape. The steps return to not completed so a
+    /// later successful call starts again at the address (the server does the same).
+    /// Synced with the next exit / departure, like every other answer on this screen.
+    func recordNoAnswer() {
+        self.callVerification = .notStarted
+        self.strCallCustomer = "no_answer"
+        self.refreshCallCustomerControls()
+        self.updateReadyToGoButton()
+        self.saveChecklistState()
+        self.setupHeader()
+    }
+
+    /// The controls follow the DERIVED state: the segment shows Confirmed only when all
+    /// three steps are verified, the icons fill per step, and the status line says where
+    /// the call stands — a skipped call (No Answer) reads differently from a verified one.
+    func refreshCallCustomerControls() {
+        guard isDeliveryLeg else { return }
+        let outcome = self.deliveryCallOutcome
+        switch outcome {
+        case .noAnswer:
+            callCustomerSegment.selectedSegmentIndex = 1
+            callStatusLabel.text = Self.callStatusNoAnswer
+        case .wizard(let call) where call.isComplete:
+            callCustomerSegment.selectedSegmentIndex = 0
+            callStatusLabel.text = Self.callStatusConfirmed
+        case .wizard(let call):
+            callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+            callStatusLabel.text = call.hasProgress ? Self.callStatusPartial(call.completedSteps) : Self.callStatusStart
+        default:
+            callCustomerSegment.selectedSegmentIndex = UISegmentedControl.noSegment
+            callStatusLabel.text = Self.callStatusStart
+        }
+        let verified: CustomerCallVerification
+        if case .wizard(let call) = outcome { verified = call } else { verified = .notStarted }
+        for (index, button) in callCustomerCheckboxButtons.enumerated() {
+            guard let step = CustomerCallVerification.Step(rawValue: index) else { continue }
+            button.isSelected = verified.isComplete(step)
+        }
     }
 }
 

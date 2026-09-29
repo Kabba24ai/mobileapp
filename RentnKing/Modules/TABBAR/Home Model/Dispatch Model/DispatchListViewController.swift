@@ -1779,7 +1779,10 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         return DriverChecklistLocalState.serverHasProgress(driverChecks: checklist?.driver_checks,
                                                            callCustomer: checklist?.call_customer,
                                                            fuel: checklist?.equipment_fuel,
-                                                           keys: checklist?.equipment_key_location)
+                                                           keys: checklist?.equipment_key_location,
+                                                           addressVerified: checklist?.address_verified,
+                                                           equipmentVerified: checklist?.equipment_verified,
+                                                           unloadingSituation: checklist?.unloading_situation)
     }
     
     
@@ -1801,6 +1804,11 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         merged?.call_customer = answers.call_customer
         merged?.driver_checks = answers.driver_checks
         merged?.equipment_unique_id = answers.equipment_unique_id
+        // Call Customer wizard (2026-09-29): the three verified steps travel too.
+        merged?.address_verified = answers.address_verified
+        merged?.equipment_verified = answers.equipment_verified
+        merged?.unloading_situation = answers.unloading_situation
+        merged?.unloading_note = answers.unloading_note
 
         if isDeliveryLeg {
             self.arrDispatchList[index].delivery_checklist = merged

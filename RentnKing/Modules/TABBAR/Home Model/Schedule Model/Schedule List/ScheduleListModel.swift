@@ -141,6 +141,12 @@ struct CheckListResponeData: Mappable{
     /// D5 (2026-09-27): the unit the fuel / keys answers were given for
     /// (null when never recorded). Restore compares it to the effective unit.
     internal var equipment_unique_id: String?
+    /// Call Customer wizard (2026-09-29): the three verified steps of the delivery
+    /// call as the feed reports them (false / null = not completed). Delivery only.
+    internal var address_verified: Bool?
+    internal var equipment_verified: Bool?
+    internal var unloading_situation: String?
+    internal var unloading_note: String?
 
     init?(map:Map) {
         mapping(map: map)
@@ -157,14 +163,23 @@ struct CheckListResponeData: Mappable{
         call_customer <- map["call_customer"]
         driver_checks <- map["driver_checks"]
         equipment_unique_id <- map["equipment_unique_id"]
+        address_verified <- map["address_verified"]
+        equipment_verified <- map["equipment_verified"]
+        unloading_situation <- map["unloading_situation"]
+        unloading_note <- map["unloading_note"]
     }
 
     /// The server's copy as the Sync Core reads it. The feed emits this block for
     /// every row with nulls inside when nothing was ever recorded — that is nil
-    /// here, so an untouched leg is never mistaken for a record.
+    /// here, so an untouched leg is never mistaken for a record. The wizard's
+    /// `false` steps are the feed's "never verified", likewise not a record.
     var serverCopy: DriverChecklistServerCopy? {
         let copy = DriverChecklistServerCopy(callCustomer: call_customer, fuel: equipment_fuel, keys: equipment_key_location,
-                                             checks: driver_checks, equipmentUniqueId: equipment_unique_id)
+                                             checks: driver_checks, equipmentUniqueId: equipment_unique_id,
+                                             addressVerified: address_verified == true ? true : nil,
+                                             equipmentVerified: equipment_verified == true ? true : nil,
+                                             unloadingSituation: (unloading_situation ?? "").isEmpty ? nil : unloading_situation,
+                                             unloadingNote: unloading_note)
         return copy.isEmpty ? nil : copy
     }
 }

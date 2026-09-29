@@ -49,6 +49,57 @@ final class DriverChecklistGateTests: XCTestCase {
         XCTAssertTrue(decide(call: .noAnswer).enabled)
     }
 
+    // MARK: - Call Customer wizard (2026-09-29): Confirmed is DERIVED from three verified steps
+
+    private func wizard(address: Bool = false, equipment: Bool = false, unloading: UnloadingSituation? = nil) -> CallOutcome {
+        .wizard(CustomerCallVerification(addressVerified: address, equipmentVerified: equipment, unloading: unloading))
+    }
+
+    func testTheWizardBlocksUntilEveryStepIsVerified() {
+        for (name, call) in [("0/3", wizard()),
+                             ("address only", wizard(address: true)),
+                             ("address + equipment", wizard(address: true, equipment: true)),
+                             ("Other without a note", wizard(address: true, equipment: true, unloading: .other(note: "")))] {
+            let d = decide(call: call)
+            XCTAssertFalse(d.enabled, name)
+            XCTAssertEqual(d.blockers, [DriverChecklistGate.blockerCallWizard], name)
+        }
+        XCTAssertTrue(decide(call: wizard(address: true, equipment: true, unloading: .easyAccess)).enabled, "3/3")
+        XCTAssertTrue(decide(call: wizard(address: true, equipment: true, unloading: .other(note: "Back lot"))).enabled)
+        XCTAssertTrue(DriverChecklistGate.blockerCallWizard.contains("No Answer"), "the escape is named")
+    }
+
+    func testNoAnswerSatisfiesTheCallWithoutTheWizard() {
+        XCTAssertTrue(decide(call: .noAnswer).enabled)
+        XCTAssertTrue(decide(call: .noAnswer, fuelRequired: true, fuel: .full, keysRequired: true, keys: .withMachine).enabled)
+    }
+
+    func testFuelAndKeysStillBlockAfterACompleteCall() {
+        let complete = wizard(address: true, equipment: true, unloading: .alternateLocation)
+        XCTAssertEqual(decide(call: complete, fuelRequired: true, fuel: .notFull).blockers, [DriverChecklistGate.blockerFuel])
+        XCTAssertEqual(decide(call: complete, fuelRequired: true, fuel: nil).blockers, [DriverChecklistGate.blockerFuel])
+        XCTAssertEqual(decide(call: complete, keysRequired: true, keys: .missing).blockers, [DriverChecklistGate.blockerKeys])
+        XCTAssertEqual(decide(call: complete, keysRequired: true, keys: nil).blockers, [DriverChecklistGate.blockerKeys])
+        XCTAssertEqual(decide(call: wizard(address: true), fuelRequired: true, fuel: .notFull, keysRequired: true, keys: .missing, assemblyReady: false).blockers,
+                       [DriverChecklistGate.blockerAssembly, DriverChecklistGate.blockerCallWizard, DriverChecklistGate.blockerFuel, DriverChecklistGate.blockerKeys],
+                       "gate order holds")
+    }
+
+    func testTheDeliveryOutcomeIsDerivedFromTheRecordNeverAsserted() {
+        let none = CustomerCallVerification.notStarted
+        let complete = CustomerCallVerification(addressVerified: true, equipmentVerified: true, unloading: .unloadOnStreet)
+        // "confirmed" in the record means nothing without the steps (a row written before the wizard).
+        XCTAssertEqual(CallOutcome(callCustomer: "confirmed", verification: none), .wizard(none))
+        XCTAssertFalse(CallOutcome(callCustomer: "confirmed", verification: none).isComplete)
+        XCTAssertEqual(CallOutcome(callCustomer: "", verification: complete), .wizard(complete))
+        XCTAssertTrue(CallOutcome(callCustomer: "", verification: complete).isComplete)
+        // No Answer is the explicit escape — only while the wizard has not been started.
+        XCTAssertEqual(CallOutcome(callCustomer: "no_answer", verification: none), .noAnswer)
+        XCTAssertEqual(CallOutcome(callCustomer: "no_answer", verification: CustomerCallVerification(addressVerified: true)),
+                       .wizard(CustomerCallVerification(addressVerified: true)),
+                       "the customer answered after all: the wizard outranks a stale No Answer")
+    }
+
     // MARK: - Fuel (D2)
 
     func testFuelUnansweredBlocksWhereFuelApplies() {

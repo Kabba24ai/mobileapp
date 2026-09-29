@@ -371,7 +371,7 @@ If the package had no `assembly` section (a pre-Phase-4 server, `notProvided`) o
 | Requirement | Applies | Completed when | Store |
 |---|---|---|---|
 | Assembly Review GO | Delivery | the mission's assembly gate is GO as the phone knows it at tap time | derived (§3.3) |
-| Call Customer | always (Delivery and Return) | an **explicit** outcome is recorded: **Confirmed** with every required sub-check ticked, **or No Answer** (D3) | v2 local state + `driver_checklist.update` (`call_customer`, `driver_checks`) |
+| Call Customer | always (Delivery and Return) | **Delivery (Call Customer wizard, 2026-09-29):** the three guided steps are verified with the customer — **Delivery Address**, **Equipment Order** (product + Product Options; the former "attachments" tick), **Unloading Situation** (one of easy access / unload on street / alternate location / address inaccurate / other + note) — and **Confirmed is derived** from them (never tapped), **or No Answer** is recorded (explicit; clears the steps). **Return:** an explicit **Confirmed** with every required sub-check ticked, **or No Answer** (D3) | v2 local state (`address_verified`, `equipment_verified`, `unloading_situation`, `unloading_note`, `call_customer`; Return: `checks`) + `driver_checklist.update` (the same four keys, stored in `dispatch_checklist.driver.delivery`; the server derives `delivery_call_customer`; Return: `call_customer`, `driver_checks`) |
 | Fuel | Delivery, when the current unit **requires fuel verification** | an **explicit** answer **Full / Ready** for **this unit**. **Not Full / Not Ready does not satisfy** (D2) | v2 local state (`fuel`, `equipmentUniqueId`) + `equipment_fuel` + `equipment_unique_id` (D5) |
 | Keys | Delivery, when the current unit **requires key verification** | an **explicit** answer **With Machine** for **this unit**. Missing / not ready does not satisfy (D11) | v2 local state (`keys`, `equipmentUniqueId`) + `equipment_key_location` + `equipment_unique_id` (D5) |
 
@@ -384,14 +384,16 @@ If the package had no `assembly` section (a pre-Phase-4 server, `notProvided`) o
 ```
 Load Map & Go enabled =
       Assembly Review GO                                     (Delivery only)
-  AND Call Customer complete                                 (Confirmed + all sub-checks, or No Answer)
+  AND Call Customer complete                                 (Delivery: all three wizard steps verified, or No Answer;
+                                                              Return: Confirmed + all sub-checks, or No Answer)
   AND (Fuel not required  OR Fuel == Full/Ready  for the current unit)
   AND (Keys not required  OR Keys == With Machine for the current unit)
 ```
 
 Return: Call Customer only. The button shows the first blocker as plain text, so the driver never guesses:
 - "Confirm the assembly on Review Assembly before departing." (STOP)
-- "Record the customer call: Confirmed with every check, or No Answer."
+- "Complete the customer call: verify the delivery address, the equipment order and the unloading situation — or record No Answer." (Delivery)
+- "Record the customer call: Confirmed with every check, or No Answer." (Return)
 - "Fuel is not ready. Equipment recorded as not fuel-ready must not leave the yard — fuel it, or choose a different unit on Review Assembly."
 - "The key is not with the machine. Locate it and record With Machine before departing."
 
@@ -605,7 +607,7 @@ Same rules as `docs/dispatch-offline-phase-6/PHYSICAL_ACCEPTANCE.md` (test serve
 | P5 | Fully offline first start (mission never opened online): review from the package → confirm → Screen 2 → Load Map & Go offline | Service Offline state; On My Way pending; all ops drain once on reconnect |
 | P6 | **Offline ordering**: offline switch → confirm replacement Available → Load Map & Go → reconnect | drain order switch → availability → On My Way; all accepted, no Needs Attention; server assignment = replacement; the "context needs service" warning shown at switch time; after reconnect the replacement's context loads |
 | P7 | **The RC6 trap, online**: Arrived (synced) → Main Order → CheckList Deliv | the checklist opens directly; the review is never shown; complete the checklist → Video → Main Order → Complete |
-| P8 | Call outcomes: No Answer path; Confirmed with a missing tick; unset | No Answer enables (with the other requirements met) and the SMS is recorded once on the test server (outbound disabled); the other two stay disabled |
+| P8 | Call outcomes (2026-09-29 wizard, P8-A…H in PHYSICAL_ACCEPTANCE): untouched; address only; address + equipment; all three → Confirmed derived; review pages; No Answer on a fresh mission; offline partial wizard across a force-quit; completed call across an equipment substitution | the first three stay disabled; the third step confirms by itself; reviews never clear it; No Answer enables (with the other requirements met) and the SMS is recorded once on the test server (outbound disabled); the offline steps survive and sync once each; the call survives the switch while fuel / keys follow the replacement |
 | P9 | Fuel / Keys blockers: Not Full; Full + Missing; Full + With Machine; a unit that requires neither | only the third departs; the last shows neither control and departs on call alone |
 | P10 | Web reassignment while the driver is on Screen 2 **before** departure (test-server admin surfaces) | after refresh: STOP, Load Map & Go disabled, Review Assembly highlighted; confirm the new unit → fuel/keys re-asked → GO |
 | P11 | Return regression (M2-style): Start Return → Screen 2 (no fuel/keys/Review Assembly, explicit call) → Load Map & Go → Arrived → Main Order → Return checklist → Video → Complete | Return unchanged except explicit Call Customer and the Main Order returns |

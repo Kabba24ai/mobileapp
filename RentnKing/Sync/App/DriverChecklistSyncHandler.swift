@@ -62,6 +62,7 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
                         checklistType: String,
                         driverChecks: [Int]? = nil,
                         equipmentUniqueId: String? = nil,
+                        callVerification: CustomerCallVerification? = nil,
                         capturedAt: Date = Date(),
                         operationId: String = UUID().uuidString) throws -> SyncOperation {
         var payload: [String: JSONValue] = [
@@ -74,12 +75,33 @@ struct DriverChecklistSyncHandler: SyncOperationHandler {
         if !equipmentKeyLocation.isEmpty { payload["equipment_key_location"] = .string(equipmentKeyLocation) }
         if !equipmentDriverStatus.isEmpty { payload["equipment_driver_status"] = .string(equipmentDriverStatus) }
         if !callCustomer.isEmpty { payload["call_customer"] = .string(callCustomer) }
-        // The call-customer sub-checklist ticks. Sent whenever the screen has
-        // them (partial saves AND the Ready to Go / Arrived transitions) so
-        // the server copy converges on the driver's latest state; omitted =
+        // Return's call sub-checklist ticks. Sent whenever the screen has them
+        // (partial saves AND the Ready to Go / Arrived transitions) so the
+        // server copy converges on the driver's latest state; omitted =
         // "no change", exactly like the scalar fields above.
         if let driverChecks {
             payload["driver_checks"] = .array(driverChecks.map { .number(Double($0)) })
+        }
+        // Delivery's Call Customer wizard (2026-09-29): the three verified steps.
+        // The server DERIVES `confirmed` from them (the call_customer value above
+        // is informational for the delivery leg); a No Answer save carries none —
+        // the server clears the steps on that transition. THE CALL TRAVELS WHOLE:
+        // every save carries the call as it stands (each step once it is verified,
+        // the situation once it is valid), and a payload that carries any of these
+        // keys REPLACES the server's steps with exactly what it carries — so a call
+        // restarted after a No Answer the server never saw cannot inherit the steps
+        // of the call before it. A record with no call progress sends none of the
+        // keys, and the server's copy is left alone.
+        if let callVerification, callCustomer != "no_answer" {
+            if callVerification.addressVerified { payload["address_verified"] = .bool(true) }
+            if callVerification.equipmentVerified { payload["equipment_verified"] = .bool(true) }
+            // Only a VALID choice travels (the server refuses Other without a note).
+            if let unloading = callVerification.unloading, unloading.isValid {
+                payload["unloading_situation"] = .string(unloading.code)
+                if case .other(let note) = unloading {
+                    payload["unloading_note"] = .string(note)
+                }
+            }
         }
         // D5 (2026-09-27): the unit the fuel / keys answers were given for. The
         // server stores it beside the ticks and the feed returns it, so any
