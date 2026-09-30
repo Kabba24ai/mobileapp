@@ -76,7 +76,16 @@ Carried Minors from the fix reviews: a stale tag inside a replaced list of the s
 
 Carried Minors from the whole-diff review: the privacy manifest's file-timestamp reason is DDA9.1 where C617.1 describes the use (category declared, no submission risk); the Driver Checklist → Dispatch write-back is by row index (a short window can merge onto the wrong row until the next feed); each Dispatch open does a manifest round trip (404) before the feed while the backend is behind; one `as!` in the new users-list loader; Sync operations are not bound to a company (a terms.sign made before a company switch parks); a stale `stepIds` array must stay the length of the wizard steps.
 
-**Security, fixed in 1.0.23 (1009):** an APNs auth key (`AuthKey_J9CRR5GHT3.p8`) was in the app target's Copy Bundle Resources, so every IPA carries it from 2024 through 1.0.22. It has been in the repository since 2024-02-27 (`82a554f`), already wired into Resources. It was deleted on 2026-08-03 without its project reference (a missing build input fails the build) and restored unchanged on 2026-08-21. The app never read it: push goes through Firebase Cloud Messaging, and the backend authenticates to FCM with a Google service account (no `.p8` exists on the production server).
+**Security, fixed in 1.0.23 (1009):** an APNs auth key (`AuthKey_J9CRR5GHT3.p8`) was in the app target's Copy Bundle Resources, so the IPAs from 2024 through 1.0.22 carry it. It has been in the repository since 2024-02-27 (`82a554f`), already wired into Resources. In August 2026 it briefly left the build:
+
+- 2026-08-03 (`9073edf`): the file was deleted while its project entries stayed.
+- 2026-08-12 (`0014cbc`): the project entries were removed.
+- 2026-08-21 (`d5f5184`): the file was restored unchanged, without the entries.
+- 2026-08-25 (`1bda8ee`): the Resources entries were restored.
+
+Builds made between 2026-08-03 and 2026-08-25 may therefore not carry it. Every 1.0.18–1.0.22 archive on the signing Mac does.
+
+The app never read it: push goes through Firebase Cloud Messaging, and the backend authenticates to FCM with a Google service account (no `.p8` exists on the production server).
 
 1.0.23 removes the file and its project entries, and adds an app-target build phase, **Refuse Bundled Private Keys**. That phase fails any build whose app or extension carries a `.p8` / `.p12` / `.pfx` file, or private-key text in any file, binaries included: a PEM or PGP private-key block, a `"private_key"` field, or a bare APNs key body. It also fails closed when it cannot read the bundle, so it needs `ENABLE_USER_SCRIPT_SANDBOXING = NO` on the app target. A hosted test asserts the same, and `.gitignore` refuses those files.
 
