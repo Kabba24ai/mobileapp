@@ -44,6 +44,13 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.23", notes: [
+            "Improved driver delivery workflow with stronger offline support",
+            "Guided customer-call verification before departure",
+            "Better handling when equipment assignments change",
+            "More reliable synchronization during deliveries",
+            "Various fixes and refinements",
+        ]),
         AppRelease(version: "1.0.22", notes: [
             "The equipment picker opens in the same Product Category as the machine already assigned — an unassigned line starts in the category of the product that was ordered",
             "Change the category to take a machine from anywhere in the fleet; the same substitution and reason rules still apply",
