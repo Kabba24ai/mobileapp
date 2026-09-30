@@ -430,6 +430,7 @@
 		5A5F00000000000000000040 /* CustomerCallVerificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000003F /* CustomerCallVerificationTests.swift */; };
 		5A5F00000000000000000047 /* StaleAvailabilityRetirementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000046 /* StaleAvailabilityRetirementTests.swift */; };
 		5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */; };
+		5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */; };
 		5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */; };
 		5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000016 /* TermsOperationsTests.swift */; };
 		5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */; };
@@ -929,6 +930,7 @@
 		5A5F0000000000000000003F /* CustomerCallVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallVerificationTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000046 /* StaleAvailabilityRetirementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityRetirementTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityReconcilerHostedTests.swift; sourceTree = "<group>"; };
+		5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSafetyHostedTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldStateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000016 /* TermsOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperationsTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleTests.swift; sourceTree = "<group>"; };
@@ -2235,6 +2237,7 @@
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
 				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
 				5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */,
+				5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
 				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
@@ -3071,6 +3074,7 @@
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
+				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
 				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,

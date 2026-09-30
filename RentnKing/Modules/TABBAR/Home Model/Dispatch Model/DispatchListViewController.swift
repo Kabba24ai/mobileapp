@@ -102,6 +102,11 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// Seams (hosted tests inject; production reads the shared engine and the cached review).
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+    /// Release 2026-09-30 seams (hosted tests inject; production reads the network, the offline
+    /// mission store and the MMKV feed snapshot).
+    var isReachable: () -> Bool = { NetworkReachabilityManager()?.isReachable == true }
+    var offlinePresentation: (DispatchOfflineQuery) -> DispatchOfflinePresentation? = { DispatchOfflineSync.presentation(for: $0) }
+    var feedSnapshotOverride: ((String) -> [SchedulesModel])?
     /// Review F4: every live-feed / Manual Dispatch request is bound to the scope that started it.
     let feedRequests = DispatchFeedRequests()
 
@@ -314,9 +319,19 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.feedReplacedCache = false
         self.isFeedFallback = false
         self.isAwaitingFirstDownload = false
-        let online = NetworkReachabilityManager()?.isReachable == true
+        let online = self.isReachable()
 
-        if self.orderSource != .feed, let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) {
+        if self.orderSource != .feed, let presentation = self.offlinePresentation(self.offlineQuery()) {
+            // Nothing ever downloaded and no connection (always the case while the server has no
+            // offline endpoints): the last live list this phone saw, flagged not current, beats an
+            // empty "not downloaded" screen that connecting cannot fix (release 2026-09-30).
+            if DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: online,
+                                                                    hasFeedSnapshot: self.hasFeedSnapshot) {
+                self.isFeedFallback = true
+                self.objRefresh?.endRefreshing()
+                self.reloadFromFeed()
+                return
+            }
             self.pageCount = 1
             self.serverLastPage = 1
             self.showOfflineCache(presentation)
@@ -380,7 +395,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.rebuildRows()
         self.setTheView()
 
-        if NetworkReachabilityManager()?.isReachable == true {
+        if self.isReachable() {
             self.APICall()
         } else {
             // Offline: the cached snapshot is all we have — say so.
@@ -403,7 +418,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         case .notDownloaded:
             self.arrDispatchList = []
             self.offlineRevisions = [:]
-            self.isAwaitingFirstDownload = NetworkReachabilityManager()?.isReachable == true
+            self.isAwaitingFirstDownload = self.isReachable()
             if self.isAwaitingFirstDownload {
                 self.emptyDataView.noDataFound()
                 self.startAnimatingView()
@@ -454,15 +469,15 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             // The first download finally produced usable Dispatch: leave the live-feed fallback for
             // the normal cached working set (its outcome notification then settles the header).
             if self.isFeedFallback, self.orderSource != .feed,
-               let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()),
+               let presentation = self.offlinePresentation(self.offlineQuery()),
                DispatchOfflineScreenPolicy.leavesFeedFallback(presentation: presentation) {
                 self.reloadDispatch(reconcile: nil)
                 return
             }
             guard self.isShowingOfflineCache,
-                  let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) else { return }
+                  let presentation = self.offlinePresentation(self.offlineQuery()) else { return }
             self.showOfflineCache(presentation)
-            if NetworkReachabilityManager()?.isReachable != true {
+            if !self.isReachable() {
                 self.updateOfflineFreshnessLine()
             }
         }
@@ -485,10 +500,11 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// screen never sits on a spinner).
     func applyReconcileOutcome(failed: Bool) {
         guard self.viewIfLoaded?.window != nil, self.isShowingOfflineCache,
-              let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) else { return }
-        let online = NetworkReachabilityManager()?.isReachable == true
+              let presentation = self.offlinePresentation(self.offlineQuery()) else { return }
+        let online = self.isReachable()
 
-        switch DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: online) {
+        switch DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: online,
+                                                   hasFeedSnapshot: self.hasFeedSnapshot) {
         case .fallBackToFeed:
             self.isAwaitingFirstDownload = false
             self.stopAnimatingView()
@@ -1115,7 +1131,7 @@ extension DispatchListViewController{
             } else {
                 self.bool_Load = true
                 if self.orderSource == .cacheThenFeed, !self.feedReplacedCache,
-                   let presentation = DispatchOfflineSync.presentation(for: self.offlineQuery()) {
+                   let presentation = self.offlinePresentation(self.offlineQuery()) {
                     // The All feed failed: keep showing the cached horizon, not an empty list.
                     self.showOfflineCache(presentation)
                     self.updateOfflineFreshnessLine()
@@ -1146,7 +1162,11 @@ extension DispatchListViewController{
     }
 
     // MARK: - Get Local Data
+    /// The last live Dispatch list this phone saw for the current tab (the MMKV feed snapshot).
+    var hasFeedSnapshot: Bool { !self.getDispatchOrderData(schedule_type: self.selectScheduleType()).isEmpty }
+
     func getDispatchOrderData(schedule_type: String) -> [SchedulesModel] {
+        if let override = self.feedSnapshotOverride { return override(schedule_type) }
         if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)") {
             return arr
         }
@@ -1839,9 +1859,9 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     
     
     @objc func btnCallClicked(_ sender : UIButton) {
-        if self.arrDispatchList.count == 0{
-            return
-        }
+        // A card's tag indexes the list it was built from; a feed answer can replace that list
+        // before the table reloads (release review 2026-09-30).
+        guard sender.tag >= 0, sender.tag < self.arrDispatchList.count else { return }
         let objData = self.arrDispatchList[sender.tag]
 
     
@@ -1903,10 +1923,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     
     
     @objc func btnMapClicked(_ sender : UIButton) {
-        if self.arrDispatchList.count == 0{
-            return
-        }
-                      
+        guard sender.tag >= 0, sender.tag < self.arrDispatchList.count else { return }
+
         let objData = self.arrDispatchList[sender.tag]
         
         let strAddress : String = objData.order?.objDeliveryAddress?.full_address ?? ""
@@ -1919,10 +1937,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func strAssignDriver(index : Int){
-        if self.arrDispatchList.count == 0{
-            return
-        }
-        
+        guard index >= 0, index < self.arrDispatchList.count else { return }
+
         let objData = self.arrDispatchList[index]
 
         
@@ -1991,6 +2007,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         self.rememberOfflineEdit(objData)
 
         DispatchQueue.main.async {
+            // One main-queue hop later the list may have been replaced by a feed answer.
+            guard index < self.arrDispatchList.count else { return }
             if movedAway {
                 self.arrDispatchList.remove(at: index)
             } else {

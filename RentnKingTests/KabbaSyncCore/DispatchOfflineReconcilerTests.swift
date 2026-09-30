@@ -891,6 +891,41 @@ final class DispatchOfflineReconcilerTests: XCTestCase {
         XCTAssertFalse(DispatchOfflineScreenPolicy.filterChangeNeedsFirstDownload(notDownloaded: true, online: false), "offline: zero requests")
     }
 
+    // MARK: - Release 2026-09-30: a server without the offline endpoints, a phone without signal
+
+    /// The app ships before the backend that serves the offline manifest: until then nothing is
+    /// ever downloaded. Offline, the last live Dispatch list this phone saw (the feed snapshot —
+    /// what 1.0.22 showed) beats an empty "not downloaded" screen that connecting cannot fix.
+    func testWithNothingDownloadedAndNoSignalTheLastLiveListBeatsAnEmptyScreen() {
+        server.missions = [m("A", "a1")]
+        server.manifestStatus = 404                                   // today's production backend
+        let first = reconcile(.launch)
+        XCTAssertEqual(first.status, .failed(.server(404)))
+        XCTAssertEqual(presentation, .notDownloaded)
+        let failed = DispatchOfflineScreenPolicy.indicatesFailure(first)
+
+        XCTAssertEqual(DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: false, hasFeedSnapshot: true),
+                       .fallBackToFeed, "offline with a feed snapshot: show it")
+        XCTAssertEqual(DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: false, hasFeedSnapshot: false),
+                       .showNotDownloaded, "nothing at all on the phone: say so")
+        XCTAssertEqual(DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: true, hasFeedSnapshot: true),
+                       .fallBackToFeed, "online: the live feed, as before")
+
+        XCTAssertTrue(DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: false, hasFeedSnapshot: true))
+        XCTAssertFalse(DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: true, hasFeedSnapshot: true),
+                       "online the screen asks the server")
+        XCTAssertFalse(DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: false, hasFeedSnapshot: false))
+    }
+
+    func testADownloadedDispatchStillWinsOverTheFeedSnapshotOffline() {
+        server.missions = [m("A", "a1")]
+        let first = reconcile(.launch)
+        guard case .ready = presentation else { return XCTFail("downloaded") }
+        XCTAssertEqual(DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: DispatchOfflineScreenPolicy.indicatesFailure(first),
+                                                           online: false, hasFeedSnapshot: true), .flagOffline)
+        XCTAssertFalse(DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: false, hasFeedSnapshot: true))
+    }
+
     func testAGenuinelyEmptyManifestIsANormalEmptyDispatch() {
         server.missions = []
 

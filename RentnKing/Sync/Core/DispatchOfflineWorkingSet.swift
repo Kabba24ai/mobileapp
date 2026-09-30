@@ -195,13 +195,25 @@ enum DispatchOfflineScreenPolicy {
     /// How the screen settles for what is on disk now and the last answer. A failed or partial
     /// run — or ANY active mission missing, stale or failed to download, whatever the last
     /// answer said — is never presented as current (review F1).
-    static func outcome(presentation: DispatchOfflinePresentation, failed: Bool, online: Bool) -> Outcome {
+    ///
+    /// `hasFeedSnapshot`: this phone holds a last live Dispatch list (the feed snapshot). With
+    /// nothing downloaded and no connection it beats an empty "not downloaded" screen (release
+    /// 2026-09-30) — the only offline list while a server has no offline endpoints.
+    static func outcome(presentation: DispatchOfflinePresentation, failed: Bool, online: Bool,
+                        hasFeedSnapshot: Bool = false) -> Outcome {
         guard case .ready(_, let freshness) = presentation else {
-            if !online { return .showNotDownloaded }
+            if !online { return hasFeedSnapshot ? .fallBackToFeed : .showNotDownloaded }
             return failed ? .fallBackToFeed : .current
         }
         if !online { return .flagOffline }
         return (failed || !freshness.isComplete) ? .flagNotCurrent : .current
+    }
+
+    /// Nothing was ever downloaded, there is no connection, and the phone holds the last live
+    /// Dispatch list: show that list (flagged not current) instead of "not downloaded" — what
+    /// 1.0.22 showed offline, and all there is while the server has no offline endpoints.
+    static func offlineShowsFeedSnapshot(presentation: DispatchOfflinePresentation, online: Bool, hasFeedSnapshot: Bool) -> Bool {
+        presentation == .notDownloaded && !online && hasFeedSnapshot
     }
 
     /// The screen fell back to the live feed because nothing was downloaded; once the working set
