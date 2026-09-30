@@ -180,7 +180,9 @@ enum DispatchOfflineScreenPolicy {
     }
 
     enum Outcome: Equatable {
-        /// Never downloaded and the first download failed while online: use the live feed.
+        /// Never downloaded. Online after a failed first download: the live feed takes over.
+        /// Offline with a feed snapshot on the phone: show that snapshot (the screen keeps
+        /// listening, so the outcome after reconnecting reaches the live feed).
         case fallBackToFeed
         /// Never downloaded and offline: say so (never "no results").
         case showNotDownloaded

@@ -134,6 +134,7 @@ final class ReleaseSafetyHostedTests: XCTestCase {
         vc.tblView.layoutIfNeeded()
         XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 3)
 
+        XCTAssertFalse((vc.tblView.indexPathsForVisibleRows ?? []).isEmpty, "precondition: rows are visible, so the redraw runs")
         // A page load begins: the data source now answers 10 placeholder rows, the table has not reloaded.
         vc.isLoading = true
         vc.redrawVisibleRows()                                    // before the fix: reloadRows against 3 vs 10

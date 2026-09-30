@@ -59,8 +59,28 @@ Nothing parked; production's operation ledger recorded every write once.
 - Production has no yard fuel / key predicates; the app falls back to the display flags the live app uses (Keys asked for any key mechanism, Fuel for any power source).
 - Offline mission packages, offline Terms signing, installation registration and the departure lock are inactive until the backend deploys.
 
+## Final release review (2026-09-30)
+
+Fresh whole-diff reviews of both repositories after integration. No Critical finding. Important findings and their disposition:
+
+| Finding | Disposition |
+|---|---|
+| Offline Dispatch showed "Dispatch isn't downloaded" instead of the last live list while nothing was downloaded — permanent while the backend lacks the offline endpoints | Fixed (`bd542f6`): offline with nothing downloaded shows the feed snapshot, flagged not current |
+| Dispatch card buttons (Call, Map, Assign Driver) could index past a replaced list and crash | Fixed (`bd542f6`): bounds-checked; reproduced red as a crash first |
+| Orders list sync redraw could reload rows against an unseen row count | Fixed (`bd542f6`, refined in `d04e72d`): a mismatched table is left to the reload already on its way |
+| Fix review: after an offline outcome on the snapshot fallback, reconnecting no longer reached the live feed | Fixed (`d04e72d`): offline the fallback keeps listening; the first online outcome hands the screen to the feed. A confirming review found no Critical or Important defect |
+| Backend departure lock treated a bare arrival latch (left by production's old recalls) as departed, locking recalled lines | Fixed in the backend release branch: the latch counts only with its arrival time |
+| Upgrade from 1.0.22 does not reuse 1.0.22's company caches (reference lists, order details, Assembly Review, Dispatch snapshot) | **By design** (Phase 4 Amendment B: unscoped legacy caches are never read because their company cannot be proven). Queued work survives the upgrade and drains. Mitigation: open the app once **online** after updating; the first online use rebuilds every cache |
+
+Carried Minors from the fix reviews: a stale tag inside a replaced list of the same length still acts on a different row (bounds checks stop crashes only; match by unique id later); each offline outcome on the snapshot rebuilds the list (brief skeleton flash); the Driver Checklist's in-memory write-back to the snapshot is not persisted while the snapshot is shown (the saved checklist state still drives the card); the Orders redraw can show skeleton rows when a page load starts from exactly one page of rows; the snapshot slot is shared by the Pending, Completed and search answers (as in 1.0.22).
+
+Carried Minors from the whole-diff review: the privacy manifest's file-timestamp reason is DDA9.1 where C617.1 describes the use (category declared, no submission risk); the Driver Checklist → Dispatch write-back is by row index (a short window can merge onto the wrong row until the next feed); each Dispatch open does a manifest round trip (404) before the feed while the backend is behind; one `as!` in the new users-list loader; Sync operations are not bound to a company (a terms.sign made before a company switch parks); a stale `stepIds` array must stay the length of the wizard steps.
+
+**Outside this release, needs action:** an APNs auth key (`AuthKey_J9CRR5GHT3.p8`) is in the app target's Copy Bundle Resources and therefore inside every shipped IPA, including the live 1.0.22. Remove it from the target and revoke it in the Apple Developer account.
+
 ## Release
 
 - Version **1.0.23 (1009)**. 1.0.22 has been live on the App Store since 2026-09-20, so a released version cannot take this build.
-- Submitted for App Review with **Manual release**. Neither the App Store release nor the backend deploy happens before the coordinated release is authorized.
+- Release mode **Manual release**. Neither the App Store release nor the backend deploy happens before the coordinated release is authorized.
+- Recommended driver instruction with the release: update the app, then open it once **online** before the next route (see the upgrade note above).
 - Coordinated release order: (1) release 1.0.23 on the App Store and let it reach drivers' phones; (2) deploy the backend release branch to production main; (3) enable silent wake only after its own preflight.
