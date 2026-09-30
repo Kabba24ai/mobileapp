@@ -76,7 +76,9 @@ Carried Minors from the fix reviews: a stale tag inside a replaced list of the s
 
 Carried Minors from the whole-diff review: the privacy manifest's file-timestamp reason is DDA9.1 where C617.1 describes the use (category declared, no submission risk); the Driver Checklist → Dispatch write-back is by row index (a short window can merge onto the wrong row until the next feed); each Dispatch open does a manifest round trip (404) before the feed while the backend is behind; one `as!` in the new users-list loader; Sync operations are not bound to a company (a terms.sign made before a company switch parks); a stale `stepIds` array must stay the length of the wizard steps.
 
-**Outside this release, needs action:** an APNs auth key (`AuthKey_J9CRR5GHT3.p8`) is in the app target's Copy Bundle Resources and therefore inside every shipped IPA, including the live 1.0.22. Remove it from the target and revoke it in the Apple Developer account.
+**Security, fixed in 1.0.23 (1009):** an APNs auth key (`AuthKey_J9CRR5GHT3.p8`) was in the app target's Copy Bundle Resources and therefore inside every shipped IPA through 1.0.22. It was added on 2026-05-20, deleted on 2026-08-03 without its project reference (a build input that is missing fails the build), and restored unchanged on 2026-08-21. The app never read it: push goes through Firebase Cloud Messaging, and the backend authenticates to FCM with a Google service account (no `.p8` exists on the production server). 1.0.23 removes the file and its project entries. It also adds an app-target build phase, **Refuse Bundled Private Keys**, which fails any build whose app or extension carries a `.p8` / `.p12` / `.pfx` file or a PEM private-key block, and a hosted test that asserts the same. `.gitignore` refuses those files.
+
+The key is still in git history and in 1.0.22 and every earlier binary, so treat it as compromised. If Firebase's Apple app configuration (Cloud Messaging) uses key J9CRR5GHT3 to reach APNs, revoking it stops every iOS push until a replacement key is uploaded there. Upload the replacement first, then revoke.
 
 ## Release
 

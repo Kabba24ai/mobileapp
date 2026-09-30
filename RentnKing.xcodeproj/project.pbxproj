@@ -207,7 +207,6 @@
 		C51AF5E42AD178220042589E /* NavigationBar.xib in Resources */ = {isa = PBXBuildFile; fileRef = C51AF5652AD178220042589E /* NavigationBar.xib */; };
 		C51AF5E52AD178220042589E /* UIBarButtonItemWithClouser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5662AD178220042589E /* UIBarButtonItemWithClouser.swift */; };
 		C51AF5E62AD178220042589E /* NavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF5672AD178220042589E /* NavigationController.swift */; };
-		C51AF5E72AD178220042589E /* AuthKey_J9CRR5GHT3.p8 in Resources */ = {isa = PBXBuildFile; fileRef = C51AF56A2AD178220042589E /* AuthKey_J9CRR5GHT3.p8 */; };
 		C51AF5E82AD178220042589E /* KeychainWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF56C2AD178220042589E /* KeychainWrapper.swift */; };
 		C51AF5E92AD178220042589E /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C51AF56D2AD178220042589E /* Keychain.swift */; };
 		C51AF5EA2AD178220042589E /* EmptyDataView.xib in Resources */ = {isa = PBXBuildFile; fileRef = C51AF56E2AD178220042589E /* EmptyDataView.xib */; };
@@ -731,7 +730,6 @@
 		C51AF5652AD178220042589E /* NavigationBar.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = NavigationBar.xib; sourceTree = "<group>"; };
 		C51AF5662AD178220042589E /* UIBarButtonItemWithClouser.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIBarButtonItemWithClouser.swift; sourceTree = "<group>"; };
 		C51AF5672AD178220042589E /* NavigationController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NavigationController.swift; sourceTree = "<group>"; };
-		C51AF56A2AD178220042589E /* AuthKey_J9CRR5GHT3.p8 */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = AuthKey_J9CRR5GHT3.p8; sourceTree = "<group>"; };
 		C51AF56C2AD178220042589E /* KeychainWrapper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = KeychainWrapper.swift; sourceTree = "<group>"; };
 		C51AF56D2AD178220042589E /* Keychain.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
 		C51AF56E2AD178220042589E /* EmptyDataView.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = EmptyDataView.xib; sourceTree = "<group>"; };
@@ -1422,17 +1420,8 @@
 			isa = PBXGroup;
 			children = (
 				C5B1A6442BE00B9B0068222C /* GoogleService-Info.plist */,
-				C51AF5692AD178220042589E /* Live Key  */,
 			);
 			path = "Google File";
-			sourceTree = "<group>";
-		};
-		C51AF5692AD178220042589E /* Live Key  */ = {
-			isa = PBXGroup;
-			children = (
-				C51AF56A2AD178220042589E /* AuthKey_J9CRR5GHT3.p8 */,
-			);
-			path = "Live Key ";
 			sourceTree = "<group>";
 		};
 		C51AF56B2AD178220042589E /* Keychain */ = {
@@ -2353,6 +2342,7 @@
 				C51AF5112AD177DE0042589E /* Resources */,
 				C51AF65A2AD17BB10042589E /* Embed Foundation Extensions */,
 				5A5CFADE0000000000000060 /* Stamp Build Date */,
+				5A5CFADE0000000000000061 /* Refuse Bundled Private Keys */,
 			);
 			buildRules = (
 			);
@@ -2541,7 +2531,6 @@
 				C51954652CFE289A007AB49C /* EPSignatureViewController.xib in Resources */,
 				C51AF53E2AD178130042589E /* TabBar.storyboard in Resources */,
 				C51AF5F02AD178220042589E /* Roboto-Black.ttf in Resources */,
-				C51AF5E72AD178220042589E /* AuthKey_J9CRR5GHT3.p8 in Resources */,
 				C51AF53D2AD178130042589E /* Login.storyboard in Resources */,
 				C5D55B712B6C04D0006AEC63 /* Order.storyboard in Resources */,
 				C51AF53C2AD178130042589E /* Home.storyboard in Resources */,
@@ -2644,6 +2633,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Stamp Build Date -- writes KabbaBuildInfo.plist into the app bundle so\n# Settings > About shows the real build date of THIS binary. Info.plist\n# mtimes are stale on incremental builds and rewritten by export / App Store\n# processing, so the date is generated here, as part of every build.\n# Honors SOURCE_DATE_EPOCH for reproducible builds. Sandbox-safe: the only\n# write is the declared output file.\nset -eu\nOUT=\"${SCRIPT_OUTPUT_FILE_0:?missing declared output path for the build stamp}\"\nif [ -n \"${SOURCE_DATE_EPOCH:-}\" ]; then\n  STAMP=$(date -u -r \"$SOURCE_DATE_EPOCH\" +%Y-%m-%dT%H:%M:%SZ)\nelse\n  STAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)\nfi\ncat > \"$OUT\" <<PLIST\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n\t<key>BuildDate</key>\n\t<string>${STAMP}</string>\n\t<key>BuildConfiguration</key>\n\t<string>${CONFIGURATION:-}</string>\n</dict>\n</plist>\nPLIST\necho \"Stamped build date ${STAMP} -> ${OUT}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		5A5CFADE0000000000000061 /* Refuse Bundled Private Keys */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Refuse Bundled Private Keys";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Refuse Bundled Private Keys -- fails the build when the finished app carries a\n# private key: a .p8 / .p12 / .pfx file, or a PEM \"PRIVATE KEY\" block in any text\n# resource. An APNs auth key (AuthKey_J9CRR5GHT3.p8) shipped in every IPA through\n# 1.0.22, and came back once after being deleted; the app never needs one (push\n# goes through Firebase, which holds the APNs credential). Read-only: scans the\n# built app and its extensions, skipping test bundles a test run injects.\nset -eu\nAPP=\"${TARGET_BUILD_DIR:?}/${WRAPPER_NAME:?}\"\nFOUND=$(\n  {\n    find \"$APP\" -type f ! -path '*.xctest/*' | grep -iE '[.](p8|p12|pfx)$' || true\n    grep -rlIE --exclude-dir='*.xctest' -e '-----BEGIN [A-Z ]*PRIVATE KEY-----' \"$APP\" || true\n  } | sort -u\n)\nif [ -n \"$FOUND\" ]; then\n  printf '%s\\n' \"$FOUND\" | while IFS= read -r f; do\n    echo \"error: private key material in the app bundle: ${f#\"$APP\"/}\"\n  done\n  exit 1\nfi\necho \"No private key material in ${WRAPPER_NAME}\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */

@@ -1,6 +1,7 @@
 //
 //  ReleaseSafetyHostedTests.swift
-//  RentnKingHostedTests — release review 2026-09-30 (1.0.23): the three screen findings.
+//  RentnKingHostedTests — release review 2026-09-30 (1.0.23): the three screen findings, and the
+//  security finding.
 //
 //  1. Offline Dispatch while nothing was ever downloaded (always the case while the server has
 //     no offline endpoints) shows the last live list, not "Dispatch isn't downloaded".
@@ -9,6 +10,7 @@
 //     index past the list.
 //  3. The Orders list's sync redraw never reloads rows against a row count the table has not
 //     seen yet.
+//  4. The app bundle carries no private key (an APNs auth key shipped in every IPA through 1.0.22).
 //
 
 import XCTest
@@ -142,5 +144,37 @@ final class ReleaseSafetyHostedTests: XCTestCase {
         XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 3, "a mismatched table is left for the reload on its way")
         vc.tblView.reloadData()                                   // what setTheView does when the page settles
         XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 10)
+    }
+
+    // MARK: 4. No private key in the app bundle
+
+    /// Security review 2026-09-30: an APNs auth key (AuthKey_J9CRR5GHT3.p8) sat in Copy Bundle
+    /// Resources and shipped inside every IPA. The app never reads a signing key — push goes
+    /// through Firebase, which holds the APNs credential. What ships (the app and its extension,
+    /// not the test bundles this run injects) carries no key file and no PEM private-key block.
+    func testTheAppBundleCarriesNoPrivateKey() throws {
+        let app = Bundle.main.bundleURL.standardizedFileURL
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey]))
+        var scanned: [String] = []
+        var offenders: [String] = []
+        for case let url as URL in enumerator {
+            if url.pathExtension == "xctest" { enumerator.skipDescendants(); continue }   // injected by the test run, never shipped
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            let relative = String(url.standardizedFileURL.path.dropFirst(app.path.count + 1))
+            scanned.append(relative)
+            if ["p8", "p12", "pfx"].contains(url.pathExtension.lowercased()) {
+                offenders.append(relative)
+                continue
+            }
+            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
+            defer { try? handle.close() }
+            if let head = try? handle.read(upToCount: 4096), let text = String(data: head, encoding: .utf8),
+               text.range(of: "-----BEGIN [A-Z ]*PRIVATE KEY-----", options: .regularExpression) != nil {
+                offenders.append(relative)
+            }
+        }
+
+        XCTAssertTrue(scanned.contains("Info.plist"), "precondition: the scan walked the app bundle")
+        XCTAssertEqual(offenders, [], "private key material in the app bundle")
     }
 }

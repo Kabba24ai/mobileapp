@@ -141,8 +141,6 @@ RentnKing/  (repository root)
 │   │   │       ├── SpreadsheetViewDataSource.swift
 │   │   │       └── SpreadsheetViewDelegate.swift
 │   │   ├── Google File/
-│   │   │   ├── Live Key /
-│   │   │   │   └── AuthKey_J9CRR5GHT3.p8
 │   │   │   └── GoogleService-Info.plist
 │   │   ├── Keychain/
 │   │   │   ├── Keychain.swift
