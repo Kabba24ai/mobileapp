@@ -149,12 +149,20 @@ final class ReleaseSafetyHostedTests: XCTestCase {
     // MARK: 4. No private key in the app bundle
 
     /// Security review 2026-09-30: an APNs auth key (AuthKey_J9CRR5GHT3.p8) sat in Copy Bundle
-    /// Resources and shipped inside every IPA. The app never reads a signing key — push goes
-    /// through Firebase, which holds the APNs credential. What ships (the app and its extension,
-    /// not the test bundles this run injects) carries no key file and no PEM private-key block.
+    /// Resources and shipped inside every IPA from 2024 through 1.0.22. The app never reads a
+    /// signing key — push goes through Firebase, which holds the APNs credential. What ships (the
+    /// app and its extension, not the test bundles this run injects) carries no key file and no
+    /// key text: every file is searched whole, binaries included, and a plist also decoded (a
+    /// binary plist stores a non-ASCII string as UTF-16). Same markers as the app target's
+    /// "Refuse Bundled Private Keys" build phase.
     func testTheAppBundleCarriesNoPrivateKey() throws {
         let app = Bundle.main.bundleURL.standardizedFileURL
-        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey]))
+        var unreadable: [String] = []
+        let enumerator = try XCTUnwrap(FileManager.default.enumerator(at: app, includingPropertiesForKeys: [.isRegularFileKey], errorHandler: { url, error in
+            unreadable.append("\(url.lastPathComponent): \(error.localizedDescription)")
+            return true
+        }))
+        let markers = ["PRIVATE KEY-----", "PRIVATE KEY BLOCK-----", "\"private_key\"", "MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEH"].map { Data($0.utf8) }
         var scanned: [String] = []
         var offenders: [String] = []
         for case let url as URL in enumerator {
@@ -166,14 +174,19 @@ final class ReleaseSafetyHostedTests: XCTestCase {
                 offenders.append(relative)
                 continue
             }
-            guard let handle = try? FileHandle(forReadingFrom: url) else { continue }
-            defer { try? handle.close() }
-            if let head = try? handle.read(upToCount: 4096), let text = String(data: head, encoding: .utf8),
-               text.range(of: "-----BEGIN [A-Z ]*PRIVATE KEY-----", options: .regularExpression) != nil {
+            let data = try Data(contentsOf: url)
+            var views = [data]
+            if url.pathExtension == "plist",
+               let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+               let xml = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0) {
+                views.append(xml)
+            }
+            if views.contains(where: { view in markers.contains { view.range(of: $0) != nil } }) {
                 offenders.append(relative)
             }
         }
 
+        XCTAssertEqual(unreadable, [], "every file in the bundle was read")
         XCTAssertTrue(scanned.contains("Info.plist"), "precondition: the scan walked the app bundle")
         XCTAssertEqual(offenders, [], "private key material in the app bundle")
     }
