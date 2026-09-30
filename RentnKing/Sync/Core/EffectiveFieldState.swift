@@ -53,11 +53,15 @@ enum EffectiveFieldState {
 
     /// Every retained operation counts as durable completion for WORKFLOW
     /// purposes — including needsAttention (work preserved) and synced
-    /// (record retained after ack, so there is no race with a stale feed).
+    /// (record retained after ack, so there is no race with a stale feed) —
+    /// except a superseded one: retired history that the world moved past.
     static func countsAsDurableEvidence(_ state: SyncState) -> Bool {
         switch state {
         case .pending, .syncing, .synced, .needsAttention:
             return true
+        case .superseded:
+            // Retired: the world moved past this decision (StaleAvailabilityRetirement). History only.
+            return false
         }
     }
 

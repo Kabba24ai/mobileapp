@@ -60,6 +60,9 @@ struct APIError: Error, Codable, Equatable {
     let transport: TransportFailure?
     /// Underlying system error text for diagnostics (never shown as the primary employee message).
     let underlyingDescription: String?
+    /// The server's whole `error` object when the envelope carried one — the fields beyond
+    /// code / message / retryable (e.g. `current_equipment` on QUEUE_ASSIGNMENT_CHANGED).
+    let details: JSONValue?
 
     init(kind: Kind,
          statusCode: Int? = nil,
@@ -69,7 +72,8 @@ struct APIError: Error, Codable, Equatable {
          requestId: String? = nil,
          serverRetryable: Bool? = nil,
          transport: TransportFailure? = nil,
-         underlyingDescription: String? = nil) {
+         underlyingDescription: String? = nil,
+         details: JSONValue? = nil) {
         self.kind = kind
         self.statusCode = statusCode
         self.code = code
@@ -79,6 +83,7 @@ struct APIError: Error, Codable, Equatable {
         self.serverRetryable = serverRetryable
         self.transport = transport
         self.underlyingDescription = underlyingDescription
+        self.details = details
     }
 
     var isAuthenticationFailure: Bool { statusCode == 401 }
@@ -179,7 +184,8 @@ enum APIErrorClassifier {
                         message: message,
                         validationErrors: envelope?.validationErrors ?? [:],
                         requestId: envelope?.requestId ?? headerRequestId,
-                        serverRetryable: envelope?.retryable)
+                        serverRetryable: envelope?.retryable,
+                        details: envelope?.errorDetails)
     }
 
     /// A 2xx whose body declares failure (legacy endpoints answer 200 + success:false/status:false).
@@ -191,7 +197,8 @@ enum APIErrorClassifier {
                         message: envelope.errorMessage ?? envelope.message ?? "The server rejected the operation.",
                         validationErrors: envelope.validationErrors,
                         requestId: envelope.requestId ?? headerRequestId,
-                        serverRetryable: envelope.retryable)
+                        serverRetryable: envelope.retryable,
+                        details: envelope.errorDetails)
     }
 
     static func decodingFailure(statusCode: Int, headers: [String: String] = [:], detail: String? = nil) -> APIError {

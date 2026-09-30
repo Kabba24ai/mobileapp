@@ -133,6 +133,24 @@ final class SyncEngine {
         }
     }
 
+    /// Retires a parked operation the world moved past (StaleAvailabilityRetirement decides
+    /// when). Only a Needs Attention record can be superseded — never a pending one (it may
+    /// still land) nor a synced one (history of something Laravel accepted). The record stays
+    /// on disk with its payload, attempts and the server's verdict; it is never sent again.
+    func supersede(operationId: String, with supersession: SyncSupersession) {
+        queue.async { [weak self] in
+            guard let self = self, var op = self.operations[operationId], op.state == .needsAttention else { return }
+            op.state = .superseded
+            op.supersession = supersession
+            op.attentionReason = nil
+            op.attempts.nextAttemptAt = nil
+            self.operations[operationId] = op
+            self.persistQuietly(op)
+            self.emit(.operationChanged(op))
+            self.log("superseded \(op.type) \(self.short(operationId)) — \(supersession.reason), now \(supersession.supersededByEquipmentUniqueId)")
+        }
+    }
+
     /// A person chose to retry a Needs Attention operation (or force a pending one).
     func retryNow(operationId: String) {
         queue.async { [weak self] in
@@ -140,6 +158,7 @@ final class SyncEngine {
             guard op.state == .needsAttention || op.state == .pending else { return }
             op.state = .pending
             op.attentionReason = nil
+            op.assignmentChange = nil          // the next answer speaks for itself
             op.attempts.nextAttemptAt = nil
             self.operations[operationId] = op
             self.persistQuietly(op)
@@ -259,14 +278,21 @@ final class SyncEngine {
         onQueueSync { SyncDiagnostics.entries(Array(operations.values)) }
     }
 
-    /// Removes acknowledged operations older than the retention window. Never touches
-    /// pending / needs-attention records.
+    /// Removes acknowledged operations older than the retention window — and retired
+    /// (superseded) ones by the same window from their retirement, so history on the
+    /// phone has one lifetime. Never touches pending / needs-attention records.
     func pruneSynced(now: Date? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }
             let cutoff = (now ?? self.clock()).addingTimeInterval(-self.policy.syncedRetention)
-            for (id, op) in self.operations where op.state == .synced {
-                if let acked = op.acknowledgment?.acknowledgedAt, acked < cutoff {
+            for (id, op) in self.operations {
+                let settledAt: Date?
+                switch op.state {
+                case .synced:     settledAt = op.acknowledgment?.acknowledgedAt
+                case .superseded: settledAt = op.supersession?.resolvedAt
+                case .pending, .syncing, .needsAttention: continue
+                }
+                if let settledAt, settledAt < cutoff {
                     try? self.store.delete(id: id)
                     self.operations[id] = nil
                 }
@@ -461,6 +487,10 @@ final class SyncEngine {
             op.state = .needsAttention
             op.attempts.nextAttemptAt = nil
             op.attentionReason = attentionReason(for: error)
+            // QUEUE_ASSIGNMENT_CHANGED names the machine the line has now: keep that verdict on the
+            // record so the decision can be retired once this phone holds the same machine
+            // (StaleAvailabilityRetirement, P10 2026-09-29). Any other rejection records nothing.
+            op.assignmentChange = SyncAssignmentChange(error: error, now: now)
             log("needs attention \(op.type) \(short(op.id)) — \(error.code ?? "HTTP \(error.statusCode ?? 0)")")
             return true
         }

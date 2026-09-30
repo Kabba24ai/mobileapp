@@ -245,6 +245,63 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertNil(view(go, "assembly.OP-SKID.dependency"), "the base product needs no such line")
     }
 
+    // MARK: P10 (2026-09-29, order #6024) — a confirmation the office moved past
+
+    private func availabilityOp(product: String, unit: String, state: SyncState, at: Date, refusedAsAssignmentChanged: Bool = false) -> SyncOperation {
+        var op = SyncOperation(type: AssemblyOperationBuilder.availabilityType, capturedAt: at, queuedAt: at,
+                               identity: SyncBusinessIdentity(orderUniqueId: "ORD-P10", orderProductUniqueId: product, equipmentUniqueId: unit),
+                               payload: .object(["order_product_unique_id": .string(product), "subject_type": .string("unit"),
+                                                 "subject_key": .string(unit), "state": .string("available"), "performed_by": .string("PER-5XNN-JURK")]),
+                               assets: [])
+        op.state = state
+        if refusedAsAssignmentChanged {
+            op.attempts.attemptCount = 3
+            op.attempts.lastStatusCode = 409
+            op.attempts.lastErrorCode = "QUEUE_ASSIGNMENT_CHANGED"
+            op.attempts.lastErrorMessage = "The assigned machine changed — this item now has P6 Skid Steer U31 assigned."
+            op.attentionReason = state == .needsAttention ? op.attempts.lastErrorMessage : nil
+            op.assignmentChange = SyncAssignmentChange(currentEquipmentUniqueId: "EQP-OP-P10", currentEquipmentName: "P6 Skid Steer U31", receivedAt: at)
+            if state == .superseded {
+                op.supersession = SyncSupersession(reason: "QUEUE_ASSIGNMENT_CHANGED", retiredSubjectKey: unit, supersededByEquipmentUniqueId: "EQP-OP-P10",
+                                                   supersededByEquipmentName: "P6 Skid Steer U31", resolvedAt: at.addingTimeInterval(60), proof: .serverVerdict)
+            }
+        }
+        return op
+    }
+
+    func testAStaleRefusedConfirmationOfTheOldUnitRaisesNoSyncIssueOnceSupersededAndAFreshOneConfirmsTheNewUnit() throws {
+        // The office reassigned the line to U31 (EQP-OP-P10); the server holds no acknowledgement for it.
+        let review = try self.review(groups: [[Spec(uid: "OP-P10", name: "Skid Steer Rental", options: [], unitState: nil,
+                                                     equipmentName: "P6 Skid Steer U31", equipmentDisplayId: "P6-U31")]])
+        let key = "QLA-OP-P10"
+        let base = Date().addingTimeInterval(-900)
+        let staleA = { (state: SyncState) in
+            self.availabilityOp(product: "OP-P10", unit: "EQP-OLD-U27", state: state, at: base, refusedAsAssignmentChanged: true)
+        }
+
+        // Before the fix: the refused Available for U27 lit a Sync Issue on the line for ever.
+        let parked = loaded(review, ops: [staleA(.needsAttention)])
+        XCTAssertTrue(texts(parked).contains("Sync Issue"), "\(texts(parked))")
+        XCTAssertEqual(view(parked, "assemblyReview.group.\(key).gate")?.accessibilityLabel, "STOP · 0 of 1 confirmed")
+
+        // Retired: the same screen shows U31, STOP — and no Sync Issue, no Pending Sync, no confirmation of anything.
+        let retired = loaded(review, ops: [staleA(.superseded)])
+        XCTAssertFalse(texts(retired).contains("Sync Issue"), "\(texts(retired))")
+        XCTAssertFalse(texts(retired).contains("Pending Sync"))
+        XCTAssertEqual(view(retired, "assemblyReview.group.\(key).gate")?.accessibilityLabel, "STOP · 0 of 1 confirmed",
+                       "the retired decision about U27 never confirms U31")
+        XCTAssertTrue(texts(retired).contains { $0.contains("P6 Skid Steer U31") }, "the new canonical unit is what the screen names")
+
+        // A fresh Available on U31 is an ordinary decision: Pending Sync while it travels, GO at once, still no Sync Issue.
+        let freshB = availabilityOp(product: "OP-P10", unit: "EQP-OP-P10", state: .pending, at: base.addingTimeInterval(300))
+        let confirmed = loaded(review, ops: [staleA(.superseded), freshB])
+        XCTAssertTrue(texts(confirmed).contains("Pending Sync"), "\(texts(confirmed))")
+        XCTAssertFalse(texts(confirmed).contains("Sync Issue"))
+        XCTAssertEqual(view(confirmed, "assemblyReview.group.\(key).gate")?.accessibilityLabel, "GO · Confirmed")
+        let button = view(confirmed, "assembly.OP-P10.continue") as! UIButton
+        XCTAssertTrue(button.isEnabled)
+    }
+
     // MARK: Removed redundancies + layout
 
     func testTheScreenIsQuietNothingRepeatsWhatTheControlsAlreadySay() throws {

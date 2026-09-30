@@ -44,6 +44,13 @@ struct APIEnvelope: Equatable {
         raw["error"]?["retryable"]?.boolValue
     }
 
+    /// The whole `error` object — the canonical envelope may carry more than code /
+    /// message / retryable (e.g. `current_equipment` on QUEUE_ASSIGNMENT_CHANGED).
+    var errorDetails: JSONValue? {
+        guard let error = raw["error"], case .object = error else { return nil }
+        return error
+    }
+
     var validationErrors: [String: [String]] {
         guard let errors = raw["errors"]?.objectValue else { return [:] }
         var out: [String: [String]] = [:]

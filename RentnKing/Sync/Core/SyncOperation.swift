@@ -23,6 +23,11 @@ enum SyncState: String, Codable, Equatable {
     case synced
     /// Laravel rejected it permanently (or a person must decide). Still stored.
     case needsAttention = "needs_attention"
+    /// Retired: a parked decision the world moved past — kept as history, never replayed,
+    /// never Needs Attention, never evidence of anything. Today ONLY an Available for a
+    /// unit the office reassigned away from earns this (StaleAvailabilityRetirement,
+    /// P10 2026-09-29); the record says why (`supersession`).
+    case superseded
 }
 
 /// Business keys an operation may relate to. Every field is optional — a
@@ -154,6 +159,11 @@ struct SyncOperation: Codable, Equatable, Identifiable {
     /// Non-sensitive label for lists ("Driver checklist · Ready to Go").
     var displayTitle: String?
     var schemaVersion: Int
+    /// The server's QUEUE_ASSIGNMENT_CHANGED verdict, when its rejection named the machine
+    /// the line has now (recorded by the engine; additive — older records decode without it).
+    var assignmentChange: SyncAssignmentChange?
+    /// Why, and by what, this record was retired (state == .superseded).
+    var supersession: SyncSupersession?
 
     init(id: String = UUID().uuidString,
          type: String,
@@ -176,9 +186,11 @@ struct SyncOperation: Codable, Equatable, Identifiable {
         self.attentionReason = nil
         self.displayTitle = displayTitle
         self.schemaVersion = SyncOperation.currentSchemaVersion
+        self.assignmentChange = nil
+        self.supersession = nil
     }
 
-    var isTerminal: Bool { state == .synced }
+    var isTerminal: Bool { state == .synced || state == .superseded }
     var isEligibleForSync: Bool { state == .pending }
 
     /// The identity this operation shares ordering with (same order product, etc.).

@@ -85,6 +85,8 @@
 		5A5F00000000000000000021 /* CustomerSiteRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000020 /* CustomerSiteRouter.swift */; };
 		5A5F00000000000000000011 /* DriverChecklistGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000010 /* DriverChecklistGate.swift */; };
 		5A5F0000000000000000003D /* CustomerCallVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000003C /* CustomerCallVerification.swift */; };
+		5A5F00000000000000000042 /* StaleAvailabilityRetirement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */; };
+		5A5F00000000000000000045 /* StaleAvailabilityReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */; };
 		5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000014 /* TermsSyncHandler.swift */; };
@@ -426,6 +428,8 @@
 		5A5F00000000000000000009 /* DriverChecklistContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000008 /* DriverChecklistContractTests.swift */; };
 		5A5F00000000000000000007 /* DriverChecklistGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000006 /* DriverChecklistGateTests.swift */; };
 		5A5F00000000000000000040 /* CustomerCallVerificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000003F /* CustomerCallVerificationTests.swift */; };
+		5A5F00000000000000000047 /* StaleAvailabilityRetirementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000046 /* StaleAvailabilityRetirementTests.swift */; };
+		5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */; };
 		5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */; };
 		5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000016 /* TermsOperationsTests.swift */; };
 		5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */; };
@@ -482,6 +486,7 @@
 		5A5F00000000000000000022 /* CustomerSiteRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000020 /* CustomerSiteRouter.swift */; };
 		5A5F00000000000000000012 /* DriverChecklistGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000010 /* DriverChecklistGate.swift */; };
 		5A5F0000000000000000003E /* CustomerCallVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F0000000000000000003C /* CustomerCallVerification.swift */; };
+		5A5F00000000000000000043 /* StaleAvailabilityRetirement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */; };
 		5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
 		5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5C000000000000000000C6 /* DeprecatedEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000047 /* DeprecatedEndpoints.swift */; };
@@ -607,6 +612,8 @@
 		5A5F00000000000000000020 /* CustomerSiteRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteRouter.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000010 /* DriverChecklistGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistGate.swift; sourceTree = "<group>"; };
 		5A5F0000000000000000003C /* CustomerCallVerification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallVerification.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityRetirement.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityReconciler.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000006 /* EffectiveFieldState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldState.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000011 /* TermsOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperations.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000014 /* TermsSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSyncHandler.swift; sourceTree = "<group>"; };
@@ -920,6 +927,8 @@
 		5A5F00000000000000000008 /* DriverChecklistContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistContractTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000006 /* DriverChecklistGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistGateTests.swift; sourceTree = "<group>"; };
 		5A5F0000000000000000003F /* CustomerCallVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallVerificationTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000046 /* StaleAvailabilityRetirementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityRetirementTests.swift; sourceTree = "<group>"; };
+		5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityReconcilerHostedTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldStateTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000016 /* TermsOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperationsTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleTests.swift; sourceTree = "<group>"; };
@@ -2125,6 +2134,7 @@
 				5A5F00000000000000000020 /* CustomerSiteRouter.swift */,
 				5A5F00000000000000000010 /* DriverChecklistGate.swift */,
 				5A5F0000000000000000003C /* CustomerCallVerification.swift */,
+				5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */,
 				5A5CFADE0000000000000006 /* EffectiveFieldState.swift */,
 				5A5CFADE0000000000000011 /* TermsOperations.swift */,
 				5A5CFADE0000000000000020 /* PreparationLifecycle.swift */,
@@ -2187,6 +2197,7 @@
 				5A5C0000000000000000003F /* LegacyMediaQueueMigrationApp.swift */,
 				5A5C00000000000000000017 /* KabbaAPIClient.swift */,
 				5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */,
+				5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */,
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
@@ -2223,6 +2234,7 @@
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
 				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
+				5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
 				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
@@ -2270,6 +2282,7 @@
 				5A5F00000000000000000008 /* DriverChecklistContractTests.swift */,
 				5A5F00000000000000000006 /* DriverChecklistGateTests.swift */,
 				5A5F0000000000000000003F /* CustomerCallVerificationTests.swift */,
+				5A5F00000000000000000046 /* StaleAvailabilityRetirementTests.swift */,
 				5A5CFADE0000000000000009 /* EffectiveFieldStateTests.swift */,
 				5A5CFADE0000000000000016 /* TermsOperationsTests.swift */,
 				5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */,
@@ -2661,6 +2674,7 @@
 				5A5F00000000000000000021 /* CustomerSiteRouter.swift in Sources */,
 				5A5F00000000000000000011 /* DriverChecklistGate.swift in Sources */,
 				5A5F0000000000000000003D /* CustomerCallVerification.swift in Sources */,
+				5A5F00000000000000000042 /* StaleAvailabilityRetirement.swift in Sources */,
 				5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */,
@@ -2691,6 +2705,7 @@
 				5A5C00000000000000000016 /* SyncEngine.swift in Sources */,
 				5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */,
 				5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */,
+				5A5F00000000000000000045 /* StaleAvailabilityReconciler.swift in Sources */,
 				5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */,
 				5A5D000000000000000000F1 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
@@ -2961,6 +2976,7 @@
 				5A5F00000000000000000009 /* DriverChecklistContractTests.swift in Sources */,
 				5A5F00000000000000000007 /* DriverChecklistGateTests.swift in Sources */,
 				5A5F00000000000000000040 /* CustomerCallVerificationTests.swift in Sources */,
+				5A5F00000000000000000047 /* StaleAvailabilityRetirementTests.swift in Sources */,
 				5A5CFADE0000000000000010 /* EffectiveFieldStateTests.swift in Sources */,
 				5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */,
 				5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */,
@@ -3002,6 +3018,7 @@
 				5A5F00000000000000000022 /* CustomerSiteRouter.swift in Sources */,
 				5A5F00000000000000000012 /* DriverChecklistGate.swift in Sources */,
 				5A5F0000000000000000003E /* CustomerCallVerification.swift in Sources */,
+				5A5F00000000000000000043 /* StaleAvailabilityRetirement.swift in Sources */,
 				5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */,
 				5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000022 /* PreparationLifecycle.swift in Sources */,
@@ -3053,6 +3070,7 @@
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
+				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
 				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,

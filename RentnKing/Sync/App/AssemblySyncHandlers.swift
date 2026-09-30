@@ -59,6 +59,9 @@ enum KabbaAssemblySync {
     static func cache(_ envelopeData: Data, orderUniqueId: String, tenantKey: String) -> Bool {
         guard let key = cacheKey(orderUniqueId: orderUniqueId, tenantKey: tenantKey) else { return false }
         UserDefaults.standard.set(envelopeData, forKey: key)
+        // The line's canonical unit may have just changed (an office reassignment arriving in a
+        // package or a live review): a parked Available for the unit it left can now be retired.
+        StaleAvailabilityReconciler.schedule(reason: "review cached \(orderUniqueId)")
         return true
     }
 

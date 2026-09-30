@@ -136,6 +136,9 @@ enum KabbaSync {
             registerBackgroundRefresh()
             observeLifecycle()
             engine.pruneSynced()
+            // P10 (2026-09-29): a parked Available the office moved past is retired as soon as this
+            // phone holds the line's new unit — including records parked by an earlier build.
+            StaleAvailabilityReconciler.schedule(reason: "launch")
 
             // Phase 4 — background transfers. Results that arrive after a relaunch go straight to
             // the engine; operations whose upload task is STILL alive are held so the launch kick
@@ -169,6 +172,8 @@ enum KabbaSync {
     /// Login succeeded: lift an authentication pause and drain what accumulated while signed out.
     static func sessionDidStart() {
         engine?.authenticationRestored()
+        // The tenant exists from here on: judge any Available parked before sign-in (P10).
+        StaleAvailabilityReconciler.schedule(reason: "login")
     }
 
     /// Explicit logout: stop sending (operations stay stored for the next session).
@@ -270,6 +275,9 @@ enum KabbaSync {
             center.post(name: .kabbaSyncOperationChanged, object: nil,
                         userInfo: ["operationId": op.id, "state": op.state.rawValue])
             center.post(name: .kabbaSyncQueueChanged, object: nil)
+            // A QUEUE_ASSIGNMENT_CHANGED rejection just parked an Available: judge it now against
+            // the unit this phone already holds (the package usually refreshed first).
+            if StaleAvailabilityReconciler.concerns(op) { StaleAvailabilityReconciler.schedule(reason: "rejection \(op.id.prefix(8))") }
         case .pauseChanged(let pause):
             center.post(name: .kabbaSyncPauseChanged, object: nil, userInfo: ["pause": pause.rawValue])
             center.post(name: .kabbaSyncQueueChanged, object: nil)

@@ -58,6 +58,7 @@ private enum SyncStatusFormat {
         case .synced:            return theme.success
         case .needsAttention:    return theme.warning
         case .pending, .syncing: return theme.accent
+        case .superseded:        return theme.secondaryText
         }
     }
 }
@@ -198,6 +199,11 @@ enum SyncStatusToast {
                 label.text = "Saved · Needs Attention — see Settings › Sync"
                 layer.borderColor = theme.warning.withAlphaComponent(0.8).cgColor
                 scheduleDismiss(after: 6)
+            case .superseded:
+                // Retired history — never announced as a fresh save.
+                label.text = "Retired — the assigned machine changed"
+                layer.borderColor = theme.secondaryText.withAlphaComponent(0.5).cgColor
+                scheduleDismiss(after: 1.5)
             }
             accessibilityLabel = label.text
         }
@@ -423,6 +429,8 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         }
         if entry.state == .needsAttention, let reason = entry.errorSummary {
             text.append(NSAttributedString(string: "\n" + reason, attributes: [.font: theme.regular(13), .foregroundColor: theme.warning]))
+        } else if entry.state == .superseded, let reason = entry.errorSummary {
+            text.append(NSAttributedString(string: "\n" + reason, attributes: [.font: theme.regular(13), .foregroundColor: theme.secondaryText]))
         }
         cell.textLabel?.attributedText = text
         cell.accessoryType = .disclosureIndicator
@@ -464,7 +472,7 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         alert.addAction(UIAlertAction(title: "Copy IDs", style: .default) { _ in
             UIPasteboard.general.string = "operation_id=\(entry.operationId) request_id=\(entry.lastRequestId ?? "-")"
         })
-        if entry.state != .synced {
+        if entry.state != .synced && entry.state != .superseded {   // history is kept, not discarded
             alert.addAction(UIAlertAction(title: "Discard…", style: .destructive) { [weak self] _ in
                 self?.confirmDiscard(entry)
             })

@@ -237,7 +237,7 @@ struct QueueLineLocalOverlay: Equatable {
                     overlay.pendingStage[product] = op.id
                 case .needsAttention:
                     overlay.attention[product] = op.attentionReason ?? "The staging Save was not accepted by Kabba."
-                case .synced:
+                case .synced, .superseded:
                     break
                 }
 
