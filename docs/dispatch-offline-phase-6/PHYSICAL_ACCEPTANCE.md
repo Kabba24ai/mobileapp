@@ -1,5 +1,7 @@
 # Dispatch Offline — Physical iPhone Checklist (Phase 6)
 
+> **CLOSED 2026-09-30 by product-owner decision.** P1, P2, P3, P5, P6, P7, P8 (full), P9, P10 (with automatic Superseded handling) and P11 passed. P4, P12–P16, the original offline set A–P, the battery windows and G are deferred to operational validation — not failures. Status, carried observations, the rollout order and the compatibility gate are in `RELEASE.md` in this folder.
+
 **For Gary. Do one step at a time. Don't start until Claude says the setup is ready.**
 The engineering plan behind this checklist is `docs/superpowers/plans/2026-09-26-dispatch-offline-phase-6-physical-acceptance.md`. Scenario letters match it.
 
