@@ -100,6 +100,30 @@ final class DriverChecklistGateTests: XCTestCase {
                        "the customer answered after all: the wizard outranks a stale No Answer")
     }
 
+    /// Confirmed → No Answer protection: the driver is asked first ONLY when No Answer
+    /// would wipe a fully verified call. Every other No Answer stays one tap.
+    func testNoAnswerAsksFirstOnlyOverAFullyVerifiedCall() {
+        XCTAssertTrue(wizard(address: true, equipment: true, unloading: .easyAccess).noAnswerNeedsConfirmation)
+        XCTAssertTrue(wizard(address: true, equipment: true, unloading: .other(note: "Back lot")).noAnswerNeedsConfirmation)
+
+        for (name, call) in [("nothing verified", wizard()),
+                             ("address only", wizard(address: true)),
+                             ("address + equipment", wizard(address: true, equipment: true)),
+                             ("Other without a note", wizard(address: true, equipment: true, unloading: .other(note: ""))),
+                             ("No Answer already", CallOutcome.noAnswer),
+                             ("unset", CallOutcome.unset),
+                             ("Return, every tick", CallOutcome.confirmed(ticks: [true, true, true]))] {
+            XCTAssertFalse(call.noAnswerNeedsConfirmation, name)
+        }
+
+        // The alert says what continuing does — both consequences, in the driver's words.
+        XCTAssertTrue(NoAnswerConfirmation.message.contains("clear the verified call steps"))
+        XCTAssertTrue(NoAnswerConfirmation.message.contains("change the call result to No Answer"))
+        XCTAssertEqual(NoAnswerConfirmation.cancelTitle, "Cancel")
+        XCTAssertFalse(NoAnswerConfirmation.title.isEmpty)
+        XCTAssertFalse(NoAnswerConfirmation.confirmTitle.isEmpty)
+    }
+
     // MARK: - Fuel (D2)
 
     func testFuelUnansweredBlocksWhereFuelApplies() {

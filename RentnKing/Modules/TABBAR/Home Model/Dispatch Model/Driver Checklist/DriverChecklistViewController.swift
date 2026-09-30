@@ -118,7 +118,8 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
     // Call Customer outcome, shown next to the "1. Call Customer" title. Delivery
     // (Call Customer wizard, 2026-09-29): "Confirmed" is DERIVED from the three
     // verified steps — tapping it opens the wizard, never confirms; "No Answer"
-    // is the explicit, recorded escape. Return: Confirmed (every check) or No Answer.
+    // is the explicit, recorded escape (one tap, except over a fully verified call,
+    // where the driver is asked first). Return: Confirmed (every check) or No Answer.
     let callCustomerSegment = UISegmentedControl(items: ["Confirmed", "No Answer"])
     /// Delivery: the three verified steps (address, equipment order, unloading
     /// situation). Persisted with the record on every change; never bound to a unit.
@@ -852,7 +853,13 @@ extension DriverChecklistViewController {
                 self.refreshCallCustomerControls()
                 if !self.callVerification.isComplete { self.openCallWizard() }
             case 1:
-                self.recordNoAnswer()
+                // Over a fully verified call the driver is asked first (the tap would wipe
+                // three verified steps); every other No Answer is recorded in one tap.
+                if self.deliveryCallOutcome.noAnswerNeedsConfirmation {
+                    self.askBeforeNoAnswerReplacesTheConfirmedCall()
+                } else {
+                    self.recordNoAnswer()
+                }
             default:
                 self.refreshCallCustomerControls()
             }
@@ -1633,6 +1640,28 @@ extension DriverChecklistViewController {
         self.updateReadyToGoButton()
         self.saveChecklistState()
         self.syncPartialProgressIfNeeded()
+    }
+
+    /// Confirmed → No Answer protection: the segment goes back to the derived state
+    /// (Confirmed) BEFORE the question is asked, so nothing changes unless the driver
+    /// continues — Cancel, a dismissed alert or a backgrounded app all leave the confirmed
+    /// call exactly as it was. Continue runs the one-tap No Answer transition unchanged.
+    func askBeforeNoAnswerReplacesTheConfirmedCall() {
+        self.refreshCallCustomerControls()
+        let alert = UIAlertController(title: NoAnswerConfirmation.title,
+                                      message: NoAnswerConfirmation.message,
+                                      preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: NoAnswerConfirmation.cancelTitle, style: .cancel) { [weak self] _ in
+            self?.refreshCallCustomerControls()
+        })
+        alert.addAction(UIAlertAction(title: NoAnswerConfirmation.confirmTitle, style: .destructive) { [weak self] _ in
+            self?.recordNoAnswer()
+        })
+        if let override = self.presentNoticeOverride {
+            override(alert)
+        } else {
+            self.present(alert, animated: true)
+        }
     }
 
     /// No Answer: the explicit, recorded escape. The steps return to not completed so a

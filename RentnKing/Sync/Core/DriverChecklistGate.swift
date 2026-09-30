@@ -71,6 +71,22 @@ enum CallOutcome: Equatable {
         if case .wizard = self { return true }
         return false
     }
+
+    /// Confirmed → No Answer protection (2026-09-29): No Answer clears the verified
+    /// steps, so over a FULLY verified call the driver is asked first. Every other
+    /// No Answer — nothing verified, a call in progress, Return — stays one tap.
+    var noAnswerNeedsConfirmation: Bool {
+        if case .wizard(let verification) = self { return verification.isComplete }
+        return false
+    }
+}
+
+/// What the driver reads before No Answer replaces a confirmed call.
+enum NoAnswerConfirmation {
+    static let title = "Change to No Answer?"
+    static let message = "This call is confirmed. Continuing will clear the verified call steps and change the call result to No Answer."
+    static let cancelTitle = "Cancel"
+    static let confirmTitle = "Record No Answer"
 }
 
 /// The Fuel segment's two explicit answers (the wire strings the server stores).

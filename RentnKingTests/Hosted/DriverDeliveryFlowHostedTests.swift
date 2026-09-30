@@ -652,6 +652,16 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         wizard.primaryTapped()                               // Confirm Call
     }
 
+    /// Presses an alert button the way UIKit would: through the action's own handler
+    /// (so the test proves which button does what, not just that the alert exists).
+    private func press(_ title: String, in alert: UIAlertController,
+                       file: StaticString = #filePath, line: UInt = #line) throws {
+        let action = try XCTUnwrap(alert.actions.first { $0.title == title }, "the alert offers \(title)", file: file, line: line)
+        typealias Handler = @convention(block) (UIAlertAction) -> Void
+        let block = try XCTUnwrap(action.value(forKey: "handler"), "the button does something", file: file, line: line)
+        unsafeBitCast(block as AnyObject, to: Handler.self)(action)
+    }
+
     private var localRecord: DriverChecklistLocalState? {
         DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey:
             DriverChecklistLocalState.key(orderProductUniqueId: productId, leg: DriverChecklistLocalState.legDelivery)))
@@ -939,6 +949,100 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0)
     }
 
+    func testNoAnswerOverAConfirmedCallAsksFirstAndEveryOtherNoAnswerStaysOneTap() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine)
+        let vc = try screen2(try row(evidence: false, requiresFuel: false, requiresKeys: false), review: try review(go: true))
+        vc.operationsSnapshot = { engine.snapshot() }
+        var alerts: [UIAlertController] = []
+        vc.presentNoticeOverride = { alerts.append($0) }
+        let nav = UINavigationController(rootViewController: vc)
+        let saves = { engine.snapshot().filter { $0.payload["order_product_unique_id"]?.stringValue == self.productId } }
+
+        // Normal No Answer — nothing verified yet: one tap, never asked.
+        select(vc.callCustomerSegment, 1)
+        XCTAssertTrue(alerts.isEmpty, "a plain No Answer is one tap")
+        XCTAssertEqual(localRecord?.callCustomer, "no_answer")
+
+        // No Answer over a call in progress (1 of 3): still one tap.
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        try wizard(nav).primaryTapped()                       // Verify Address
+        nav.popViewController(animated: false)
+        XCTAssertEqual(vc.callVerification, CustomerCallVerification(addressVerified: true))
+        select(vc.callCustomerSegment, 1)
+        XCTAssertTrue(alerts.isEmpty, "an unfinished call is not protected")
+        XCTAssertEqual(vc.callVerification, .notStarted)
+        XCTAssertEqual(localRecord?.callCustomer, "no_answer")
+
+        // The whole call is verified: Confirmed is derived.
+        completeCall(vc, nav: nav, situation: "other", note: "Back lot")
+        XCTAssertEqual(nav.topViewController, vc)
+        let confirmed = vc.callVerification
+        XCTAssertTrue(confirmed.isComplete)
+        let recordBefore = try XCTUnwrap(localRecord)
+        XCTAssertEqual(recordBefore.callCustomer, "confirmed")
+        discardTestOperations()                               // (the wizard's own saves are not under test)
+
+        func assertTheConfirmedCallStands(_ when: String, line: UInt = #line) {
+            XCTAssertEqual(vc.callVerification, confirmed, when, line: line)
+            XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 0, "Confirmed is still shown — \(when)", line: line)
+            XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusConfirmed, when, line: line)
+            XCTAssertTrue(vc.callCustomerCheckboxButtons.allSatisfy { $0.isSelected }, "every step still verified — \(when)", line: line)
+            XCTAssertEqual(localRecord, recordBefore, "the saved record is untouched — \(when)", line: line)
+            XCTAssertTrue(vc.btnReadytoGo.isEnabled, when, line: line)
+            XCTAssertTrue(saves().isEmpty, "nothing is queued — \(when)", line: line)
+        }
+
+        // No Answer over the confirmed call: the driver is asked first, and nothing has changed yet.
+        select(vc.callCustomerSegment, 1)
+        XCTAssertEqual(alerts.count, 1, "one confirmation")
+        let first = try XCTUnwrap(alerts.last)
+        XCTAssertEqual(first.preferredStyle, .alert)
+        XCTAssertEqual(first.title, NoAnswerConfirmation.title)
+        XCTAssertEqual(first.message, NoAnswerConfirmation.message)
+        XCTAssertEqual(first.actions.map { $0.title }, [NoAnswerConfirmation.cancelTitle, NoAnswerConfirmation.confirmTitle])
+        XCTAssertEqual(first.actions.map { $0.style }, [.cancel, .destructive])
+        assertTheConfirmedCallStands("while the alert is up")
+
+        // Cancel: the confirmed call is unchanged — and leaving the screen sends nothing.
+        // (No window here, so the return from the wizard's push that UIKit would have made
+        // is done by hand before each exit; otherwise the hand-over flag still stands.)
+        try press(NoAnswerConfirmation.cancelTitle, in: first)
+        assertTheConfirmedCallStands("after Cancel")
+        vc.viewWillAppear(false)
+        vc.viewWillDisappear(false)
+        assertTheConfirmedCallStands("after an exit that follows Cancel")
+
+        // Asked again on the next tap; this time the driver continues: the existing No Answer transition.
+        select(vc.callCustomerSegment, 1)
+        XCTAssertEqual(alerts.count, 2, "asked again")
+        try press(NoAnswerConfirmation.confirmTitle, in: try XCTUnwrap(alerts.last))
+        XCTAssertEqual(vc.callVerification, .notStarted, "the verified steps are cleared")
+        XCTAssertEqual(vc.callCustomerSegment.selectedSegmentIndex, 1)
+        XCTAssertEqual(vc.callStatusLabel.text, DriverChecklistViewController.callStatusNoAnswer)
+        XCTAssertTrue(vc.callCustomerCheckboxButtons.allSatisfy { !$0.isSelected })
+        XCTAssertEqual(localRecord?.callCustomer, "no_answer")
+        XCTAssertEqual(localRecord?.addressVerified, false)
+        XCTAssertEqual(localRecord?.equipmentVerified, false)
+        XCTAssertEqual(localRecord?.unloadingSituation, "")
+        XCTAssertTrue(vc.btnReadytoGo.isEnabled, "No Answer satisfies the call")
+        XCTAssertTrue(saves().isEmpty, "as before: No Answer travels with the next exit, not with the tap")
+
+        // No Answer is already recorded: tapping it again asks nothing.
+        select(vc.callCustomerSegment, 1)
+        XCTAssertEqual(alerts.count, 2)
+
+        // The exit carries the No Answer exactly as a one-tap No Answer would.
+        vc.viewWillAppear(false)
+        vc.viewWillDisappear(false)
+        XCTAssertEqual(saves().count, 1)
+        let save = try XCTUnwrap(saves().first)
+        XCTAssertEqual(save.payload["call_customer"]?.stringValue, "no_answer")
+        XCTAssertNil(save.payload["address_verified"])
+        XCTAssertNil(save.payload["equipment_verified"])
+        XCTAssertNil(save.payload["unloading_situation"])
+        XCTAssertNil(save.payload["unloading_note"])
+    }
+
     func testACallRestartedAfterNoAnswerTravelsWithoutTheEarlierSteps() throws {
         // The call was completed (and synced); the driver then taps No Answer — local only —
         // and, the customer calling back, starts again. The first save of the new call must
@@ -951,8 +1055,11 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         completeCall(vc, nav: nav, situation: "other", note: "Back lot")
         XCTAssertTrue(vc.callVerification.isComplete)
 
-        select(vc.callCustomerSegment, 1)                     // No Answer: the steps are cleared locally
-        XCTAssertEqual(vc.callVerification, .notStarted)
+        var alerts: [UIAlertController] = []
+        vc.presentNoticeOverride = { alerts.append($0) }
+        select(vc.callCustomerSegment, 1)                     // No Answer over a confirmed call: asked first
+        try press(NoAnswerConfirmation.confirmTitle, in: try XCTUnwrap(alerts.last))
+        XCTAssertEqual(vc.callVerification, .notStarted, "the steps are cleared locally")
         discardTestOperations()                               // (the earlier saves are not under test)
 
         vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
