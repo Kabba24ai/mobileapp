@@ -73,6 +73,28 @@ final class ReleaseSafetyHostedTests: XCTestCase {
         XCTAssertFalse(vc.isFeedFallback, "no list to fall back to: the not-downloaded message stands")
     }
 
+    /// Review of the fix: an offline reconcile outcome that lands on the snapshot fallback must keep
+    /// the screen listening, so the next outcome — once the connection is back — reaches the live feed.
+    func testAnOfflineOutcomeOnTheSnapshotKeepsListeningSoReconnectingReachesTheLiveFeed() throws {
+        let row = try fixtureRow()
+        let vc = try dispatchScreen(online: false, snapshot: [row])
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = vc
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        vc.reloadDispatch(reconcile: nil)
+        XCTAssertTrue(vc.isShowingOfflineCache, "the snapshot fallback still listens for outcomes")
+
+        vc.applyReconcileOutcome(failed: true)                    // the offline .foreground run fails
+        XCTAssertTrue(vc.isShowingOfflineCache, "an offline outcome keeps the screen listening")
+        XCTAssertEqual(vc.arrDispatchList.map { $0.unique_id }, [row.unique_id], "the snapshot stays on screen")
+
+        vc.isReachable = { true }                                 // connection back; the .networkRestored run fails (404)
+        vc.applyReconcileOutcome(failed: true)
+        XCTAssertTrue(vc.feedReplacedCache, "online, the live feed replaces the snapshot")
+        XCTAssertFalse(vc.isShowingOfflineCache)
+    }
+
     // MARK: 2. Stale card tags
 
     func testACardTagThatOutlivedItsListNeverIndexesPastIt() throws {
@@ -91,7 +113,8 @@ final class ReleaseSafetyHostedTests: XCTestCase {
         vc.updateDriver(delivery_employee: nil, pickup_employee: nil, index: 0)
         vc.arrDispatchList = []
         RunLoop.current.run(until: Date().addingTimeInterval(0.2))
-        XCTAssertTrue(vc.arrDispatchList.isEmpty, "nothing was written into a list that no longer holds the row")
+        // Reaching this line is the proof: before the guards each call above trapped (index out of range).
+        XCTAssertTrue(vc.arrDispatchList.isEmpty)
     }
 
     // MARK: 3. Orders list redraw
@@ -113,8 +136,10 @@ final class ReleaseSafetyHostedTests: XCTestCase {
 
         // A page load begins: the data source now answers 10 placeholder rows, the table has not reloaded.
         vc.isLoading = true
-        vc.redrawVisibleRows()
+        vc.redrawVisibleRows()                                    // before the fix: reloadRows against 3 vs 10
 
-        XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 10, "the table was reloaded, not patched row by row")
+        XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 3, "a mismatched table is left for the reload on its way")
+        vc.tblView.reloadData()                                   // what setTheView does when the page settles
+        XCTAssertEqual(vc.tblView.numberOfRows(inSection: 0), 10)
     }
 }

@@ -325,11 +325,16 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             // Nothing ever downloaded and no connection (always the case while the server has no
             // offline endpoints): the last live list this phone saw, flagged not current, beats an
             // empty "not downloaded" screen that connecting cannot fix (release 2026-09-30).
-            if DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: online,
+            if presentation == .notDownloaded, !online,
+               DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: online,
                                                                     hasFeedSnapshot: self.hasFeedSnapshot) {
                 self.isFeedFallback = true
+                self.stopAnimatingView()
                 self.objRefresh?.endRefreshing()
                 self.reloadFromFeed()
+                // A pull-to-refresh still asks for a repair (reachability can misreport); its outcome
+                // settles the screen like any other.
+                if trigger == .manualRefresh { DispatchOfflineSync.trigger(.manualRefresh) }
                 return
             }
             self.pageCount = 1
@@ -504,11 +509,13 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         let online = self.isReachable()
 
         switch DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: online,
-                                                   hasFeedSnapshot: self.hasFeedSnapshot) {
+                                                   hasFeedSnapshot: presentation == .notDownloaded && !online && self.hasFeedSnapshot) {
         case .fallBackToFeed:
             self.isAwaitingFirstDownload = false
             self.stopAnimatingView()
-            self.feedReplacedCache = true
+            // Online the live feed takes over. Offline it is the snapshot fallback: the screen keeps
+            // listening, so the outcome of the run the returning connection starts reaches the feed.
+            self.feedReplacedCache = online
             self.isFeedFallback = true
             self.reloadFromFeed()
         case .showNotDownloaded:

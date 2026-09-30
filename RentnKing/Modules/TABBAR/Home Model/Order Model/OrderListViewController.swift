@@ -305,12 +305,10 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     func redrawVisibleRows() {
         guard self.view.window != nil, let visible = self.tblView.indexPathsForVisibleRows, !visible.isEmpty else { return }
         // A page load or a search changes the row count (isLoading, a replaced list) and reloads
-        // the table later; reloading rows against a count the table has not seen yet throws
-        // (release review 2026-09-30). Only a count that still matches is redrawn row by row.
-        guard self.tblView.numberOfRows(inSection: 0) == self.tableView(self.tblView, numberOfRowsInSection: 0) else {
-            self.tblView.reloadData()
-            return
-        }
+        // the table itself when it settles (setTheView); reloading rows against a count the table
+        // has not seen yet throws (release review 2026-09-30). Only a count that still matches is
+        // redrawn row by row; otherwise the reload already on its way redraws everything.
+        guard self.tblView.numberOfRows(inSection: 0) == self.tableView(self.tblView, numberOfRowsInSection: 0) else { return }
         self.tblView.reloadRows(at: visible, with: .none)
     }
 
