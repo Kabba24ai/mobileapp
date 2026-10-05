@@ -1,0 +1,87 @@
+{
+    "success": true,
+    "message": "TAK-SS-14 verified.",
+    "data": {
+        "event_id": 16,
+        "replayed": false,
+        "audit": {
+            "unique_id": "EAU-PECF-VKIB",
+            "reference": "EA-00003",
+            "title": "Skid Steer Audit",
+            "category": {
+                "id": 3,
+                "title": "Skid Steer"
+            },
+            "status": "active",
+            "started_at": "2026-10-05T11:17:53+00:00",
+            "lead": {
+                "id": 8,
+                "name": "Yard Walker"
+            },
+            "summary": {
+                "total": 7,
+                "verified": 2,
+                "needs_verification": 4,
+                "unresolved": 1
+            },
+            "completion": {
+                "ready": false,
+                "needs_verification": 4,
+                "unresolved": 1,
+                "complete_on": "web"
+            }
+        },
+        "unit": {
+            "equipment": {
+                "unique_id": "EQP-ZE36-AM1G",
+                "equipment_id": "TAK-SS-14",
+                "name": "Cab - Tak TL8",
+                "status": {
+                    "value": "available",
+                    "label": "Available"
+                }
+            },
+            "expected_key": "store:5",
+            "section_key": "store:5",
+            "system": {
+                "kind": "store",
+                "label": "Bon Aqua",
+                "store_id": 5,
+                "section_key": "store:5"
+            },
+            "state": "verified",
+            "state_label": "Verified — Bon Aqua",
+            "verification": {
+                "type": "physical",
+                "observed_label": "Bon Aqua",
+                "by": {
+                    "id": 9,
+                    "name": "John Yard"
+                },
+                "entered_by": null,
+                "at": "2026-10-05T11:17:53+00:00",
+                "location_corrected": false,
+                "notes": null
+            },
+            "unresolved": null,
+            "path": null,
+            "discrepancy": null,
+            "verified_by_default": {
+                "id": 9,
+                "name": "John Yard"
+            },
+            "verifier_override": false,
+            "rental": null,
+            "actions": {
+                "verify": false,
+                "verify_type": "physical",
+                "found_at_store": false,
+                "correct_location": false,
+                "move_off_site": false,
+                "mark_unresolved": false,
+                "change_verifier": false
+            }
+        }
+    },
+    "request_id": "fe5752c9-b793-4f9d-8247-1571f4e4102f"
+}

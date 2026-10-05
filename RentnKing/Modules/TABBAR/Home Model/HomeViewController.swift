@@ -67,6 +67,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         isHomeScreen = true
         self.view.accessibilityIdentifier = "home.root"
         self.con_viewSize.constant = manageWidth(size: 150)
+        self.installEquipmentAuditTile()
         
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .notificationCount, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
@@ -229,8 +230,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.viewInventory.viewBorderCorneRadius(borderColour: .secondary)
         self.viewInventory.viewCorneRadius(radius: 15, isRound: false)
 
+        self.styleEquipmentAuditTile()
+
         //SET COUNT
         self.setcount()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        self.fitHomeGridToFourRows()
     }
     
     

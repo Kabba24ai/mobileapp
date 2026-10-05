@@ -1,0 +1,89 @@
+{
+    "success": true,
+    "data": {
+        "me": {
+            "id": 3,
+            "unique_id": "PER-VZ3L-JIIK",
+            "name": "John Yard",
+            "is_employee": true
+        },
+        "can": {
+            "view": true,
+            "start": true,
+            "verify": true,
+            "correct_location": true,
+            "complete": true,
+            "history": true,
+            "assign_lead": true,
+            "assign_work": true
+        },
+        "audits": [
+            {
+                "unique_id": "EAU-CUBH-SZBJ",
+                "reference": "EA-00001",
+                "title": "Skid Steer Audit",
+                "category": {
+                    "id": 1,
+                    "title": "Skid Steer"
+                },
+                "status": "active",
+                "started_at": "2026-10-05T11:17:53+00:00",
+                "lead": {
+                    "id": 2,
+                    "name": "Yard Walker"
+                },
+                "summary": {
+                    "total": 7,
+                    "verified": 1,
+                    "needs_verification": 5,
+                    "unresolved": 1
+                },
+                "completion": {
+                    "ready": false,
+                    "needs_verification": 5,
+                    "unresolved": 1,
+                    "complete_on": "web"
+                },
+                "my_sections": [
+                    {
+                        "key": "store:1",
+                        "label": "Bon Aqua",
+                        "kind": "store",
+                        "store_id": 1,
+                        "auditor": {
+                            "id": 3,
+                            "name": "John Yard"
+                        },
+                        "assigned_to_me": true,
+                        "counts": {
+                            "total": 4,
+                            "verified": 1,
+                            "needs_verification": 3,
+                            "unresolved": 0
+                        },
+                        "unresolved_elsewhere": 0
+                    },
+                    {
+                        "key": "unresolved",
+                        "label": "Unresolved",
+                        "kind": "unresolved",
+                        "store_id": null,
+                        "auditor": {
+                            "id": 3,
+                            "name": "John Yard"
+                        },
+                        "assigned_to_me": true,
+                        "counts": {
+                            "total": 1,
+                            "verified": 0,
+                            "needs_verification": 0,
+                            "unresolved": 1
+                        },
+                        "unresolved_elsewhere": 0
+                    }
+                ]
+            }
+        ]
+    },
+    "request_id": "5d71eb42-f30c-42e8-a40e-027a17460561"
+}

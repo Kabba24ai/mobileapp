@@ -1,0 +1,14 @@
+{
+    "success": false,
+    "message": "This unit changed since your screen loaded — Kabba now shows: Bon Aqua. Refresh and verify it again.",
+    "error": {
+        "code": "STALE_SCREEN",
+        "message": "This unit changed since your screen loaded — Kabba now shows: Bon Aqua. Refresh and verify it again.",
+        "retryable": false,
+        "context": {
+            "current_location": "Bon Aqua"
+        }
+    },
+    "errors": [],
+    "request_id": "c90d3c36-ea91-4905-ada7-d98ee8d10e01"
+}

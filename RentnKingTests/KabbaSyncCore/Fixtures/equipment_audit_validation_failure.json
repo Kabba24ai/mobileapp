@@ -1,0 +1,16 @@
+{
+    "success": false,
+    "message": "A note is required to mark equipment Unresolved.",
+    "error": {
+        "code": "VALIDATION_FAILED",
+        "message": "A note is required to mark equipment Unresolved.",
+        "retryable": false
+    },
+    "errors": {
+        "notes": [
+            "A note is required to mark equipment Unresolved."
+        ]
+    },
+    "error_code": "VALIDATION_FAILED",
+    "request_id": "bac66080-0815-42f1-96ac-09d70d957d0c"
+}
