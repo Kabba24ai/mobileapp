@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */; };
 		5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */; };
 		5A5E000000000000000000FE /* TermsSignatureImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FD /* TermsSignatureImageTests.swift */; };
 		5A5E000000000000000000FB /* TermsSignatureImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FA /* TermsSignatureImage.swift */; };
@@ -559,6 +560,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistBatchIsolationHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureMeasurementHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FD /* TermsSignatureImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImageTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FA /* TermsSignatureImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImage.swift; sourceTree = "<group>"; };
@@ -2263,6 +2265,7 @@
 		5A5C00000000000000000110 /* Hosted */ = {
 			isa = PBXGroup;
 			children = (
+                5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */,
 				5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */,
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
@@ -3138,6 +3141,7 @@
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
+                5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,

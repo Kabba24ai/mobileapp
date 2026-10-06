@@ -39,6 +39,7 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var arrProductList : [ProductModel] = []
     var arrEmployesList : [EmployeesModel] = []
     var arrOtherData : [NoteModel] = []
+    var isCombineChecklist = false
     var objCheckListPrice : CheckListPriceModel!
     var arrPriceList : [PriceListModel] = []
     var arrProductSettingList : [PriceListModel] = []
@@ -397,15 +398,50 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     func hasSignature(_ obj: NoteModel) -> Bool {
         let image = self.isDeliveryType ? obj.dSignature : obj.rSignature
         let url = self.isDeliveryType ? obj.dSignatureUrl : obj.rSignatureUrl
-        guard let image = image else { return false }
-        return image != UIImage() || url != ""
+        return !url.isEmpty || (image?.hasValidData ?? false)
     }
 
     /// The canonical "a customer signature exists" fact — the same test the
     /// submit guard uses (drawn on this phone, or already stored on the server).
     func hasCustomerSignature() -> Bool {
-        guard let obj = self.arrOtherData.last else { return false }
-        return hasSignature(obj)
+        return !self.arrOtherData.isEmpty && self.arrOtherData.allSatisfy { hasSignature($0) }
+    }
+
+    /// Merge by product identity, preserving previously completed siblings.
+    func cacheCompletedBatch() {
+        guard let batch = self.objOrderData else { return }
+        let type = self.isDeliveryType ? "Delivery" : "Return"
+        let key = "\(type)_\(self.strOrderUniqueId)"
+        var cached: OrdersModel = getChecklistOrderDetailData(strOrderUniqeID: key) ?? batch
+        var notes = getChecklistOtherData(strOrderUniqeID: key) ?? self.arrOtherData
+        for (index, product) in batch.arrProduct.enumerated() {
+            if let position = cached.arrProduct.firstIndex(where: { $0.unique_id == product.unique_id }) {
+                cached.arrProduct[position] = product
+            } else {
+                cached.arrProduct.append(product)
+            }
+            let note = self.arrOtherData[index]
+            if let position = notes.firstIndex(where: { $0.productID == note.productID }) { notes[position] = note }
+            else { notes.append(note) }
+        }
+        let aligned = cached.arrProduct.map { product in
+            notes.first { $0.productID == product.id } ?? NoteModel()
+        }
+        SDKUserDefault.saveMappableObject(cached, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(key)")
+        SDKUserDefault.saveNSObjectArray(aligned, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(key)")
+    }
+
+    func preserveUnsubmittedDraft() {
+        guard let draft = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) else { return }
+        let submitted = Set(self.objOrderData.arrProduct.compactMap(\.unique_id))
+        let remaining = CheckListViewController.excludingProductsNeedingConnection(draft.order, other: draft.other,
+                                                                                  needingConnection: submitted)
+        if remaining.order?.arrProduct.isEmpty ?? true {
+            clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
+        } else {
+            savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                 objOrderData: remaining.order, arrOtherData: remaining.other)
+        }
     }
 
     /// ONE renderer: signature button, Submit and the Total Charge panel all
@@ -466,8 +502,26 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
 
     /// Opens the same signature pad the signature cell opens (last product's index).
     @objc private func btnCustomerSignatureTapped() {
-        btnCustomerSignature.tag = max(0, (self.objOrderData?.arrProduct.count ?? 1) - 1)
-        self.btnSignatureClicked(btnCustomerSignature)
+        if self.isCombineChecklist || self.arrOtherData.count == 1 {
+            btnCustomerSignature.tag = 0
+            self.btnSignatureClicked(btnCustomerSignature)
+            return
+        }
+        // Individual mode also allows an existing signature to be reviewed/replaced.
+        let picker = UIAlertController(title: "Choose Equipment Checklist", message: nil, preferredStyle: .actionSheet)
+        for (index, product) in (self.objOrderData?.arrProduct ?? []).enumerated() {
+            let name = product.product_name ?? "Equipment \(index + 1)"
+            let equipment = product.objMachine?.equipment_id ?? ""
+            let signed = self.arrOtherData[safe: index].map { self.hasSignature($0) } ?? false
+            picker.addAction(UIAlertAction(title: "\(signed ? "✓ " : "")\(name)\(equipment.isEmpty ? "" : " — \(equipment)")", style: .default) { _ in
+                self.btnCustomerSignature.tag = index
+                self.btnSignatureClicked(self.btnCustomerSignature)
+            })
+        }
+        picker.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        picker.popoverPresentationController?.sourceView = btnCustomerSignature
+        picker.popoverPresentationController?.sourceRect = btnCustomerSignature.bounds
+        self.present(picker, animated: true)
     }
     
     func stopLoading(){
@@ -517,8 +571,10 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
 
         print(signatureImage)
         
-        //UPDATE SIGNATURE ARRAY — apply the same signature to every product
-        for obj in self.arrOtherData {
+        // Combine shares only within the already scoped batch. Individual capture changes one row.
+        guard self.arrOtherData.indices.contains(strIndex) else { return }
+        let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[strIndex]]
+        for obj in targets {
             if self.isDeliveryType{
                 obj.dSignature = signatureImage
             }
@@ -619,13 +675,10 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 KabbaSync.showStatusToast(for: queued.firstOperationId)
                 
                 //SET DATA IN LOCAL
-                let checklistType = self.isDeliveryType ? "Delivery" : "Return"
-                SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
-                SDKUserDefault.saveNSObjectArray(self.arrOtherData, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
+                self.cacheCompletedBatch()
 
-                // This checklist is now finalized — clear any PENDING (prepared) draft so it is
-                // never reloaded as pending after completion. (No-op if none / for Return.)
-                clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
+                // Only submitted products leave the pending draft. Siblings retain their work.
+                self.preserveUnsubmittedDraft()
               
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
@@ -1179,8 +1232,8 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 cell.con_imgSignature.constant = manageWidth(size: 200.0)
                 cell.imgSignature.backgroundColor = .white
                 cell.imgSignature.viewCorneRadius(radius: 10, isRound: false)
-                if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage(){
-                    cell.imgSignature.image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature)
+                if let image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature), image.hasValidData {
+                    cell.imgSignature.image = image
                 }
                 else if (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
                     cell.imgSignature.setImage(strImg: (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl))

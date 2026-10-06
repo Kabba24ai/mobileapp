@@ -71,6 +71,9 @@ import UIKit
 
 // MARK: - NoteModel
 final class NoteModel: NSObject {
+    // Local draft scope only; shared employee/store selections never set these.
+    var deliveryInputEntered = false
+    var returnInputEntered = false
     
     var orderProductId: String = ""
     var equipmentId: String = ""
@@ -161,8 +164,18 @@ final class NoteModel: NSObject {
     }
     
     // MARK: - JSON Safe Dict
+    func batchCopy() -> NoteModel {
+        let copy = NoteModel.fromDict(toDict())
+        // Keep the original images; serializing a draft must not recompress a captured signature.
+        copy.dSignature = dSignature
+        copy.rSignature = rSignature
+        return copy
+    }
+
     func toDict(imageQuality: CGFloat = 0.8) -> [String: Any] {
         var dict: [String: Any] = [
+            "deliveryInputEntered": deliveryInputEntered,
+            "returnInputEntered": returnInputEntered,
             "orderProductId": orderProductId,
             "equipmentId": equipmentId,
             "checklistData": checklistData,
@@ -202,6 +215,8 @@ final class NoteModel: NSObject {
     
     static func fromDict(_ dict: [String: Any]) -> NoteModel {
         let note = NoteModel()
+        note.deliveryInputEntered = dict["deliveryInputEntered"] as? Bool ?? false
+        note.returnInputEntered = dict["returnInputEntered"] as? Bool ?? false
         
         note.orderProductId = dict["orderProductId"] as? String ?? ""
         note.equipmentId = dict["equipmentId"] as? String ?? ""
@@ -717,4 +732,3 @@ extension CheckListViewController :WebServiceHelperDelegate {
         showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }
 }
-

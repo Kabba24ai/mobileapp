@@ -96,6 +96,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     @IBOutlet weak var con_table: NSLayoutConstraint!
     
     var isCombineChecklist: Bool = true
+    // Shared convenience values stay outside the per-equipment drafts until Preview.
+    var combinedOtherData = NoteModel()
     
     
     
@@ -350,6 +352,15 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         if pending == nil { return }
         self.objOrderData.arrProduct = pending?.order.arrProduct ?? []
         self.arrOtherData = pending?.other ?? []
+        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
+        if let convenience = getPendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) {
+            self.combinedOtherData = convenience.other
+            self.isCombineChecklist = convenience.combine
+            self.objCombineSwitch.setOn(self.isCombineChecklist, animated: false)
+        }
+        self.objCombineSwitch.isHidden = self.arrOtherData.count < 2
+        self.lblCombine.isHidden = self.arrOtherData.count < 2
+        self.con_table.constant = self.arrOtherData.count < 2 ? 16 : 50
         self.CalculatTotalCharge()
         self.tblView.reloadData()
     }
@@ -415,6 +426,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
         _ = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
                                  objOrderData: order, arrOtherData: self.arrOtherData)
+        savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                        combine: self.isCombineChecklist, other: self.combinedOtherData)
     }
 
     /// Background partial-progress sync (checklist-driven staging, 2026-09):
@@ -429,9 +442,9 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
             guard let uid = product.unique_id, let context = self.checklistContexts[uid],
                   product.objMachine != nil,
-                  !checkQuestionsIsBlank(objProduct: product) else { continue }
+                  hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
 
-            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                        isDelivery: self.isDeliveryType,
                                                        totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
 
@@ -487,15 +500,18 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         self.objCombineSwitch.addTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
         
         
-        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "Combine Delivery Checklist")
+        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? "Combine Delivery Checklists" : "Combine Return Checklists")
         self.objCombineSwitch.isHidden = false
         self.con_table.constant = 50
         self.isCombineChecklist = true
+        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
+        self.objCombineSwitch.setOn(true, animated: false)
         if self.objOrderData.arrProduct.count == 1{
             self.lblCombine.text = ""
             self.objCombineSwitch.isHidden = true
             self.con_table.constant = 16
             self.isCombineChecklist = false
+            self.objCombineSwitch.setOn(false, animated: false)
         }
     }
     
@@ -516,6 +532,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     
     
     func callCheckListAPI(index : Int){
+        self.markChecklistInput(at: self.selectProductIndex)
         // Applying a pick changes the rows below — remember the scroll position so the
         // follow-up reloads don't push the screen up.
         self.pickerSavedOffset = self.tblView.contentOffset
@@ -551,17 +568,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
 //MARK: - BUTTON ACTION
 extension CheckListViewController{
     
-    /// Removes products whose questions are all blank from both parallel arrays.
-    /// If EVERY product is blank, the first product is kept.
+    /// Removes untouched/completed products from both aligned arrays, in either mode.
     func removeBlankProducts(objOrderData: inout OrdersModel?, arrOtherData: inout [NoteModel]) {
         guard let products = objOrderData?.arrProduct, !products.isEmpty else { return }
-        
-        // Indexes of products whose questions are all blank
-        var blankIndexes = products.indices.filter { checkQuestionsIsBlank(objProduct: products[$0]) }
-        
-        // If every product is blank, keep the first one
-        if blankIndexes.count == products.count {
-            blankIndexes.removeAll { $0 == 0 }
+        let blankIndexes = products.indices.filter {
+            !hasChecklistWork(product: products[$0], other: arrOtherData[safe: $0])
         }
         
         // Remove from the highest index down so earlier indexes stay valid
@@ -571,6 +582,58 @@ extension CheckListViewController{
                 arrOtherData.remove(at: index)
             }
         }
+    }
+
+    /// Defaults loaded from the order (hours, fuel, cleaning) are not employee input.
+    /// Saved partial answers and explicit edits count, including edits back to a default.
+    func hasChecklistWork(product: ProductModel, other: NoteModel?) -> Bool {
+        if let uid = product.unique_id, self.checklistContexts[uid]?.isCompleted == true { return false }
+        if let other = other {
+            if isDeliveryType ? other.deliveryInputEntered : other.returnInputEntered { return true }
+            let note = isDeliveryType ? other.dNote : other.rNote
+            if !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        }
+        return product.arrQuestions.contains { question in
+            switch question.type {
+            case "text":
+                let value = isDeliveryType ? question.startHours : question.endHours
+                let initial = isDeliveryType ? product.start_hours : product.end_hours
+                return value != 0 && value != initial
+            case "fuel":
+                let value = isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn
+                let initial = isDeliveryType ? product.fuel_initial_reading : product.fuel_final_reading
+                return !value.isEmpty && value != initial
+            case "cleaning":
+                let value = isDeliveryType ? question.startCleaning : question.endCleaning
+                let initial = "\((isDeliveryType ? product.startCleaning : product.endCleaning) ?? 0)"
+                return !value.isEmpty && value != initial
+            default:
+                return (isDeliveryType ? question.deliverAnswer : question.returnAnswer) != nil
+            }
+        }
+    }
+
+    private func markChecklistInput(at index: Int) {
+        guard let other = arrOtherData[safe: index] else { return }
+        if isDeliveryType { other.deliveryInputEntered = true }
+        else { other.returnInputEntered = true }
+    }
+
+    func batchOtherData(_ rows: [NoteModel]) -> [NoteModel] {
+        let batch = rows.map { $0.batchCopy() }
+        guard self.isCombineChecklist else { return batch }
+        for other in batch {
+            if self.isDeliveryType {
+                other.dEmplayess = self.combinedOtherData.dEmplayess
+                other.dEmplayessId = self.combinedOtherData.dEmplayessId
+            } else {
+                other.rEmplayess = self.combinedOtherData.rEmplayess
+                other.rEmplayessId = self.combinedOtherData.rEmplayessId
+                other.rStore = self.combinedOtherData.rStore
+                other.rStoreId = self.combinedOtherData.rStoreId
+            }
+        }
+        return batch
     }
     
 
@@ -615,9 +678,9 @@ extension CheckListViewController{
                 guard let uid = product.unique_id, !self.contextsNeedingConnection.contains(uid),
                       let context = self.checklistContexts[uid],
                       product.objMachine != nil,
-                      !checkQuestionsIsBlank(objProduct: product) else { continue }
+                      hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
 
-                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                            isDelivery: self.isDeliveryType,
                                                            totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
                 let problems = capture.localValidationProblems()
@@ -752,6 +815,10 @@ extension CheckListViewController{
     private func persistDraftReporting() -> Bool {
         let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
                                          objOrderData: self.objOrderData, arrOtherData: self.arrOtherData)
+        if saved {
+            savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                            combine: self.isCombineChecklist, other: self.combinedOtherData)
+        }
         if !saved { showAlertMessage(strMessage: "Could not save the checklist. Please try again.") }
         return saved
     }
@@ -897,13 +964,13 @@ extension CheckListViewController{
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
-        // P4-D4, per product. Submit finalizes the order on this phone and clears its draft, so a line
-        // whose checklist needs a connection is left out only where Submit dropped such a line before
-        // Phase 4 anyway (no unit; all blank outside a combined checklist) — never sent, not even
-        // through the legacy submission. A line with entered answers blocks Submit instead.
+        // P4-D4, per product: untouched lines are ignored in either mode.
+        // A line with entered work needs its context, even without an assigned unit.
         let blockedLines = (self.objOrderData?.arrProduct ?? []).compactMap { product -> BlockedLine? in
             guard let uid = product.unique_id, self.contextsNeedingConnection.contains(uid) else { return nil }
-            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil, isBlank: checkQuestionsIsBlank(objProduct: product))
+            let index = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid }
+            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil,
+                               isBlank: !hasChecklistWork(product: product, other: index.flatMap { self.arrOtherData[safe: $0] }))
         }
         let scope = Self.submitScope(needingConnection: blockedLines, combine: self.isCombineChecklist)
         if !scope.blocking.isEmpty {
@@ -916,19 +983,22 @@ extension CheckListViewController{
         //CEHCK DATA
         var objTempOrderData = scoped.order
         var arrTempOtherData = scoped.other
-        for i in (0..<(objTempOrderData?.arrProduct.count ?? 0)).reversed() where objTempOrderData?.arrProduct[i].objMachine == nil {
-            objTempOrderData?.arrProduct.remove(at: i)
-            if i < arrTempOtherData.count { arrTempOtherData.remove(at: i) }
-        }
         if !scoped.excluded.isEmpty, objTempOrderData?.arrProduct.isEmpty ?? true {
             showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded)) // nothing else left to submit
             return
         }
         
-        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
-        if self.isCombineChecklist == false{
-            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        guard let batchOrder = objTempOrderData, !batchOrder.arrProduct.isEmpty else {
+            showAlertMessage(strMessage: "Complete at least one equipment checklist before Preview.")
+            return
         }
+        guard arrTempOtherData.count == batchOrder.arrProduct.count else {
+            showAlertMessage(strMessage: "The checklist data is out of sync. Please reopen the checklist.")
+            return
+        }
+        // NoteModel is a reference type. Preview must not alter the source drafts on Cancel/Back.
+        arrTempOtherData = self.batchOtherData(arrTempOtherData)
         
         
         let errors = checkQuestions(objOrderData: objTempOrderData!)
@@ -936,7 +1006,9 @@ extension CheckListViewController{
             return
         }
         else if let first = errors.first {
-            scrollToCell(indexPath: first, isError: true)
+            let uid = batchOrder.arrProduct[first.section].unique_id
+            let originalSection = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid } ?? first.section
+            scrollToCell(indexPath: IndexPath(row: first.row, section: originalSection), isError: true)
             return
         }
         else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
@@ -954,6 +1026,7 @@ extension CheckListViewController{
                 newViewController.isDeliveryType = self.isDeliveryType
                 newViewController.objOrderData = objTempOrderData
                 newViewController.arrOtherData = arrTempOtherData
+                newViewController.isCombineChecklist = self.isCombineChecklist
                 newViewController.selectIndex = self.selectIndex
                 newViewController.strOrderID = self.strOrderID
                 newViewController.strOrderUniqueId = self.strOrderUniqueId
@@ -1164,6 +1237,7 @@ extension CheckListViewController:  UITextViewDelegate{
         
         let newText = (textView.text as NSString).replacingCharacters(in: range, with: text)
         
+        self.markChecklistInput(at: textView.tag)
         let obj = self.arrOtherData[textView.tag]
         if self.isDeliveryType{
             obj.dNote = newText
@@ -1216,6 +1290,7 @@ extension CheckListViewController : UITextFieldDelegate{
                 {
                     let section : Int = Int(textField.accessibilityValue ?? "") ?? 0
                     let index : Int = Int(textField.accessibilityLanguage ?? "") ?? 0
+                    self.markChecklistInput(at: section)
                     
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[index]
@@ -1959,8 +2034,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblLocation.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType ? "" : str.strReturnedLocation, numberOfLines: 1)
             
             
-            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rEmplayess, placeholder: str.strSelectEmployess)
-            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rStore, placeholder: str.strSelectLocation)
+            let convenience = self.isCombineChecklist ? self.combinedOtherData : objDetails
+            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? convenience.dEmplayess : convenience.rEmplayess, placeholder: str.strSelectEmployess)
+            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: convenience.rStore, placeholder: str.strSelectLocation)
             
             //            cell.con_Bottom.constant = manageWidth(size: 45.0)
             cell.txtNote.configureText(bgColour: .clear, textColor: .primary , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dNote :  objDetails.rNote)
@@ -2065,12 +2141,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return
         }
         
-        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
+        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
+        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? current.dEmplayess : current.rEmplayess) { index, selectValue in
             
             let empId = "\(self.arrEmployesList[index].id ?? 0)"
             
             //UPDATE DATA — when combined, apply the same employee to every product
-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
             for obj in targets {
                 if self.isDeliveryType{
                     obj.dEmplayess = selectValue
@@ -2099,10 +2176,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return
         }
         
-        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.arrOtherData[sender.tag].rStore) { index, selectValue in
+        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
+        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: current.rStore) { index, selectValue in
             
             //UPDATE DATA — when combined, apply the same employee to every product
-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
             for obj in targets {
                 obj.rStore = selectValue
                 obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
@@ -2362,6 +2440,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2394,6 +2473,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2426,6 +2506,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.deliverAnswer = objdata.arrAnswer[index]
+                    self.markChecklistInput(at: section)
                     
                     
                     //UPDATE
@@ -2472,6 +2553,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectFuleReturn = "\(arrFuleReturn[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2506,6 +2588,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2544,6 +2627,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.returnAnswer = objdata.arrAnswer[index]
+                    self.markChecklistInput(at: section)
                     
                     
                     
@@ -2933,10 +3017,12 @@ extension CheckListViewController {
                 self.arrOtherData[index].startHours = 0.0
                 self.arrOtherData[index].selectFuleDelivery = ""
                 self.arrOtherData[index].dNote = ""
+                self.arrOtherData[index].deliveryInputEntered = false
             } else {
                 self.arrOtherData[index].endHours = 0.0
                 self.arrOtherData[index].selectFuleReturn = ""
                 self.arrOtherData[index].rNote = ""
+                self.arrOtherData[index].returnInputEntered = false
             }
         }
 
@@ -3083,14 +3169,12 @@ extension CheckListViewController {
         let isBlank: Bool
     }
 
-    /// Submit's rule for lines whose checklist needs a connection: `leftOut` = the ones Submit would
-    /// have dropped before Phase 4 anyway (no unit, or all blank outside a combined checklist);
-    /// `blocking` = the rest (entered answers, or a blank line of a combined checklist), in screen order.
+    /// Untouched lines are left out in both modes. Entered work blocks until connected.
     static func submitScope(needingConnection lines: [BlockedLine], combine: Bool) -> (blocking: [String], leftOut: Set<String>) {
         var blocking: [String] = []
         var leftOut: Set<String> = []
         for line in lines {
-            if !line.hasMachine || (line.isBlank && !combine) { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
+            if line.isBlank { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
         }
         return (blocking, leftOut)
     }
@@ -3155,9 +3239,11 @@ extension CheckListViewController {
                         if self.isDeliveryType {
                             self.arrOtherData[index].startHours = 0.0
                             self.arrOtherData[index].selectFuleDelivery = ""
+                            self.arrOtherData[index].deliveryInputEntered = false
                         } else {
                             self.arrOtherData[index].endHours = 0.0
                             self.arrOtherData[index].selectFuleReturn = ""
+                            self.arrOtherData[index].returnInputEntered = false
                         }
                     }
                     if let uid = product.unique_id { self.lastSyncedFingerprint[uid] = nil }
