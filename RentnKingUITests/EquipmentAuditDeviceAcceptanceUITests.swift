@@ -439,7 +439,16 @@ final class EquipmentAuditDeviceAcceptanceUITests: XCTestCase {
         XCTAssertNil(apiStatus(), "still offline")
         verify.tap()
         let alert = app.alerts.firstMatch
-        XCTAssertTrue(alert.waitForExistence(timeout: 30))
+        let picker = app.tables["equipmentAudit.picker"]
+        XCTAssertTrue(waitFor(timeout: 30) { alert.exists || picker.exists })
+        if picker.exists {
+            // "Verified By" asked first (a section with no Section Auditor): back out — choosing would store a phone setting.
+            shoot("P9-verified-by-asked")
+            app.navigationBars.buttons["Cancel"].tap()
+            note("Verify asked Verified By first — cancelled, nothing chosen")
+            XCTAssertEqual(detailState(unit), stateBefore)
+            return
+        }
         let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
         note("offline verify: \(message)")
         shoot("P9-offline-verify")
@@ -466,13 +475,20 @@ final class EquipmentAuditDeviceAcceptanceUITests: XCTestCase {
         XCTAssertTrue(tile.waitForExistence(timeout: 5), "Equipment Audit tile on Home")
     }
 
+    /// Opens the audit with a section assigned to me (the list calls it out), else the first one.
     private func openFirstAudit(listShot: String?) {
         tap(app.buttons["home.equipmentAudit"])
         let audits = app.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.audit.'"))
         XCTAssertTrue(audits.firstMatch.waitForExistence(timeout: 30), "an active audit is listed")
         note("audits: \(audits.allElementsBoundByIndex.map { $0.identifier + " — " + $0.label })")
         if let shot = listShot { shoot(shot) }
-        audits.firstMatch.tap()
+        let mine = app.descendants(matching: .any).matching(NSPredicate(format: "identifier CONTAINS '.mine.'")).firstMatch
+        var target = audits.firstMatch
+        if mine.exists, let ref = mine.identifier.components(separatedBy: ".mine.").first, app.cells[ref].exists {
+            target = app.cells[ref]
+            note("assigned section: \(mine.identifier) — \(mine.label)")
+        }
+        target.tap()
         XCTAssertTrue(app.staticTexts["equipmentAudit.progress"].waitForExistence(timeout: 30), "the board loaded")
         XCTAssertTrue(waitFor(timeout: 30) { self.app.staticTexts["equipmentAudit.freshness"].label.hasPrefix("Updated") }, "the board is current")
     }
