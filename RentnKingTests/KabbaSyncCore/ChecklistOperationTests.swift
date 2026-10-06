@@ -95,6 +95,60 @@ final class ChecklistOperationTests: XCTestCase {
         XCTAssertTrue(noUnit.localValidationProblems().contains("Equipment not selected"))
     }
 
+    // MARK: Independent multi-line submission scope
+
+    func testSubmissionScopeIncludesOnlyTheOneTouchedChecklist() {
+        let lines = [
+            ChecklistSubmissionLineState(uniqueId: "A", hasMachine: true, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "B", hasMachine: true, isBlank: true),
+            ChecklistSubmissionLineState(uniqueId: "C", hasMachine: true, isBlank: true),
+        ]
+
+        XCTAssertEqual(ChecklistBatchPolicy.includedIndices(lines), [0])
+    }
+
+    func testSubmissionScopeIncludesTwoTouchedChecklistsAndLeavesThirdUntouched() {
+        let lines = [
+            ChecklistSubmissionLineState(uniqueId: "A", hasMachine: true, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "B", hasMachine: true, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "C", hasMachine: true, isBlank: true),
+        ]
+
+        XCTAssertEqual(ChecklistBatchPolicy.includedIndices(lines), [0, 1])
+    }
+
+    func testSubmissionScopeIncludesAllThreeWhenAllThreeWereTouched() {
+        let lines = [
+            ChecklistSubmissionLineState(uniqueId: "A", hasMachine: true, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "B", hasMachine: true, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "C", hasMachine: true, isBlank: false),
+        ]
+
+        XCTAssertEqual(ChecklistBatchPolicy.includedIndices(lines), [0, 1, 2])
+    }
+
+    func testSubmissionScopeDropsAProductWithoutEquipmentEvenWhenItHasEnteredData() {
+        let lines = [
+            ChecklistSubmissionLineState(uniqueId: "A", hasMachine: false, isBlank: false),
+            ChecklistSubmissionLineState(uniqueId: "B", hasMachine: true, isBlank: false),
+        ]
+
+        XCTAssertEqual(ChecklistBatchPolicy.includedIndices(lines), [1])
+    }
+
+    func testCombinedSignatureTargetsEveryIncludedChecklist() {
+        XCTAssertEqual(ChecklistBatchPolicy.signatureTargetIndices(productCount: 3, combine: true, tappedIndex: 2), [0, 1, 2])
+    }
+
+    func testIndividualSignatureTargetsOnlyTheChecklistThatWasSigned() {
+        XCTAssertEqual(ChecklistBatchPolicy.signatureTargetIndices(productCount: 3, combine: false, tappedIndex: 1), [1])
+    }
+
+    func testFinalSubmitRequiresASignatureOnEveryIncludedChecklist() {
+        XCTAssertFalse(ChecklistBatchPolicy.allSignaturesPresent([true, false]))
+        XCTAssertTrue(ChecklistBatchPolicy.allSignaturesPresent([true, true]))
+    }
+
     // MARK: One operation per product
 
     func testTwoProductsProduceTwoOperationsEachWithItsOwnSignatureAndExecution() throws {
