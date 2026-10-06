@@ -1,0 +1,1086 @@
+diff --git a/RentnKing.xcodeproj/project.pbxproj b/RentnKing.xcodeproj/project.pbxproj
+index c30961e..cdf6625 100644
+--- a/RentnKing.xcodeproj/project.pbxproj
++++ b/RentnKing.xcodeproj/project.pbxproj
+@@ -7,6 +7,7 @@
+ 	objects = {
+ 
+ /* Begin PBXBuildFile section */
++        5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */; };
+ 		5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */; };
+ 		5A5E000000000000000000FE /* TermsSignatureImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FD /* TermsSignatureImageTests.swift */; };
+ 		5A5E000000000000000000FB /* TermsSignatureImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FA /* TermsSignatureImage.swift */; };
+@@ -559,6 +560,7 @@
+ /* End PBXCopyFilesBuildPhase section */
+ 
+ /* Begin PBXFileReference section */
++        5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistBatchIsolationHostedTests.swift; sourceTree = "<group>"; };
+ 		5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureMeasurementHostedTests.swift; sourceTree = "<group>"; };
+ 		5A5E000000000000000000FD /* TermsSignatureImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImageTests.swift; sourceTree = "<group>"; };
+ 		5A5E000000000000000000FA /* TermsSignatureImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImage.swift; sourceTree = "<group>"; };
+@@ -2263,6 +2265,7 @@
+ 		5A5C00000000000000000110 /* Hosted */ = {
+ 			isa = PBXGroup;
+ 			children = (
++                5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */,
+ 				5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */,
+ 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
+ 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
+@@ -3138,6 +3141,7 @@
+ 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
+ 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
+ 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
++                5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
+ 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
+ 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
+ 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
+diff --git a/RentnKing/Core/FileData Helper/CheckListFile.swift b/RentnKing/Core/FileData Helper/CheckListFile.swift
+index 8328aec..7d91a36 100644
+--- a/RentnKing/Core/FileData Helper/CheckListFile.swift	
++++ b/RentnKing/Core/FileData Helper/CheckListFile.swift	
+@@ -26,6 +26,38 @@ private func pendingOtherKey(_ uid: String, _ isDelivery: Bool) -> String {
+     "\(kFileStorageName.kPendingCheckListOther.rawValue)_\(pendingCheckListType(isDelivery))_\(uid)"
+ }
+ 
++private func pendingConvenienceKey(_ uid: String, _ isDelivery: Bool) -> String {
++    "kOrderDetailsData_ChecklistConvenience_\(pendingCheckListType(isDelivery))_\(uid)"
++}
++
++private struct PendingCheckListConvenience: Codable {
++    let combine: Bool
++    let employeeName: String
++    let employeeId: String
++    let storeName: String
++    let storeId: String
++}
++
++func savePendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool, combine: Bool, other: NoteModel) {
++    guard !orderUniqueId.isEmpty else { return }
++    let value = PendingCheckListConvenience(combine: combine,
++        employeeName: isDelivery ? other.dEmplayess : other.rEmplayess,
++        employeeId: isDelivery ? other.dEmplayessId : other.rEmplayessId,
++        storeName: other.rStore, storeId: other.rStoreId)
++    SDKUserDefault.saveCodableArray([value], for: pendingConvenienceKey(orderUniqueId, isDelivery))
++}
++
++func getPendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool) -> (combine: Bool, other: NoteModel)? {
++    guard hasPendingCheckList(orderUniqueId: orderUniqueId, isDelivery: isDelivery),
++          let value = SDKUserDefault.getCodableArray(PendingCheckListConvenience.self,
++                      for: pendingConvenienceKey(orderUniqueId, isDelivery))?.first else { return nil }
++    let other = NoteModel()
++    if isDelivery { other.dEmplayess = value.employeeName; other.dEmplayessId = value.employeeId }
++    else { other.rEmplayess = value.employeeName; other.rEmplayessId = value.employeeId }
++    other.rStore = value.storeName; other.rStoreId = value.storeId
++    return (value.combine, other)
++}
++
+ /// Saves the current checklist form as a PENDING/prepared draft. Returns false (and saves
+ /// nothing) if the inputs are missing, so callers can avoid navigating forward on failure.
+ @discardableResult
+@@ -57,6 +89,7 @@ func clearPendingCheckList(orderUniqueId: String, isDelivery: Bool) {
+     guard !orderUniqueId.isEmpty else { return }
+     SDKUserDefault.remove(for: pendingOrderKey(orderUniqueId, isDelivery))
+     SDKUserDefault.remove(for: pendingOtherKey(orderUniqueId, isDelivery))
++    SDKUserDefault.remove(for: pendingConvenienceKey(orderUniqueId, isDelivery))
+ }
+ 
+ 
+diff --git a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift
+index 3028065..46854bb 100644
+--- a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift	
++++ b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListModel.swift	
+@@ -71,6 +71,9 @@ import UIKit
+ 
+ // MARK: - NoteModel
+ final class NoteModel: NSObject {
++    // Local draft scope only; shared employee/store selections never set these.
++    var deliveryInputEntered = false
++    var returnInputEntered = false
+     
+     var orderProductId: String = ""
+     var equipmentId: String = ""
+@@ -161,8 +164,18 @@ final class NoteModel: NSObject {
+     }
+     
+     // MARK: - JSON Safe Dict
++    func batchCopy() -> NoteModel {
++        let copy = NoteModel.fromDict(toDict())
++        // Keep the original images; serializing a draft must not recompress a captured signature.
++        copy.dSignature = dSignature
++        copy.rSignature = rSignature
++        return copy
++    }
++
+     func toDict(imageQuality: CGFloat = 0.8) -> [String: Any] {
+         var dict: [String: Any] = [
++            "deliveryInputEntered": deliveryInputEntered,
++            "returnInputEntered": returnInputEntered,
+             "orderProductId": orderProductId,
+             "equipmentId": equipmentId,
+             "checklistData": checklistData,
+@@ -202,6 +215,8 @@ final class NoteModel: NSObject {
+     
+     static func fromDict(_ dict: [String: Any]) -> NoteModel {
+         let note = NoteModel()
++        note.deliveryInputEntered = dict["deliveryInputEntered"] as? Bool ?? false
++        note.returnInputEntered = dict["returnInputEntered"] as? Bool ?? false
+         
+         note.orderProductId = dict["orderProductId"] as? String ?? ""
+         note.equipmentId = dict["equipmentId"] as? String ?? ""
+@@ -717,4 +732,3 @@ extension CheckListViewController :WebServiceHelperDelegate {
+         showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
+     }
+ }
+-
+diff --git a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift
+index ec5a965..b2465eb 100644
+--- a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift	
++++ b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift	
+@@ -39,6 +39,7 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
+     var arrProductList : [ProductModel] = []
+     var arrEmployesList : [EmployeesModel] = []
+     var arrOtherData : [NoteModel] = []
++    var isCombineChecklist = false
+     var objCheckListPrice : CheckListPriceModel!
+     var arrPriceList : [PriceListModel] = []
+     var arrProductSettingList : [PriceListModel] = []
+@@ -397,15 +398,50 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
+     func hasSignature(_ obj: NoteModel) -> Bool {
+         let image = self.isDeliveryType ? obj.dSignature : obj.rSignature
+         let url = self.isDeliveryType ? obj.dSignatureUrl : obj.rSignatureUrl
+-        guard let image = image else { return false }
+-        return image != UIImage() || url != ""
++        return !url.isEmpty || (image?.hasValidData ?? false)
+     }
+ 
+     /// The canonical "a customer signature exists" fact — the same test the
+     /// submit guard uses (drawn on this phone, or already stored on the server).
+     func hasCustomerSignature() -> Bool {
+-        guard let obj = self.arrOtherData.last else { return false }
+-        return hasSignature(obj)
++        return !self.arrOtherData.isEmpty && self.arrOtherData.allSatisfy { hasSignature($0) }
++    }
++
++    /// Merge by product identity, preserving previously completed siblings.
++    func cacheCompletedBatch() {
++        guard let batch = self.objOrderData else { return }
++        let type = self.isDeliveryType ? "Delivery" : "Return"
++        let key = "\(type)_\(self.strOrderUniqueId)"
++        var cached: OrdersModel = getChecklistOrderDetailData(strOrderUniqeID: key) ?? batch
++        var notes = getChecklistOtherData(strOrderUniqeID: key) ?? self.arrOtherData
++        for (index, product) in batch.arrProduct.enumerated() {
++            if let position = cached.arrProduct.firstIndex(where: { $0.unique_id == product.unique_id }) {
++                cached.arrProduct[position] = product
++            } else {
++                cached.arrProduct.append(product)
++            }
++            let note = self.arrOtherData[index]
++            if let position = notes.firstIndex(where: { $0.productID == note.productID }) { notes[position] = note }
++            else { notes.append(note) }
++        }
++        let aligned = cached.arrProduct.map { product in
++            notes.first { $0.productID == product.id } ?? NoteModel()
++        }
++        SDKUserDefault.saveMappableObject(cached, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(key)")
++        SDKUserDefault.saveNSObjectArray(aligned, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(key)")
++    }
++
++    func preserveUnsubmittedDraft() {
++        guard let draft = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) else { return }
++        let submitted = Set(self.objOrderData.arrProduct.compactMap(\.unique_id))
++        let remaining = CheckListViewController.excludingProductsNeedingConnection(draft.order, other: draft.other,
++                                                                                  needingConnection: submitted)
++        if remaining.order?.arrProduct.isEmpty ?? true {
++            clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
++        } else {
++            savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
++                                 objOrderData: remaining.order, arrOtherData: remaining.other)
++        }
+     }
+ 
+     /// ONE renderer: signature button, Submit and the Total Charge panel all
+@@ -466,8 +502,26 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
+ 
+     /// Opens the same signature pad the signature cell opens (last product's index).
+     @objc private func btnCustomerSignatureTapped() {
+-        btnCustomerSignature.tag = max(0, (self.objOrderData?.arrProduct.count ?? 1) - 1)
+-        self.btnSignatureClicked(btnCustomerSignature)
++        if self.isCombineChecklist || self.arrOtherData.count == 1 {
++            btnCustomerSignature.tag = 0
++            self.btnSignatureClicked(btnCustomerSignature)
++            return
++        }
++        // Individual mode also allows an existing signature to be reviewed/replaced.
++        let picker = UIAlertController(title: "Choose Equipment Checklist", message: nil, preferredStyle: .actionSheet)
++        for (index, product) in (self.objOrderData?.arrProduct ?? []).enumerated() {
++            let name = product.product_name ?? "Equipment \(index + 1)"
++            let equipment = product.objMachine?.equipment_id ?? ""
++            let signed = self.arrOtherData[safe: index].map { self.hasSignature($0) } ?? false
++            picker.addAction(UIAlertAction(title: "\(signed ? "✓ " : "")\(name)\(equipment.isEmpty ? "" : " — \(equipment)")", style: .default) { _ in
++                self.btnCustomerSignature.tag = index
++                self.btnSignatureClicked(self.btnCustomerSignature)
++            })
++        }
++        picker.addAction(UIAlertAction(title: "Cancel", style: .cancel))
++        picker.popoverPresentationController?.sourceView = btnCustomerSignature
++        picker.popoverPresentationController?.sourceRect = btnCustomerSignature.bounds
++        self.present(picker, animated: true)
+     }
+     
+     func stopLoading(){
+@@ -517,8 +571,10 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
+ 
+         print(signatureImage)
+         
+-        //UPDATE SIGNATURE ARRAY — apply the same signature to every product
+-        for obj in self.arrOtherData {
++        // Combine shares only within the already scoped batch. Individual capture changes one row.
++        guard self.arrOtherData.indices.contains(strIndex) else { return }
++        let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[strIndex]]
++        for obj in targets {
+             if self.isDeliveryType{
+                 obj.dSignature = signatureImage
+             }
+@@ -619,13 +675,10 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
+                 KabbaSync.showStatusToast(for: queued.firstOperationId)
+                 
+                 //SET DATA IN LOCAL
+-                let checklistType = self.isDeliveryType ? "Delivery" : "Return"
+-                SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
+-                SDKUserDefault.saveNSObjectArray(self.arrOtherData, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
++                self.cacheCompletedBatch()
+ 
+-                // This checklist is now finalized — clear any PENDING (prepared) draft so it is
+-                // never reloaded as pending after completion. (No-op if none / for Return.)
+-                clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
++                // Only submitted products leave the pending draft. Siblings retain their work.
++                self.preserveUnsubmittedDraft()
+               
+                 
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
+@@ -1179,8 +1232,8 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
+                 cell.con_imgSignature.constant = manageWidth(size: 200.0)
+                 cell.imgSignature.backgroundColor = .white
+                 cell.imgSignature.viewCorneRadius(radius: 10, isRound: false)
+-                if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage(){
+-                    cell.imgSignature.image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature)
++                if let image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature), image.hasValidData {
++                    cell.imgSignature.image = image
+                 }
+                 else if (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
+                     cell.imgSignature.setImage(strImg: (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl))
+diff --git a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift
+index cc18cc2..f3e2fde 100644
+--- a/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift	
++++ b/RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift	
+@@ -96,6 +96,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+     @IBOutlet weak var con_table: NSLayoutConstraint!
+     
+     var isCombineChecklist: Bool = true
++    // Shared convenience values stay outside the per-equipment drafts until Preview.
++    var combinedOtherData = NoteModel()
+     
+     
+     
+@@ -350,6 +352,15 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+         if pending == nil { return }
+         self.objOrderData.arrProduct = pending?.order.arrProduct ?? []
+         self.arrOtherData = pending?.other ?? []
++        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
++        if let convenience = getPendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) {
++            self.combinedOtherData = convenience.other
++            self.isCombineChecklist = convenience.combine
++            self.objCombineSwitch.setOn(self.isCombineChecklist, animated: false)
++        }
++        self.objCombineSwitch.isHidden = self.arrOtherData.count < 2
++        self.lblCombine.isHidden = self.arrOtherData.count < 2
++        self.con_table.constant = self.arrOtherData.count < 2 ? 16 : 50
+         self.CalculatTotalCharge()
+         self.tblView.reloadData()
+     }
+@@ -415,6 +426,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
+         _ = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                  objOrderData: order, arrOtherData: self.arrOtherData)
++        savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
++                                        combine: self.isCombineChecklist, other: self.combinedOtherData)
+     }
+ 
+     /// Background partial-progress sync (checklist-driven staging, 2026-09):
+@@ -429,9 +442,9 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+         for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
+             guard let uid = product.unique_id, let context = self.checklistContexts[uid],
+                   product.objMachine != nil,
+-                  !checkQuestionsIsBlank(objProduct: product) else { continue }
++                  hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
+ 
+-            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
++            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
+                                                        isDelivery: self.isDeliveryType,
+                                                        totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+ 
+@@ -487,15 +500,18 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+         self.objCombineSwitch.addTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
+         
+         
+-        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "Combine Delivery Checklist")
++        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? "Combine Delivery Checklists" : "Combine Return Checklists")
+         self.objCombineSwitch.isHidden = false
+         self.con_table.constant = 50
+         self.isCombineChecklist = true
++        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
++        self.objCombineSwitch.setOn(true, animated: false)
+         if self.objOrderData.arrProduct.count == 1{
+             self.lblCombine.text = ""
+             self.objCombineSwitch.isHidden = true
+             self.con_table.constant = 16
+             self.isCombineChecklist = false
++            self.objCombineSwitch.setOn(false, animated: false)
+         }
+     }
+     
+@@ -516,6 +532,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+     
+     
+     func callCheckListAPI(index : Int){
++        self.markChecklistInput(at: self.selectProductIndex)
+         // Applying a pick changes the rows below — remember the scroll position so the
+         // follow-up reloads don't push the screen up.
+         self.pickerSavedOffset = self.tblView.contentOffset
+@@ -551,17 +568,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
+ //MARK: - BUTTON ACTION
+ extension CheckListViewController{
+     
+-    /// Removes products whose questions are all blank from both parallel arrays.
+-    /// If EVERY product is blank, the first product is kept.
++    /// Removes untouched/completed products from both aligned arrays, in either mode.
+     func removeBlankProducts(objOrderData: inout OrdersModel?, arrOtherData: inout [NoteModel]) {
+         guard let products = objOrderData?.arrProduct, !products.isEmpty else { return }
+-        
+-        // Indexes of products whose questions are all blank
+-        var blankIndexes = products.indices.filter { checkQuestionsIsBlank(objProduct: products[$0]) }
+-        
+-        // If every product is blank, keep the first one
+-        if blankIndexes.count == products.count {
+-            blankIndexes.removeAll { $0 == 0 }
++        let blankIndexes = products.indices.filter {
++            !hasChecklistWork(product: products[$0], other: arrOtherData[safe: $0])
+         }
+         
+         // Remove from the highest index down so earlier indexes stay valid
+@@ -572,6 +583,58 @@ extension CheckListViewController{
+             }
+         }
+     }
++
++    /// Defaults loaded from the order (hours, fuel, cleaning) are not employee input.
++    /// Saved partial answers and explicit edits count, including edits back to a default.
++    func hasChecklistWork(product: ProductModel, other: NoteModel?) -> Bool {
++        if let uid = product.unique_id, self.checklistContexts[uid]?.isCompleted == true { return false }
++        if let other = other {
++            if isDeliveryType ? other.deliveryInputEntered : other.returnInputEntered { return true }
++            let note = isDeliveryType ? other.dNote : other.rNote
++            if !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
++        }
++        return product.arrQuestions.contains { question in
++            switch question.type {
++            case "text":
++                let value = isDeliveryType ? question.startHours : question.endHours
++                let initial = isDeliveryType ? product.start_hours : product.end_hours
++                return value != 0 && value != initial
++            case "fuel":
++                let value = isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn
++                let initial = isDeliveryType ? product.fuel_initial_reading : product.fuel_final_reading
++                return !value.isEmpty && value != initial
++            case "cleaning":
++                let value = isDeliveryType ? question.startCleaning : question.endCleaning
++                let initial = "\((isDeliveryType ? product.startCleaning : product.endCleaning) ?? 0)"
++                return !value.isEmpty && value != initial
++            default:
++                return (isDeliveryType ? question.deliverAnswer : question.returnAnswer) != nil
++            }
++        }
++    }
++
++    private func markChecklistInput(at index: Int) {
++        guard let other = arrOtherData[safe: index] else { return }
++        if isDeliveryType { other.deliveryInputEntered = true }
++        else { other.returnInputEntered = true }
++    }
++
++    func batchOtherData(_ rows: [NoteModel]) -> [NoteModel] {
++        let batch = rows.map { $0.batchCopy() }
++        guard self.isCombineChecklist else { return batch }
++        for other in batch {
++            if self.isDeliveryType {
++                other.dEmplayess = self.combinedOtherData.dEmplayess
++                other.dEmplayessId = self.combinedOtherData.dEmplayessId
++            } else {
++                other.rEmplayess = self.combinedOtherData.rEmplayess
++                other.rEmplayessId = self.combinedOtherData.rEmplayessId
++                other.rStore = self.combinedOtherData.rStore
++                other.rStoreId = self.combinedOtherData.rStoreId
++            }
++        }
++        return batch
++    }
+     
+ 
+ 
+@@ -615,9 +678,9 @@ extension CheckListViewController{
+                 guard let uid = product.unique_id, !self.contextsNeedingConnection.contains(uid),
+                       let context = self.checklistContexts[uid],
+                       product.objMachine != nil,
+-                      !checkQuestionsIsBlank(objProduct: product) else { continue }
++                      hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
+ 
+-                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
++                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
+                                                            isDelivery: self.isDeliveryType,
+                                                            totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                 let problems = capture.localValidationProblems()
+@@ -752,6 +815,10 @@ extension CheckListViewController{
+     private func persistDraftReporting() -> Bool {
+         let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                          objOrderData: self.objOrderData, arrOtherData: self.arrOtherData)
++        if saved {
++            savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
++                                            combine: self.isCombineChecklist, other: self.combinedOtherData)
++        }
+         if !saved { showAlertMessage(strMessage: "Could not save the checklist. Please try again.") }
+         return saved
+     }
+@@ -897,13 +964,13 @@ extension CheckListViewController{
+     @IBAction func btnSubmitClicked(_ sender: UIButton) {
+         self.view.endEditing(true)
+ 
+-        // P4-D4, per product. Submit finalizes the order on this phone and clears its draft, so a line
+-        // whose checklist needs a connection is left out only where Submit dropped such a line before
+-        // Phase 4 anyway (no unit; all blank outside a combined checklist) — never sent, not even
+-        // through the legacy submission. A line with entered answers blocks Submit instead.
++        // P4-D4, per product: untouched lines are ignored in either mode.
++        // A line with entered work needs its context, even without an assigned unit.
+         let blockedLines = (self.objOrderData?.arrProduct ?? []).compactMap { product -> BlockedLine? in
+             guard let uid = product.unique_id, self.contextsNeedingConnection.contains(uid) else { return nil }
+-            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil, isBlank: checkQuestionsIsBlank(objProduct: product))
++            let index = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid }
++            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil,
++                               isBlank: !hasChecklistWork(product: product, other: index.flatMap { self.arrOtherData[safe: $0] }))
+         }
+         let scope = Self.submitScope(needingConnection: blockedLines, combine: self.isCombineChecklist)
+         if !scope.blocking.isEmpty {
+@@ -916,19 +983,22 @@ extension CheckListViewController{
+         //CEHCK DATA
+         var objTempOrderData = scoped.order
+         var arrTempOtherData = scoped.other
+-        for i in (0..<(objTempOrderData?.arrProduct.count ?? 0)).reversed() where objTempOrderData?.arrProduct[i].objMachine == nil {
+-            objTempOrderData?.arrProduct.remove(at: i)
+-            if i < arrTempOtherData.count { arrTempOtherData.remove(at: i) }
+-        }
+         if !scoped.excluded.isEmpty, objTempOrderData?.arrProduct.isEmpty ?? true {
+             showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded)) // nothing else left to submit
+             return
+         }
+         
+-        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
+-        if self.isCombineChecklist == false{
+-            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
++        self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
++        guard let batchOrder = objTempOrderData, !batchOrder.arrProduct.isEmpty else {
++            showAlertMessage(strMessage: "Complete at least one equipment checklist before Preview.")
++            return
+         }
++        guard arrTempOtherData.count == batchOrder.arrProduct.count else {
++            showAlertMessage(strMessage: "The checklist data is out of sync. Please reopen the checklist.")
++            return
++        }
++        // NoteModel is a reference type. Preview must not alter the source drafts on Cancel/Back.
++        arrTempOtherData = self.batchOtherData(arrTempOtherData)
+         
+         
+         let errors = checkQuestions(objOrderData: objTempOrderData!)
+@@ -936,7 +1006,9 @@ extension CheckListViewController{
+             return
+         }
+         else if let first = errors.first {
+-            scrollToCell(indexPath: first, isError: true)
++            let uid = batchOrder.arrProduct[first.section].unique_id
++            let originalSection = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid } ?? first.section
++            scrollToCell(indexPath: IndexPath(row: first.row, section: originalSection), isError: true)
+             return
+         }
+         else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
+@@ -954,6 +1026,7 @@ extension CheckListViewController{
+                 newViewController.isDeliveryType = self.isDeliveryType
+                 newViewController.objOrderData = objTempOrderData
+                 newViewController.arrOtherData = arrTempOtherData
++                newViewController.isCombineChecklist = self.isCombineChecklist
+                 newViewController.selectIndex = self.selectIndex
+                 newViewController.strOrderID = self.strOrderID
+                 newViewController.strOrderUniqueId = self.strOrderUniqueId
+@@ -1164,6 +1237,7 @@ extension CheckListViewController:  UITextViewDelegate{
+         
+         let newText = (textView.text as NSString).replacingCharacters(in: range, with: text)
+         
++        self.markChecklistInput(at: textView.tag)
+         let obj = self.arrOtherData[textView.tag]
+         if self.isDeliveryType{
+             obj.dNote = newText
+@@ -1216,6 +1290,7 @@ extension CheckListViewController : UITextFieldDelegate{
+                 {
+                     let section : Int = Int(textField.accessibilityValue ?? "") ?? 0
+                     let index : Int = Int(textField.accessibilityLanguage ?? "") ?? 0
++                    self.markChecklistInput(at: section)
+                     
+                     var objProduct = self.objOrderData.arrProduct[section]
+                     var objdata = objProduct.arrQuestions[index]
+@@ -1959,8 +2034,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+             cell.lblLocation.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType ? "" : str.strReturnedLocation, numberOfLines: 1)
+             
+             
+-            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rEmplayess, placeholder: str.strSelectEmployess)
+-            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rStore, placeholder: str.strSelectLocation)
++            let convenience = self.isCombineChecklist ? self.combinedOtherData : objDetails
++            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? convenience.dEmplayess : convenience.rEmplayess, placeholder: str.strSelectEmployess)
++            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: convenience.rStore, placeholder: str.strSelectLocation)
+             
+             //            cell.con_Bottom.constant = manageWidth(size: 45.0)
+             cell.txtNote.configureText(bgColour: .clear, textColor: .primary , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dNote :  objDetails.rNote)
+@@ -2065,12 +2141,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+             return
+         }
+         
+-        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
++        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
++        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? current.dEmplayess : current.rEmplayess) { index, selectValue in
+             
+             let empId = "\(self.arrEmployesList[index].id ?? 0)"
+             
+             //UPDATE DATA — when combined, apply the same employee to every product
+-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
++            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
+             for obj in targets {
+                 if self.isDeliveryType{
+                     obj.dEmplayess = selectValue
+@@ -2099,10 +2176,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+             return
+         }
+         
+-        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.arrOtherData[sender.tag].rStore) { index, selectValue in
++        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
++        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: current.rStore) { index, selectValue in
+             
+             //UPDATE DATA — when combined, apply the same employee to every product
+-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
++            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
+             for obj in targets {
+                 obj.rStore = selectValue
+                 obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
+@@ -2362,6 +2440,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                 //SET IN OTHER DATA
+                 let objDate = self.arrOtherData[section]
+                 objDate.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
++                self.markChecklistInput(at: section)
+                 
+                 //UPDATE DATA
+                 self.arrOtherData.remove(at: section)
+@@ -2394,6 +2473,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                 //SET IN OTHER DATA
+                 let objDate = self.arrOtherData[section]
+                 objDate.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
++                self.markChecklistInput(at: section)
+                 
+                 //UPDATE DATA
+                 self.arrOtherData.remove(at: section)
+@@ -2426,6 +2506,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                     var objProduct = self.objOrderData.arrProduct[section]
+                     var objdata = objProduct.arrQuestions[sender.tag]
+                     objdata.deliverAnswer = objdata.arrAnswer[index]
++                    self.markChecklistInput(at: section)
+                     
+                     
+                     //UPDATE
+@@ -2472,6 +2553,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                 //SET IN OTHER DATA
+                 let objDate = self.arrOtherData[section]
+                 objDate.selectFuleReturn = "\(arrFuleReturn[index].id)"
++                self.markChecklistInput(at: section)
+                 
+                 //UPDATE DATA
+                 self.arrOtherData.remove(at: section)
+@@ -2506,6 +2588,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                 //SET IN OTHER DATA
+                 let objDate = self.arrOtherData[section]
+                 objDate.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
++                self.markChecklistInput(at: section)
+                 
+                 //UPDATE DATA
+                 self.arrOtherData.remove(at: section)
+@@ -2544,6 +2627,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
+                     var objProduct = self.objOrderData.arrProduct[section]
+                     var objdata = objProduct.arrQuestions[sender.tag]
+                     objdata.returnAnswer = objdata.arrAnswer[index]
++                    self.markChecklistInput(at: section)
+                     
+                     
+                     
+@@ -2933,10 +3017,12 @@ extension CheckListViewController {
+                 self.arrOtherData[index].startHours = 0.0
+                 self.arrOtherData[index].selectFuleDelivery = ""
+                 self.arrOtherData[index].dNote = ""
++                self.arrOtherData[index].deliveryInputEntered = false
+             } else {
+                 self.arrOtherData[index].endHours = 0.0
+                 self.arrOtherData[index].selectFuleReturn = ""
+                 self.arrOtherData[index].rNote = ""
++                self.arrOtherData[index].returnInputEntered = false
+             }
+         }
+ 
+@@ -3083,14 +3169,12 @@ extension CheckListViewController {
+         let isBlank: Bool
+     }
+ 
+-    /// Submit's rule for lines whose checklist needs a connection: `leftOut` = the ones Submit would
+-    /// have dropped before Phase 4 anyway (no unit, or all blank outside a combined checklist);
+-    /// `blocking` = the rest (entered answers, or a blank line of a combined checklist), in screen order.
++    /// Untouched lines are left out in both modes. Entered work blocks until connected.
+     static func submitScope(needingConnection lines: [BlockedLine], combine: Bool) -> (blocking: [String], leftOut: Set<String>) {
+         var blocking: [String] = []
+         var leftOut: Set<String> = []
+         for line in lines {
+-            if !line.hasMachine || (line.isBlank && !combine) { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
++            if line.isBlank { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
+         }
+         return (blocking, leftOut)
+     }
+@@ -3155,9 +3239,11 @@ extension CheckListViewController {
+                         if self.isDeliveryType {
+                             self.arrOtherData[index].startHours = 0.0
+                             self.arrOtherData[index].selectFuleDelivery = ""
++                            self.arrOtherData[index].deliveryInputEntered = false
+                         } else {
+                             self.arrOtherData[index].endHours = 0.0
+                             self.arrOtherData[index].selectFuleReturn = ""
++                            self.arrOtherData[index].returnInputEntered = false
+                         }
+                     }
+                     if let uid = product.unique_id { self.lastSyncedFingerprint[uid] = nil }
+diff --git a/RentnKingTests/Hosted/ChecklistBatchIsolationHostedTests.swift b/RentnKingTests/Hosted/ChecklistBatchIsolationHostedTests.swift
+new file mode 100644
+index 0000000..9b4de73
+--- /dev/null
++++ b/RentnKingTests/Hosted/ChecklistBatchIsolationHostedTests.swift
+@@ -0,0 +1,235 @@
++import XCTest
++import UIKit
++import ObjectMapper
++@testable import RentnKing
++
++final class ChecklistBatchIsolationHostedTests: XCTestCase {
++    private final class PreviewWithoutNetwork: CheckListUpdateViewController {
++        override func viewDidLoad() {}
++    }
++    private var savedBaseURL: String?
++    private var orderUid = ""
++
++    override func setUp() {
++        super.setUp()
++        savedBaseURL = UserDefaults.standard.baseURL
++        UserDefaults.standard.baseURL = "https://checklist-batch.invalid/api/admin/v1/"
++        orderUid = "BATCH-\(UUID().uuidString)"
++    }
++
++    override func tearDown() {
++        for delivery in [false, true] {
++            clearPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
++            let type = delivery ? "Delivery" : "Return"
++            SDKUserDefault.remove(for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(type)_\(orderUid)")
++            SDKUserDefault.remove(for: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(type)_\(orderUid)")
++        }
++        UserDefaults.standard.baseURL = savedBaseURL
++        super.tearDown()
++    }
++
++    private func product(_ index: Int, answered: Bool, delivery: Bool) -> ProductModel {
++        var product = ProductModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++        product.id = index + 1
++        product.unique_id = "P\(index)"
++        var question = CustomerCheckListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++        question.type = "choice"
++        if answered {
++            let answer = AnswerCheckListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++            if delivery { question.deliverAnswer = answer } else { question.returnAnswer = answer }
++        }
++        product.arrQuestions = [question]
++        return product
++    }
++
++    private func order(_ count: Int, delivery: Bool) -> OrdersModel {
++        var order = OrdersModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++        order.arrProduct = (0..<3).map { product($0, answered: $0 < count, delivery: delivery) }
++        return order
++    }
++
++    private func notes() -> [NoteModel] {
++        (0..<3).map { index in
++            let note = NoteModel()
++            note.productID = index + 1
++            note.dEmplayessId = "D\(index)"
++            note.rEmplayessId = "R\(index)"
++            return note
++        }
++    }
++
++    func testScopeIsIndependentOfCombineAndKeepsArraysAligned() {
++        for delivery in [false, true] {
++            for combine in [false, true] {
++                for count in 0...3 {
++                    let screen = CheckListViewController()
++                    screen.isDeliveryType = delivery
++                    screen.isCombineChecklist = combine
++                    var scoped: OrdersModel? = order(count, delivery: delivery)
++                    var other = notes()
++                    screen.removeBlankProducts(objOrderData: &scoped, arrOtherData: &other)
++                    XCTAssertEqual(scoped?.arrProduct.compactMap(\.unique_id), (0..<count).map { "P\($0)" })
++                    XCTAssertEqual(other.map(\.productID), (0..<count).map { $0 + 1 })
++                }
++            }
++        }
++    }
++
++    func testRemovingFirstAndMiddleBlankItemsKeepsTheirOwnNotes() {
++        let screen = CheckListViewController()
++        screen.isDeliveryType = true
++        var scoped: OrdersModel? = order(0, delivery: true)
++        scoped?.arrProduct[2] = product(2, answered: true, delivery: true)
++        var other = notes()
++        screen.removeBlankProducts(objOrderData: &scoped, arrOtherData: &other)
++        XCTAssertEqual(scoped?.arrProduct.compactMap(\.unique_id), ["P2"])
++        XCTAssertEqual(other.map(\.productID), [3])
++    }
++
++    func testPrefilledOperationalDefaultsDoNotSelectAnUntouchedSibling() {
++        for delivery in [false, true] {
++            let screen = CheckListViewController()
++            screen.isDeliveryType = delivery
++            var p = product(0, answered: false, delivery: delivery)
++            p.start_hours = 100; p.end_hours = 110
++            p.fuel_initial_reading = "8"; p.fuel_final_reading = "7"
++            var hours = CustomerCheckListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++            hours.type = "text"; hours.startHours = 100; hours.endHours = 110
++            var fuel = CustomerCheckListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
++            fuel.type = "fuel"; fuel.selectFuleDelivery = "8"; fuel.selectFuleReturn = "7"
++            p.arrQuestions += [hours, fuel]
++            let note = NoteModel()
++            XCTAssertFalse(screen.hasChecklistWork(product: p, other: note))
++            if delivery { note.deliveryInputEntered = true } else { note.returnInputEntered = true }
++            XCTAssertTrue(screen.hasChecklistWork(product: p, other: note), "an explicit edit to a default still counts")
++            let restored = NoteModel.fromDict(note.toDict())
++            XCTAssertTrue(screen.hasChecklistWork(product: p, other: restored), "scope survives closing/reopening the draft")
++        }
++    }
++
++    func testPartiallyAnsweredItemRemainsInValidation() {
++        let screen = CheckListViewController()
++        screen.isDeliveryType = true
++        var scoped: OrdersModel? = order(1, delivery: true)
++        var partial = product(1, answered: true, delivery: true)
++        partial.arrQuestions += product(1, answered: false, delivery: true).arrQuestions
++        scoped?.arrProduct[1] = partial
++        var other = notes()
++        screen.removeBlankProducts(objOrderData: &scoped, arrOtherData: &other)
++        XCTAssertEqual(scoped?.arrProduct.count, 2)
++        XCTAssertEqual(screen.checkQuestions(objOrderData: scoped!), [IndexPath(row: 1, section: 1)])
++    }
++
++    func testSharedConvenienceFieldsOnlyAffectDetachedBatchCopies() {
++        for delivery in [false, true] {
++            for combine in [false, true] {
++                let screen = CheckListViewController()
++                screen.isDeliveryType = delivery
++                screen.isCombineChecklist = combine
++                screen.combinedOtherData.dEmplayessId = "SHARED"
++                screen.combinedOtherData.rEmplayessId = "SHARED"
++                screen.combinedOtherData.rStoreId = "STORE"
++                let original = notes()
++                let batch = screen.batchOtherData(Array(original.prefix(2)))
++                XCTAssertEqual(batch.count, 2)
++                XCTAssertEqual(original.map(\.dEmplayessId), ["D0", "D1", "D2"])
++                XCTAssertEqual(original.map(\.rEmplayessId), ["R0", "R1", "R2"])
++                for (index, note) in batch.enumerated() {
++                    XCTAssertFalse(note === original[index])
++                    XCTAssertEqual(delivery ? note.dEmplayessId : note.rEmplayessId,
++                                   combine ? "SHARED" : "\(delivery ? "D" : "R")\(index)")
++                }
++                XCTAssertEqual(original[2].rStoreId, "")
++                XCTAssertEqual(batch[0].rStoreId, combine && !delivery ? "STORE" : "")
++            }
++        }
++    }
++
++    private func preview(delivery: Bool, combine: Bool) -> CheckListUpdateViewController {
++        let preview = PreviewWithoutNetwork()
++        // Retain weak outlets without loading the network-backed storyboard lifecycle.
++        preview.view = UIView()
++        let table = UITableView(); let submit = UIView(); let label = UILabel()
++        preview.view.addSubview(table); preview.view.addSubview(submit); submit.addSubview(label)
++        preview.tblView = table; preview.viewSubmit = submit; preview.lblSubmit = label
++        preview.isDeliveryType = delivery; preview.isCombineChecklist = combine
++        preview.objOrderData = order(3, delivery: delivery); preview.arrOtherData = notes()
++        return preview
++    }
++
++    func testSignatureCaptureAndSubmitGuardArePerEquipment() {
++        let image = UIGraphicsImageRenderer(size: CGSize(width: 10, height: 10)).image { context in
++            UIColor.black.setFill(); context.fill(CGRect(x: 0, y: 0, width: 10, height: 10))
++        }
++        for delivery in [false, true] {
++            for combine in [false, true] {
++                let screen = preview(delivery: delivery, combine: combine)
++                let pad = EPSignatureViewController(signatureDelegate: screen, showsDate: true, showsSaveSignatureOption: true)
++                screen.epSignature(pad, didSign: image, boundingRect: .zero, strIndex: 1)
++                for (index, note) in screen.arrOtherData.enumerated() {
++                    XCTAssertEqual(screen.hasSignature(note), combine || index == 1)
++                    XCTAssertNil(delivery ? note.rSignature : note.dSignature)
++                }
++                XCTAssertEqual(screen.hasCustomerSignature(), combine)
++                if !combine {
++                    for index in [0, 2] { screen.epSignature(pad, didSign: image, boundingRect: .zero, strIndex: index) }
++                    XCTAssertTrue(screen.hasCustomerSignature())
++                }
++            }
++        }
++    }
++
++    func testOneStoredSignatureDoesNotSatisfyUnsignedSiblings() {
++        let screen = preview(delivery: true, combine: false)
++        screen.arrOtherData[2].dSignatureUrl = "https://signatures.invalid/last.jpg"
++        XCTAssertTrue(screen.hasSignature(screen.arrOtherData[2]))
++        XCTAssertFalse(screen.hasCustomerSignature())
++        screen.arrOtherData[0].dSignature = UIImage()
++        XCTAssertFalse(screen.hasSignature(screen.arrOtherData[0]))
++    }
++
++    func testPartialSubmissionKeepsOtherEquipmentDraftAndCache() {
++        for delivery in [false, true] {
++            let full = order(3, delivery: delivery)
++            let other = notes()
++            XCTAssertTrue(savePendingCheckList(orderUniqueId: orderUid, isDelivery: delivery, objOrderData: full, arrOtherData: other))
++            let screen = CheckListUpdateViewController()
++            screen.isDeliveryType = delivery; screen.strOrderUniqueId = orderUid
++            var batch = full; batch.arrProduct = [full.arrProduct[0]]
++            screen.objOrderData = batch; screen.arrOtherData = [other[0].batchCopy()]
++            screen.cacheCompletedBatch(); screen.preserveUnsubmittedDraft()
++            let pending = getPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
++            XCTAssertEqual(pending?.order.arrProduct.compactMap(\.unique_id), ["P1", "P2"])
++            XCTAssertEqual(pending?.other.map(\.productID), [2, 3])
++            XCTAssertEqual(pending?.other[0].dEmplayessId, "D1")
++            let type = delivery ? "Delivery" : "Return"
++            XCTAssertEqual(getChecklistOrderDetailData(strOrderUniqeID: "\(type)_\(orderUid)")?.arrProduct.compactMap(\.unique_id), ["P0"])
++            batch.arrProduct = [full.arrProduct[1], full.arrProduct[2]]
++            screen.objOrderData = batch; screen.arrOtherData = [other[1], other[2]]
++            screen.cacheCompletedBatch(); screen.preserveUnsubmittedDraft()
++            XCTAssertFalse(hasPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery))
++            XCTAssertEqual(getChecklistOtherData(strOrderUniqeID: "\(type)_\(orderUid)")?.map(\.productID), [1, 2, 3])
++        }
++    }
++
++    func testDraftRestoresSharedSelectionWithoutChangingPerItemNotes() {
++        for delivery in [false, true] {
++            let shared = NoteModel()
++            shared.dEmplayessId = "SHARED-D"; shared.rEmplayessId = "SHARED-R"
++            shared.rStoreId = "SHARED-STORE"
++            let original = notes()
++            savePendingCheckList(orderUniqueId: orderUid, isDelivery: delivery,
++                                 objOrderData: order(1, delivery: delivery), arrOtherData: original)
++            for combine in [false, true] {
++                savePendingCheckListConvenience(orderUniqueId: orderUid, isDelivery: delivery, combine: combine, other: shared)
++                let loaded = getPendingCheckListConvenience(orderUniqueId: orderUid, isDelivery: delivery)
++                XCTAssertEqual(loaded?.combine, combine)
++                XCTAssertEqual(delivery ? loaded?.other.dEmplayessId : loaded?.other.rEmplayessId,
++                               delivery ? "SHARED-D" : "SHARED-R")
++                XCTAssertEqual(getPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)?.other.map(\.dEmplayessId), ["D0", "D1", "D2"])
++            }
++            clearPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
++            XCTAssertNil(getPendingCheckListConvenience(orderUniqueId: orderUid, isDelivery: delivery))
++        }
++    }
++}
+diff --git a/RentnKingTests/Hosted/DispatchOfflineFieldBridgeHostedTests.swift b/RentnKingTests/Hosted/DispatchOfflineFieldBridgeHostedTests.swift
+index 69db62f..4ecfd10 100644
+--- a/RentnKingTests/Hosted/DispatchOfflineFieldBridgeHostedTests.swift
++++ b/RentnKingTests/Hosted/DispatchOfflineFieldBridgeHostedTests.swift
+@@ -287,7 +287,8 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
+         scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: false)
+         XCTAssertEqual(scope.leftOut, ["SWAPPED-BLANK"], "blank outside a combined checklist: dropped before Phase 4 too")
+         scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: true)
+-        XCTAssertEqual(scope.blocking, ["SWAPPED-BLANK"], "a combined checklist submits every line together")
++        XCTAssertEqual(scope.leftOut, ["SWAPPED-BLANK"], "Combine never includes an untouched sibling")
++        XCTAssertEqual(scope.blocking, [])
+ 
+         scope = C.submitScope(needingConnection: [answered], combine: false)
+         XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"], "entered answers are never cleared by a partial submit")
+@@ -297,7 +298,8 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
+         XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"])
+ 
+         scope = C.submitScope(needingConnection: [answeredNoUnit], combine: false)
+-        XCTAssertEqual(scope.leftOut, ["PICKED-NOTHING-ANSWERED"], "no unit: the no-unit rule drops it, as before Phase 4")
++        XCTAssertEqual(scope.blocking, ["PICKED-NOTHING-ANSWERED"], "partial work is never silently discarded")
++        XCTAssertEqual(scope.leftOut, [])
+     }
+ 
+     // MARK: - Amendment B: company A → B → A on one phone
+diff --git a/Scripts/test-checklist-batch-policy.py b/Scripts/test-checklist-batch-policy.py
+new file mode 100644
+index 0000000..b02753f
+--- /dev/null
++++ b/Scripts/test-checklist-batch-policy.py
+@@ -0,0 +1,85 @@
++#!/usr/bin/env python3
++"""Execute actual checklist scope/signature Swift methods with lightweight model/UI stand-ins.
++
++This portable regression check does not build the UIKit app or replace hosted tests.
++Run: python3 Scripts/test-checklist-batch-policy.py [path-to-swift]
++"""
++from pathlib import Path
++import subprocess, os, sys, shutil, tempfile
++root=Path(__file__).resolve().parents[1]
++swift=sys.argv[1] if len(sys.argv)>1 else shutil.which('swift')
++if not swift:
++    sys.exit('Swift is required; pass the path to swift as the first argument.')
++vc=(root/'RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListViewController.swift').read_text()
++uvc=(root/'RentnKing/Modules/TABBAR/Home Model/Order Model/Check List/CheckListUpdateViewController.swift').read_text()
++def extract(src, marker):
++    start=src.index(marker); brace=src.index('{',start); depth=1; end=brace+1
++    while depth:
++        depth += (src[end]=='{')-(src[end]=='}'); end+=1
++    return src[start:end]
++code='''import Foundation
++struct Question { var type = "choice"; var startHours: Float = 0; var endHours: Float = 0; var startCleaning = ""; var endCleaning = ""; var selectFuleDelivery = ""; var selectFuleReturn = ""; var deliverAnswer: String?; var returnAnswer: String? }
++struct ProductModel { var unique_id: String?; var is_delivered: Bool?; var is_returned: Bool?; var start_hours: Float = 0; var end_hours: Float = 0; var fuel_initial_reading = ""; var fuel_final_reading = ""; var startCleaning: Int?; var endCleaning: Int?; var arrQuestions: [Question] = [] }
++struct OrdersModel { var arrProduct: [ProductModel] = [] }
++struct UIImage: Equatable { var value = 0; var hasValidData: Bool { value > 0 } }
++class NoteModel { var deliveryInputEntered = false; var returnInputEntered = false; var dNote = ""; var rNote = ""; var dSignature: UIImage?; var rSignature: UIImage?; var dSignatureUrl = ""; var rSignatureUrl = "" }
++class EPSignatureViewController {}
++struct AppUtility { static func PortraitMode() {} }
++struct Context { var isCompleted: Bool }
++class Entry { var checklistContexts: [String: Context] = [:]; var isDeliveryType = true
++'''
++for marker in ['func removeBlankProducts(', 'func checkQuestionsIsBlank(', 'func hasChecklistWork(', 'struct BlockedLine:', 'static func submitScope(']: code+=extract(vc,marker)+'\n'
++code+='}\nextension Array { subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil } }\nclass Preview { var isDeliveryType = true; var isCombineChecklist = false; var arrOtherData: [NoteModel] = []; func renderFinalizationState() {} ; var tblView = Table()\n'
++for marker in ['func hasSignature(', 'func hasCustomerSignature(', 'func epSignature(_: EPSignatureViewController, didSign']: code+=extract(uvc,marker)+'\n'
++code+='''}
++struct Table { func reloadData() {} }
++var failures=0
++func check(_ ok: Bool, _ message: String) { if !ok { failures+=1; print("FAIL: "+message) } else { print("PASS: "+message) } }
++let entry=Entry()
++for combine in [false,true] {
++ let blank=Entry.BlockedLine(uniqueId:"C",hasMachine:true,isBlank:true)
++ let partial=Entry.BlockedLine(uniqueId:"B",hasMachine:false,isBlank:false)
++ let scope=Entry.submitScope(needingConnection:[blank,partial],combine:combine)
++ check(scope.leftOut == ["C"] && scope.blocking == ["B"],"offline scope ignores untouched C, protects partial B; combine=\\(combine)")
++}
++for delivery in [false,true] {
++ entry.isDeliveryType=delivery
++ for count in 0...3 {
++  var order: OrdersModel? = OrdersModel(arrProduct:(0..<3).map { i in ProductModel(unique_id:"P\\(i)",arrQuestions:[Question(deliverAnswer:delivery && i<count ? "Yes":nil,returnAnswer:!delivery && i<count ? "Yes":nil)]) })
++  var other=(0..<3).map { _ in NoteModel() }
++  entry.removeBlankProducts(objOrderData:&order,arrOtherData:&other)
++  check(order?.arrProduct.count == count && other.count == count,"scope preserves aligned \\(count)-of-3; delivery=\\(delivery)")
++ }
++}
++entry.isDeliveryType=true
++var prefilled=ProductModel(unique_id:"DEFAULT",arrQuestions:[Question(type:"text",startHours:100),Question(type:"fuel",selectFuleDelivery:"8")])
++prefilled.start_hours=100; prefilled.fuel_initial_reading="8"
++let draftNote=NoteModel()
++check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"prefilled hours/fuel do not enroll untouched equipment")
++draftNote.deliveryInputEntered=true
++check(entry.hasChecklistWork(product:prefilled,other:draftNote),"explicit edits to defaults enroll equipment")
++draftNote.deliveryInputEntered=false; draftNote.rNote="opposite leg only"
++check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"opposite-leg notes never enroll this checklist")
++draftNote.dNote="partial delivery note"
++check(entry.hasChecklistWork(product:prefilled,other:draftNote),"notes-only partial work stays in scope")
++entry.checklistContexts["DEFAULT"]=Context(isCompleted:true)
++check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"completed checklist execution is excluded")
++for delivery in [false,true] {
++ for combine in [false,true] {
++  let p=Preview(); p.isDeliveryType=delivery; p.isCombineChecklist=combine; p.arrOtherData=(0..<3).map { _ in NoteModel() }
++  p.epSignature(EPSignatureViewController(),didSign:UIImage(value:1),boundingRect:.zero,strIndex:1)
++  check(p.arrOtherData.enumerated().allSatisfy { i,n in (delivery ? n.dSignature:n.rSignature) == ((combine || i==1) ? UIImage(value:1):nil) },"signature targets only selected checklist in individual mode; delivery=\\(delivery), combine=\\(combine)")
++  if !combine { check(!p.hasCustomerSignature(),"unsigned siblings block batch Submit; delivery=\\(delivery)") }
++ }
++ let p=Preview(); p.isDeliveryType=delivery; p.arrOtherData=(0..<3).map { _ in NoteModel() }
++ if delivery { p.arrOtherData[2].dSignature=UIImage(value:2) } else { p.arrOtherData[2].rSignature=UIImage(value:2) }
++ check(!p.hasCustomerSignature(),"last signature cannot satisfy other unsigned checklists; delivery=\\(delivery)")
++}
++exit(failures==0 ? 0:1)
++'''
++temporary=tempfile.TemporaryDirectory(prefix='kabba-checklist-policy-')
++p=Path(temporary.name)/'main.swift'; p.write_text(code)
++env=os.environ
++res=subprocess.run([swift,str(p)],env=env)
++temporary.cleanup()
++sys.exit(res.returncode)
+diff --git a/docs/checklist-batch-isolation.md b/docs/checklist-batch-isolation.md
+new file mode 100644
+index 0000000..b55faaf
+--- /dev/null
++++ b/docs/checklist-batch-isolation.md
+@@ -0,0 +1,56 @@
++# Independent mobile checklist batches
++
++Base: `92fbd1e64158842535fd257938553fe97d6e9680` (iOS 1.0.24 / 1010).
++
++Every order product retains its own checklist execution, answers, employee, signature,
++return location and sync operation. Combine shares employee/signature and return-store
++convenience values only with entered checklists in the current batch. Untouched rows
++do not participate; partly entered rows must pass validation. No backend changes.
++
++The mobile correction also keeps unfinished siblings in the pending draft, merges
++only submitted products into the completed cache, preserves the Combine setting and
++shared selections when restoring a draft, and ignores untouched operational defaults
++in Preview, Save and background progress. Preview uses detached note copies so Back
++does not change the source notes. Error rows map back to their original sections.
++
++## Verification so far
++
++- Executable checks against extracted production Swift scope/signature methods:
++  23 assertions pass. The original code failed 10 of the original 18 assertions.
++  The portable runner uses lightweight model/UI stand-ins; it does not build UIKit.
++- Swift syntax parsing of changed app and hosted test sources passed.
++- `git diff --check` passed.
++- Full `swift test` was attempted on the unchanged base; compilation is blocked in
++  this Linux environment by the app core's Apple `CryptoKit` dependency.
++- Xcode, simulator, hosted XCTest and device verification have **not** run here.
++
++Portable reproduction:
++
++```sh
++python3 Scripts/test-checklist-batch-policy.py
++```
++
++## Mac validation before merge/release
++
++Run `Scripts/test-sync-core.sh` and the `RentnKingHostedTests` scheme, including
++`ChecklistBatchIsolationHostedTests` and `DispatchOfflineFieldBridgeHostedTests`.
++Build the `RentnKing` app target. The new hosted tests are registered in the project.
++
++On a three-equipment order, check Delivery and Return in both Combine modes:
++
++1. Complete only A; Preview contains A, and B/C stay open with their own drafts.
++2. Complete A+B; Preview contains A+B, and C stays open. In individual mode, sign
++   A and B separately; Submit remains disabled until both are signed.
++3. Complete all three; combined mode uses one employee selection/signature while
++   still creating three independent operations.
++4. Partially enter B; Preview refuses to discard it and points to B's missing row.
++5. Leave everything untouched, including prefilled hours/fuel; no batch or prepare
++   operation should be created. Selecting only a shared employee/store adds no row.
++6. Back/cancel Preview and signature capture; other equipment's values stay intact.
++7. Background/reopen a draft and finish a partial batch; the remaining rows and
++   saved convenience selections survive, including the last single remaining row.
++8. Reopen a completed report after a partial batch; it contains only the submitted
++   products. Subsequent completed batches merge into that report by product ID.
++
++No app version/build bump, upload, App Store submission or backend deployment is
++part of this change.
