@@ -710,6 +710,15 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     /// server flag (checkCheckListStatus) ∨ a durable Sync Engine completion op
     /// for any of the order's products — with a delivery completion still
     /// syncing, Return opens and Delivery never reopens the create flow.
+    /// The completed report opens only when the leg is finished ON THIS PHONE: a partial batch
+    /// keeps the unsubmitted lines in the pending draft, and while that draft exists the tile
+    /// opens the checklist flow where those lines are — never a report that hides them.
+    func legOpensCompletedReport(isDelivery: Bool) -> Bool {
+        guard self.objOrderData != nil else { return false }
+        return self.effectiveLegCompleted(isDelivery: isDelivery)
+            && !hasPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: isDelivery)
+    }
+
     func effectiveLegCompleted(isDelivery: Bool) -> Bool {
         if self.checkCheckListStatus(isDelivery: isDelivery) { return true }
         guard self.objOrderData != nil else { return false }
@@ -1454,7 +1463,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         let missionProduct = self.missionStage == nil ? nil : self.objOrderData.arrProduct.first { $0.unique_id == self.strProductID }
         let legDone = missionProduct.map {
             CustomerSiteNavigation.checklistComplete(product: $0, isDeliveryLeg: true, operations: self.operationsSnapshot())
-        } ?? self.effectiveLegCompleted(isDelivery: true)
+        } ?? self.legOpensCompletedReport(isDelivery: true)
         if legDone {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
@@ -1505,7 +1514,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             return
         }
 
-        if self.effectiveLegCompleted(isDelivery: false) {
+        if self.legOpensCompletedReport(isDelivery: false) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true

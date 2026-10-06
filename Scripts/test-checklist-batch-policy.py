@@ -18,7 +18,10 @@ def extract(src, marker):
         depth += (src[end]=='{')-(src[end]=='}'); end+=1
     return src[start:end]
 code='''import Foundation
-struct Question { var type = "choice"; var startHours: Float = 0; var endHours: Float = 0; var startCleaning = ""; var endCleaning = ""; var selectFuleDelivery = ""; var selectFuleReturn = ""; var deliverAnswer: String?; var returnAnswer: String? }
+#if canImport(CoreGraphics)
+import CoreGraphics // macOS: CGRect.zero lives here, not in Foundation (Linux has it in Foundation)
+#endif
+struct Question { var type = "choice"; var startHours: Float = 0; var endHours: Float = 0; var startCleaning = ""; var endCleaning = ""; var selectFuleDelivery: String? = ""; var selectFuleReturn: String? = ""; var deliverAnswer: String?; var returnAnswer: String? }
 struct ProductModel { var unique_id: String?; var is_delivered: Bool?; var is_returned: Bool?; var start_hours: Float = 0; var end_hours: Float = 0; var fuel_initial_reading = ""; var fuel_final_reading = ""; var startCleaning: Int?; var endCleaning: Int?; var arrQuestions: [Question] = [] }
 struct OrdersModel { var arrProduct: [ProductModel] = [] }
 struct UIImage: Equatable { var value = 0; var hasValidData: Bool { value > 0 } }

@@ -896,7 +896,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 
             
             //CHECK DELIVERY CHECKLIST
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: true){
+            if self.checkListOpensReport(selectIndex: indexPath.row, isDelivery: true){
                 cell.lblCheckListDeliv.textColor = .background
                 imgColor(imgColor: cell.imgCheckListDeliv, colorHex: .background)
                 cell.viewCheckListDeliv.backgroundColor = .secondary
@@ -909,7 +909,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
       
             //CHECK RETURN CHECKLIST
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: false){
+            if self.checkListOpensReport(selectIndex: indexPath.row, isDelivery: false){
                 cell.lblCheckListRet.textColor = .background
                 imgColor(imgColor: cell.imgCheckListRet, colorHex: .background)
                 cell.viewCheckListRet.backgroundColor = .secondary
@@ -1055,7 +1055,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 //        
         let objData = self.arrOrderList[sender.tag]
     
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: true){
+        if self.checkListOpensReport(selectIndex: sender.tag, isDelivery: true){
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isUpdateData = true
@@ -1090,7 +1090,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         
         let objData = self.arrOrderList[sender.tag]
         
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: false){
+        if self.checkListOpensReport(selectIndex: sender.tag, isDelivery: false){
             
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
@@ -1356,6 +1356,14 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 //        return false
 //    }
 //
+    /// Same rule as Order Details: a leg opens (and shows as) the completed report only once no
+    /// pending draft remains — a partial batch leaves its unsubmitted lines there to finish.
+    func checkListOpensReport(selectIndex: Int, isDelivery: Bool) -> Bool {
+        guard self.arrOrderList.indices.contains(selectIndex) else { return false }
+        return self.checkCheckListStatus(selectIndex: selectIndex, isDelivery: isDelivery)
+            && !hasPendingCheckList(orderUniqueId: self.arrOrderList[selectIndex].unique_id ?? "", isDelivery: isDelivery)
+    }
+
     func checkCheckListStatus(selectIndex: Int, isDelivery : Bool) -> Bool{
         //GET DATA
         if self.arrOrderList.count == 0{

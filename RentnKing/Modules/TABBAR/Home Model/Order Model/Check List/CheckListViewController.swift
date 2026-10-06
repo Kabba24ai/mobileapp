@@ -532,7 +532,6 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     
     
     func callCheckListAPI(index : Int){
-        self.markChecklistInput(at: self.selectProductIndex)
         // Applying a pick changes the rows below — remember the scroll position so the
         // follow-up reloads don't push the screen up.
         self.pickerSavedOffset = self.tblView.contentOffset
@@ -600,7 +599,7 @@ extension CheckListViewController{
                 let initial = isDeliveryType ? product.start_hours : product.end_hours
                 return value != 0 && value != initial
             case "fuel":
-                let value = isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn
+                let value = (isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn) ?? ""
                 let initial = isDeliveryType ? product.fuel_initial_reading : product.fuel_final_reading
                 return !value.isEmpty && value != initial
             case "cleaning":
@@ -1002,7 +1001,10 @@ extension CheckListViewController{
         
         
         let errors = checkQuestions(objOrderData: objTempOrderData!)
-        if self.checkMachineData(objOrderData: objTempOrderData!) == false{
+        if let missing = batchOrder.arrProduct.first(where: { $0.objMachine == nil }) {
+            // A partial line without a unit blocks; point at THAT line (batch index ≠ screen section).
+            focusChecklistProblem(productUniqueId: missing.unique_id, inFooter: false)
+            showAlertMessage(strMessage: "Please select an equipment ID for \(missing.product_name ?? "this equipment").")
             return
         }
         else if let first = errors.first {
@@ -1011,7 +1013,9 @@ extension CheckListViewController{
             scrollToCell(indexPath: IndexPath(row: first.row, section: originalSection), isError: true)
             return
         }
-        else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
+        else if self.checkOtherData(arrOtherData: arrTempOtherData, onFailure: { batchIndex in
+            self.focusChecklistProblem(productUniqueId: batchOrder.arrProduct[safe: batchIndex]?.unique_id, inFooter: true)
+        }) == false{
             return
         }
         else{
@@ -1194,10 +1198,12 @@ extension CheckListViewController{
         return true
     }
     
-    func checkOtherData(arrOtherData : [NoteModel]) -> Bool{
-        for obj in arrOtherData{
+    /// `onFailure` receives the failing row's index in `arrOtherData` (the batch) before the alert.
+    func checkOtherData(arrOtherData : [NoteModel], onFailure: ((Int) -> Void)? = nil) -> Bool{
+        for (index, obj) in arrOtherData.enumerated(){
             if self.isDeliveryType{
                 if obj.dEmplayessId == "" || obj.dEmplayessId == "0"{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select who delivered the equipment.")
                     return false
                 }
@@ -1209,10 +1215,12 @@ extension CheckListViewController{
             }
             else{
                 if obj.rEmplayessId == "" ||  obj.rEmplayessId == "0"{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select who returned the equipment.")
                     return false
                 }
                 else if obj.rStoreId == ""{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select a location.")
                     return false
                 }
@@ -1229,6 +1237,29 @@ extension CheckListViewController{
 }
 
 
+
+extension CheckListViewController {
+    /// Brings a Preview problem's ORIGINAL line on screen. The batch has had untouched
+    /// lines removed, so its indexes are not the screen's sections. The unit picker is the
+    /// section header; employee/location sit in the footer, which Combine shows under the
+    /// last line only.
+    func focusChecklistProblem(productUniqueId uid: String?, inFooter: Bool) {
+        guard let target = focusSection(productUniqueId: uid, inFooter: inFooter) else { return }
+        DispatchQueue.main.async {
+            guard target < self.tblView.numberOfSections else { return }
+            let rect = inFooter ? self.tblView.rectForFooter(inSection: target) : self.tblView.rectForHeader(inSection: target)
+            self.tblView.scrollRectToVisible(rect, animated: true)
+        }
+    }
+
+    /// The screen section that shows a line's problem: its own section, except the shared
+    /// employee/location footer, which Combine shows under the last line.
+    func focusSection(productUniqueId uid: String?, inFooter: Bool) -> Int? {
+        guard let products = self.objOrderData?.arrProduct,
+              let section = products.firstIndex(where: { $0.unique_id == uid }) else { return nil }
+        return inFooter && self.isCombineChecklist ? products.count - 1 : section
+    }
+}
 
 extension CheckListViewController:  UITextViewDelegate{
     
@@ -2888,7 +2919,10 @@ extension CheckListViewController {
 
         guard let context = self.focusedChecklistContext, context.equipment.hasUnit else {
             // No canonical assignment yet — the first selection is still a
-            // plain local choice that the checklist Save will carry.
+            // plain local choice that the checklist Save will carry, so it is
+            // this product's own input. (A reassignment below restarts the
+            // product instead: its input flag stays cleared.)
+            self.markChecklistInput(at: self.selectProductIndex)
             self.callCheckListAPI(index: index)
             return
         }

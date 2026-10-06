@@ -120,6 +120,82 @@ final class ChecklistBatchIsolationHostedTests: XCTestCase {
         XCTAssertEqual(screen.checkQuestions(objOrderData: scoped!), [IndexPath(row: 1, section: 1)])
     }
 
+    /// A unit pick is the line's own input only as a FIRST selection (the caller marks it).
+    /// A reassignment restarts the line — its flag is cleared — and applying the replacement
+    /// unit must not re-enrol it: a restarted sibling with no answers stays out of the batch.
+    func testApplyingAUnitDoesNotEnrolARestartedLine() {
+        for delivery in [false, true] {
+            let screen = CheckListViewController()
+            let table = UITableView()                     // tblView is weak: keep it alive
+            screen.tblView = table
+            screen.isDeliveryType = delivery
+            screen.objOrderData = order(0, delivery: delivery)
+            screen.arrOtherData = notes()
+            screen.arrMachineList = [MachineModel(map: Map(mappingType: .fromJSON, JSON: ["id": 7, "unique_id": "EQ-7"]))!]
+            screen.selectProductIndex = 1
+
+            screen.callCheckListAPI(index: 0)
+            // The pick reloads the table 0.5 s later; let that finish while the table is alive.
+            RunLoop.current.run(until: Date().addingTimeInterval(0.7))
+
+            XCTAssertEqual(screen.objOrderData.arrProduct[1].objMachine?.unique_id, "EQ-7")
+            let flag = delivery ? screen.arrOtherData[1].deliveryInputEntered : screen.arrOtherData[1].returnInputEntered
+            XCTAssertFalse(flag, "applying a unit leaves the line's input flag as the caller set it")
+            XCTAssertFalse(screen.hasChecklistWork(product: screen.objOrderData.arrProduct[1], other: screen.arrOtherData[1]))
+            var scoped: OrdersModel? = screen.objOrderData
+            var other = screen.arrOtherData
+            screen.removeBlankProducts(objOrderData: &scoped, arrOtherData: &other)
+            XCTAssertEqual(scoped?.arrProduct.count, 0, "a restarted line with only a unit is not part of the batch")
+            withExtendedLifetime(table) {}
+        }
+    }
+
+    /// Problems found in the batch point at the ORIGINAL line on screen: only C entered,
+    /// no unit → C's own section; a missing shared employee/location → the footer that
+    /// shows it (Combine: under the last line).
+    func testValidationFocusMapsTheBatchLineBackToItsScreenSection() {
+        for combine in [false, true] {
+            let screen = CheckListViewController()
+            screen.isDeliveryType = false
+            screen.isCombineChecklist = combine
+            var full = order(0, delivery: false)
+            full.arrProduct[2] = product(2, answered: true, delivery: false)   // only C has work
+            screen.objOrderData = full
+            var scoped: OrdersModel? = full
+            var other = notes()
+            screen.removeBlankProducts(objOrderData: &scoped, arrOtherData: &other)
+            XCTAssertEqual(scoped?.arrProduct.compactMap(\.unique_id), ["P2"])
+            let batchLine = scoped!.arrProduct[0]
+            XCTAssertNil(batchLine.objMachine, "C has answers but no unit: Preview must block on C")
+            XCTAssertEqual(screen.focusSection(productUniqueId: batchLine.unique_id, inFooter: false), 2)
+            XCTAssertEqual(screen.focusSection(productUniqueId: "P0", inFooter: true), combine ? 2 : 0)
+            XCTAssertNil(screen.focusSection(productUniqueId: "UNKNOWN", inFooter: false))
+        }
+    }
+
+    /// After a partial batch the leg already counts as done (one line is), yet the other lines
+    /// are still in this phone's pending draft: Order Details must open the checklist flow, not
+    /// the completed report that would hide them. With nothing pending, the report opens again.
+    func testAPartialBatchKeepsTheRemainingLinesReachableFromOrderDetails() {
+        for delivery in [false, true] {
+            let details = OrderDetailsViewController()
+            details.strOrderUniqueId = orderUid
+            var full = OrdersListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
+            full.unique_id = orderUid
+            full.arrProduct = order(3, delivery: delivery).arrProduct
+            for index in full.arrProduct.indices { full.arrProduct[index].is_delivered = !delivery || index == 0 }
+            if !delivery { full.arrProduct[0].is_returned = true }
+            details.objOrderData = full
+
+            XCTAssertTrue(details.effectiveLegCompleted(isDelivery: delivery), "one line done: the leg has started")
+            XCTAssertTrue(details.legOpensCompletedReport(isDelivery: delivery), "nothing pending on this phone: the report")
+            savePendingCheckList(orderUniqueId: orderUid, isDelivery: delivery, objOrderData: order(3, delivery: delivery), arrOtherData: notes())
+            XCTAssertFalse(details.legOpensCompletedReport(isDelivery: delivery), "B/C still in the draft: the checklist flow")
+            clearPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
+            XCTAssertTrue(details.legOpensCompletedReport(isDelivery: delivery))
+        }
+    }
+
     func testSharedConvenienceFieldsOnlyAffectDetachedBatchCopies() {
         for delivery in [false, true] {
             for combine in [false, true] {

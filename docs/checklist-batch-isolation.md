@@ -1,6 +1,6 @@
 # Independent mobile checklist batches
 
-Base: `92fbd1e64158842535fd257938553fe97d6e9680` (iOS 1.0.24 / 1010).
+Base: `92fbd1e64158842535fd257938553fe97d6e9680` (iOS 1.0.24 / 1010); ships as 1.0.25 (1011).
 
 Every order product retains its own checklist execution, answers, employee, signature,
 return location and sync operation. Combine shares employee/signature and return-store
@@ -54,3 +54,37 @@ On a three-equipment order, check Delivery and Return in both Combine modes:
 
 No app version/build bump, upload, App Store submission or backend deployment is
 part of this change.
+
+## Mac validation (2026-10-06, Xcode 26.5 / 17F42, iPhone 17 simulator)
+
+Found and fixed while validating on the Mac:
+
+1. **Compile error** — `hasChecklistWork` compared the question's `selectFuleDelivery` /
+   `selectFuleReturn` (`String?` in the app model) as a `String`; a nil fuel selection now
+   counts as no input. The portable script's stand-in model now mirrors that optional type
+   (the Linux run could not catch it).
+2. **Portable script on macOS** — the generated Swift needs `import CoreGraphics` for
+   `CGRect.zero` on macOS (Linux has it in Foundation).
+3. **Reassignment re-enrolled a restarted line** — `discardLocalPreparation` cleared the
+   line's input flag, then `callCheckListAPI` set it again. Only a FIRST unit selection is
+   the line's own input now (marked by its caller); a reassignment leaves the flag cleared.
+4. **Preview pointed nowhere for a missing unit / employee / location** — the batch
+   (untouched lines removed) is mapped back to the screen section: the unit header for a
+   line without a unit (the alert names it), the footer for employee/location (Combine:
+   under the last line).
+5. **Remaining lines hidden behind the completed report** — after a partial batch, Order
+   Details and the Orders list treated the leg as finished (one line done) and opened the
+   completed report, hiding the lines this change keeps in the draft. A leg opens the
+   report only once no pending draft remains for it; the Return gate is unchanged.
+
+Results: portable policy script 23/23 (Mac Swift), `Scripts/test-sync-core.sh` 679/679,
+`RentnKingHostedTests` 168/168 (ChecklistBatchIsolationHostedTests 12, DispatchOfflineField-
+BridgeHostedTests 16), app + extension build. Simulator UI smoke
+(`ChecklistBatchIsolationUITests`, staging seed `RentnKingUITests/ChecklistBatchIsolation-
+StagingSeed.php`) — Delivery and Return, Combine ON and OFF, server state checked per line:
+untouched/shared-only refused; only the third line; one, two and all three lines across
+partial batches; Back from Preview keeps every row; Save sends `prepare` for the entered
+line only; background + cold relaunch restores the draft; the last remaining line (toggle
+hidden) keeps the shared employee; per-line employees and signatures (distinct signature
+media); partial line and no-unit line block and are pointed at; a return damage charge lands
+only on its own line; no operation for any untouched line.
