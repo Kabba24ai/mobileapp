@@ -425,11 +425,18 @@ final class EquipmentAuditDeviceAcceptanceUITests: XCTestCase {
         sleep(3)
         // Nothing is tapped until the runner itself proves there is no connection.
         XCTAssertNil(apiStatus(), "the phone is still online — refusing to tap anything")
-        table.swipeDown(velocity: .slow)
-        sleep(4)
-        let freshness = app.staticTexts["equipmentAudit.freshness"].label
-        note("offline banner: \(freshness)")
-        XCTAssertTrue(freshness.hasPrefix("Offline"), freshness)
+        // The board learns it is offline from its next refresh; one already in flight when the
+        // network dropped can hang until it times out (pulls are ignored meanwhile), so keep pulling.
+        let freshness = app.staticTexts["equipmentAudit.freshness"]
+        let started = Date()
+        let offline = waitFor(timeout: 60) {
+            if freshness.label.hasPrefix("Offline") { return true }
+            self.table.swipeDown(velocity: .slow)
+            sleep(4)
+            return freshness.label.hasPrefix("Offline")
+        }
+        note("offline banner after \(Int(Date().timeIntervalSince(started))) s: \(freshness.label)")
+        XCTAssertTrue(offline, freshness.label)
         shoot("P8-offline-banner")
 
         let verify = table.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.verify.'")).firstMatch
