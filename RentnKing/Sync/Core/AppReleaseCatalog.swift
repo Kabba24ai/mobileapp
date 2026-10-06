@@ -44,6 +44,13 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.24", notes: [
+            "Equipment Audit on the phone: open an audit, see your assigned section and verify units with one tap",
+            "Search by name or Equipment ID and filter the board by section",
+            "Record a location mismatch, mark a unit Unresolved or move it Off-Site with the same rules as the web audit",
+            "Clear messages when there is no connection — an audit action is never recorded offline",
+            "Various fixes and refinements",
+        ]),
         AppRelease(version: "1.0.23", notes: [
             "Improved driver delivery workflow with stronger offline support",
             "Guided customer-call verification before departure",
