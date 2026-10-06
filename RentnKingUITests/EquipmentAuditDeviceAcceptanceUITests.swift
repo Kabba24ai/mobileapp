@@ -1,9 +1,10 @@
 //
 //  EquipmentAuditDeviceAcceptanceUITests.swift
 //  RentnKingUITests — physical-iPhone acceptance for the mobile Equipment Audit
-//  (2026-10-05). Runs ONLY against a staging Laravel seeded with
+//  (2026-10-05). A–G run ONLY against a staging Laravel seeded with
 //  EquipmentAuditStagingSeed-style data (the device seed: 26 Skid Steer units,
-//  John = Bon Aqua Section Auditor) — never production. Every step attaches a
+//  John = Bon Aqua Section Auditor) — never production; P is the read-only
+//  production smoke. Every step attaches a
 //  screenshot (export with `xcresulttool export attachments`) for review.
 //
 //    A  Home tile / list / board landing, canonical sort, filters, search (read-only)
@@ -18,6 +19,8 @@
 //    F  server unreachable drill (opt-in, KABBA_SERVER_DRILL=1): the Mac stops
 //       Laravel when it sees the marker request, restarts it 20 s later
 //    G  Off-Site form keyboard flow (Return walks the fields; Cancel moves nothing)
+//    P  PRODUCTION smoke on a Release build with the session already signed in on
+//       the phone — read-only walkthrough (P1) and offline wording (P2, then Z)
 //
 //  Env (runner): KABBA_BASE_URL, KABBA_PASSWORD.
 //
@@ -332,6 +335,151 @@ final class EquipmentAuditDeviceAcceptanceUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()   // Cancel — nothing moved
         XCTAssertTrue(app.cells["equipmentAudit.row.TAK-SS-5"].waitForExistence(timeout: 10))
         XCTAssertEqual(detailState("TAK-SS-5"), "Needs Verification")
+    }
+
+    // MARK: - P. Production smoke (Release build, the session signed in on the phone)
+    //
+    // Harness-free — no launch arguments, so it runs on a Release build — and
+    // read-only: filters, search and the Off-Site form are opened and dismissed,
+    // nothing is submitted. P2 taps Verify only after proving the phone has no
+    // connection (Equipment Audit never queues), then Z restores the network —
+    // run P2 and Z in ONE invocation (a reinstalled runner cannot launch offline).
+    // Runner env: KABBA_BASE_URL = the production API base (an unauthenticated GET → 401).
+
+    func test_P1_production_read_only_walkthrough() {
+        attachToSignedInApp()
+        let tile = app.buttons["home.equipmentAudit"]
+        XCTAssertLessThan(tile.frame.maxY, app.tabBars.firstMatch.frame.minY, "tile clear of the tab bar")
+        shoot("P1-home")
+
+        openFirstAudit(listShot: "P2-list")
+        note("board: \(app.staticTexts["equipmentAudit.title"].label) · \(app.staticTexts["equipmentAudit.progress"].label)")
+        note("sections (default view): \(sectionHeaders())")
+        let rows = table.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.row.'"))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 15), "the board shows units")
+        note("first rows: \(rows.allElementsBoundByIndex.prefix(6).map { $0.label })")
+        shoot("P3-board")
+
+        // Filters: All, then back to the default.
+        openFilter()
+        app.buttons["equipmentAudit.filter.all"].tap()
+        app.buttons["equipmentAudit.filter.apply"].tap()
+        sleep(1)
+        note("sections (All): \(sectionHeaders())")
+        shoot("P4-filter-all")
+        openFilter()
+        app.buttons["equipmentAudit.filter.mine"].tap()
+        if app.buttons["equipmentAudit.filter.apply"].exists { app.buttons["equipmentAudit.filter.apply"].tap() }
+        sleep(1)
+
+        // Search by Equipment ID and by name.
+        let first = rows.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        let id = String(first.identifier.dropFirst("equipmentAudit.row.".count))
+        search(id)
+        XCTAssertTrue(app.cells["equipmentAudit.row.\(id)"].waitForExistence(timeout: 5), "search by Equipment ID")
+        XCTAssertEqual(app.keyboards.count, 0, "submitting the search puts the keyboard away")
+        shoot("P5-search-id")
+        let word = first.label.components(separatedBy: " ").first ?? ""
+        if word.count >= 3 {
+            search(word)
+            XCTAssertTrue(app.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.row.'")).firstMatch.waitForExistence(timeout: 5), "search by name '\(word)'")
+            shoot("P6-search-name")
+        }
+        clearSearch()
+
+        // Off-Site form: open it from the first unit that offers it, look, Cancel.
+        var opened = false
+        for candidate in rows.allElementsBoundByIndex.prefix(8) where !opened {
+            let unit = String(candidate.identifier.dropFirst("equipmentAudit.row.".count))
+            let more = app.buttons["equipmentAudit.more.\(unit)"]
+            guard more.exists, more.isHittable else { continue }
+            let stateBefore = detailState(unit)
+            more.tap()
+            let item = app.sheets.buttons["Move Off-Site…"]
+            if item.waitForExistence(timeout: 4) {
+                choose("Move Off-Site…")
+                XCTAssertTrue(app.buttons["equipmentAudit.offSite.submit"].waitForExistence(timeout: 20), "the Off-Site form opened")
+                XCTAssertTrue(app.descendants(matching: .any)["equipmentAudit.offSite.source"].exists, "Drivable Supplier / Manual Entry")
+                XCTAssertTrue(app.textFields["equipmentAudit.offSite.reason"].exists, "Reason")
+                XCTAssertTrue(app.textFields["equipmentAudit.offSite.notes"].exists, "Notes")
+                note("off-site form for \(unit)")
+                shoot("P7-off-site-form")
+                app.navigationBars.buttons.element(boundBy: 0).tap()        // Cancel — nothing moved
+                XCTAssertTrue(app.cells["equipmentAudit.row.\(unit)"].waitForExistence(timeout: 10))
+                XCTAssertEqual(detailState(unit), stateBefore, "cancelling changed nothing")
+                opened = true
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.04)).tap()   // dismiss the menu
+                sleep(1)
+            }
+        }
+        if !opened { note("no unit on screen offers Move Off-Site (permission or location)") }
+    }
+
+    func test_P2_production_offline_wording() throws {
+        attachToSignedInApp()
+        openFirstAudit(listShot: nil)
+        try setAirplaneMode(true)
+        app.activate()
+        sleep(3)
+        // Nothing is tapped until the runner itself proves there is no connection.
+        XCTAssertNil(apiStatus(), "the phone is still online — refusing to tap anything")
+        table.swipeDown(velocity: .slow)
+        sleep(4)
+        let freshness = app.staticTexts["equipmentAudit.freshness"].label
+        note("offline banner: \(freshness)")
+        XCTAssertTrue(freshness.hasPrefix("Offline"), freshness)
+        shoot("P8-offline-banner")
+
+        let verify = table.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.verify.'")).firstMatch
+        guard verify.waitForExistence(timeout: 5), verify.isHittable else { note("no Verify button on screen"); return }
+        let unit = String(verify.identifier.dropFirst("equipmentAudit.verify.".count))
+        let stateBefore = detailState(unit)
+        XCTAssertNil(apiStatus(), "still offline")
+        verify.tap()
+        let alert = app.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 30))
+        let message = alert.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+        note("offline verify: \(message)")
+        shoot("P9-offline-verify")
+        if alert.label == "Equipment Audit" {
+            XCTAssertTrue(message.contains("nothing was recorded"), message)
+            alert.buttons["OK"].tap()
+        } else {
+            // A question before sending (mismatch, Verified By): back out — offline, nothing could leave anyway.
+            let cancel = alert.buttons["Cancel"]
+            if cancel.exists { cancel.tap() } else { alert.buttons.element(boundBy: alert.buttons.count - 1).tap() }
+        }
+        XCTAssertEqual(detailState(unit), stateBefore, "no pretend success")
+    }
+
+    /// The session already on the phone: a plain launch (no harness arguments).
+    private func attachToSignedInApp() {
+        app = XCUIApplication()
+        app.launch()
+        dismissSaveSheets()
+        let tile = app.buttons["home.equipmentAudit"]
+        if !tile.waitForExistence(timeout: 45) {
+            XCTAssertFalse(app.buttons["login.button"].exists, "sign in on the phone first — this test never types credentials")
+        }
+        XCTAssertTrue(tile.waitForExistence(timeout: 5), "Equipment Audit tile on Home")
+    }
+
+    private func openFirstAudit(listShot: String?) {
+        tap(app.buttons["home.equipmentAudit"])
+        let audits = app.cells.matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.audit.'"))
+        XCTAssertTrue(audits.firstMatch.waitForExistence(timeout: 30), "an active audit is listed")
+        note("audits: \(audits.allElementsBoundByIndex.map { $0.identifier + " — " + $0.label })")
+        if let shot = listShot { shoot(shot) }
+        audits.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["equipmentAudit.progress"].waitForExistence(timeout: 30), "the board loaded")
+        XCTAssertTrue(waitFor(timeout: 30) { self.app.staticTexts["equipmentAudit.freshness"].label.hasPrefix("Updated") }, "the board is current")
+    }
+
+    private func sectionHeaders() -> [String] {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'equipmentAudit.section.'"))
+            .allElementsBoundByIndex.map { $0.identifier + " " + $0.label }
     }
 
     // MARK: - Helpers
