@@ -43,7 +43,9 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
     private var refreshTimer: Timer?
     private var foregroundObserver: NSObjectProtocol?
 
-    // Fixed header
+    // Summary header — the table's header view, so it scrolls away and the
+    // whole screen is rows while working through a section (section headers stay pinned).
+    private let headerContainer = UIView()
     private let headerStack = UIStackView()
     private let titleLabel = UILabel()
     private let progressLabel = UILabel()
@@ -127,7 +129,8 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
         headerStack.axis = .vertical
         headerStack.spacing = 6
         headerStack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(headerStack)
+        headerContainer.backgroundColor = Palette.page
+        headerContainer.addSubview(headerStack)
 
         titleLabel.font = .systemFont(ofSize: 17, weight: .bold)
         titleLabel.textColor = Palette.ink
@@ -199,10 +202,29 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
         headerStack.setCustomSpacing(2, after: chips)
 
         NSLayoutConstraint.activate([
-            headerStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
-            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            headerStack.topAnchor.constraint(equalTo: headerContainer.topAnchor, constant: 8),
+            headerStack.leadingAnchor.constraint(equalTo: headerContainer.leadingAnchor, constant: 14),
+            headerStack.trailingAnchor.constraint(equalTo: headerContainer.trailingAnchor, constant: -14),
+            headerStack.bottomAnchor.constraint(equalTo: headerContainer.bottomAnchor, constant: -6),
         ])
+    }
+
+    /// A table header view is sized by frame: fit it to its content at the table's width.
+    private func sizeHeaderToFit() {
+        let width = table.bounds.width
+        guard width > 0 else { return }
+        let height = headerContainer.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+                                                             withHorizontalFittingPriority: .required,
+                                                             verticalFittingPriority: .fittingSizeLevel).height
+        if abs(headerContainer.frame.height - height) > 0.5 || abs(headerContainer.frame.width - width) > 0.5 {
+            headerContainer.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            table.tableHeaderView = headerContainer
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        sizeHeaderToFit()
     }
 
     private func buildTable() {
@@ -232,8 +254,9 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
         backgroundLabel.accessibilityIdentifier = "equipmentAudit.empty"
         loadingSpinner.color = Palette.cyan
 
+        table.tableHeaderView = headerContainer
         NSLayoutConstraint.activate([
-            table.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 6),
+            table.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             table.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             table.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             table.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -305,16 +328,19 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
         let working = board.store(workingStoreId)
         workingButton.setTitle("📍 Working at: \(working?.name ?? "Not set") ▾", for: .normal)
         workingButton.isHidden = !board.can.verify
-        // Only needed where a section has no Section Auditor to default to.
-        let needsFallback = board.can.verify && board.sections.contains { s in s.rows.contains { $0.verifiedByDefault == nil && $0.state != .verified } }
+        shownSections = query.trimmingCharacters(in: .whitespaces).isEmpty
+            ? EquipmentAuditPresentation.orderedSections(board, visible: visibleKeys)
+            : EquipmentAuditPresentation.search(board, query: query)
+
+        // Only when a section on screen has no Section Auditor to default to —
+        // decided by the sections, not by row states, so a refresh never jumps the list.
+        let needsFallback = board.can.verify && shownSections.contains { $0.auditor == nil && !$0.rows.isEmpty }
         verifyingButton.isHidden = !needsFallback
         let fallback = EquipmentAuditPresentation.unassignedSectionVerifier(board, fallbackEmployeeId: verifyingAsId)
         verifyingButton.setTitle("Sections with no Section Auditor — Verified By: \(fallback?.name ?? "choose") ▾", for: .normal)
 
-        shownSections = query.trimmingCharacters(in: .whitespaces).isEmpty
-            ? EquipmentAuditPresentation.orderedSections(board, visible: visibleKeys)
-            : EquipmentAuditPresentation.search(board, query: query)
         table.reloadData()
+        sizeHeaderToFit()
 
         if shownSections.isEmpty {
             showBackground(spinner: false, text: query.isEmpty ? "No sections selected. Use the filter to choose sections." : "No unit in this audit matches “\(query)”.")
@@ -324,6 +350,7 @@ final class EquipmentAuditBoardViewController: UIViewController, UITableViewData
     }
 
     private func updateFreshness() {
+        defer { sizeHeaderToFit() }   // the offline wording runs to two lines
         if let confirmation = lastConfirmation, Date().timeIntervalSince(confirmation.at) < Self.confirmationSeconds {
             freshnessLabel.text = "✓ " + confirmation.text
             freshnessLabel.textColor = Palette.greenText

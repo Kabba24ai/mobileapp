@@ -104,6 +104,9 @@ final class EquipmentAuditOffSiteViewController: UIViewController, UITextFieldDe
         field.textColor = Palette.ink
         field.keyboardAppearance = .dark
         field.delegate = self
+        // Return walks the form; the last field's Done puts the keyboard away so
+        // nothing (the app-wide keyboard toolbar included) sits over Move Off-Site.
+        field.returnKeyType = key == Self.fieldOrder.last ? .done : .next
         field.accessibilityIdentifier = "equipmentAudit.offSite.\(key)"
         field.heightAnchor.constraint(equalToConstant: 40).isActive = true
         fields[key] = field
@@ -318,8 +321,27 @@ final class EquipmentAuditOffSiteViewController: UIViewController, UITextFieldDe
         present(alert, animated: true)
     }
 
+    private static let fieldOrder = ["location_name", "address_line_1", "address_line_2", "city", "zip_code",
+                                     "contact_name", "contact_phone", "reason", "notes"]
+
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
-        textField.resignFirstResponder()
+        guard let key = fields.first(where: { $0.value === textField })?.key,
+              let index = Self.fieldOrder.firstIndex(of: key) else {
+            textField.resignFirstResponder()
+            return true
+        }
+        // The next field that is on screen (manual-entry fields are hidden for a supplier).
+        let next = Self.fieldOrder[(index + 1)...].compactMap { fields[$0] }.first { !$0.isHiddenInStack }
+        if let next = next { next.becomeFirstResponder() } else { textField.resignFirstResponder() }
         return true
+    }
+}
+
+private extension UIView {
+    /// Hidden itself or inside a hidden stack (the manual-entry group).
+    var isHiddenInStack: Bool {
+        var view: UIView? = self
+        while let v = view { if v.isHidden { return true }; view = v.superview }
+        return false
     }
 }

@@ -80,7 +80,7 @@ final class EquipmentAuditFilterViewController: UITableViewController {
         let section = board.sections[indexPath.row]
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: "section")
         cell.textLabel?.text = section.assignedToMe ? "\(section.label) — Assigned to You" : section.label
-        cell.detailTextLabel?.text = "\(section.counts.total) units · " + EquipmentAuditPresentation.sectionProgress(section)
+        cell.detailTextLabel?.text = "\(section.counts.total) \(section.counts.total == 1 ? "unit" : "units") · " + EquipmentAuditPresentation.sectionProgress(section)
         cell.detailTextLabel?.textColor = .secondaryLabel
         cell.accessoryType = selected.contains(section.key) ? .checkmark : .none
         cell.accessibilityIdentifier = "equipmentAudit.filter.\(section.key)"

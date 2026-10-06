@@ -36,14 +36,16 @@ struct EquipmentAuditFailure: Error {
 
     static func from(_ error: APIError) -> EquipmentAuditFailure {
         if error.isTransportFailure {
-            return .offline
+            return EquipmentAuditFailure(message: EquipmentAuditPresentation.failureMessage(statusCode: nil, transport: error.transport ?? .other, serverMessage: ""),
+                                         code: nil, statusCode: nil, isOffline: true, validationErrors: [:], context: nil)
         }
         if error.statusCode == 403 {
             return EquipmentAuditFailure(message: "Your account does not have permission for this Equipment Audit action.",
                                          code: error.code, statusCode: 403, isOffline: false, validationErrors: [:], context: nil)
         }
         let first = error.validationErrors.values.first?.first
-        return EquipmentAuditFailure(message: (error.statusCode == 422 ? first : nil) ?? error.employeeMessage,
+        let serverMessage = (error.statusCode == 422 ? first : nil) ?? error.message
+        return EquipmentAuditFailure(message: EquipmentAuditPresentation.failureMessage(statusCode: error.statusCode, transport: nil, serverMessage: serverMessage),
                                      code: error.code, statusCode: error.statusCode, isOffline: false,
                                      validationErrors: error.validationErrors, context: error.details?["context"])
     }

@@ -513,6 +513,7 @@
 		5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000120 /* AuthFlowUITests.swift */; };
 		5A5CFADE0000000000000058 /* SettingsAboutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */; };
 		5A6000000000000000000031 /* EquipmentAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6000000000000000000030 /* EquipmentAuditUITests.swift */; };
+		5A6000000000000000000033 /* EquipmentAuditDeviceAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */; };
 		5A5CFADE0000000000000053 /* AppReleaseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000050 /* AppReleaseCatalog.swift */; };
 		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
 		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
@@ -989,6 +990,7 @@
 		5A5C00000000000000000120 /* AuthFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowUITests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
 		5A6000000000000000000030 /* EquipmentAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAuditUITests.swift; sourceTree = "<group>"; };
+		5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAuditDeviceAcceptanceUITests.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000EC /* DispatchParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchParityUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleUITests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSmokeUITests.swift; sourceTree = "<group>"; };
@@ -2206,6 +2208,7 @@
 				5A5C00000000000000000120 /* AuthFlowUITests.swift */,
 				5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */,
 				5A6000000000000000000030 /* EquipmentAuditUITests.swift */,
+				5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */,
 				5A5C000000000000000000EC /* DispatchParityUITests.swift */,
 				5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */,
 				5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */,
@@ -3151,6 +3154,7 @@
 				5A5C00000000000000000121 /* AuthFlowUITests.swift in Sources */,
 				5A5CFADE0000000000000058 /* SettingsAboutUITests.swift in Sources */,
 				5A6000000000000000000031 /* EquipmentAuditUITests.swift in Sources */,
+				5A6000000000000000000033 /* EquipmentAuditDeviceAcceptanceUITests.swift in Sources */,
 				5A5CFADE0000000000000053 /* AppReleaseCatalog.swift in Sources */,
 				5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */,
 				5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */,

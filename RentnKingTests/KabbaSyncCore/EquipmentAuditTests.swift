@@ -205,7 +205,9 @@ final class EquipmentAuditTests: XCTestCase {
         XCTAssertEqual(EquipmentAuditPresentation.rowDetail(row(b, "SS-1"), now: sameDay.addingTimeInterval(86_400 * 2), timeZone: utc),
                        "Verified · Bon Aqua · John · Oct 5, 11:17 AM")
         XCTAssertEqual(EquipmentAuditPresentation.rowDetail(row(b, "SS-8")), "Unresolved · Unable to establish actual location.")
-        XCTAssertEqual(EquipmentAuditPresentation.rowDetail(row(b, "SS-4")), "Needs Verification · System: Off-Site — Humphreys County Fair")
+        XCTAssertEqual(EquipmentAuditPresentation.rowDetail(row(b, "SS-4")), "Needs Verification · Off-Site — Humphreys County Fair")
+        XCTAssertEqual(EquipmentAuditPresentation.rowDetail(row(b, "SS-110")), "Needs Verification · With Jane Renter",
+                       "a rental names who has it (the System label would truncate first)")
     }
 
     // MARK: Search — every section, by name or ID
@@ -310,6 +312,22 @@ final class EquipmentAuditTests: XCTestCase {
         let unassigned = EquipmentAuditBoard(audit: b.audit, me: b.me, can: b.can, mySectionKeys: [], sections: b.sections,
                                              stores: b.stores, employees: b.employees, generatedAt: b.generatedAt)
         XCTAssertNil(EquipmentAuditPresentation.verifier(for: row(unassigned, "SS-4"), board: unassigned, fallbackEmployeeId: nil))
+    }
+
+    // MARK: Failures — never promise a retry that will not happen
+
+    func testAFailedAuditWriteSaysWhatHappenedAndNeverPromisesARetry() {
+        let offline = EquipmentAuditPresentation.failureMessage(statusCode: nil, transport: .offline, serverMessage: "")
+        XCTAssertTrue(offline.contains("nothing was recorded"))
+        let dropped = EquipmentAuditPresentation.failureMessage(statusCode: nil, transport: .connectionLost, serverMessage: "")
+        XCTAssertTrue(dropped.contains("Pull to refresh to see whether it was recorded"), "it may have landed — never claim it did not")
+        for status in [500, 502, 503, 429] {
+            let message = EquipmentAuditPresentation.failureMessage(statusCode: status, transport: nil, serverMessage: "Kabba is temporarily unavailable. Will retry.")
+            XCTAssertTrue(message.contains("nothing was recorded"), "\(status)")
+            XCTAssertFalse(message.lowercased().contains("will retry"), "audit writes are never retried in the background")
+        }
+        XCTAssertEqual(EquipmentAuditPresentation.failureMessage(statusCode: 409, transport: nil, serverMessage: "This unit changed since your screen loaded."),
+                       "This unit changed since your screen loaded.", "Kabba's own refusal is shown as worded")
     }
 
     // MARK: Commands

@@ -382,7 +382,17 @@ enum EquipmentAuditPresentation {
             let note = row.unresolved?.note?.trimmingCharacters(in: .whitespacesAndNewlines)
             return note?.isEmpty == false ? "Unresolved · \(note!)" : "Unresolved"
         case .needsVerification:
-            var line = "Needs Verification · System: \(row.system.label)"
+            var line: String
+            switch row.system.kind {
+            case "store":
+                line = "Needs Verification · System: \(row.system.label)"
+            case "customer_rentals":
+                // Whether it is overdue (first, so it never truncates), then who has it.
+                line = "Needs Verification · " + (row.rental?.overdue == true ? "OVERDUE · " : "")
+                    + "With \(row.rental?.customerName ?? "Customer")"
+            default:
+                line = "Needs Verification · \(row.system.label)"   // "Off-Site — County Fair", "No Location"
+            }
             if row.verifierOverride, let by = row.verifiedByDefault?.firstName, !by.isEmpty { line += " · By \(by)" }
             return line
         }
@@ -456,6 +466,26 @@ enum EquipmentAuditPresentation {
     }
 
     static let offlineMessage = "No connection to Kabba. Equipment Audit needs a connection to record work — nothing was recorded. Reconnect and try again."
+
+    /// What an audit write that did not succeed tells the employee. Audit
+    /// writes are never queued or retried in the background, so nothing here
+    /// may promise a retry (the app-wide wording does — it belongs to the
+    /// Sync Engine). Server refusals (409/422/403…) keep Kabba's own message.
+    static func failureMessage(statusCode: Int?, transport: TransportFailure?, serverMessage: String) -> String {
+        if let transport = transport {
+            switch transport {
+            case .timeout, .connectionLost:
+                // The request may have reached Kabba before the connection dropped.
+                return "Kabba didn't confirm this before the connection dropped. Pull to refresh to see whether it was recorded."
+            default:
+                return offlineMessage
+            }
+        }
+        if let status = statusCode, status >= 500 || status == 429 {
+            return "Kabba couldn't record this right now — nothing was recorded. Try again in a moment."
+        }
+        return serverMessage
+    }
 }
 
 // MARK: - Tap routing (which screen opens — never a rule)
