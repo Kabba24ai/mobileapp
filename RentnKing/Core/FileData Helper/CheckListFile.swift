@@ -26,6 +26,38 @@ private func pendingOtherKey(_ uid: String, _ isDelivery: Bool) -> String {
     "\(kFileStorageName.kPendingCheckListOther.rawValue)_\(pendingCheckListType(isDelivery))_\(uid)"
 }
 
+private func pendingConvenienceKey(_ uid: String, _ isDelivery: Bool) -> String {
+    "kOrderDetailsData_ChecklistConvenience_\(pendingCheckListType(isDelivery))_\(uid)"
+}
+
+private struct PendingCheckListConvenience: Codable {
+    let combine: Bool
+    let employeeName: String
+    let employeeId: String
+    let storeName: String
+    let storeId: String
+}
+
+func savePendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool, combine: Bool, other: NoteModel) {
+    guard !orderUniqueId.isEmpty else { return }
+    let value = PendingCheckListConvenience(combine: combine,
+        employeeName: isDelivery ? other.dEmplayess : other.rEmplayess,
+        employeeId: isDelivery ? other.dEmplayessId : other.rEmplayessId,
+        storeName: other.rStore, storeId: other.rStoreId)
+    SDKUserDefault.saveCodableArray([value], for: pendingConvenienceKey(orderUniqueId, isDelivery))
+}
+
+func getPendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool) -> (combine: Bool, other: NoteModel)? {
+    guard hasPendingCheckList(orderUniqueId: orderUniqueId, isDelivery: isDelivery),
+          let value = SDKUserDefault.getCodableArray(PendingCheckListConvenience.self,
+                      for: pendingConvenienceKey(orderUniqueId, isDelivery))?.first else { return nil }
+    let other = NoteModel()
+    if isDelivery { other.dEmplayess = value.employeeName; other.dEmplayessId = value.employeeId }
+    else { other.rEmplayess = value.employeeName; other.rEmplayessId = value.employeeId }
+    other.rStore = value.storeName; other.rStoreId = value.storeId
+    return (value.combine, other)
+}
+
 /// Saves the current checklist form as a PENDING/prepared draft. Returns false (and saves
 /// nothing) if the inputs are missing, so callers can avoid navigating forward on failure.
 @discardableResult
@@ -57,6 +89,7 @@ func clearPendingCheckList(orderUniqueId: String, isDelivery: Bool) {
     guard !orderUniqueId.isEmpty else { return }
     SDKUserDefault.remove(for: pendingOrderKey(orderUniqueId, isDelivery))
     SDKUserDefault.remove(for: pendingOtherKey(orderUniqueId, isDelivery))
+    SDKUserDefault.remove(for: pendingConvenienceKey(orderUniqueId, isDelivery))
 }
 
 

@@ -76,6 +76,9 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     private(set) var employeeUniqueId: String?
     private var queueOverlay = QueueLineLocalOverlay()
     private var assemblyOverlay = AssemblyLocalOverlay()
+    /// When Laravel was asked for `review` (the live request, or the cached copy's — nil when
+    /// unknown). A completion it acknowledged before then is already in the members' stages.
+    var reviewAsOf: Date?
     /// The engine snapshot this render derived from (one read per render).
     private var currentOperations: [SyncOperation] = []
     private var lastRefreshFailed = false
@@ -126,6 +129,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
 
         // Back from the checklist (or first arrival): cache + local decisions NOW …
         if let cached = KabbaAssemblySync.cached(orderUniqueId: orderUniqueId) {
+            reviewAsOf = DispatchOfflineSync.observedAt(.assembly, orderUniqueId: orderUniqueId)
             apply(cached)
         } else {
             render()
@@ -175,6 +179,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
                 }
                 self.lastRefreshFailed = false
                 KabbaAssemblySync.saveLive(raw, orderUniqueId: self.orderUniqueId, askedAt: askedAt, tenantKey: tenant)
+                self.reviewAsOf = askedAt
                 self.apply(envelope)
             }
         }
@@ -202,6 +207,12 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
             // Driver origin: a local departure the opener's server copy shows recalled is not
             // standing — it neither locks this screen nor hollows out the mission's gate.
             queueOverlay = DriverMissionStage.queueOverlay(driverInputs(mission), operations: currentOperations)
+        }
+        if let review {
+            // A line this phone delivered that the office has since REOPENED is owed again.
+            let delivered = Dictionary(review.members.map { ($0.orderProductUniqueId, $0.lifecycleStage == .equipmentDelivered) },
+                                       uniquingKeysWith: { $0 || $1 })
+            queueOverlay = queueOverlay.owingLinesReopenedOnServer(delivered, asOf: reviewAsOf, operations: currentOperations)
         }
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         memberCards.removeAll()

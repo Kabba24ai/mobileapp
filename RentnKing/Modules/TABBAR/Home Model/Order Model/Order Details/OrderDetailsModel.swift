@@ -126,6 +126,7 @@ extension OrderDetailsViewController {
                     //SET DATA
                     let map = Map(mappingType: .fromJSON, JSON: dicData as! [String : Any])
                     self.objOrderData = OrdersListModel(map: map)
+                    self.orderCopyAsOf = askedAt
                     
                     // Overwrite old data — unless a newer copy (a mission package asked later) is already here
                     if let order = self.objOrderData {

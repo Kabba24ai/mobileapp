@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+        5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */; };
 		5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */; };
 		5A5E000000000000000000FE /* TermsSignatureImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FD /* TermsSignatureImageTests.swift */; };
 		5A5E000000000000000000FB /* TermsSignatureImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000FA /* TermsSignatureImage.swift */; };
@@ -88,6 +89,8 @@
 		5A5F00000000000000000042 /* StaleAvailabilityRetirement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */; };
 		5A5F00000000000000000045 /* StaleAvailabilityReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */; };
 		5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000006 /* EffectiveFieldState.swift */; };
+		5A5CBA7C0000000000000017 /* ChecklistLegCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000016 /* ChecklistLegCompletion.swift */; };
+		5A5CBA7C0000000000000018 /* ChecklistLegCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000016 /* ChecklistLegCompletion.swift */; };
 		5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000011 /* TermsOperations.swift */; };
 		5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000014 /* TermsSyncHandler.swift */; };
 		5A5CFADE0000000000000021 /* PreparationLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000020 /* PreparationLifecycle.swift */; };
@@ -445,6 +448,7 @@
 		5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000016 /* TermsOperationsTests.swift */; };
 		5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */; };
 		5A5CFADE0000000000000036 /* LegCompletionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000035 /* LegCompletionEvaluatorTests.swift */; };
+		5A5CBA7C0000000000000020 /* ChecklistLegCompletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CBA7C0000000000000019 /* ChecklistLegCompletionTests.swift */; };
 		5A5CFADE0000000000000046 /* ChecklistFinalizationPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000045 /* ChecklistFinalizationPresentationTests.swift */; };
 		5A5CFADE0000000000000056 /* AppReleaseCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000055 /* AppReleaseCatalogTests.swift */; };
 		5A5C00000000000000000083 /* SessionStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000082 /* SessionStateTests.swift */; };
@@ -514,6 +518,7 @@
 		5A5CFADE0000000000000058 /* SettingsAboutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */; };
 		5A6000000000000000000031 /* EquipmentAuditUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6000000000000000000030 /* EquipmentAuditUITests.swift */; };
 		5A6000000000000000000033 /* EquipmentAuditDeviceAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */; };
+		5A6000000000000000000035 /* ChecklistBatchIsolationUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6000000000000000000034 /* ChecklistBatchIsolationUITests.swift */; };
 		5A5CFADE0000000000000053 /* AppReleaseCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000050 /* AppReleaseCatalog.swift */; };
 		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
 		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
@@ -559,6 +564,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+        5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistBatchIsolationHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureMeasurementHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FD /* TermsSignatureImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImageTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000FA /* TermsSignatureImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSignatureImage.swift; sourceTree = "<group>"; };
@@ -628,6 +634,7 @@
 		5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityRetirement.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaleAvailabilityReconciler.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000006 /* EffectiveFieldState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EffectiveFieldState.swift; sourceTree = "<group>"; };
+		5A5CBA7C0000000000000016 /* ChecklistLegCompletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistLegCompletion.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000011 /* TermsOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperations.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000014 /* TermsSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsSyncHandler.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000020 /* PreparationLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycle.swift; sourceTree = "<group>"; };
@@ -956,6 +963,7 @@
 		5A5CFADE0000000000000016 /* TermsOperationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TermsOperationsTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000035 /* LegCompletionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegCompletionEvaluatorTests.swift; sourceTree = "<group>"; };
+		5A5CBA7C0000000000000019 /* ChecklistLegCompletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistLegCompletionTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000045 /* ChecklistFinalizationPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistFinalizationPresentationTests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000055 /* AppReleaseCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReleaseCatalogTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000082 /* SessionStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStateTests.swift; sourceTree = "<group>"; };
@@ -991,6 +999,7 @@
 		5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAboutUITests.swift; sourceTree = "<group>"; };
 		5A6000000000000000000030 /* EquipmentAuditUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAuditUITests.swift; sourceTree = "<group>"; };
 		5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EquipmentAuditDeviceAcceptanceUITests.swift; sourceTree = "<group>"; };
+		5A6000000000000000000034 /* ChecklistBatchIsolationUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistBatchIsolationUITests.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000EC /* DispatchParityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchParityUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleUITests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSmokeUITests.swift; sourceTree = "<group>"; };
@@ -2168,6 +2177,7 @@
 				5A5F0000000000000000003C /* CustomerCallVerification.swift */,
 				5A5F00000000000000000041 /* StaleAvailabilityRetirement.swift */,
 				5A5CFADE0000000000000006 /* EffectiveFieldState.swift */,
+				5A5CBA7C0000000000000016 /* ChecklistLegCompletion.swift */,
 				5A5CFADE0000000000000011 /* TermsOperations.swift */,
 				5A5CFADE0000000000000020 /* PreparationLifecycle.swift */,
 				5A5CFADE0000000000000030 /* LegCompletionRequirements.swift */,
@@ -2209,6 +2219,7 @@
 				5A5CFADE0000000000000057 /* SettingsAboutUITests.swift */,
 				5A6000000000000000000030 /* EquipmentAuditUITests.swift */,
 				5A6000000000000000000032 /* EquipmentAuditDeviceAcceptanceUITests.swift */,
+				5A6000000000000000000034 /* ChecklistBatchIsolationUITests.swift */,
 				5A5C000000000000000000EC /* DispatchParityUITests.swift */,
 				5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */,
 				5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */,
@@ -2263,6 +2274,7 @@
 		5A5C00000000000000000110 /* Hosted */ = {
 			isa = PBXGroup;
 			children = (
+                5A5CBA7C0000000000000001 /* ChecklistBatchIsolationHostedTests.swift */,
 				5A5C00000000000000000111 /* KabbaSessionKeychainDeviceTests.swift */,
 				5A5CFADE0000000000000072 /* QueueLinePresentationTests.swift */,
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
@@ -2323,6 +2335,7 @@
 				5A5CFADE0000000000000016 /* TermsOperationsTests.swift */,
 				5A5CFADE0000000000000025 /* PreparationLifecycleTests.swift */,
 				5A5CFADE0000000000000035 /* LegCompletionEvaluatorTests.swift */,
+				5A5CBA7C0000000000000019 /* ChecklistLegCompletionTests.swift */,
 				5A5CFADE0000000000000045 /* ChecklistFinalizationPresentationTests.swift */,
 				5A5CFADE0000000000000055 /* AppReleaseCatalogTests.swift */,
 				5A5CFADE0000000000000087 /* AssemblyReviewTests.swift */,
@@ -2733,6 +2746,7 @@
 				5A5F0000000000000000003D /* CustomerCallVerification.swift in Sources */,
 				5A5F00000000000000000042 /* StaleAvailabilityRetirement.swift in Sources */,
 				5A5CFADE0000000000000007 /* EffectiveFieldState.swift in Sources */,
+				5A5CBA7C0000000000000017 /* ChecklistLegCompletion.swift in Sources */,
 				5A5CFADE0000000000000012 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000015 /* TermsSyncHandler.swift in Sources */,
 				5A5CFADE0000000000000021 /* PreparationLifecycle.swift in Sources */,
@@ -3047,6 +3061,7 @@
 				5A5CFADE0000000000000017 /* TermsOperationsTests.swift in Sources */,
 				5A5CFADE0000000000000026 /* PreparationLifecycleTests.swift in Sources */,
 				5A5CFADE0000000000000036 /* LegCompletionEvaluatorTests.swift in Sources */,
+				5A5CBA7C0000000000000020 /* ChecklistLegCompletionTests.swift in Sources */,
 				5A5CFADE0000000000000046 /* ChecklistFinalizationPresentationTests.swift in Sources */,
 				5A5CFADE0000000000000056 /* AppReleaseCatalogTests.swift in Sources */,
 				5A5C00000000000000000083 /* SessionStateTests.swift in Sources */,
@@ -3086,6 +3101,7 @@
 				5A5F0000000000000000003E /* CustomerCallVerification.swift in Sources */,
 				5A5F00000000000000000043 /* StaleAvailabilityRetirement.swift in Sources */,
 				5A5CFADE0000000000000008 /* EffectiveFieldState.swift in Sources */,
+				5A5CBA7C0000000000000018 /* ChecklistLegCompletion.swift in Sources */,
 				5A5CFADE0000000000000013 /* TermsOperations.swift in Sources */,
 				5A5CFADE0000000000000022 /* PreparationLifecycle.swift in Sources */,
 				5A5CFADE0000000000000032 /* LegCompletionRequirements.swift in Sources */,
@@ -3138,6 +3154,7 @@
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
+                5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
@@ -3155,6 +3172,7 @@
 				5A5CFADE0000000000000058 /* SettingsAboutUITests.swift in Sources */,
 				5A6000000000000000000031 /* EquipmentAuditUITests.swift in Sources */,
 				5A6000000000000000000033 /* EquipmentAuditDeviceAcceptanceUITests.swift in Sources */,
+				5A6000000000000000000035 /* ChecklistBatchIsolationUITests.swift in Sources */,
 				5A5CFADE0000000000000053 /* AppReleaseCatalog.swift in Sources */,
 				5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */,
 				5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */,
@@ -3330,7 +3348,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1010;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -3353,7 +3371,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3372,7 +3390,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1010;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -3395,7 +3413,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3411,7 +3429,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1010;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -3423,7 +3441,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3440,7 +3458,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1010;
+				CURRENT_PROJECT_VERSION = 1011;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -3452,7 +3470,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.24;
+				MARKETING_VERSION = 1.0.25;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
