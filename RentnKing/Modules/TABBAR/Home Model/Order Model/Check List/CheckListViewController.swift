@@ -171,6 +171,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
     // durable cache when offline). A product without a context falls back to the legacy shape.
     var checklistContexts: [String: ChecklistContext] = [:]
+    /// When Laravel was asked for the order copy this screen loaded (nil: unknown).
+    var orderCopyAsOf: Date?
     /// Dispatch offline Phase 4 (P4-D4): products whose canonical checklist needs a connection —
     /// the cached copy is the cycle a local substitution/restart replaced (or another unit), so it is
     /// never shown and nothing is saved against it until the server's new cycle arrives.
@@ -300,6 +302,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
                 if dicData != nil{
                     
                     self.objOrderData = dicData
+                    self.orderCopyAsOf = DispatchOfflineSync.observedAt(.checklistOrder, orderUniqueId: self.strOrderUniqueId)
                     self.isLoading = false
                     
                     var arrProduct : [ProductModel] = []
@@ -321,9 +324,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
                     
                     //UPDATE DATA
                     self.objOrderData.arrProduct = arrProduct
+                    self.dropLinesAlreadyComplete()            // another phone may have finished some
                     self.setupStaticData()
                     self.setTheView()
                     self.prefillPendingCheckListIfNeeded()
+                    self.dropLinesAlreadyComplete()            // ... after this phone saved its draft
                     self.focusQueueLineItemIfNeeded()
                     self.loadChecklistContexts()
                     self.checklistLoaded = true
@@ -587,6 +592,7 @@ extension CheckListViewController{
     /// Saved partial answers and explicit edits count, including edits back to a default.
     func hasChecklistWork(product: ProductModel, other: NoteModel?) -> Bool {
         if let uid = product.unique_id, self.checklistContexts[uid]?.isCompleted == true { return false }
+        if lineIsCompleteForThisLeg(product) { return false }
         if let other = other {
             if isDeliveryType ? other.deliveryInputEntered : other.returnInputEntered { return true }
             let note = isDeliveryType ? other.dNote : other.rNote
@@ -609,6 +615,32 @@ extension CheckListViewController{
             default:
                 return (isDeliveryType ? question.deliverAnswer : question.returnAnswer) != nil
             }
+        }
+    }
+
+    /// This line's checklist for the screen's leg is already complete for its current cycle
+    /// (Laravel, or a durable completion op of that cycle — ChecklistLegCompletion): it is
+    /// never entered work again, whatever its loaded answers show.
+    func lineIsCompleteForThisLeg(_ product: ProductModel) -> Bool {
+        ChecklistLegCompletion.isComplete(ChecklistLegCompletion.line(for: product, serverStateAsOf: self.orderCopyAsOf),
+                                          leg: isDeliveryType ? .delivery : .return,
+                                          operations: KabbaSync.engine?.snapshot() ?? [])
+    }
+
+    /// The order-wide entry opens this screen for the equipment still OWED on this leg: lines
+    /// already complete (here or on another phone) are not shown again, so they can never be
+    /// re-enrolled. When nothing is owed the screen keeps what it was given.
+    func dropLinesAlreadyComplete() {
+        guard let products = self.objOrderData?.arrProduct, !products.isEmpty else { return }
+        let keep = products.indices.filter { !lineIsCompleteForThisLeg(products[$0]) }
+        guard !keep.isEmpty, keep.count < products.count else { return }
+        let aligned = self.arrOtherData.count == products.count
+        self.objOrderData.arrProduct = keep.map { products[$0] }
+        if aligned { self.arrOtherData = keep.map { self.arrOtherData[$0] } }
+        if self.objOrderData.arrProduct.count < 2, self.objCombineSwitch != nil {
+            self.objCombineSwitch.isHidden = true
+            self.lblCombine.isHidden = true
+            self.con_table.constant = 16
         }
     }
 

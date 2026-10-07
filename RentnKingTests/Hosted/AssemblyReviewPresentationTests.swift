@@ -507,6 +507,39 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertNil(view(vc, "assembly.OP-DONE.continue"), "delivered equipment has nothing left to continue to")
     }
 
+    /// This phone delivered the line and that completion SYNCED; the office then REOPENED the
+    /// delivery (a new cycle). Laravel's review — asked after it acknowledged the completion —
+    /// reports the line pending: the line is owed again and continues to its checklist. A review
+    /// of unknown age keeps the local completion (offline bridge).
+    func testALineReopenedAfterThisPhoneSyncedItsDeliveryContinuesToItsChecklistAgain() throws {
+        var synced = SyncOperation(type: EffectiveFieldState.deliveryCompleteType, capturedAt: Date(timeIntervalSinceNow: -120),
+                                   identity: SyncBusinessIdentity(orderUniqueId: "ORD-1", orderProductUniqueId: "OP-AGAIN",
+                                                                  checklistExecutionId: "EXEC-1"),
+                                   payload: .object([:]))
+        synced.state = .synced
+        synced.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date(timeIntervalSinceNow: -60), statusCode: 200,
+                                                   requestId: nil, replayed: false, serverReceivedAt: nil, data: nil)
+        let envelope = try review(groups: [[Spec(uid: "OP-AGAIN", name: "Skid Steer", options: [], unitState: "available", stage: "pending")]])
+
+        let unknownAge = loaded(envelope, ops: [synced])
+        XCTAssertNil(view(unknownAge, "assembly.OP-AGAIN.continue"), "age unknown: the local completion still stands")
+
+        let fresh = AssemblyReviewViewController()
+        fresh.orderUniqueId = envelope.data.order.uniqueId
+        fresh.operationsSnapshot = { [synced] }
+        fresh.loadViewIfNeeded()
+        fresh.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        fresh.reviewAsOf = Date()                                    // asked after the acknowledgment
+        fresh.apply(envelope)
+        fresh.view.layoutIfNeeded()
+        XCTAssertNotNil(view(fresh, "assembly.OP-AGAIN.continue"), "reopened since: the line continues to its checklist")
+
+        let stillPending = loaded(envelope, ops: [{ var op = synced; op.state = .pending; op.acknowledgment = nil; return op }()])
+        stillPending.reviewAsOf = Date()
+        stillPending.apply(envelope)
+        XCTAssertNil(view(stillPending, "assembly.OP-AGAIN.continue"), "not yet on the server: the local completion stands")
+    }
+
     // MARK: Equipment identity + assignment (2026-09-14)
 
     func testTheMachineIsNamedTheWayTheYardNamesItAndItsIdentityChangesTheAssignment() throws {

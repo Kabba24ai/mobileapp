@@ -39,6 +39,11 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     let orderPlaceholderMarker = Placeholder()
     var arrMainOrderList : [OrdersListModel] = []
     var arrOrderList : [OrdersListModel] = []
+    /// When Laravel was asked for each listed order's copy (by order unique_id; absent when
+    /// unknown, e.g. the cached list shown before the refresh answers). See ChecklistLegCompletion.
+    var orderCopyAsOf: [String: Date] = [:]
+    /// Seam (hosted tests inject; production reads the Sync Engine).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
     var arrCategoryList : [CategoryModel] = []
     
     //OTHER
@@ -232,6 +237,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         let localData = self.getOrderData()
         if !localData.isEmpty {
             self.arrOrderList = localData
+            self.orderCopyAsOf = [:]
             self.setTheView()
         }
 
@@ -475,6 +481,7 @@ extension OrderListViewController{
         
         let params = OrdersParameater// OrdersParameater(page: "\(page)", search: txtSearch.text ?? "", category_id: selectCategoryID, status: selectStatus)
         
+        let askedAt = Date()
         callAPIforGetOrderList(OrdersParameater: params) { [weak self] isSaved in
             guard let self = self else { return }
             
@@ -488,6 +495,8 @@ extension OrderListViewController{
                 if overrideLocal {
                     // Replace all old data
                     self.arrOrderList = localData
+                    self.orderCopyAsOf = [:]
+                    localData.forEach { if let uid = $0.unique_id { self.orderCopyAsOf[uid] = askedAt } }
                     self.setTheView()
 
                 } else {
@@ -496,6 +505,7 @@ extension OrderListViewController{
                         !self.arrOrderList.contains(where: { $0.id == newItem.id })
                     }
                     self.arrOrderList.append(contentsOf: newItems)
+                    newItems.forEach { if let uid = $0.unique_id { self.orderCopyAsOf[uid] = askedAt } }
                 }
                 
                 self.arrMainOrderList = self.arrOrderList
@@ -921,7 +931,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
 
             
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: true) == false{
+            if self.returnCheckListAvailable(selectIndex: indexPath.row) == false{
                 cell.lblCheckListRet.textColor = .lightGray
                 imgColor(imgColor: cell.imgCheckListRet, colorHex: .lightGray)
                 cell.viewCheckListRet.backgroundColor = .clear
@@ -949,6 +959,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.btnCheckListDeliv.addTarget(self, action: #selector(self.btnCheckListDelivClicked(_:)), for: .touchUpInside)
 
             cell.btnCheckListRet.tag = indexPath.row
+            cell.btnCheckListRet.accessibilityIdentifier = "orderList.checklist.return"
             cell.btnCheckListRet.addTarget(self, action: #selector(self.btnCheckListRetClicked(_:)), for: .touchUpInside)
 
             //CEHCK PRODUCT TYPE
@@ -1079,7 +1090,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
     }
     
     @objc func btnCheckListRetClicked(_ sender : UIButton) {
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: true) == false{
+        if self.returnCheckListAvailable(selectIndex: sender.tag) == false{
             return
         }
 
@@ -1356,36 +1367,22 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 //        return false
 //    }
 //
-    /// Same rule as Order Details: a leg opens (and shows as) the completed report only once no
-    /// pending draft remains — a partial batch leaves its unsubmitted lines there to finish.
+    /// Same rule as Order Details (ChecklistLegCompletion): a leg opens — and shows as — the
+    /// completed report only when EVERY eligible line is complete for its current cycle;
+    /// with unfinished equipment the tile opens the checklist flow for it.
     func checkListOpensReport(selectIndex: Int, isDelivery: Bool) -> Bool {
         guard self.arrOrderList.indices.contains(selectIndex) else { return false }
-        return self.checkCheckListStatus(selectIndex: selectIndex, isDelivery: isDelivery)
-            && !hasPendingCheckList(orderUniqueId: self.arrOrderList[selectIndex].unique_id ?? "", isDelivery: isDelivery)
+        let order = self.arrOrderList[selectIndex], uid = order.unique_id ?? ""
+        return ChecklistLegCompletion.opensCompletedReport(orderUniqueId: uid, products: order.arrProduct, isDelivery: isDelivery,
+                                                           serverStateAsOf: self.orderCopyAsOf[uid], operations: self.operationsSnapshot())
     }
 
-    func checkCheckListStatus(selectIndex: Int, isDelivery : Bool) -> Bool{
-        //GET DATA
-        if self.arrOrderList.count == 0{
-            return false
-        }
-        let objData = self.arrOrderList[selectIndex]
-        
-        let checklistType = isDelivery ? "Delivery" : "Return"
-        if getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(objData.unique_id ?? "")") != nil{
-            return true
-        }
-        
-        for obj in objData.arrProduct{
-            if isDelivery {
-                return obj.is_delivered ?? false
-
-            }
-            else{
-                return obj.is_returned ?? false
-            }
-        }
-        return false
+    /// Return opens once some eligible equipment of the order is out with the customer.
+    func returnCheckListAvailable(selectIndex: Int) -> Bool {
+        guard self.arrOrderList.indices.contains(selectIndex) else { return false }
+        let order = self.arrOrderList[selectIndex], uid = order.unique_id ?? ""
+        return ChecklistLegCompletion.returnAvailable(orderUniqueId: uid, products: order.arrProduct,
+                                                      serverStateAsOf: self.orderCopyAsOf[uid], operations: self.operationsSnapshot())
     }
 //
 //    func checkCheckListActive(selectIndex: Int) -> Bool{

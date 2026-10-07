@@ -173,27 +173,153 @@ final class ChecklistBatchIsolationHostedTests: XCTestCase {
         }
     }
 
-    /// After a partial batch the leg already counts as done (one line is), yet the other lines
-    /// are still in this phone's pending draft: Order Details must open the checklist flow, not
-    /// the completed report that would hide them. With nothing pending, the report opens again.
-    func testAPartialBatchKeepsTheRemainingLinesReachableFromOrderDetails() {
-        for delivery in [false, true] {
-            let details = OrderDetailsViewController()
-            details.strOrderUniqueId = orderUid
-            var full = OrdersListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
-            full.unique_id = orderUid
-            full.arrProduct = order(3, delivery: delivery).arrProduct
-            for index in full.arrProduct.indices { full.arrProduct[index].is_delivered = !delivery || index == 0 }
-            if !delivery { full.arrProduct[0].is_returned = true }
-            details.objOrderData = full
+    // MARK: Order-wide entry — Order Details and the Orders list (ChecklistLegCompletion)
 
-            XCTAssertTrue(details.effectiveLegCompleted(isDelivery: delivery), "one line done: the leg has started")
-            XCTAssertTrue(details.legOpensCompletedReport(isDelivery: delivery), "nothing pending on this phone: the report")
-            savePendingCheckList(orderUniqueId: orderUid, isDelivery: delivery, objOrderData: order(3, delivery: delivery), arrOtherData: notes())
-            XCTAssertFalse(details.legOpensCompletedReport(isDelivery: delivery), "B/C still in the draft: the checklist flow")
-            clearPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
-            XCTAssertTrue(details.legOpensCompletedReport(isDelivery: delivery))
+    /// A three-line order as the order feed reports it: `delivered` / `returned` are Laravel's
+    /// per-product leg flags (index → flag).
+    private func feedOrder(delivered: Set<Int>, returned: Set<Int> = [], retail: Set<Int> = []) -> OrdersListModel {
+        var order = OrdersListModel(map: Map(mappingType: .fromJSON, JSON: [:]))!
+        order.unique_id = orderUid
+        order.arrProduct = (0..<3).map { index in
+            var line = product(index, answered: false, delivery: true)
+            line.is_delivered = delivered.contains(index)
+            line.is_returned = returned.contains(index)
+            if retail.contains(index) {
+                line.objProductData = ProductDataModel(map: Map(mappingType: .fromJSON, JSON: ["product_type": "Retail"]))
+            }
+            return line
         }
+        return order
+    }
+
+    private func details(_ order: OrdersListModel, operations: [SyncOperation] = []) -> OrderDetailsViewController {
+        let details = OrderDetailsViewController()
+        details.strOrderUniqueId = orderUid
+        details.objOrderData = order
+        details.operationsSnapshot = { operations }
+        return details
+    }
+
+    private func completion(_ leg: ChecklistLeg, line index: Int, execution: String? = nil) -> SyncOperation {
+        var op = SyncOperation(type: ChecklistLegCompletion.completionType(leg), capturedAt: Date(),
+                               identity: SyncBusinessIdentity(orderUniqueId: orderUid, orderProductUniqueId: "P\(index)",
+                                                              checklistExecutionId: execution),
+                               payload: .object([:]))
+        op.state = .pending
+        return op
+    }
+
+    /// Reproduced on a fresh phone: one line delivered (or returned) made the WHOLE leg open the
+    /// completed report — with no draft on that phone the unfinished siblings were unreachable.
+    /// Every permutation now keeps unfinished equipment reachable; the report needs all of it.
+    func testOrderDetailsOpensTheReportOnlyWhenEveryEligibleLineIsComplete() {
+        for mask in 0..<8 {
+            let done = Set((0..<3).filter { mask & (1 << $0) != 0 })
+            let delivery = details(feedOrder(delivered: done))
+            XCTAssertEqual(delivery.legOpensCompletedReport(isDelivery: true), mask == 7, "delivered \(done.sorted())")
+            let allOut = details(feedOrder(delivered: [0, 1, 2], returned: done))
+            XCTAssertEqual(allOut.legOpensCompletedReport(isDelivery: false), mask == 7, "returned \(done.sorted())")
+        }
+        // Only the third line done — the first two stay reachable on both legs.
+        XCTAssertFalse(details(feedOrder(delivered: [2])).legOpensCompletedReport(isDelivery: true))
+        XCTAssertFalse(details(feedOrder(delivered: [0, 1, 2], returned: [2])).legOpensCompletedReport(isDelivery: false))
+    }
+
+    /// Drafts keep entered values; they never decide what is finished — in either direction.
+    func testADraftNeitherHidesNorRevealsUnfinishedEquipment() {
+        for delivery in [false, true] {
+            let partial = delivery ? feedOrder(delivered: [0]) : feedOrder(delivered: [0, 1, 2], returned: [0])
+            let complete = delivery ? feedOrder(delivered: [0, 1, 2]) : feedOrder(delivered: [0, 1, 2], returned: [0, 1, 2])
+            XCTAssertFalse(details(partial).legOpensCompletedReport(isDelivery: delivery), "no draft on this phone: still reachable")
+            savePendingCheckList(orderUniqueId: orderUid, isDelivery: delivery, objOrderData: order(3, delivery: delivery), arrOtherData: notes())
+            XCTAssertFalse(details(partial).legOpensCompletedReport(isDelivery: delivery))
+            XCTAssertTrue(details(complete).legOpensCompletedReport(isDelivery: delivery), "a stale draft never holds back a finished leg")
+            clearPendingCheckList(orderUniqueId: orderUid, isDelivery: delivery)
+        }
+    }
+
+    /// Completed only on this phone (a durable completion op, not yet on the server): that line
+    /// counts, its siblings stay reachable; a delivery op never completes the return.
+    func testADurableLocalCompletionCountsForItsOwnLineAndLegOnly() {
+        let a = [completion(.delivery, line: 0)]
+        XCTAssertFalse(details(feedOrder(delivered: []), operations: a).legOpensCompletedReport(isDelivery: true))
+        let all = (0..<3).map { completion(.delivery, line: $0) }
+        XCTAssertTrue(details(feedOrder(delivered: []), operations: all).legOpensCompletedReport(isDelivery: true))
+        let deliveredByOps = details(feedOrder(delivered: []), operations: all)
+        XCTAssertTrue(deliveredByOps.returnChecklistAvailable(), "delivered offline: Return opens")
+        XCTAssertFalse(deliveredByOps.legOpensCompletedReport(isDelivery: false), "...but nothing is returned yet")
+        let returnedA = details(feedOrder(delivered: [0, 1, 2]), operations: [completion(.return, line: 0)])
+        XCTAssertFalse(returnedA.legOpensCompletedReport(isDelivery: false))
+    }
+
+    /// Equipment that takes no checklist (Retail) never holds the report back; Return opens only
+    /// once something is out — never from the first line's flag or an order-level marker.
+    func testEligibilityAndTheReturnGate() {
+        XCTAssertTrue(details(feedOrder(delivered: [0, 1], retail: [2])).legOpensCompletedReport(isDelivery: true))
+        XCTAssertFalse(details(feedOrder(delivered: [])).returnChecklistAvailable())
+        XCTAssertTrue(details(feedOrder(delivered: [2])).returnChecklistAvailable(), "the THIRD line out opens Return")
+        // An order-level local report alone (the old marker) never completes the leg.
+        SDKUserDefault.saveMappableObject(order(3, delivery: true), for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_Delivery_\(orderUid)")
+        XCTAssertFalse(details(feedOrder(delivered: [0])).legOpensCompletedReport(isDelivery: true))
+    }
+
+    /// The Orders list tile follows the same rule (no draft on this phone).
+    func testTheOrdersListTileFollowsTheSameRule() {
+        let list = OrderListViewController()
+        list.operationsSnapshot = { [] }
+        list.arrOrderList = [feedOrder(delivered: [0]), feedOrder(delivered: [0, 1, 2]),
+                             feedOrder(delivered: [0, 1, 2], returned: [1]), feedOrder(delivered: [])]
+        XCTAssertFalse(list.checkListOpensReport(selectIndex: 0, isDelivery: true), "A delivered, B/C owed")
+        XCTAssertTrue(list.checkListOpensReport(selectIndex: 1, isDelivery: true))
+        XCTAssertFalse(list.checkListOpensReport(selectIndex: 2, isDelivery: false), "B returned, A/C owed")
+        XCTAssertTrue(list.returnCheckListAvailable(selectIndex: 0))
+        XCTAssertFalse(list.returnCheckListAvailable(selectIndex: 3), "nothing out yet")
+    }
+
+    /// This phone completed A and it SYNCED; the office then REOPENED A's delivery (a new cycle).
+    /// An order copy asked after Laravel acknowledged that completion still says A is not
+    /// delivered — so A is owed again, on Order Details and the Orders list alike. A copy of
+    /// unknown age (offline) keeps the synced completion as the bridge until it is refreshed.
+    func testALegReopenedAfterThisPhoneSyncedItIsOwedAgain() {
+        var synced = completion(.delivery, line: 0, execution: "EXEC-A1")
+        synced.state = .synced
+        synced.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date(timeIntervalSinceNow: -60), statusCode: 200,
+                                                   requestId: nil, replayed: false, serverReceivedAt: nil, data: nil)
+        let ops = [synced, completion(.delivery, line: 1), completion(.delivery, line: 2)]   // B, C still offline
+        let fresh = details(feedOrder(delivered: []), operations: ops)
+        fresh.orderCopyAsOf = Date()
+        XCTAssertFalse(fresh.legOpensCompletedReport(isDelivery: true), "A was reopened since: owed again")
+        let older = details(feedOrder(delivered: []), operations: ops)
+        older.orderCopyAsOf = Date(timeIntervalSinceNow: -600)
+        XCTAssertTrue(older.legOpensCompletedReport(isDelivery: true), "the copy predates the completion: it still counts")
+        XCTAssertTrue(details(feedOrder(delivered: []), operations: ops).legOpensCompletedReport(isDelivery: true), "age unknown")
+
+        let list = OrderListViewController()
+        list.operationsSnapshot = { ops }
+        list.arrOrderList = [feedOrder(delivered: [])]
+        XCTAssertTrue(list.checkListOpensReport(selectIndex: 0, isDelivery: true), "cached list, age unknown")
+        list.orderCopyAsOf[orderUid] = Date()
+        XCTAssertFalse(list.checkListOpensReport(selectIndex: 0, isDelivery: true), "refreshed list: A owed again")
+    }
+
+    /// The checklist opened for the order shows the equipment still owed and never re-enrols a
+    /// line completed elsewhere, even when its loaded answers look like entered work.
+    func testTheChecklistShowsOnlyOwedEquipmentAndNeverReEnrolsACompletedLine() {
+        let screen = CheckListViewController()
+        screen.isDeliveryType = true
+        var loaded = order(3, delivery: true)          // every line carries answers
+        loaded.arrProduct[0].is_delivered = true        // A finished on another phone
+        screen.objOrderData = loaded
+        screen.arrOtherData = notes()
+        XCTAssertFalse(screen.hasChecklistWork(product: loaded.arrProduct[0], other: screen.arrOtherData[0]))
+        XCTAssertTrue(screen.hasChecklistWork(product: loaded.arrProduct[1], other: screen.arrOtherData[1]))
+        screen.dropLinesAlreadyComplete()
+        XCTAssertEqual(screen.objOrderData.arrProduct.compactMap(\.unique_id), ["P1", "P2"])
+        XCTAssertEqual(screen.arrOtherData.map(\.productID), [2, 3], "notes stay aligned")
+        // Nothing owed (opened from a finished line): the screen keeps what it was given.
+        for index in 0..<2 { screen.objOrderData.arrProduct[index].is_delivered = true }
+        screen.dropLinesAlreadyComplete()
+        XCTAssertEqual(screen.objOrderData.arrProduct.count, 2)
     }
 
     func testSharedConvenienceFieldsOnlyAffectDetachedBatchCopies() {

@@ -141,6 +141,11 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var missionServerTrip: DriverStageServerState?
     var missionServerObservedAt: Date?
 
+    /// When Laravel was asked for `objOrderData` (a live answer's request time, or the cached
+    /// copy's — nil when unknown). A durable completion Laravel acknowledged before this copy was
+    /// asked is already in its per-line flags (ChecklistLegCompletion).
+    var orderCopyAsOf: Date?
+
     /// Seams (hosted tests inject; production reads the engine and the caches).
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
@@ -682,53 +687,25 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     
-    func checkCheckListStatus(isDelivery : Bool) -> Bool{
-        //GET DATA
-        if self.objOrderData == nil{
-            return false
-        }
-        
-        
-        let checklistType = isDelivery ? "Delivery" : "Return"
-        if getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(self.objOrderData.unique_id ?? "")") != nil{
-            return true
-        }
-        
-        for obj in self.objOrderData.arrProduct{
-            if isDelivery {
-                return obj.is_delivered ?? false
-
-            }
-            else{
-                return obj.is_returned ?? false
-            }
-        }
-        return false
-    }
-
-    /// Local-first effective leg state: the local completed-checklist marker /
-    /// server flag (checkCheckListStatus) ∨ a durable Sync Engine completion op
-    /// for any of the order's products — with a delivery completion still
-    /// syncing, Return opens and Delivery never reopens the create flow.
-    /// The completed report opens only when the leg is finished ON THIS PHONE: a partial batch
-    /// keeps the unsubmitted lines in the pending draft, and while that draft exists the tile
-    /// opens the checklist flow where those lines are — never a report that hides them.
+    /// The order-wide checklist entry's ONE decision (ChecklistLegCompletion): the completed
+    /// report only when EVERY eligible line of the leg is complete for its current cycle
+    /// (Laravel's leg flag ∨ a durable completion op of that cycle); with any equipment still
+    /// unfinished the entry opens the checklist flow where that equipment is. A local draft,
+    /// an order-level marker, "any line done" or the first line's flag never decide it.
     func legOpensCompletedReport(isDelivery: Bool) -> Bool {
-        guard self.objOrderData != nil else { return false }
-        return self.effectiveLegCompleted(isDelivery: isDelivery)
-            && !hasPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: isDelivery)
+        guard let order = self.objOrderData else { return false }
+        return ChecklistLegCompletion.opensCompletedReport(orderUniqueId: order.unique_id ?? self.strOrderUniqueId,
+                                                           products: order.arrProduct, isDelivery: isDelivery,
+                                                           serverStateAsOf: self.orderCopyAsOf, operations: self.operationsSnapshot())
     }
 
-    func effectiveLegCompleted(isDelivery: Bool) -> Bool {
-        if self.checkCheckListStatus(isDelivery: isDelivery) { return true }
-        guard self.objOrderData != nil else { return false }
-        let syncOps = KabbaSync.engine?.snapshot() ?? []
-        return self.objOrderData.arrProduct.contains { product in
-            EffectiveFieldState.legSatisfied(serverCompleted: (isDelivery ? product.is_delivered : product.is_returned) ?? false,
-                                             operations: syncOps,
-                                             orderProductUniqueId: product.unique_id ?? "",
-                                             isDeliveryLeg: isDelivery)
-        }
+    /// Return opens once some eligible equipment is out with the customer (delivered on the
+    /// server or by a durable completion op) — never because of the first line's flag.
+    func returnChecklistAvailable() -> Bool {
+        guard let order = self.objOrderData else { return false }
+        return ChecklistLegCompletion.returnAvailable(orderUniqueId: order.unique_id ?? self.strOrderUniqueId,
+                                                      products: order.arrProduct, serverStateAsOf: self.orderCopyAsOf,
+                                                      operations: self.operationsSnapshot())
     }
 }
 
@@ -766,14 +743,15 @@ extension OrderDetailsViewController {
         if let focusProduct = focusProduct {
             returnMediaConfirmed = focusProduct.arrPickupMedia.count != 0
                 || legacyReturnMedia.contains { ($0.productID ?? "") == focus }
-            // The order-level "completed checklist" marker is only trusted when the
-            // Sync Engine is unavailable (nothing else could hold the completion).
+            // With the Sync Engine unavailable, this phone's local completed report is the only
+            // other evidence — and only for THIS product, never the order as a whole.
             returnChecklistConfirmed = (focusProduct.is_returned ?? false)
-                || (!KabbaSync.isReady && self.checkCheckListStatus(isDelivery: false))
+                || ChecklistLegCompletion.legacySubmittedProducts(orderUniqueId: orderUid).return.contains(focus)
         } else {
-            // No focus product (never reached from Dispatch): the pre-existing order-wide rule.
+            // No focus product (never reached from Dispatch): the order-wide media rule; the
+            // checklist counts only when EVERY eligible line is returned (ChecklistLegCompletion).
             returnMediaConfirmed = deliveredLines.contains { $0.arrPickupMedia.count != 0 } || legacyReturnMedia.count != 0
-            returnChecklistConfirmed = self.checkCheckListStatus(isDelivery: false)
+            returnChecklistConfirmed = self.legOpensCompletedReport(isDelivery: false)
         }
 
         let activeReturnExecution = focus.isEmpty
@@ -787,9 +765,9 @@ extension OrderDetailsViewController {
         let deliveryChecklistConfirmed: Bool
         if let focusProduct = focusProduct {
             deliveryChecklistConfirmed = (focusProduct.is_delivered ?? false)
-                || (!KabbaSync.isReady && self.checkCheckListStatus(isDelivery: true))
+                || ChecklistLegCompletion.legacySubmittedProducts(orderUniqueId: orderUid).delivery.contains(focus)
         } else {
-            deliveryChecklistConfirmed = self.checkCheckListStatus(isDelivery: true)
+            deliveryChecklistConfirmed = self.legOpensCompletedReport(isDelivery: true)
         }
 
         let lineIds = (leg.isDelivery ? products : deliveredLines).compactMap { $0.unique_id }.filter { !$0.isEmpty }
@@ -1510,7 +1488,7 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: a delivery completion still in the Sync Engine
         // unlocks the Return checklist (effective state, not the raw server flag).
-        if self.effectiveLegCompleted(isDelivery: true) == false{
+        if self.returnChecklistAvailable() == false{
             return
         }
 
@@ -1897,6 +1875,7 @@ extension OrderDetailsViewController{
         let localData = self.getOrderDetailData(order_id: self.strOrderUniqueId)
         if localData != nil {
             self.objOrderData = localData
+            self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
             self.setTheView()
         }
         
@@ -1976,6 +1955,7 @@ extension OrderDetailsViewController{
         SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
         
         self.objOrderData = localData
+        self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
         self.setTheView()
     }
     
@@ -2037,6 +2017,7 @@ extension OrderDetailsViewController{
         SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
         
         self.objOrderData = localData
+        self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
         self.setTheView()
     }
 }

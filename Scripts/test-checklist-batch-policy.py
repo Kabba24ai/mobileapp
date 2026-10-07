@@ -30,6 +30,8 @@ class EPSignatureViewController {}
 struct AppUtility { static func PortraitMode() {} }
 struct Context { var isCompleted: Bool }
 class Entry { var checklistContexts: [String: Context] = [:]; var isDeliveryType = true
+  var completedLines: Set<String> = []   // stand-in for ChecklistLegCompletion (server flag / durable op)
+  func lineIsCompleteForThisLeg(_ product: ProductModel) -> Bool { completedLines.contains(product.unique_id ?? "") }
 '''
 for marker in ['func removeBlankProducts(', 'func checkQuestionsIsBlank(', 'func hasChecklistWork(', 'struct BlockedLine:', 'static func submitScope(']: code+=extract(vc,marker)+'\n'
 code+='}\nextension Array { subscript(safe i: Int) -> Element? { indices.contains(i) ? self[i] : nil } }\nclass Preview { var isDeliveryType = true; var isCombineChecklist = false; var arrOtherData: [NoteModel] = []; func renderFinalizationState() {} ; var tblView = Table()\n'
@@ -65,6 +67,9 @@ draftNote.deliveryInputEntered=false; draftNote.rNote="opposite leg only"
 check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"opposite-leg notes never enroll this checklist")
 draftNote.dNote="partial delivery note"
 check(entry.hasChecklistWork(product:prefilled,other:draftNote),"notes-only partial work stays in scope")
+entry.completedLines=["DEFAULT"]
+check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"a line completed elsewhere (server or durable op) is never entered work")
+entry.completedLines=[]
 entry.checklistContexts["DEFAULT"]=Context(isCompleted:true)
 check(!entry.hasChecklistWork(product:prefilled,other:draftNote),"completed checklist execution is excluded")
 for delivery in [false,true] {
