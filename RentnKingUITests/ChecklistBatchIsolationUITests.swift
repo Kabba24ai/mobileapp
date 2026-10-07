@@ -4,12 +4,14 @@
 //  (Combine ON / OFF, Delivery / Return) against a STAGING backend.
 //
 //  Seed: RentnKingUITests/ChecklistBatchIsolationStagingSeed.php — three-line
-//  orders 9401–9405 (lines "Batch Alpha/Bravo/Charlie", units CB<order>-A/B/C;
-//  9403's Charlie has no unit; 9404/9405 delivered and awaiting return). Run
-//  each test once, in order, against a fresh seed: D1 → D2 → D2b share one
-//  install (the draft carries over); every other test starts from a clean
-//  install (`xcrun simctl uninstall <sim> com.RentnKingNew.app`). The runner
-//  checks server state between steps (executions, signatures, charges and
+//  orders BASE+1 … BASE+8 (KABBA_BATCH_BASE, default 9410; lines "Batch
+//  Alpha/Bravo/Charlie", hour-tracked units CB<order>-A/B/C; see the seed's
+//  table). Run each test once, in order, against a fresh seed: D1 → D2 → D2b
+//  share one install (the draft carries over), and so do N3a → N3b (the runner
+//  REOPENS Alpha's delivery between them); every other test starts from a clean
+//  install (`xcrun simctl uninstall <sim> com.RentnKingNew.app`) — another phone,
+//  with no draft and no local completed report. The runner checks server state
+//  between steps (executions per cycle, signatures, charges, media and
 //  mobile_operations per line) — see the seed file's footer.
 //
 //  Footer controls (note / employee / location) are not in the accessibility
@@ -18,6 +20,7 @@
 //
 //  Env (forwarded by xcodebuild as TEST_RUNNER_*):
 //    KABBA_BASE_URL / KABBA_EMAIL / KABBA_PASSWORD   staging harness login
+//    KABBA_BATCH_BASE                                the seed's base (default 9410)
 //
 
 import XCTest
@@ -27,6 +30,10 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
     private var base = ""
     private var email = ""
     private var password = ""
+    private var batchBase = 9410
+
+    /// Seeded order BASE+n (see the seed's table).
+    private func order(_ n: Int) -> String { String(batchBase + n) }
 
     override func setUp() {
         super.setUp()
@@ -35,6 +42,7 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         base = env["KABBA_BASE_URL"] ?? ""
         email = env["KABBA_EMAIL"] ?? ""
         password = env["KABBA_PASSWORD"] ?? ""
+        batchBase = Int(env["KABBA_BATCH_BASE"] ?? "") ?? 9410
         addUIInterruptionMonitor(withDescription: "system-permission") { alert in
             for label in ["Allow", "Allow While Using App", "OK", "Don’t Allow", "Don't Allow", "Allow Full Access"] {
                 if alert.buttons[label].exists { alert.buttons[label].tap(); return true }
@@ -43,14 +51,15 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         }
     }
 
-    // MARK: - D1 · Delivery, Combine ON (order 9401)
+    // MARK: - D1 · Delivery, Combine ON (order BASE+1)
 
     /// Untouched rows and the shared employee alone never make a batch; only the entered
     /// line (C) is previewed and submitted; Back from Preview leaves every row as it was.
     func testD1_combinedDeliveryOnlyTheEnteredLineIsPreviewedAndSubmitted() {
         let app = signedIn()
-        openChecklist(app, order: "9401", leg: "delivery")
+        openChecklist(app, order: order(1), leg: "delivery")
         XCTAssertEqual(app.switches.firstMatch.value as? String, "1", "Combine starts ON with three lines")
+        XCTAssertTrue(text(app, "Start Hours").exists, "hour-tracked units show the prefilled hours row")
 
         tapPreview(app)
         expectAlert(app, contains: "Complete at least one equipment checklist")
@@ -71,6 +80,7 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         XCTAssertTrue(text(app, "Batch Charlie").waitForExistence(timeout: 5), "Preview shows the entered line")
         XCTAssertFalse(text(app, "Batch Alpha").exists, "untouched A is not in the batch")
         XCTAssertFalse(text(app, "Batch Bravo").exists, "untouched B is not in the batch")
+        XCTAssertEqual(listedLines(app).count, 1, "only the entered line is in the batch")
         shoot("D1-preview-C-only")
 
         // Back: the source rows are untouched by the preview.
@@ -88,14 +98,14 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         shoot("D1-submitted")
     }
 
-    // MARK: - D2 · Delivery, the rest of 9401 (run right after D1, same install)
+    // MARK: - D2 · Delivery, the rest of BASE+1 (run right after D1, same install)
 
     /// The draft keeps the unsubmitted siblings and the shared selection; Save sends only the
     /// entered line; a background + relaunch restores the draft; A submits alone; the LAST
     /// remaining line (Combine toggle hidden) still gets the restored shared employee.
     func testD2_restoredDraftThenTheLastRemainingLine() {
         var app = relaunchKeepingSession()
-        openChecklist(app, order: "9401", leg: "delivery")
+        openChecklist(app, order: order(1), leg: "delivery")
         XCTAssertFalse(text(app, "Batch Charlie").exists, "the submitted line has left the draft")
         XCTAssertEqual(app.switches.firstMatch.value as? String, "1", "Combine restored ON for the two remaining lines")
         shoot("D2-restored-two-lines")
@@ -109,26 +119,26 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         XCUIDevice.shared.press(.home)
         sleep(3)
         app = relaunchKeepingSession(app)
-        openChecklist(app, order: "9401", leg: "delivery")
+        openChecklist(app, order: order(1), leg: "delivery")
         XCTAssertEqual(answerShown(app, line: 0, question: "Any body damage at delivery?"), "No damage", "A's draft restored")
         XCTAssertEqual(answerShown(app, line: 1, question: "Any body damage at delivery?"), "Select", "B still untouched")
         shoot("D2-relaunched-draft")
 
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open (shared employee must be restored)")
-        XCTAssertTrue(text(app, "Batch Alpha").exists)
-        XCTAssertFalse(text(app, "Batch Bravo").exists, "untouched B is not in the batch")
+        XCTAssertEqual(listedLines(app).count, 1, "untouched B is not in the batch")
+        XCTAssertEqual(listedLines(app).first, "Batch Alpha")
         sign(app)
         submit(app)
 
         // Last remaining line: see testD2b.
     }
 
-    /// The LAST remaining line of 9401 (run after D2, same install): the Combine toggle is
+    /// The LAST remaining line of BASE+1 (run after D2, same install): the Combine toggle is
     /// hidden, the restored shared employee still applies, and B submits on its own.
     func testD2b_theLastRemainingLineKeepsTheSharedSelection() {
         let app = relaunchKeepingSession()
-        openChecklist(app, order: "9401", leg: "delivery", firstLine: "Batch Bravo")
+        openChecklist(app, order: order(1), leg: "delivery", firstLine: "Batch Bravo")
         XCTAssertFalse(text(app, "Batch Alpha").exists, "submitted A has left the draft")
         XCTAssertFalse(app.switches.firstMatch.isHittable, "one line left: no Combine toggle")
         shoot("D2b-one-line-left")
@@ -151,13 +161,13 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         submit(app)
     }
 
-    // MARK: - D3 · Delivery, Combine OFF (order 9402)
+    // MARK: - D3 · Delivery, Combine OFF (order BASE+2)
 
     /// Each line keeps its own employee and signature: a missing employee on B blocks and
     /// points at B; Submit waits until A and B are each signed; C stays out.
     func testD3_individualDeliveryPerLineEmployeeAndSignature() {
         let app = signedIn()
-        openChecklist(app, order: "9402", leg: "delivery")
+        openChecklist(app, order: order(2), leg: "delivery")
         app.switches.firstMatch.tap()
         usleep(800_000)
         XCTAssertEqual(app.switches.firstMatch.value as? String, "0", "Combine OFF")
@@ -174,25 +184,25 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         chooseEmployee(app, line: 1)
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
-        XCTAssertTrue(text(app, "Batch Alpha").exists)
-        XCTAssertTrue(text(app, "Batch Bravo").exists)
-        XCTAssertFalse(text(app, "Batch Charlie").exists, "untouched C is not in the batch")
+        let d3 = listedLines(app)
+        XCTAssertEqual(d3.count, 2, "A and B — untouched C is not in the batch (each is named by its signature choice)")
+        XCTAssertEqual(d3.first, "Batch Alpha")
 
-        sign(app, equipment: "CB9402-A")
+        sign(app, equipment: "CB\(order(2))-A")
         XCTAssertFalse(element(app, "checklist.submit").isEnabled, "B is not signed yet")
         shoot("D3-only-A-signed")
-        sign(app, equipment: "CB9402-B")
+        sign(app, equipment: "CB\(order(2))-B")
         shoot("D3-both-signed")
         submit(app)
     }
 
-    // MARK: - D4 · Delivery, partial lines block and are pointed at (order 9403)
+    // MARK: - D4 · Delivery, partial lines block and are pointed at (order BASE+3)
 
     /// A partly answered B is kept and validated (its required question is pointed at);
     /// C has answers but no unit: Preview names C. Nothing is sent.
     func testD4_partialLinesBlockPreviewAndPointAtTheRightLine() {
         let app = signedIn()
-        openChecklist(app, order: "9403", leg: "delivery")
+        openChecklist(app, order: order(3), leg: "delivery")
 
         answer(app, line: 1, question: "Keys handed over?", value: "Yes")     // B: optional only
         tapPreview(app)
@@ -202,13 +212,20 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         answer(app, line: 1, question: "Any body damage at delivery?", value: "No damage")
         // C has no unit, so no questions either: its only entry point is its own Delivery Note —
         // the LAST note on the screen. A note is entered work: C must be pointed at, not dropped.
-        // Footers are not accessible: at the very bottom the last footer (C's) is pinned above
-        // Save, its note box ~303 pt above the Save label's centre (measured on the iPhone 17).
+        // The note box itself is not accessible: at the very bottom the last footer is C's, so its
+        // box sits just under the LAST "Delivery Note" title. Fallbacks (measured on the iPhone 17):
+        // ~227 pt above the restart control when one is shown, else ~303 pt above Save's centre.
         for _ in 0..<8 { app.tables.firstMatch.swipeUp(); usleep(400_000) }
         let saveLabel = app.staticTexts["Save"].firstMatch
         XCTAssertTrue(saveLabel.exists)
+        let noteTitle = app.staticTexts.matching(NSPredicate(format: "label == 'Delivery Note'")).allElementsBoundByIndex
+            .filter { $0.frame.minY > 120 && $0.frame.maxY < saveLabel.frame.minY }
+            .max { $0.frame.minY < $1.frame.minY }
+        let restart = app.buttons["Delete Checklist / Start Over"].firstMatch
+        let noteY = noteTitle.map { $0.frame.maxY + 45 }
+            ?? (restart.exists && restart.frame.maxY < saveLabel.frame.minY ? restart.frame.midY - 227 : saveLabel.frame.midY - 303)
         app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: 200, dy: saveLabel.frame.midY - 303)).tap()
+            .withOffset(CGVector(dx: 200, dy: noteY)).tap()
         usleep(800_000)
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "C's Delivery Note did not take focus")
         app.typeText("Gate code 1234")
@@ -221,13 +238,13 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         shoot("D4-C-without-unit-focused")
     }
 
-    // MARK: - R1 · Return, Combine ON (order 9404)
+    // MARK: - R1 · Return, Combine ON (order BASE+4)
 
     /// Only B is returned (damaged): the shared employee and location are copied onto B alone,
     /// the damage charge lands on B, and A/C stay open with nothing sent for them.
     func testR1_combinedReturnOnlyTheEnteredLineCarriesTheSharedFieldsAndCharge() {
         let app = signedIn()
-        openChecklist(app, order: "9404", leg: "return")
+        openChecklist(app, order: order(4), leg: "return")
         XCTAssertEqual(app.switches.firstMatch.value as? String, "1", "Combine starts ON")
         tapPreview(app)
         expectAlert(app, contains: "Complete at least one equipment checklist")
@@ -240,21 +257,21 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
 
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
-        XCTAssertTrue(text(app, "Batch Bravo").exists)
-        XCTAssertFalse(text(app, "Batch Alpha").exists, "untouched A is not in the batch")
-        XCTAssertFalse(text(app, "Batch Charlie").exists, "untouched C is not in the batch")
+        let r1 = listedLines(app)
+        XCTAssertEqual(r1.count, 1, "untouched A and C are not in the batch")
+        XCTAssertEqual(r1.first, "Batch Bravo")
         shoot("R1-preview-B-only")
         sign(app)
         submit(app)
     }
 
-    // MARK: - R2 · Return, Combine OFF (order 9405)
+    // MARK: - R2 · Return, Combine OFF (order BASE+5)
 
     /// A and C are returned with their own employee, location and signature; the damage
     /// charge is C's alone; untouched B stays open.
     func testR2_individualReturnPerLineFieldsSignaturesAndCharge() {
         let app = signedIn()
-        openChecklist(app, order: "9405", leg: "return")
+        openChecklist(app, order: order(5), leg: "return")
         app.switches.firstMatch.tap()
         usleep(800_000)
         XCTAssertEqual(app.switches.firstMatch.value as? String, "0", "Combine OFF")
@@ -271,14 +288,266 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
 
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
-        XCTAssertTrue(text(app, "Batch Alpha").exists)
-        XCTAssertTrue(text(app, "Batch Charlie").exists)
-        XCTAssertFalse(text(app, "Batch Bravo").exists, "untouched B is not in the batch")
-        sign(app, equipment: "CB9405-A")
+        let r2 = listedLines(app)
+        XCTAssertEqual(r2.count, 2, "A and C — untouched B is not in the batch (each is named by its signature choice)")
+        XCTAssertEqual(r2.first, "Batch Alpha")
+        sign(app, equipment: "CB\(order(5))-A")
         XCTAssertFalse(element(app, "checklist.submit").isEnabled, "C is not signed yet")
-        sign(app, equipment: "CB9405-C")
+        sign(app, equipment: "CB\(order(5))-C")
         shoot("R2-both-signed")
         submit(app)
+    }
+
+    // MARK: - N · Another phone (no draft) and partially completed orders
+
+    /// Regression (reproduced on e00c452): on a FRESH install — another phone, no draft, no local
+    /// completed report — an order with unfinished equipment opened the completed report from
+    /// its order-wide tile. BASE+6: A/B delivered, C open. BASE+7: B returned, A/C open.
+    func testN0_unfinishedEquipmentNeverOpensTheCompletedReport() {
+        let app = signedIn()
+        openOrderDetails(app, order: order(6))
+        element(app, "orderDetails.checklist.delivery").tap()
+        sleep(4)
+        shoot("N0-delivery-tile")
+        let deliveryReport = app.staticTexts["Remove Checklist"].exists
+        let deliveryReview = element(app, "assemblyReview.order").exists
+        goBack(app); goBack(app)
+        openOrderDetails(app, order: order(7))
+        element(app, "orderDetails.checklist.return").tap()
+        sleep(4)
+        shoot("N0-return-tile")
+        // The editable checklist has Save/Preview; the completed report does not.
+        let returnReport = text(app, "Check List - Returned").exists && !app.staticTexts["Preview"].firstMatch.exists
+        print("N0 delivery-tile-opened-report=\(deliveryReport) return-tile-opened-report=\(returnReport)")
+        XCTAssertFalse(deliveryReport, "BASE+6 still has C to deliver: the Delivery tile must not open the completed report")
+        XCTAssertTrue(deliveryReview, "the Delivery tile goes through Assembly Review to the unfinished equipment")
+        XCTAssertFalse(returnReport, "BASE+7 still has A/C to return: the Return tile must not open the completed report")
+    }
+
+    /// Another phone (fresh install, no draft) finishes BASE+6 from Order Details: only Charlie is
+    /// offered (A/B were delivered elsewhere and are never re-enrolled), with its prefilled hours
+    /// row; once C is submitted the same tile opens the completed report.
+    func testN1_anotherPhoneFinishesTheRemainingDelivery() {
+        let app = signedIn()
+        openChecklist(app, order: order(6), leg: "delivery", firstLine: "Batch Charlie")
+        let owed = listedLines(app)
+        XCTAssertEqual(owed.count, 1, "A/B were delivered on another phone: never offered again")
+        XCTAssertEqual(owed.first, "Batch Charlie")
+        XCTAssertTrue(text(app, "Start Hours").exists, "the prefilled hours row is shown")
+        shoot("N1-only-C-owed")
+        tapPreview(app)
+        if app.alerts.firstMatch.waitForExistence(timeout: 3) {
+            // Prefilled hours alone are not entered work.
+            let body = app.alerts.firstMatch.staticTexts.allElementsBoundByIndex.map(\.label).joined(separator: " ")
+            XCTAssertTrue(body.contains("Complete at least one equipment checklist") || body.contains("Please"), "alert said: \(body)")
+            app.alerts.buttons.firstMatch.tap(); usleep(600_000)
+        }
+        answer(app, line: 0, question: "Any body damage at delivery?", value: "No damage")
+        answer(app, line: 0, question: "Keys handed over?", value: "Yes")
+        chooseEmployee(app, line: 0)
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        XCTAssertEqual(listedLines(app).first, "Batch Charlie")
+        sign(app)
+        submit(app)
+
+        // Every eligible line is now delivered: the order-wide tile opens the completed report.
+        let reopened = relaunchKeepingSession(app)
+        openOrderDetails(reopened, order: order(6))
+        element(reopened, "orderDetails.checklist.delivery").tap()
+        XCTAssertTrue(reopened.staticTexts["Remove Checklist"].waitForExistence(timeout: 15), "all delivered: the completed report opens")
+        shoot("N1-report-after-all-delivered")
+    }
+
+    /// Another phone returns BASE+7 from the ORDERS LIST tile: B was returned elsewhere, so only
+    /// Alpha and Charlie are offered; both are returned together (Combine ON, shared fields);
+    /// then the list tile opens the completed report.
+    func testN2_ordersListReturnsTheRemainingEquipment() {
+        let app = signedIn()
+        openOrdersList(app)
+        orderListTile(app, order: order(7), leg: "return").tap()
+        XCTAssertTrue(text(app, "Batch Alpha").waitForExistence(timeout: 30), "the return checklist did not open on Alpha")
+        let owed = listedLines(app)
+        XCTAssertEqual(owed.count, 2, "B was returned on another phone: never offered again")
+        XCTAssertEqual(owed.first, "Batch Alpha")
+        XCTAssertTrue(text(app, "End Hours").exists, "the prefilled return hours row is shown")
+        XCTAssertEqual(app.switches.firstMatch.value as? String, "1", "Combine ON for the two owed lines")
+        shoot("N2-A-and-C-owed")
+        for line in [0, 1] {
+            answer(app, line: line, question: "Any body damage at delivery?", value: "No damage")
+            answer(app, line: line, question: "Keys handed over?", value: "Yes")
+        }
+        chooseEmployee(app, line: 1, delivery: false)
+        chooseStore(app, line: 1)
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        let batch = listedLines(app)
+        XCTAssertEqual(batch.count, 2, "the batch is the two owed lines (A, C — named by the server check)")
+        XCTAssertEqual(batch.first, "Batch Alpha")
+        sign(app)
+        submit(app)
+
+        let reopened = relaunchKeepingSession(app)
+        openOrdersList(reopened)
+        orderListTile(reopened, order: order(7), leg: "return").tap()
+        sleep(4)
+        shoot("N2-report-after-all-returned")
+        XCTAssertTrue(text(reopened, "Check List - Returned").exists && !reopened.staticTexts["Preview"].firstMatch.exists,
+                      "all returned: the list tile opens the completed report")
+    }
+
+    /// BASE+8 on one phone: a delivery photo is attached to BRAVO from the Photo/Video upload,
+    /// then all three lines are delivered together. The runner then checks the media row is
+    /// Bravo's alone and REOPENS Alpha's delivery (the office's canonical Completed → Pending).
+    func testN3a_photoLandsOnItsEquipmentThenEveryLineDelivered() {
+        let app = signedIn()
+        openOrderDetails(app, order: order(8))
+        let photos = text(app, "Photo/Video Deliv")
+        XCTAssertTrue(photos.exists, "no Photo/Video Deliv tile")
+        for _ in 0..<8 where photos.frame.maxY > 780 { drag(app, by: -250); usleep(400_000) }
+        photos.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()   // an untitled button covers the label
+        XCTAssertTrue(app.staticTexts["Batch Bravo"].waitForExistence(timeout: 15), "the upload screen has no Bravo section")
+        addLibraryPhoto(app, section: "Batch Bravo")
+        shoot("N3a-photo-on-bravo")
+        let upload = app.staticTexts["Submit"].firstMatch      // a label over an untitled button
+        XCTAssertTrue(upload.exists, "no upload Submit")
+        upload.tap()
+        sleep(8)
+        shoot("N3a-after-upload")
+
+        let again = relaunchKeepingSession(app)
+        openChecklist(again, order: order(8), leg: "delivery")
+        let owed = listedLines(again)
+        XCTAssertEqual(owed.count, 3, "nothing delivered yet: all three owed")
+        XCTAssertEqual(owed.first, "Batch Alpha")
+        for line in 0..<3 {
+            answer(again, line: line, question: "Any body damage at delivery?", value: "No damage")
+            answer(again, line: line, question: "Keys handed over?", value: "Yes")
+        }
+        chooseEmployee(again, line: 2)
+        tapPreview(again)
+        XCTAssertTrue(element(again, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        XCTAssertEqual(listedLines(again).count, 3, "all three lines in the batch")
+        sign(again)
+        submit(again)
+    }
+
+    /// Same install as N3a — this phone still holds Alpha's SYNCED cycle-1 completion — after the
+    /// runner reopened Alpha's delivery: the tile must not open the report, and the checklist
+    /// offers Alpha (its new cycle) and nothing else; Alpha is delivered again in cycle 2.
+    func testN3b_aReopenedLineIsOwedAgainInItsNewCycle() {
+        let app = relaunchKeepingSession()
+        openOrderDetails(app, order: order(8))
+        element(app, "orderDetails.checklist.delivery").tap()
+        sleep(4)
+        shoot("N3b-tile-after-reopen")
+        XCTAssertFalse(app.staticTexts["Remove Checklist"].exists, "Alpha was reopened: the completed report must not open")
+        XCTAssertTrue(element(app, "assemblyReview.order").exists, "the tile goes to the review for the reopened line")
+        goBack(app); goBack(app)
+        openChecklist(app, order: order(8), leg: "delivery")
+        let owed = listedLines(app)
+        XCTAssertEqual(owed.count, 1, "B/C are still delivered: only the reopened Alpha is owed")
+        XCTAssertEqual(owed.first, "Batch Alpha")
+        shoot("N3b-only-alpha-owed")
+        // The reopen cleared Alpha's start hours (Laravel's Completed → Pending reset): entered anew.
+        enterHoursIfBlank(app, line: 0, value: "120")
+        answer(app, line: 0, question: "Any body damage at delivery?", value: "No damage")
+        answer(app, line: 0, question: "Keys handed over?", value: "Yes")
+        chooseEmployee(app, line: 0)
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        let n3b = listedLines(app)
+        XCTAssertEqual(n3b.count, 1, "only the reopened line is submitted")
+        XCTAssertEqual(n3b.first, "Batch Alpha")
+        sign(app)
+        submit(app)
+    }
+
+    /// The lines an open checklist — or its Preview — lists: how many (each line has exactly one
+    /// body-damage question cell, and every cell is realized) and the FIRST line's title. Product
+    /// titles are section headers, which XCUITest exposes only for the top section, so the
+    /// runner's server check names the remaining lines.
+    private func listedLines(_ app: XCUIApplication) -> (count: Int, first: String) {
+        for _ in 0..<6 { app.swipeDown(); usleep(250_000) }
+        let damage = NSPredicate(format: "label BEGINSWITH 'Any body damage at'")
+        let count = app.tables.firstMatch.cells.allElementsBoundByIndex.filter { $0.staticTexts.matching(damage).count > 0 }.count
+        let title = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Batch '")).firstMatch
+        let first = title.exists ? (title.label.components(separatedBy: " * ").first ?? title.label) : ""
+        print("LISTED-LINES", count, first)
+        return (count, first)
+    }
+
+    /// Types a line's hours reading when its row is blank.
+    private func enterHoursIfBlank(_ app: XCUIApplication, line: Int, value: String) {
+        let cell = bring(app, "Start Hours", line: line)
+        let field = cell.textFields.allElementsBoundByIndex.min { $0.frame.minX < $1.frame.minX } ?? cell.textFields.firstMatch
+        XCTAssertTrue(field.exists, "no hours field in line \(line)")
+        let current = (field.value as? String ?? "").trimmingCharacters(in: .whitespaces)
+        if let reading = Double(current), reading > 0 { return }
+        field.tap()
+        usleep(600_000)
+        field.typeText(value)
+        if app.toolbars.buttons["Done"].firstMatch.exists { app.toolbars.buttons["Done"].firstMatch.tap() }
+        else { app.staticTexts["Check List - Delivered"].firstMatch.tap() }
+        usleep(800_000)
+        shoot("hours-entered-line-\(line)")
+    }
+
+    private func openOrdersList(_ app: XCUIApplication) {
+        let entry = text(app, "Orders")
+        XCTAssertTrue(entry.waitForExistence(timeout: 30), "Home offered no Orders entry")
+        entry.tap()
+        usleep(2_500_000)
+    }
+
+    /// The Orders list row's own checklist tile for `leg`.
+    private func orderListTile(_ app: XCUIApplication, order: String, leg: String) -> XCUIElement {
+        let row = app.cells.containing(NSPredicate(format: "label == %@", order)).firstMatch
+        let tile = row.buttons["orderList.checklist.\(leg)"]
+        for _ in 0..<10 where !(tile.exists && tile.isHittable) { app.swipeUp(); usleep(600_000) }
+        if !tile.exists { dump(app, "no-list-tile-\(order)") }
+        XCTAssertTrue(tile.exists, "no \(leg) checklist tile on the Orders row for \(order)")
+        return tile
+    }
+
+    /// Picks the first library photo into `section`'s media grid (Select Image → Choose Photo).
+    /// The grid's add tile carries its section's order product unique_id as its value.
+    private func addLibraryPhoto(_ app: XCUIApplication, section: String) {
+        let header = app.staticTexts[section].firstMatch
+        let tile = app.buttons.allElementsBoundByIndex
+            .filter { ($0.value as? String ?? "").hasPrefix("ORD-") && $0.frame.minY > header.frame.maxY - 2 }
+            .min { $0.frame.minY < $1.frame.minY }
+        if tile == nil { dump(app, "upload-screen") }
+        XCTAssertNotNil(tile, "no media grid under \(section)")
+        guard let tile else { return }
+        print("PHOTO-TILE section=\(section) order_product=\(tile.value as? String ?? "")")
+        tile.tap()
+        let selectImage = app.buttons["Select Image"].firstMatch
+        XCTAssertTrue(selectImage.waitForExistence(timeout: 8), "no Select Image choice")
+        selectImage.tap()
+        let choose = app.buttons["Choose Photo"].firstMatch
+        XCTAssertTrue(choose.waitForExistence(timeout: 8), "no Choose Photo choice")
+        choose.tap()
+        sleep(4)
+        let photo = app.images.matching(NSPredicate(format: "label BEGINSWITH[c] 'Photo'")).firstMatch
+        if !photo.waitForExistence(timeout: 15) { dump(app, "photo-picker") }
+        XCTAssertTrue(photo.exists, "the photo library shows no photo")
+        photo.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()   // the picker is a remote view
+        sleep(2)
+        let confirm = app.buttons["Choose"].firstMatch
+        if confirm.waitForExistence(timeout: 8) { confirm.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+        sleep(3)
+    }
+
+    private func openOrderDetails(_ app: XCUIApplication, order: String) {
+        let entry = text(app, "Orders")
+        if entry.waitForExistence(timeout: 10) { entry.tap(); usleep(2_500_000) }
+        let row = app.staticTexts.matching(NSPredicate(format: "label == %@", order)).firstMatch
+        for _ in 0..<10 where !(row.exists && row.isHittable) { app.swipeUp(); usleep(600_000) }
+        XCTAssertTrue(row.exists, "no Orders row for \(order)")
+        row.tap()
+        XCTAssertTrue(element(app, "orderDetails.checklist.delivery").waitForExistence(timeout: 20), "Order Details for \(order) did not open")
+        usleep(1_500_000)
     }
 
     // MARK: - Checklist actions
