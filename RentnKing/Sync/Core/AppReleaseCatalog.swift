@@ -44,6 +44,20 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.26", notes: [
+            "Fuel is charged at the machine's own fuel price and tank size; a DEF tank no longer replaces the diesel charge",
+            "Machines with a DEF tank can record DEF separately from fuel, with the same tank levels, once enabled for your company",
+            "Each piece of equipment on a return is charged only for its own fuel, cleaning and hours",
+            "Totals update as soon as current prices load",
+            "Various fixes and refinements",
+        ]),
+        AppRelease(version: "1.0.25", notes: [
+            "Each piece of equipment on an order keeps its own checklist — finish one, two or all of them",
+            "Combine shares only the employee, signature and return location with the equipment you completed",
+            "Equipment you did not touch is never submitted; partly entered equipment is pointed out before Preview",
+            "Unfinished equipment and your shared selections stay saved after a partial submit",
+            "Various fixes and refinements",
+        ]),
         AppRelease(version: "1.0.24", notes: [
             "Equipment Audit on the phone: open an audit, see your assigned section and verify units with one tap",
             "Search by name or Equipment ID and filter the board by section",

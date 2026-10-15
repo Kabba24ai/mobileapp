@@ -152,6 +152,13 @@ enum DispatchOfflineSync {
         return save()
     }
 
+    /// When Laravel was asked for the order copy this phone holds in `cache` (a live answer's
+    /// request time, or a mission package's) for the signed-in company; nil when unknown.
+    static func observedAt(_ cache: DispatchOfflineOrderCache, orderUniqueId: String) -> Date? {
+        guard !orderUniqueId.isEmpty else { return nil }
+        return reconciler()?.store.loadFieldLedger().observed(cache, orderUniqueId)
+    }
+
     // MARK: - Reference lists (P4-D6)
 
     /// Refreshes, through their existing endpoints, the lists the offline checklist and Order

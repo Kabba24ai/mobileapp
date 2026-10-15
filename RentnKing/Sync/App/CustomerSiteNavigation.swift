@@ -115,12 +115,11 @@ enum CustomerSiteNavigation {
             .status(.returnMedia)?.isSatisfied == true
     }
 
-    /// Is THIS product's checklist complete (server ∨ a durable completion op)?
+    /// Is THIS product's checklist complete for the leg's current cycle (server ∨ a durable
+    /// completion op of that cycle)? The same per-product rule the order-wide entries use.
     static func checklistComplete(product: ProductModel, isDeliveryLeg: Bool, operations: [SyncOperation]) -> Bool {
-        EffectiveFieldState.legSatisfied(serverCompleted: (isDeliveryLeg ? product.is_delivered : product.is_returned) ?? false,
-                                         operations: operations,
-                                         orderProductUniqueId: product.unique_id ?? "",
-                                         isDeliveryLeg: isDeliveryLeg)
+        ChecklistLegCompletion.isComplete(ChecklistLegCompletion.line(for: product),
+                                          leg: isDeliveryLeg ? .delivery : .return, operations: operations)
     }
 
     /// The Photo/Video upload for the order, built the way the checklist always built it
@@ -181,5 +180,79 @@ enum CustomerSiteNavigation {
         vc.queueLineEquipmentUniqueId = product?.objMachine?.unique_id ?? ""
         vc.driverStageFloor = floor
         return vc
+    }
+}
+
+// MARK: - Order-wide checklist entry (Order Details, the Orders list, the checklist itself)
+
+extension ChecklistLegCompletion {
+
+    /// A line as this phone knows it: Laravel's leg flags from the order copy, and the current
+    /// cycle's execution from the cached checklist context when one was loaded. A cached
+    /// context that is COMPLETED while Laravel now says the leg is open means the leg was
+    /// reopened since (a new cycle): that execution is a prior cycle and must not count.
+    /// `serverStateAsOf`: when the order copy holding `product` was asked of Laravel (nil: unknown).
+    static func line(for product: ProductModel, serverStateAsOf: Date? = nil) -> Line {
+        let uid = product.unique_id ?? ""
+        let delivered = product.is_delivered ?? false
+        let returned = product.is_returned ?? false
+        func active(_ leg: ChecklistLeg, serverDone: Bool) -> String {
+            guard !uid.isEmpty, let context = KabbaSync.checklistContexts?.cached(orderProductUniqueId: uid, leg: leg) else { return "" }
+            return context.isCompleted && !serverDone ? "reopened-after-\(context.executionId)" : context.executionId
+        }
+        return Line(orderProductUniqueId: uid,
+                    // The checklist screen's own rule: Retail never takes a checklist.
+                    requiresChecklist: product.objProductData?.product_type != "Retail",
+                    deliveredOnServer: delivered,
+                    returnedOnServer: returned,
+                    activeDeliveryExecutionId: active(.delivery, serverDone: delivered),
+                    activeReturnExecutionId: active(.return, serverDone: returned),
+                    serverStateAsOf: serverStateAsOf)
+    }
+
+    /// `locallySubmitted`: products THIS phone submitted per leg (its local completed report) —
+    /// evidence only when the Sync Engine is unavailable, and only for those products.
+    static func lines(for products: [ProductModel], serverStateAsOf: Date? = nil,
+                      locallySubmitted: (delivery: Set<String>, return: Set<String>) = ([], [])) -> [Line] {
+        products.map { product in
+            var line = line(for: product, serverStateAsOf: serverStateAsOf)
+            let uid = line.orderProductUniqueId
+            if !uid.isEmpty, locallySubmitted.delivery.contains(uid) || locallySubmitted.return.contains(uid) {
+                line = Line(orderProductUniqueId: uid, requiresChecklist: line.requiresChecklist,
+                            deliveredOnServer: line.deliveredOnServer || locallySubmitted.delivery.contains(uid),
+                            returnedOnServer: line.returnedOnServer || locallySubmitted.return.contains(uid),
+                            activeDeliveryExecutionId: line.activeDeliveryExecutionId,
+                            activeReturnExecutionId: line.activeReturnExecutionId,
+                            serverStateAsOf: line.serverStateAsOf)
+            }
+            return line
+        }
+    }
+
+    /// The products this phone's local completed report holds for the leg — consulted ONLY when
+    /// the Sync Engine is unavailable (nothing else could hold a completion), never order-wide.
+    static func legacySubmittedProducts(orderUniqueId: String) -> (delivery: Set<String>, return: Set<String>) {
+        guard !KabbaSync.isReady, !orderUniqueId.isEmpty else { return ([], []) }
+        func held(_ type: String) -> Set<String> {
+            Set(getChecklistOrderDetailData(strOrderUniqeID: "\(type)_\(orderUniqueId)")?.arrProduct.compactMap(\.unique_id) ?? [])
+        }
+        return (held("Delivery"), held("Return"))
+    }
+
+    /// The order-wide entry's ONE decision: the completed report only when every eligible
+    /// line of the leg is complete; otherwise the checklist flow for the unfinished equipment.
+    static func opensCompletedReport(orderUniqueId: String, products: [ProductModel], isDelivery: Bool,
+                                     serverStateAsOf: Date?, operations: [SyncOperation]) -> Bool {
+        everyEligibleLineComplete(lines(for: products, serverStateAsOf: serverStateAsOf,
+                                        locallySubmitted: legacySubmittedProducts(orderUniqueId: orderUniqueId)),
+                                  leg: isDelivery ? .delivery : .return, operations: operations)
+    }
+
+    /// Return opens once some eligible equipment is out with the customer.
+    static func returnAvailable(orderUniqueId: String, products: [ProductModel], serverStateAsOf: Date?,
+                                operations: [SyncOperation]) -> Bool {
+        anyEligibleLine(lines(for: products, serverStateAsOf: serverStateAsOf,
+                              locallySubmitted: legacySubmittedProducts(orderUniqueId: orderUniqueId)),
+                        leg: .return, operations: operations)
     }
 }
