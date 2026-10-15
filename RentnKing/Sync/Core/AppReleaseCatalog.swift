@@ -46,7 +46,7 @@ enum AppReleaseCatalog {
     static let history: [AppRelease] = [
         AppRelease(version: "1.0.26", notes: [
             "Fuel is charged at the machine's own fuel price and tank size; a DEF tank no longer replaces the diesel charge",
-            "Machines with a DEF tank record DEF separately from fuel, with the same tank levels",
+            "Machines with a DEF tank can record DEF separately from fuel, with the same tank levels, once enabled for your company",
             "Each piece of equipment on a return is charged only for its own fuel, cleaning and hours",
             "Totals update as soon as current prices load",
             "Various fixes and refinements",
