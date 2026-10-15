@@ -31,6 +31,7 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
     private var email = ""
     private var password = ""
     private var batchBase = 9410
+    private var fuelBase = 9500
 
     /// Seeded order BASE+n (see the seed's table).
     private func order(_ n: Int) -> String { String(batchBase + n) }
@@ -43,6 +44,7 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         email = env["KABBA_EMAIL"] ?? ""
         password = env["KABBA_PASSWORD"] ?? ""
         batchBase = Int(env["KABBA_BATCH_BASE"] ?? "") ?? 9410
+        fuelBase = Int(env["KABBA_FUEL_BASE"] ?? "") ?? 9500
         addUIInterruptionMonitor(withDescription: "system-permission") { alert in
             for label in ["Allow", "Allow While Using App", "OK", "Don’t Allow", "Don't Allow", "Allow Full Access"] {
                 if alert.buttons[label].exists { alert.buttons[label].tap(); return true }
@@ -295,6 +297,113 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         XCTAssertFalse(element(app, "checklist.submit").isEnabled, "C is not signed yet")
         sign(app, equipment: "CB\(order(5))-C")
         shoot("R2-both-signed")
+        submit(app)
+    }
+
+    // MARK: - F · Fuel and DEF (1.0.26) — seed RentnKingUITests/FuelDEFStagingSeed.php (KABBA_FUEL_BASE)
+
+    private let damageQuestion = "Any body damage at delivery?"
+
+    /// Every eighth-tank level is on the wheel for the row (identical for fuel and DEF): the wheel
+    /// is moved through Empty and Full before landing on `value`.
+    private func pickLevel(_ app: XCUIApplication, line: Int, row: String, value: String) {
+        let cell = bring(app, row, line: line)
+        let control = cell.buttons.allElementsBoundByIndex.max { $0.frame.minX < $1.frame.minX } ?? cell.buttons.firstMatch
+        XCTAssertTrue(control.exists, "no level control in line \(line)'s '\(row)'")
+        control.tap()
+        let wheel = app.pickerWheels.firstMatch
+        XCTAssertTrue(wheel.waitForExistence(timeout: 8), "level picker did not open for \(row)")
+        for level in ["Empty", "1/8", "1/4", "3/8", "1/2", "5/8", "3/4", "7/8", "Full", value] {
+            wheel.adjust(toPickerWheelValue: level)
+            XCTAssertEqual(wheel.value as? String, level, "\(row) offers \(level)")
+        }
+        usleep(400_000)
+        app.buttons["Select"].firstMatch.tap()
+        usleep(900_000)
+    }
+
+    /// F1 · Delivery (order FUEL+1): a diesel machine with a DEF tank shows "Fuel (Diesel)" AND an
+    /// independent "DEF" row; the trailer shows neither. Server check: diesel 9, DEF 8 on A only.
+    func testF1_deliveryReadsDieselAndDEFIndependently() {
+        let app = signedIn()
+        openChecklist(app, order: String(fuelBase + 1), leg: "delivery", firstLine: "Fuel DEF Machine")
+        XCTAssertEqual(questionCells(app, "Fuel (Diesel)").count, 1, "the machine's fuel row; none for the trailer")
+        XCTAssertEqual(questionCells(app, "DEF").count, 1, "an independent DEF row for the DEF tank")
+        pickLevel(app, line: 0, row: "Fuel (Diesel)", value: "Full")
+        pickLevel(app, line: 0, row: "DEF", value: "7/8")
+        XCTAssertTrue(bring(app, "Fuel (Diesel)", line: 0).staticTexts["Full"].exists, "diesel kept its level")
+        XCTAssertTrue(bring(app, "DEF", line: 0).staticTexts["7/8"].exists, "DEF kept its own level")
+        answer(app, line: 0, question: damageQuestion, value: "No damage")
+        answer(app, line: 1, question: damageQuestion, value: "No damage")
+        chooseEmployee(app, line: 1, lastQuestion: damageQuestion)
+        shoot("F1-diesel-full-def-7-8")
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        shoot("F1-preview")
+        sign(app)
+        submit(app)
+    }
+
+    /// F2 · Return, Combine ON (order FUEL+2), another phone: A (diesel+DEF, both delivered Full)
+    /// $104.00 + $9.95; B trailer $0.00 — never the machine's fuel again; C (DEF delivery level
+    /// never recorded) shows "Not Recorded" and is charged diesel only, $104.00. Total $217.95.
+    func testF2_returnChargesEachLineItsOwnFuelAndDEF() {
+        let app = signedIn()
+        openChecklist(app, order: String(fuelBase + 2), leg: "return", firstLine: "Fuel DEF Machine")
+        XCTAssertEqual(questionCells(app, "Fuel (Diesel)").count, 2)
+        XCTAssertEqual(questionCells(app, "DEF").count, 2)
+        XCTAssertTrue(bring(app, "DEF", line: 0).staticTexts["Full"].exists, "A's DEF delivery level came from Laravel")
+        XCTAssertTrue(bring(app, "DEF", line: 1).staticTexts["Not Recorded"].exists, "C's DEF delivery level is never assumed")
+        for line in [0, 1] {
+            pickLevel(app, line: line, row: "Fuel (Diesel)", value: "1/2")
+            pickLevel(app, line: line, row: "DEF", value: "1/2")
+        }
+        for line in [0, 1, 2] { answer(app, line: line, question: damageQuestion, value: "No damage") }
+        chooseEmployee(app, line: 2, delivery: false, lastQuestion: damageQuestion)
+        chooseStore(app, line: 2, lastQuestion: damageQuestion)
+        shoot("F2-entered")
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        let total = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '217.95'")).firstMatch
+        XCTAssertTrue(total.waitForExistence(timeout: 10), "Total Charge is $104.00 + $9.95 + $0.00 + $104.00")
+        shoot("F2-preview-total")
+        sign(app)
+        submit(app)
+    }
+
+    /// F3 · The same app against a server WITHOUT DEF readings (today's production backend):
+    /// no DEF row, so no DEF reading is captured that the server would drop. Order FUEL+3.
+    func testF3_aServerWithoutDEFReadingsShowsNoDEFRow() {
+        let app = signedIn()
+        openChecklist(app, order: String(fuelBase + 3), leg: "delivery", firstLine: "Fuel DEF Machine")
+        XCTAssertEqual(questionCells(app, "Fuel (Diesel)").count, 1)
+        XCTAssertEqual(questionCells(app, "DEF").count, 0, "no DEF row without server support")
+        pickLevel(app, line: 0, row: "Fuel (Diesel)", value: "Full")
+        answer(app, line: 0, question: damageQuestion, value: "No damage")
+        chooseEmployee(app, line: 0, lastQuestion: damageQuestion)
+        shoot("F3-one-fuel-row")
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        sign(app)
+        submit(app)
+    }
+
+    /// F4 · Return of F3's machine to TODAY's server (no DEF readings): Fuel (Diesel) Full → 1/2 is
+    /// charged as diesel — 4/8 × 32 gal × $6.50 = $104.00 — where 1.0.25 priced it as DEF ($9.95).
+    func testF4_aDEFMachineReturnedToTodaysServerIsChargedDiesel() {
+        let app = signedIn()
+        openChecklist(app, order: String(fuelBase + 3), leg: "return", firstLine: "Fuel DEF Machine")
+        XCTAssertEqual(questionCells(app, "DEF").count, 0, "no DEF row without server support")
+        pickLevel(app, line: 0, row: "Fuel (Diesel)", value: "1/2")
+        answer(app, line: 0, question: damageQuestion, value: "No damage")
+        chooseEmployee(app, line: 0, delivery: false, lastQuestion: damageQuestion)
+        chooseStore(app, line: 0, lastQuestion: damageQuestion)
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "Preview did not open")
+        let total = app.staticTexts.matching(NSPredicate(format: "label CONTAINS '104.00'")).firstMatch
+        XCTAssertTrue(total.waitForExistence(timeout: 10), "diesel, not DEF")
+        shoot("F4-preview-diesel")
+        sign(app)
         submit(app)
     }
 
@@ -623,9 +732,9 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
         app.windows.firstMatch.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 200, dy: y)).tap()
     }
 
-    private func chooseEmployee(_ app: XCUIApplication, line: Int, delivery: Bool = true) {
+    private func chooseEmployee(_ app: XCUIApplication, line: Int, delivery: Bool = true, lastQuestion: String = "Keys handed over?") {
         _ = delivery   // return cells show the delivery question text too
-        tapFooter(app, line: line, offset: 222, lastQuestion: "Keys handed over?")
+        tapFooter(app, line: line, offset: 222, lastQuestion: lastQuestion)
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 8), "employee picker did not open for line \(line)")
         usleep(400_000)
@@ -634,8 +743,8 @@ final class ChecklistBatchIsolationUITests: XCTestCase {
     }
 
     /// Return footer: Returned Location sits below Returned By (~318 pt under the last question cell).
-    private func chooseStore(_ app: XCUIApplication, line: Int) {
-        tapFooter(app, line: line, offset: 318, lastQuestion: "Keys handed over?")
+    private func chooseStore(_ app: XCUIApplication, line: Int, lastQuestion: String = "Keys handed over?") {
+        tapFooter(app, line: line, offset: 318, lastQuestion: lastQuestion)
         let wheel = app.pickerWheels.firstMatch
         XCTAssertTrue(wheel.waitForExistence(timeout: 8), "location picker did not open for line \(line)")
         usleep(400_000)

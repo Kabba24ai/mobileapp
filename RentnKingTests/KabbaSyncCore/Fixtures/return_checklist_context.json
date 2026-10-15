@@ -138,6 +138,8 @@
             "end_hours": 0,
             "fuel_initial_reading": "8",
             "fuel_final_reading": "",
+            "def_initial_reading": "",
+            "def_final_reading": "",
             "delivery_clean_id": "",
             "return_clean_id": "",
             "delivery_notes": "Delivered to the north gate.",

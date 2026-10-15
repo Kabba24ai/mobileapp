@@ -16,6 +16,29 @@
 
 import Foundation
 
+/// One order product's own Return charges. Each product's completion carries ITS charges only:
+/// until 1.0.26 every product in a multi-line Return was sent the batch's total and the LAST
+/// fuel row's charge, so a trailer or an attachment returned with a machine was billed the
+/// machine's fuel again (Laravel creates one fuel charge per order product it is sent).
+struct ChecklistLineCharge: Equatable {
+    /// Everything this line owes (hours overage, cleaning, fuel, answer amounts).
+    var total: Float = 0
+    /// Primary fuel + DEF for this line's machine (FuelChargeCalculator, cents).
+    var fuel: Decimal = 0
+    var cleaning: Float = 0
+
+    init(total: Float = 0, fuel: Decimal = 0, cleaning: Float = 0) {
+        self.total = total
+        self.fuel = fuel
+        self.cleaning = cleaning
+    }
+
+    /// Wire forms: two decimals, "." separator.
+    var totalString: String { FuelChargeCalculator.amountString(Decimal(Double(total))) }
+    var fuelString: String { FuelChargeCalculator.amountString(fuel) }
+    var cleaningString: String { FuelChargeCalculator.amountString(Decimal(Double(cleaning))) }
+}
+
 /// What the employee captured for one order product's checklist.
 struct ChecklistCapture: Equatable {
     var context: ChecklistContext
@@ -30,11 +53,16 @@ struct ChecklistCapture: Equatable {
     // Delivery leg
     var startHours: String = ""
     var fuelInitialReading: String = ""
+    /// DEF level at delivery (eighths, same ids as fuel). Sent only for a machine with a DEF
+    /// tank, and only when Laravel's contract carries DEF readings (1.0.26+ backend).
+    var defInitialReading: String = ""
     var deliveryCleanOption: String = ""
     var deliveryCleanId: String = ""
     // Return leg
     var endHours: String = ""
     var fuelFinalReading: String = ""
+    var defFinalReading: String = ""
+    /// THIS product's fuel charge (primary fuel + DEF), never another line's.
     var fuelTotalCharge: String = ""
     var totalCharge: String = ""
     var returnCleanOption: String = ""
@@ -90,11 +118,13 @@ enum ChecklistOperationBuilder {
         case .delivery:
             put(&body, "start_hours", capture.startHours)
             put(&body, "fuel_initial_reading", capture.fuelInitialReading)
+            put(&body, "def_initial_reading", capture.defInitialReading)
             put(&body, "delivery_clean_option", capture.deliveryCleanOption)
             put(&body, "delivery_clean_id", capture.deliveryCleanId)
         case .return:
             put(&body, "end_hours", capture.endHours)
             put(&body, "fuel_final_reading", capture.fuelFinalReading)
+            put(&body, "def_final_reading", capture.defFinalReading)
             put(&body, "fuel_total_charge", capture.fuelTotalCharge)
             put(&body, "total_charge", capture.totalCharge)
             put(&body, "return_clean_option", capture.returnCleanOption)

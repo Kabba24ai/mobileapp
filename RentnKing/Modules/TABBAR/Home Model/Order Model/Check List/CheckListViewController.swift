@@ -51,20 +51,6 @@ func getFlueName(strId : String) -> String{
     return "Select"
 }
 
-func FuelCalulateTotalCharge(total : Float, dSelect : Float , rSelect : Float) -> Float{
-    if dSelect != 10 && dSelect != 0 && rSelect != 0{
-        let value = (dSelect - rSelect)
-        if value > 0{
-            return (total/8) * value
-        }
-        else{
-            return 0
-        }
-    }
-    
-    return 0
-}
-
 func getCleaning(strId : String, isReturn : Bool) -> String{
     
     let arrData : [FuleTypes] = isReturn ? arrCleaningReturn : arrCleaningDelivery
@@ -267,13 +253,16 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         }
         
         //GET PRICE LIST
+        // The total re-prices when the lists arrive (an empty cache used to leave fuel and
+        // cleaning at $0 until something else recalculated).
         getPriceList { arr_data in
             self.arrPriceList = arr_data
+            if self.objOrderData != nil { self.CalculatTotalCharge() }
         }
         
         getProductSettingList(completion: { arr_data in
             self.arrProductSettingList = arr_data
-            
+            if self.objOrderData != nil { self.CalculatTotalCharge() }
         })
     }
     
@@ -366,8 +355,37 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         self.objCombineSwitch.isHidden = self.arrOtherData.count < 2
         self.lblCombine.isHidden = self.arrOtherData.count < 2
         self.con_table.constant = self.arrOtherData.count < 2 ? 16 : 50
+        self.reconcileFuelRows()
         self.CalculatTotalCharge()
         self.tblView.reloadData()
+    }
+
+    /// Every product's fuel rows against its machine's tank facts (the checklist context's live
+    /// Equipment Management data when it is for the same unit, else the order line's machine),
+    /// adding an owed DEF row to a draft saved by an older build. Readings are never changed.
+    func reconcileFuelRows() {
+        guard let order = self.objOrderData else { return }
+        for index in order.arrProduct.indices {
+            var product = self.objOrderData.arrProduct[index]
+            let context = self.checklistContexts[product.unique_id ?? ""]
+            let facts: FuelChecklistRows.TankFacts?
+            if let context = context, context.equipment.hasUnit,
+               context.equipment.equipmentUniqueId == (product.objMachine?.unique_id ?? context.equipment.equipmentUniqueId) {
+                facts = FuelChecklistRows.TankFacts(equipment: context.equipment)
+            } else if let machine = product.objMachine {
+                facts = FuelChecklistRows.TankFacts(machine: machine)
+            } else {
+                facts = nil
+            }
+            guard let tank = facts else { continue }
+            var questions = product.arrQuestions
+            let other = index < self.arrOtherData.count ? self.arrOtherData[index] : nil
+            if FuelChecklistRows.reconcile(&questions, facts: tank, product: product, other: other,
+                                           defSupported: FuelChecklistRows.carriesDEFReadings(product: product, context: context)) {
+                product.arrQuestions = questions
+                self.objOrderData.arrProduct[index] = product
+            }
+        }
     }
     
     
@@ -451,7 +469,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
 
             let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                        isDelivery: self.isDeliveryType,
-                                                       totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                                                       charges: ChecklistLineCharge())
 
             // In Transit + incomplete → do not commit an invalid prepared
             // state (§ physical truth); the local draft still holds the edits.
@@ -469,7 +487,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     /// Stable digest of what a prepare would send for one product.
     private static func answersFingerprint(_ capture: ChecklistCapture) -> String {
         let answers = capture.answers.keys.sorted().map { "\($0)=\(capture.answers[$0] ?? "")" }.joined(separator: "|")
-        return answers + "|h:\(capture.startHours)|f:\(capture.fuelInitialReading)|c:\(capture.deliveryCleanId)|e:\(capture.employeeUserId)|s:\(capture.markStaged)"
+        return answers + "|h:\(capture.startHours)|f:\(capture.fuelInitialReading)|d:\(capture.defInitialReading)|c:\(capture.deliveryCleanId)|e:\(capture.employeeUserId)|s:\(capture.markStaged)"
     }
     
     
@@ -606,7 +624,7 @@ extension CheckListViewController{
                 return value != 0 && value != initial
             case "fuel":
                 let value = (isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn) ?? ""
-                let initial = isDeliveryType ? product.fuel_initial_reading : product.fuel_final_reading
+                let initial = FuelChecklistRows.serverReading(row: question, product: product, isDelivery: isDeliveryType)
                 return !value.isEmpty && value != initial
             case "cleaning":
                 let value = isDeliveryType ? question.startCleaning : question.endCleaning
@@ -713,7 +731,7 @@ extension CheckListViewController{
 
                 var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                            isDelivery: self.isDeliveryType,
-                                                           totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                                                           charges: ChecklistLineCharge())
                 let problems = capture.localValidationProblems()
                 let complete = problems.isEmpty && !errorSections.contains(index)
                 let inTransit = context.serverState.inTransit == true
@@ -1472,39 +1490,10 @@ extension CheckListViewController : UITextFieldDelegate{
                     }
                 }
                 else if objQuestion.type == "fuel"{
-                    
-                    let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
-                    var totalPrice  : Float = 0.0
-                    if objQuestion.isDEF == "Yes"{
-                        totalPrice = price * (Float(objQuestion.def_tank_capacity ?? "") ?? 0)
+                    // Each fuel row prices ITS fluid (primary fuel or DEF) — FuelChargeCalculator.
+                    if let line = FuelChecklistRows.line(for: objQuestion, product: objProduct, prices: self.fuelPrices) {
+                        self.strTotalCharge = self.strTotalCharge + Float(FuelChargeCalculator.double(line.amount))
                     }
-                    else if objQuestion.fuleType == "diesel"{
-                        totalPrice = price * (Float(objQuestion.diesel_tank_capacity ?? "") ?? 0)
-                    }
-                    else if objQuestion.fuleType == "gas"{
-                        totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
-                    }
-                    
-                    //SET FULE IS ADMIN OVERRIDE
-                    var strDeliveredFule : String = getFlueName(strId: objQuestion.selectFuleDelivery ?? "")
-                    if objProduct.is_delivered == true{
-                        strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
-                    }
-                    
-                    var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
-                    
-                    //CHECK PREPAID FULE
-                    let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
-                    if selectedOptions.contains("rental_prepaid_fuel") {
-                        // Option exists
-                        strFuleTotalCharge = 0
-                    }
-                    
-                    
-                    
-                    self.strTotalCharge = self.strTotalCharge + strFuleTotalCharge
-                    
-                    
                 }
                 
                 else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
@@ -1527,33 +1516,9 @@ extension CheckListViewController : UITextFieldDelegate{
     }
     
     
-    func getPrice(strFuleType : String, isDef : String) -> Float{
-        if isDef == "Yes"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "def_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "gas"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "gas_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "diesel"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "diesel_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        
-        return 0
+    /// System Configuration fuel prices from the cached "Price Settings" list.
+    var fuelPrices: FuelPrices {
+        FuelChecklistRows.prices(from: self.arrPriceList.map { ($0.setting_name, $0.setting_value) })
     }
     
     
@@ -2332,11 +2297,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             
             var strDeliveredHours : String = objDetails.startHours == 0.0 ? "" : "\(objDetails.startHours)"
-            var strDeliveredFule : String = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
             var strDeliveredCleaning : String = getCleaning(strId: objDetails.selectCleaningDelivery ?? "", isReturn: false)
             if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
                 strDeliveredHours = objDetails.startHours == 0.0 ? "Admin Override" : "\(objDetails.startHours)"
-                strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
                 strDeliveredCleaning = strDeliveredCleaning == "Select" ? "Admin Override" : strDeliveredCleaning
                 cell.lblDeliverySelect.text = "Admin Override"
             }
@@ -2374,8 +2337,8 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.viewReturnedMain.isHidden = self.isDeliveryType
             
             if objDetails.type == "fuel"{
-                cell.lblDeliverySelect.text = strDeliveredFule
-                cell.lblReturnSelect.text = getFlueName(strId: objDetails.selectFuleReturn ?? "")
+                cell.lblDeliverySelect.text = FuelChecklistRows.deliveredText(for: objDetails, product: self.objOrderData.arrProduct[indexPath.section])
+                cell.lblReturnSelect.text = FuelChecklistRows.returnedText(for: objDetails)
                 
                 let selectedOptions = self.objOrderData
                     .arrProduct[indexPath.section]
@@ -2497,12 +2460,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
         
         if objDetails.type == "fuel"{
-            actionPicker(sender, strTitle: "", arrData: arrFlueDelivery.compactMap { $0.name}, selectValue: "") { index, selectValue in
+            // Identical levels for every fluid (FuelLevel.options).
+            actionPicker(sender, strTitle: "", arrData: FuelLevel.options.map { $0.name }, selectValue: "") { index, selectValue in
                 
                 
-                //SET IN OTHER DATA
+                //SET IN OTHER DATA — the primary fuel or the DEF reading, never both
                 let objDate = self.arrOtherData[section]
-                objDate.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
+                FuelChecklistRows.setReading("\(FuelLevel.options[index].id)", isDelivery: true, row: objDetails, other: objDate)
                 self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
@@ -2512,7 +2476,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
-                objdata.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
+                objdata.selectFuleDelivery = "\(FuelLevel.options[index].id)"
                 
                 
                 
@@ -2610,12 +2574,12 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
         
         if objDetails.type == "fuel"{
-            let arrFuleReturn : [FuleTypes] = arrFlueDelivery.reversed()
-            actionPicker(sender, strTitle: "", arrData: arrFuleReturn.compactMap { $0.name}, selectValue: "") { index, selectValue in
+            let arrFuleReturn = FuelLevel.returnOptions
+            actionPicker(sender, strTitle: "", arrData: arrFuleReturn.map { $0.name }, selectValue: "") { index, selectValue in
                 
-                //SET IN OTHER DATA
+                //SET IN OTHER DATA — the primary fuel or the DEF reading, never both
                 let objDate = self.arrOtherData[section]
-                objDate.selectFuleReturn = "\(arrFuleReturn[index].id)"
+                FuelChecklistRows.setReading("\(arrFuleReturn[index].id)", isDelivery: false, row: objDetails, other: objDate)
                 self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
@@ -2798,6 +2762,8 @@ extension CheckListViewController{
             let  obj = self.objOrderData.arrProduct[i]
             
             self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "\(obj.startCleaning ?? 0)", selectCleaningReturn: "\(obj.endCleaning ?? 0)"))
+            self.arrOtherData.last?.selectDefDelivery = obj.def_initial_reading ?? ""
+            self.arrOtherData.last?.selectDefReturn = obj.def_final_reading ?? ""
             
             
             if obj.objMachine != nil{
@@ -2867,30 +2833,18 @@ extension CheckListViewController{
             cleaningItem = objCheckList
         }
         
-        //FUEL — only when the equipment has a power source
-        var fuelItem: CustomerCheckListModel?
-        if objEquipment != nil, objEquipment?.powerSourceType != ""{
-            let map = Map(mappingType: .fromJSON, JSON: [:])
-            var objCheckListFule = CustomerCheckListModel(map: map)
-            objCheckListFule?.type = "fuel"
-            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.fuleType = objEquipment?.powerSourceType
-            objCheckListFule?.isDEF = objEquipment?.hasDEF
-            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-            fuelItem = objCheckListFule
+        //FUEL — only when the equipment has a power source: the primary fuel row, plus an
+        //independent DEF row for a machine with a DEF tank (FuelChecklistRows).
+        let defSupported = FuelChecklistRows.carriesDEFReadings(product: objProduct, context: self.checklistContexts[objProduct.unique_id ?? ""])
+        let fuelItems = FuelChecklistRows.rows(machine: objEquipment, product: objProduct, defSupported: defSupported)
+        if index < self.arrOtherData.count, fuelItems.contains(where: { $0.isDEFRow }) {
+            let other = self.arrOtherData[index]
+            if other.selectDefDelivery.isEmpty { other.selectDefDelivery = objProduct.def_initial_reading ?? "" }
+            if other.selectDefReturn.isEmpty { other.selectDefReturn = objProduct.def_final_reading ?? "" }
         }
-        
-        // Insert at index 0 in REVERSE priority so the final order is text, cleaning, fuel.
-        for item in [fuelItem, cleaningItem, textItem] {
-            if let item = item {
-                objProduct.arrQuestions.insert(item, at: 0)
-            }
-        }
+
+        // Final order: text, cleaning, fuel row(s), then the base questions.
+        objProduct.arrQuestions.insert(contentsOf: [textItem, cleaningItem].compactMap { $0 } + fuelItems, at: 0)
         
         self.objOrderData.arrProduct.remove(at: index)
         self.objOrderData.arrProduct.insert(objProduct, at: index)
@@ -3082,11 +3036,13 @@ extension CheckListViewController {
             if self.isDeliveryType {
                 self.arrOtherData[index].startHours = 0.0
                 self.arrOtherData[index].selectFuleDelivery = ""
+                self.arrOtherData[index].selectDefDelivery = ""
                 self.arrOtherData[index].dNote = ""
                 self.arrOtherData[index].deliveryInputEntered = false
             } else {
                 self.arrOtherData[index].endHours = 0.0
                 self.arrOtherData[index].selectFuleReturn = ""
+                self.arrOtherData[index].selectDefReturn = ""
                 self.arrOtherData[index].rNote = ""
                 self.arrOtherData[index].returnInputEntered = false
             }
@@ -3305,10 +3261,12 @@ extension CheckListViewController {
                         if self.isDeliveryType {
                             self.arrOtherData[index].startHours = 0.0
                             self.arrOtherData[index].selectFuleDelivery = ""
+                            self.arrOtherData[index].selectDefDelivery = ""
                             self.arrOtherData[index].deliveryInputEntered = false
                         } else {
                             self.arrOtherData[index].endHours = 0.0
                             self.arrOtherData[index].selectFuleReturn = ""
+                            self.arrOtherData[index].selectDefReturn = ""
                             self.arrOtherData[index].returnInputEntered = false
                         }
                     }
@@ -3347,6 +3305,11 @@ extension CheckListViewController {
             self.objOrderData.arrProduct[index] = product
         }
 
+        // The context carries Equipment Management's CURRENT tank facts for the unit (the order
+        // line's machine snapshot can be older) and says whether Laravel stores DEF readings.
+        self.reconcileFuelRows()
+        self.CalculatTotalCharge()
+
         self.tblView.reloadData()
         self.refreshPreparationActions()
         recordLoadedFingerprint(for: uid)
@@ -3361,7 +3324,7 @@ extension CheckListViewController {
         let product = order.arrProduct[index]
         let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
                                                    isDelivery: self.isDeliveryType,
-                                                   totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                                                   charges: ChecklistLineCharge())
         loadedFingerprint[uid] = Self.answersFingerprint(capture)
     }
 }

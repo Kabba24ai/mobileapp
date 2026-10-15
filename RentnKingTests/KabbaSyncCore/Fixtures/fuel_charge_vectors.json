@@ -1,0 +1,4526 @@
+{
+  "version": 1,
+  "vectors": [
+    {
+      "name": "diesel 32.00gal 1->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 1->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 2->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 2->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 3->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 3->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 3->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 4->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 4->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 4->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 4->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 5->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "104.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 5->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 5->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 5->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 5->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 5->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 5->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 5->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 5->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 6->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "130.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 6->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "104.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 6->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 6->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 6->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 6->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 6->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 6->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 6->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 7->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "156.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "130.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "104.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 7->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 7->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 7->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 8->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "182.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "156.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "130.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "104.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 8->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 8->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "diesel 32.00gal 9->1",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 8,
+      "expected_amount": "208.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->2",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "182.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->3",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "156.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->4",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "130.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->5",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "104.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->6",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "78.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->7",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "52.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->8",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "26.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "diesel 32.00gal 9->9",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 1->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 2->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 2->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 3->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 3->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 3->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 4->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 4->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 4->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 4->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 5->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "10.63",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 5->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 5->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 5->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 5->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 5->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 5->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 5->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 5->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 6->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 6->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "10.63",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 6->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 6->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 6->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 6->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 6->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 6->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 6->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 7->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "15.94",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "10.63",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 7->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 7->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 7->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 8->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "18.59",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "15.94",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "10.63",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 8->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 8->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "gas 5.00gal 9->1",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 8,
+      "expected_amount": "21.25",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->2",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "18.59",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->3",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "15.94",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->4",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->5",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "10.63",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->6",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.97",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->7",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "5.31",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->8",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.66",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "gas 5.00gal 9->9",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 1->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "1",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 2->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 2->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "2",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 3->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 3->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 3->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "3",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 4->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 4->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 4->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 4->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "4",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 5->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "9.95",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 5->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 5->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 5->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 5->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 5->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 5->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 5->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 5->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 6->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "12.44",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 6->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "9.95",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 6->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 6->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 6->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 6->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 6->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 6->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 6->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "6",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 7->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "14.93",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "12.44",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "9.95",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 7->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 7->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 7->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "7",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 8->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "17.41",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "14.93",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "12.44",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "9.95",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 8->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 8->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "def 5.00gal 9->1",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 8,
+      "expected_amount": "19.90",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->2",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "17.41",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->3",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 6,
+      "expected_amount": "14.93",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->4",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "12.44",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->5",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "9.95",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->6",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "7.46",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->7",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "4.98",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->8",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "2.49",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "def 5.00gal 9->9",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "rounding diesel 14.00gal 9->8",
+      "fluid": "diesel",
+      "capacity": "14.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "11.38",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding diesel 19.50gal 9->6",
+      "fluid": "diesel",
+      "capacity": "19.50",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "6",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 3,
+      "expected_amount": "47.53",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding diesel 9.25gal 9->5",
+      "fluid": "diesel",
+      "capacity": "9.25",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "30.06",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding gas 7.00gal 9->5",
+      "fluid": "gas",
+      "capacity": "7.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "14.88",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding diesel 31.00gal 9->7",
+      "fluid": "diesel",
+      "capacity": "31.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "7",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 2,
+      "expected_amount": "50.38",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding def 6.00gal 9->2",
+      "fluid": "def",
+      "capacity": "6.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "2",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 7,
+      "expected_amount": "20.90",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding gas 1.00gal 9->8",
+      "fluid": "gas",
+      "capacity": "1.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "8",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 1,
+      "expected_amount": "0.53",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "rounding diesel 29.00gal 8->3",
+      "fluid": "diesel",
+      "capacity": "29.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "8",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "117.81",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "order 4597 diesel full->empty",
+      "fluid": "diesel",
+      "capacity": "32.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 8,
+      "expected_amount": "208.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "order 4597 DEF full->empty",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "1",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 8,
+      "expected_amount": "19.90",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "primary admin override (delivered line, no delivery level) counts Full",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "",
+      "returned": "5",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 4,
+      "expected_amount": "91.00",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "primary missing delivery level on an undelivered line",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "",
+      "returned": "5",
+      "delivery_completed": false,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "delivery_missing"
+    },
+    {
+      "name": "DEF delivery level is never assumed",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "delivery_not_recorded"
+    },
+    {
+      "name": "DEF delivery level zero is not recorded",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "0",
+      "returned": "3",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "delivery_not_recorded"
+    },
+    {
+      "name": "legacy prepaid delivery level",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "10",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "prepaid"
+    },
+    {
+      "name": "prepaid fuel option",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": true,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "prepaid"
+    },
+    {
+      "name": "prepaid fuel option covers DEF",
+      "fluid": "def",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": true,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "prepaid"
+    },
+    {
+      "name": "not returned yet",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "not_returned"
+    },
+    {
+      "name": "returned fuller than delivered",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "5",
+      "returned": "9",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 0,
+      "expected_amount": "0.00",
+      "expected_outcome": "no_usage"
+    },
+    {
+      "name": "capacity missing",
+      "fluid": "diesel",
+      "capacity": "0",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "0.00",
+      "expected_outcome": "capacity_missing"
+    },
+    {
+      "name": "price missing",
+      "fluid": "diesel",
+      "capacity": "28.00",
+      "prices": {
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "9",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "0.00",
+      "expected_outcome": "price_missing"
+    },
+    {
+      "name": "garbage reading",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": "x",
+      "returned": "4",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    },
+    {
+      "name": "whitespace around readings",
+      "fluid": "gas",
+      "capacity": "5.00",
+      "prices": {
+        "diesel": "6.50",
+        "gas": "4.25",
+        "def": "3.98"
+      },
+      "delivered": " 9 ",
+      "returned": " 4 ",
+      "delivery_completed": true,
+      "prepaid_fuel": false,
+      "expected_eighths": 5,
+      "expected_amount": "13.28",
+      "expected_outcome": "charged"
+    }
+  ]
+}
