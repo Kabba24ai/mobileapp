@@ -639,6 +639,9 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 return
             }
 
+            // Each line's charges from its rows and the current prices, right before they are sent.
+            self.CalculatTotalCharge()
+
             var submissions: [ChecklistSubmissionPlan] = []
             for (index, obj) in self.objOrderData.arrProduct.enumerated() {
                 let objOther = self.arrOtherData[index]
