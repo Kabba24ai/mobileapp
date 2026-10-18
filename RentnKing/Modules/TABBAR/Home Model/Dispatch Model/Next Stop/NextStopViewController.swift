@@ -29,7 +29,9 @@ final class NextStopViewController: UIViewController {
 
     /// The durable shop stop.
     var loadState: () -> NextStopState = { NextStopCoordinator.state() }
-    var persistState: (NextStopState) -> Void = { try? NextStopCoordinator.save($0) }
+    /// Throwing on purpose: a shop stop that did not reach disk is not a shop
+    /// stop, and the screen must not pretend otherwise.
+    var persistState: (NextStopState) throws -> Void = { try NextStopCoordinator.save($0) }
 
     /// The tenant's active stores: what this phone already holds, then an
     /// opportunistic refresh.
@@ -133,7 +135,10 @@ final class NextStopViewController: UIViewController {
         // Choosing a real mission ends the shop stop — the mission is the next
         // stop now, and it carries no Next Stop state of its own.
         picker.clearShopStop = { [weak self] in
-            self?.persistState(NextStopTransition.finishShopStop(self?.state ?? .idle))
+            // Best-effort: the driver is already moving on to a real mission, so
+            // a failed delete must never block them. The stale shop stop is
+            // harmless — the next mission is the destination now.
+            try? self?.persistState(NextStopTransition.finishShopStop(self?.state ?? .idle))
             self?.state = .idle
         }
         navigationController?.pushViewController(picker, animated: true)
@@ -160,22 +165,38 @@ final class NextStopViewController: UIViewController {
         guard index >= 0, index < shopChoices.count else { return }
         let shop = shopChoices[index]
 
-        state = NextStopTransition.selectShop(shop, at: now())
-        persistState(state)
+        let chosen = NextStopTransition.selectShop(shop, at: now())
+        // Durable FIRST. If the write cannot land there is no destination to
+        // show and nowhere to send the driver, so nothing advances.
+        do {
+            try persistState(chosen)
+        } catch {
+            showAlertMessage(strMessage: str.somethingWentWrong)
+            return
+        }
+
+        state = chosen
         isShowingShopList = false
         render()
 
         guard !shop.fullAddress.isEmpty else { return }
         openMap(shop.fullAddress) { _ in
-            // Whether Maps opened or not, the shop stop stands.
+            // Whether Maps opened or not, the shop stop stands — it is on disk.
         }
     }
 
     @objc func arrivedTapped() {
         let arrived = NextStopTransition.arrive(state, at: now())
         guard arrived != state else { return }
+        // An arrival nobody recorded is not an arrival: leave the driver
+        // heading there, with the action still available to retry.
+        do {
+            try persistState(arrived)
+        } catch {
+            showAlertMessage(strMessage: str.somethingWentWrong)
+            return
+        }
         state = arrived
-        persistState(state)
         render()
     }
 

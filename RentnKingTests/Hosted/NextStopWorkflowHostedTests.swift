@@ -227,7 +227,11 @@ extension NextStopWorkflowHostedTests {
         probe.saved = state
         let vc = NextStopViewController()
         vc.loadState = { probe.saved }
-        vc.persistState = { probe.saved = $0; probe.events.append("saved(\($0.shop?.name ?? "idle"))") }
+        vc.persistState = { state in
+            if probe.persistFails { throw NextStopStoreError.noTenant }
+            probe.saved = state
+            probe.events.append("saved(\(state.shop?.name ?? "idle"))")
+        }
         vc.cachedStores = { cached }
         vc.refreshStores = { done in if let r = refreshed { done(r) } }
         vc.openMap = { address, done in
@@ -438,6 +442,7 @@ extension NextStopWorkflowHostedTests {
 final class NextStopProbe {
     var vc: NextStopViewController!
     var saved: NextStopState = .idle
+    var persistFails = false
     var events: [String] = []
     var mapAddresses: [String] = []
 }
@@ -758,5 +763,71 @@ extension NextStopWorkflowHostedTests {
         XCTAssertTrue(list.arrRows.isEmpty)
         XCTAssertEqual(p.vc.emptyText,
                        "Your remaining work has not been downloaded to this phone. Connect once to load it.")
+    }
+}
+
+// MARK: - Review findings
+
+extension NextStopWorkflowHostedTests {
+
+    /// Review finding: the board only filters locally-completed legs on the
+    /// Pending tab (`selectStatus == "1"`). Next Stop must apply its own rule
+    /// regardless — spec §3.2, "exclude work already effectively completed
+    /// locally or on the server" — or a driver who happened to leave the board
+    /// on Completed would be offered the job they just finished.
+    func testTheJustFinishedJobIsNeverOfferedEvenWithTheBoardOnTheCompletedTab() {
+        let (list, _) = board(orders: [leg("OP-DONE", sortKey: "2026-10-18|00001", deliveryDriver: garyId),
+                                       leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
+                              driverId: garyId,
+                              ops: [completedLegOp("OP-DONE")])
+        list.selectStatus = "0"          // the Completed tab
+        list.rebuildRows()
+        XCTAssertEqual(list.arrRows.count, 2, "Fixture guard: the board itself still renders both rows here.")
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity), [.orderProduct("OP-NEXT")],
+                       "Next Stop owns this rule and must not inherit the board's tab-conditional filter.")
+        XCTAssertFalse(list.openOrderMission(orderProductUniqueId: "OP-DONE"),
+                       "Nor may the finished job be opened from the picker.")
+        XCTAssertTrue(list.openOrderMission(orderProductUniqueId: "OP-NEXT"))
+    }
+
+    func testAReturnLegCompletedOnThisPhoneIsAlsoExcluded() {
+        let (list, _) = board(orders: [leg("OP-RET", delivered: true, sortKey: "2026-10-18|00001",
+                                           deliveryDriver: garyId, pickupDriver: garyId)],
+                              driverId: garyId,
+                              ops: [completedLegOp("OP-RET", delivery: false)])
+
+        XCTAssertTrue(list.currentNextStopMissions().isEmpty,
+                      "A finished return is finished work too.")
+    }
+
+    /// Review finding: the shop stop claimed durability with `try?`. If the
+    /// write cannot land there is no durable destination, so the screen must not
+    /// announce one — and must not send the driver to Maps for it.
+    func testAFailedDurableWriteNeverClaimsADestinationNorOpensMaps() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")])
+        p.persistFails = true
+        p.vc.returnToShopTapped()
+
+        p.vc.selectShop(at: 0)
+
+        XCTAssertEqual(p.saved, .idle, "Nothing reached disk.")
+        XCTAssertNil(p.vc.currentDestinationText, "So nothing may be presented as the current destination.")
+        XCTAssertNil(p.vc.arrivedActionTitle)
+        XCTAssertEqual(p.mapAddresses, [], "And the driver is not sent to Maps for a stop that was not recorded.")
+    }
+
+    func testAFailedArrivalWriteLeavesTheDriverStillHeadingThere() {
+        let shop = NextStopShop(uniqueId: "STR-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let selectedAt = Date(timeIntervalSince1970: 1_792_000_000)
+        let p = nextStop(state: .shopSelected(shop: shop, selectedAt: selectedAt))
+        p.vc.refreshFromDurableState()
+        p.persistFails = true
+
+        p.vc.arrivedTapped()
+
+        XCTAssertEqual(p.saved, .shopSelected(shop: shop, selectedAt: selectedAt),
+                       "An unrecorded arrival is not an arrival.")
+        XCTAssertEqual(p.vc.arrivedActionTitle, "Arrived at Bon Aqua", "The action stays available to retry.")
     }
 }

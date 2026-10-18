@@ -2289,6 +2289,8 @@ extension DispatchListViewController {
         var missions: [NextStopMission] = []
         missions.reserveCapacity(self.arrRows.count)
 
+        let finishedHere = EffectiveFieldState.CompletionOverlay.from(self.operationsSnapshot())
+
         for row in 0..<self.arrRows.count {
             if let manual = self.manualJobForRow(row) {
                 guard let uid = manual.unique_id, !uid.isEmpty else { continue }
@@ -2307,6 +2309,11 @@ extension DispatchListViewController {
             guard let index = self.orderIndexForRow(row) else { continue }
             let leg = self.arrDispatchList[index]
             guard let uid = leg.unique_id, !uid.isEmpty else { continue }
+            // Next Stop's OWN rule (spec §3.2): never offer work already
+            // finished here. The board filters locally-completed legs only on
+            // the Pending tab, so inheriting that would offer the driver the
+            // very job they just completed whenever the board sat on Completed.
+            guard !Self.isFinishedHere(finishedHere, leg) else { continue }
             // Active leg, the board's own rule: the delivery until it is
             // delivered, the return afterwards.
             let isDeliveryLeg = leg.is_delivered == false
@@ -2322,6 +2329,15 @@ extension DispatchListViewController {
         return missions
     }
 
+    /// Has THIS phone durably completed the row's active leg? One rule, used
+    /// by both the projection and the reopen guard.
+    fileprivate static func isFinishedHere(_ overlay: EffectiveFieldState.CompletionOverlay,
+                                           _ leg: SchedulesModel) -> Bool {
+        guard !overlay.isEmpty, let uid = leg.unique_id, !uid.isEmpty else { return false }
+        return overlay.isLegLocallyCompleted(orderProductUniqueId: uid,
+                                             isDeliveryLeg: leg.is_delivered == false)
+    }
+
     /// Opens an order mission by its order-product unique id, RE-RESOLVED
     /// against the rows as they stand right now. Returns false when that
     /// mission is no longer part of this driver's rendered workload — it
@@ -2330,9 +2346,13 @@ extension DispatchListViewController {
     @discardableResult
     func openOrderMission(orderProductUniqueId: String) -> Bool {
         guard !orderProductUniqueId.isEmpty else { return false }
+        let finishedHere = EffectiveFieldState.CompletionOverlay.from(self.operationsSnapshot())
         for row in 0..<self.arrRows.count {
             guard let index = self.orderIndexForRow(row),
                   self.arrDispatchList[index].unique_id == orderProductUniqueId else { continue }
+            // Same rule on the way in: a finished job cannot be reopened from a
+            // picker that was built before it completed.
+            guard !Self.isFinishedHere(finishedHere, self.arrDispatchList[index]) else { return false }
             if let seam = self.openOrderMissionAt {
                 seam(index)
             } else {
