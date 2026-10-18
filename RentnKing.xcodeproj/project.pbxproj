@@ -151,7 +151,11 @@
 		5A5C00000000000000000018 /* KabbaAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000017 /* KabbaAPIClient.swift */; };
 		5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */; };
 		5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
+		5A6A000000000000000000A1 /* NextStopState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000A0 /* NextStopState.swift */; };
+		5A6A000000000000000000B1 /* NextStopStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000B0 /* NextStopStore.swift */; };
 		5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E0 /* DispatchWorkload.swift */; };
+		5A6A000000000000000000A2 /* NextStopState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000A0 /* NextStopState.swift */; };
+		5A6A000000000000000000B2 /* NextStopStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000B0 /* NextStopStore.swift */; };
 		5A5D000000000000000000F1 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5D000000000000000000F2 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */; };
@@ -425,6 +429,8 @@
 		5A5C00000000000000000063 /* APIErrorClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000062 /* APIErrorClassifierTests.swift */; };
 		5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000064 /* AuthRecoveryTests.swift */; };
 		5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000066 /* ChecklistContractTests.swift */; };
+		5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000C0 /* NextStopStateTests.swift */; };
+		5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000D0 /* NextStopStoreTests.swift */; };
 		5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000068 /* ChecklistOperationTests.swift */; };
 		5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */; };
 		5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C0000000000000000006C /* ExternalTransferTests.swift */; };
@@ -691,6 +697,8 @@
 		5A5C00000000000000000017 /* KabbaAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KabbaAPIClient.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverChecklistSyncHandler.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E0 /* DispatchWorkload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkload.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000A0 /* NextStopState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopState.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000B0 /* NextStopStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopStore.swift; sourceTree = "<group>"; };
 		5A5D000000000000000000F0 /* DispatchWake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWake.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchSyncHandler.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
@@ -944,6 +952,8 @@
 		5A5C00000000000000000062 /* APIErrorClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIErrorClassifierTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000064 /* AuthRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRecoveryTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000066 /* ChecklistContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContractTests.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000C0 /* NextStopStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopStateTests.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000D0 /* NextStopStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopStoreTests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000068 /* ChecklistOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistOperationTests.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeprecatedEndpointGuardTests.swift; sourceTree = "<group>"; };
 		5A5C0000000000000000006C /* ExternalTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalTransferTests.swift; sourceTree = "<group>"; };
@@ -2173,6 +2183,8 @@
 				5A5C00000000000000000011 /* SyncDiagnostics.swift */,
 				5A5C00000000000000000013 /* InstallationIdentity.swift */,
 				5A5C000000000000000000E0 /* DispatchWorkload.swift */,
+				5A6A000000000000000000A0 /* NextStopState.swift */,
+				5A6A000000000000000000B0 /* NextStopStore.swift */,
 				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
@@ -2321,6 +2333,8 @@
 				5A5C00000000000000000062 /* APIErrorClassifierTests.swift */,
 				5A5C00000000000000000064 /* AuthRecoveryTests.swift */,
 				5A5C00000000000000000066 /* ChecklistContractTests.swift */,
+				5A6A000000000000000000C0 /* NextStopStateTests.swift */,
+				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -2793,6 +2807,8 @@
 				5A5C0000000000000000001A /* DriverChecklistSyncHandler.swift in Sources */,
 				5A5F00000000000000000045 /* StaleAvailabilityReconciler.swift in Sources */,
 				5A5C000000000000000000E1 /* DispatchWorkload.swift in Sources */,
+				5A6A000000000000000000A1 /* NextStopState.swift in Sources */,
+				5A6A000000000000000000B1 /* NextStopStore.swift in Sources */,
 				5A5D000000000000000000F1 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
@@ -3050,6 +3066,8 @@
 				5A5D000000000000000000F4 /* DispatchWakeTests.swift in Sources */,
 				5A5C00000000000000000065 /* AuthRecoveryTests.swift in Sources */,
 				5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */,
+				5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */,
+				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
@@ -3099,6 +3117,8 @@
 				5A5C000000000000000000BC /* APIEnvelope.swift in Sources */,
 				5A5C000000000000000000BD /* SyncOperation.swift in Sources */,
 				5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */,
+				5A6A000000000000000000A2 /* NextStopState.swift in Sources */,
+				5A6A000000000000000000B2 /* NextStopStore.swift in Sources */,
 				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
