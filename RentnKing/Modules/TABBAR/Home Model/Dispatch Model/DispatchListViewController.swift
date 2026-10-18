@@ -101,6 +101,9 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var driverStageOverlay = DriverStageOverlay.from([])
     /// Seams (hosted tests inject; production reads the shared engine and the cached review).
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    /// Next Stop test seam: how a RESOLVED order mission is opened. nil (production)
+    /// = the real openMission(at:), so the routing under test is identity resolution.
+    var openOrderMissionAt: ((Int) -> Void)?
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     /// Release 2026-09-30 seams (hosted tests inject; production reads the network, the offline
     /// mission store and the MMKV feed snapshot).
@@ -2254,3 +2257,104 @@ class StoreListCell: UITableViewCell {
     }
 }
 
+
+// MARK: - Next Stop (2026-10-18): the driver's remaining workday, by stable identity
+
+/// Which canonical Dispatch mission a Next Stop row points at. An identity, not
+/// a copy: the mission itself stays owned by Dispatch.
+enum NextStopMissionIdentity: Equatable {
+    case orderProduct(String)
+    case manualTask(String)
+}
+
+/// One row in the Next Customer / Mission picker. Presentation only — it holds
+/// no assignment, no status and no completion authority.
+struct NextStopMission: Equatable {
+    let identity: NextStopMissionIdentity
+    let kindLabel: String      // "Delivery" | "Return" | "Manual Dispatch"
+    let primaryText: String    // customer, or the manual task's location
+    let secondaryText: String  // product + order, or the manual description
+    let sortKey: String
+}
+
+extension DispatchListViewController {
+
+    /// The driver's remaining work, projected from the rows this screen has
+    /// ALREADY reconciled and filtered (arrRows) — same weave, same sort_key
+    /// order, same driver-membership and locally-completed rules the board
+    /// renders. Deliberately a projection and not a query: there is one
+    /// Dispatch ordering in the app and this is not a second one.
+    func currentNextStopMissions() -> [NextStopMission] {
+        var missions: [NextStopMission] = []
+        missions.reserveCapacity(self.arrRows.count)
+
+        for row in 0..<self.arrRows.count {
+            if let manual = self.manualJobForRow(row) {
+                guard let uid = manual.unique_id, !uid.isEmpty else { continue }
+                let where_ = [manual.location_name, manual.locationLine]
+                    .compactMap { ($0?.isEmpty == false) ? $0 : nil }.first
+                missions.append(NextStopMission(
+                    identity: .manualTask(uid),
+                    kindLabel: "Manual Dispatch",
+                    primaryText: where_ ?? (manual.type ?? "Manual Dispatch"),
+                    secondaryText: [manual.type, manual.description]
+                        .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+                    sortKey: manual.sort_key ?? DispatchWorkload.openEndedSortKey))
+                continue
+            }
+
+            guard let index = self.orderIndexForRow(row) else { continue }
+            let leg = self.arrDispatchList[index]
+            guard let uid = leg.unique_id, !uid.isEmpty else { continue }
+            // Active leg, the board's own rule: the delivery until it is
+            // delivered, the return afterwards.
+            let isDeliveryLeg = leg.is_delivered == false
+            let orderNumber = "\(leg.order?.order_number ?? "")"
+            missions.append(NextStopMission(
+                identity: .orderProduct(uid),
+                kindLabel: isDeliveryLeg ? "Delivery" : "Return",
+                primaryText: leg.order?.customer_name ?? "—",
+                secondaryText: [leg.product_name, orderNumber.isEmpty ? nil : "#" + orderNumber]
+                    .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+                sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey))
+        }
+        return missions
+    }
+
+    /// Opens an order mission by its order-product unique id, RE-RESOLVED
+    /// against the rows as they stand right now. Returns false when that
+    /// mission is no longer part of this driver's rendered workload — it
+    /// completed, or the office reassigned it while the picker was open — so a
+    /// stale pick can never open whichever mission inherited its index.
+    @discardableResult
+    func openOrderMission(orderProductUniqueId: String) -> Bool {
+        guard !orderProductUniqueId.isEmpty else { return false }
+        for row in 0..<self.arrRows.count {
+            guard let index = self.orderIndexForRow(row),
+                  self.arrDispatchList[index].unique_id == orderProductUniqueId else { continue }
+            if let seam = self.openOrderMissionAt {
+                seam(index)
+            } else {
+                self.openMission(at: index)
+            }
+            return true
+        }
+        return false
+    }
+
+    /// Opens a Manual Dispatch mission by its task unique id, re-resolved the
+    /// same way, into the same Task Details screen the board pushes.
+    @discardableResult
+    func openManualMission(taskUniqueId: String) -> Bool {
+        guard !taskUniqueId.isEmpty else { return false }
+        for row in 0..<self.arrRows.count {
+            guard let job = self.manualJobForRow(row), job.unique_id == taskUniqueId else { continue }
+            let detail = ManualDispatchDetailViewController()
+            detail.item = job
+            detail.onChanged = { [weak self] in self?.refreshList() }
+            self.navigationController?.pushViewController(detail, animated: true)
+            return true
+        }
+        return false
+    }
+}

@@ -47,6 +47,7 @@
 		5A5E000000000000000000BD /* DispatchOfflineFieldBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */; };
 		5A5E000000000000000000BE /* DispatchOfflineFieldBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */; };
 		5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */; };
+		5A6A000000000000000000E1 /* NextStopWorkflowHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000E0 /* NextStopWorkflowHostedTests.swift */; };
 		5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */; };
 		5A5E000000000000000000B9 /* DispatchOfflineRowAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */; };
 		5A5E000000000000000000B7 /* DispatchOfflineSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5E000000000000000000B6 /* DispatchOfflineSync.swift */; };
@@ -159,6 +160,7 @@
 		5A5D000000000000000000F1 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5D000000000000000000F2 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */; };
+		5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F0 /* NextStopCoordinator.swift */; };
 		5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */; };
 		5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E7 /* ManualDispatchListCell.swift */; };
 		5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */; };
@@ -607,6 +609,7 @@
 		5A5E000000000000000000BF /* ChecklistContextFallbackPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistContextFallbackPolicy.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000BC /* DispatchOfflineFieldBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineFieldBridge.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapterTests.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000E0 /* NextStopWorkflowHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopWorkflowHostedTests.swift; sourceTree = "<group>"; };
 		5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriverDeliveryFlowHostedTests.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineRowAdapter.swift; sourceTree = "<group>"; };
 		5A5E000000000000000000B6 /* DispatchOfflineSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchOfflineSync.swift; sourceTree = "<group>"; };
@@ -701,6 +704,7 @@
 		5A6A000000000000000000B0 /* NextStopStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopStore.swift; sourceTree = "<group>"; };
 		5A5D000000000000000000F0 /* DispatchWake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWake.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchSyncHandler.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000F0 /* NextStopCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopCoordinator.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E7 /* ManualDispatchListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchListCell.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkloadTests.swift; sourceTree = "<group>"; };
@@ -2268,6 +2272,7 @@
 				5A5C00000000000000000019 /* DriverChecklistSyncHandler.swift */,
 				5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */,
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
+				5A6A000000000000000000F0 /* NextStopCoordinator.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
 				5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */,
@@ -2304,6 +2309,7 @@
 				5A5CFADE0000000000000076 /* QueueLineFilterTests.swift */,
 				5A5CFADE0000000000000089 /* AssemblyReviewPresentationTests.swift */,
 				5A5E000000000000000000BA /* DispatchOfflineRowAdapterTests.swift */,
+				5A6A000000000000000000E0 /* NextStopWorkflowHostedTests.swift */,
 				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
 				5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */,
 				5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */,
@@ -2811,6 +2817,7 @@
 				5A6A000000000000000000B1 /* NextStopStore.swift in Sources */,
 				5A5D000000000000000000F1 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
+				5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
 				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
@@ -3190,6 +3197,7 @@
 				5A5CFADE0000000000000077 /* QueueLineFilterTests.swift in Sources */,
 				5A5CFADE000000000000008A /* AssemblyReviewPresentationTests.swift in Sources */,
 				5A5E000000000000000000BB /* DispatchOfflineRowAdapterTests.swift in Sources */,
+				5A6A000000000000000000E1 /* NextStopWorkflowHostedTests.swift in Sources */,
 				5A5F00000000000000000037 /* DriverDeliveryFlowHostedTests.swift in Sources */,
                 5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
                 5A5CF0E10000000000000009 /* FuelDEFChecklistHostedTests.swift in Sources */,
