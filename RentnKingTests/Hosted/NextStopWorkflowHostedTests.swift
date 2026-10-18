@@ -544,3 +544,105 @@ extension NextStopWorkflowHostedTests {
                        "Without a Dispatch anchor there is no workday to continue; the old pop is the correct fallback.")
     }
 }
+
+// MARK: - Task 6: a completed Manual Dispatch continues into Next Stop
+
+extension NextStopWorkflowHostedTests {
+
+    /// A Task Details screen over a Dispatch board, with the durable transition
+    /// injected so the lifecycle can be driven without a live Sync Engine.
+    fileprivate func manualDetail(status: String, wired: Bool = true, enqueueFails: Bool = false)
+        -> (detail: ManualDispatchDetailViewController, list: DispatchListViewController,
+            nav: UINavigationController, probe: ManualProbe) {
+        let probe = ManualProbe()
+        var item = manual("MDT-1", sortKey: "2026-10-18|00001")
+        item.status = status
+
+        let (list, nav) = board(manuals: [item])
+        let detail = ManualDispatchDetailViewController()
+        detail.item = item
+        detail.enqueueStatus = { uid, newStatus in
+            probe.enqueued.append("\(uid):\(newStatus)")
+            if enqueueFails { throw NextStopStoreError.noTenant }
+            return "op-\(newStatus)"
+        }
+        detail.onChanged = { probe.changed += 1 }
+        if wired { detail.onCompleted = { [weak list] in list?.beginNextStopFlow() } }
+        nav.pushViewController(detail, animated: false)
+        detail.loadViewIfNeeded()
+        return (detail, list, nav, probe)
+    }
+
+    func testOnMyWayAndArrivedTransitionsAreUnchangedAndNeverOpenNextStop() {
+        for status in [DispatchManualStatus.onMyWay, DispatchManualStatus.arrived] {
+            let m = manualDetail(status: DispatchManualStatus.assigned)
+
+            m.detail.submitStatus(status)
+
+            XCTAssertEqual(m.probe.enqueued, ["MDT-1:\(status)"],
+                           "The canonical status operation is still the only writer.")
+            XCTAssertEqual(m.probe.changed, 1, "The list still refreshes.")
+            XCTAssertFalse(m.nav.viewControllers.contains { $0 is NextStopViewController },
+                           "\(status) is mid-route — the driver is not finished, so there is nothing to ask.")
+        }
+    }
+
+    func testCompletedDurablyEnqueuesTheCanonicalOperationAndThenOpensNextStop() {
+        let m = manualDetail(status: DispatchManualStatus.arrived)
+
+        m.detail.submitStatus(DispatchManualStatus.completed)
+
+        XCTAssertEqual(m.probe.enqueued, ["MDT-1:Completed"],
+                       "Completion still goes through the one manual_dispatch.update_status writer.")
+        XCTAssertTrue(m.nav.topViewController is NextStopViewController,
+                      "A finished manual task ends the same way a finished delivery does.")
+        XCTAssertTrue(m.nav.viewControllers.contains { $0 === m.list })
+        XCTAssertFalse(m.nav.viewControllers.contains { $0 === m.detail },
+                       "The completed task is behind the driver.")
+    }
+
+    func testCancellingATaskDoesNotOpenNextStop() {
+        let m = manualDetail(status: DispatchManualStatus.arrived)
+
+        m.detail.submitStatus(DispatchManualStatus.cancelled)
+
+        XCTAssertEqual(m.probe.enqueued, ["MDT-1:Cancelled"])
+        XCTAssertFalse(m.nav.viewControllers.contains { $0 is NextStopViewController },
+                       "A cancelled task is not accomplished work; it must not drive the workday forward.")
+    }
+
+    func testADurableEnqueueFailureNeverFalselyAdvancesTheDriver() {
+        let m = manualDetail(status: DispatchManualStatus.arrived, enqueueFails: true)
+
+        m.detail.submitStatus(DispatchManualStatus.completed)
+
+        XCTAssertEqual(m.probe.changed, 0, "Nothing was recorded, so nothing is announced.")
+        XCTAssertFalse(m.nav.viewControllers.contains { $0 is NextStopViewController },
+                       "If the transition did not reach disk, the task is NOT complete and the driver stays put.")
+        XCTAssertTrue(m.nav.topViewController === m.detail)
+    }
+
+    func testTheBoardItselfWiresCompletionIntoNextStop() throws {
+        // Not an injected callback: the production push path must do this.
+        let (list, nav) = board(manuals: [manual("MDT-7", sortKey: "2026-10-18|00001")])
+        XCTAssertTrue(list.openManualMission(taskUniqueId: "MDT-7"))
+        let detail = try XCTUnwrap(nav.topViewController as? ManualDispatchDetailViewController)
+        detail.enqueueStatus = { (_: String, _: String) in "op-1" }
+        // onCompleted — the thing under test — is left exactly as production set
+        // it. Only the unrelated list refresh is neutralised: refreshList()
+        // drives storyboard outlets, and these fixtures build the Dispatch
+        // controller programmatically, so its outlets are nil here.
+        XCTAssertNotNil(detail.onCompleted, "The board must wire completion into Next Stop itself.")
+        detail.onChanged = {}
+
+        detail.submitStatus(DispatchManualStatus.completed)
+
+        XCTAssertTrue(nav.topViewController is NextStopViewController,
+                      "Opening a manual mission FROM Next Stop must also return to Next Stop when it completes.")
+    }
+}
+
+final class ManualProbe {
+    var enqueued: [String] = []
+    var changed = 0
+}

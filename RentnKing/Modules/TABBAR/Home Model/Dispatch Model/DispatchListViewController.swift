@@ -1661,6 +1661,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             let detail = ManualDispatchDetailViewController()
             detail.item = manualJob
             detail.onChanged = { [weak self] in self?.refreshList() }
+            detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
             self.navigationController?.pushViewController(detail, animated: true)
         }
     }
@@ -2352,6 +2353,7 @@ extension DispatchListViewController {
             let detail = ManualDispatchDetailViewController()
             detail.item = job
             detail.onChanged = { [weak self] in self?.refreshList() }
+            detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
             self.navigationController?.pushViewController(detail, animated: true)
             return true
         }
