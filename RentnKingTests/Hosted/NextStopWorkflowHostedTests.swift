@@ -646,3 +646,117 @@ final class ManualProbe {
     var enqueued: [String] = []
     var changed = 0
 }
+
+// MARK: - Task 7: offline, relaunch, reassignment and non-interference
+
+extension NextStopWorkflowHostedTests {
+
+    /// A leg this phone durably completed, as EffectiveFieldState's completion
+    /// overlay recognises it.
+    fileprivate func completedLegOp(_ productId: String, delivery: Bool = true) -> SyncOperation {
+        var op = SyncOperation(type: delivery ? "delivery_checklist.complete" : "return_checklist.complete",
+                               capturedAt: Date(), queuedAt: Date(),
+                               identity: SyncBusinessIdentity(orderProductUniqueId: productId),
+                               payload: .object(["order_product_unique_id": .string(productId)]))
+        op.state = .pending
+        return op
+    }
+
+    func testAMissionCompletedOnThisPhoneDoesNotComeBackInThePicker() {
+        // The driver just finished OP-DONE; OP-NEXT is what's left.
+        let (list, _) = board(orders: [leg("OP-DONE", sortKey: "2026-10-18|00001", deliveryDriver: garyId),
+                                       leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
+                              driverId: garyId,
+                              ops: [completedLegOp("OP-DONE")])
+
+        let missions = list.currentNextStopMissions()
+
+        XCTAssertEqual(missions.map(\.identity), [.orderProduct("OP-NEXT")],
+                       "The job the driver just finished must not be offered back to them.")
+        XCTAssertFalse(list.openOrderMission(orderProductUniqueId: "OP-DONE"),
+                       "Nor may it be reopened from a stale pick.")
+    }
+
+    func testTheWholeNextStopFlowNeverDisturbsParkedFieldWork() {
+        var parked = SyncOperation(type: "delivery_checklist.complete", capturedAt: Date(), queuedAt: Date(),
+                                   identity: SyncBusinessIdentity(orderProductUniqueId: "OP-PARKED"),
+                                   payload: .object([:]))
+        parked.state = .needsAttention
+        let (list, _) = board(orders: [leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
+                              driverId: garyId, ops: [parked])
+        let before = list.operationsSnapshot()
+
+        // Walk the entire feature: ask, pick a shop, arrive, then take a mission.
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")])
+        p.vc.missions = { list.currentNextStopMissions() }
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        p.vc.arrivedTapped()
+        p.vc.refreshFromDurableState()
+
+        let after = list.operationsSnapshot()
+        XCTAssertEqual(after.count, before.count)
+        XCTAssertEqual(after.first?.id, parked.id)
+        XCTAssertEqual(after.first?.state, .needsAttention,
+                       "Next Stop touches no operation — it is workflow state, not queued work.")
+    }
+
+    func testTakingAMissionAfterAShopStopClearsTheShopStopDurably() {
+        // End to end through the screen's own wiring, not an injected stub.
+        let (list, _) = board(orders: [leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
+                              driverId: garyId)
+        var opened: [Int] = []
+        list.openOrderMissionAt = { opened.append($0) }
+
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")])
+        p.vc.missions = { list.currentNextStopMissions() }
+        p.vc.openOrderMission = { list.openOrderMission(orderProductUniqueId: $0) }
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        p.vc.arrivedTapped()
+        XCTAssertEqual(p.saved.shop?.name, "Bon Aqua")
+
+        // "Choose Next Mission" → the picker → take the remaining delivery.
+        let nav = UINavigationController(rootViewController: p.vc)
+        p.vc.nextCustomerTapped()
+        let picker = nav.topViewController as? NextMissionPickerViewController
+        XCTAssertNotNil(picker)
+        picker?.loadViewIfNeeded()        // the driver taps a row on a visible screen
+        XCTAssertEqual(picker?.renderedPrimaryTexts, ["Cody Cash"])
+        picker?.selectMission(at: 0)
+
+        XCTAssertEqual(p.saved, .idle,
+                       "A real mission is the next stop now — the shop stop must be over, on disk.")
+        XCTAssertEqual(opened, [0], "And the mission itself is entered.")
+    }
+
+    func testOpeningNextStopLeavesTheDispatchBoardsOwnRenderingAlone() {
+        let (list, _) = board(orders: [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: garyId),
+                                       leg("OP-2", delivered: true, sortKey: "2026-10-18|00002",
+                                           deliveryDriver: garyId, pickupDriver: garyId)],
+                              manuals: [manual("MDT-1", sortKey: "2026-10-18|00003")],
+                              driverId: garyId)
+        let rowsBefore = list.arrRows
+        let feedBefore = list.arrDispatchList.map { $0.unique_id }
+        let manualsBefore = list.arrManualList.map { $0.unique_id }
+
+        _ = list.currentNextStopMissions()
+        list.beginNextStopFlow()
+
+        XCTAssertEqual(list.arrRows, rowsBefore, "The rendered board is untouched.")
+        XCTAssertEqual(list.arrDispatchList.map { $0.unique_id }, feedBefore)
+        XCTAssertEqual(list.arrManualList.map { $0.unique_id }, manualsBefore)
+    }
+
+    func testOfflineWithNoCachedWorkTheWorkdayIsUnknownNotFinished() {
+        let (list, _) = board(driverId: garyId)
+        list.isAwaitingFirstDownload = true
+        list.beginNextStopFlow()
+        // The source state the board hands Next Stop when it has nothing cached.
+        let p = picker([], source: .notDownloaded)
+
+        XCTAssertTrue(list.arrRows.isEmpty)
+        XCTAssertEqual(p.vc.emptyText,
+                       "Your remaining work has not been downloaded to this phone. Connect once to load it.")
+    }
+}
