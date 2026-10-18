@@ -297,7 +297,6 @@ final class NextStopViewController: UIViewController {
         b.layer.cornerRadius = 10
         b.layer.borderWidth = filled ? 0 : 1
         b.layer.borderColor = (UIColor.secondaryView ?? .systemBlue).cgColor
-        b.heightAnchor.constraint(greaterThanOrEqualTo: b.widthAnchor, multiplier: 0).isActive = false
         b.contentEdgeInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
         b.addTarget(self, action: action, for: .touchUpInside)
         return b
