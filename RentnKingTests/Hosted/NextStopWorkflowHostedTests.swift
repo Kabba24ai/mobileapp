@@ -83,6 +83,12 @@ final class NextStopWorkflowHostedTests: XCTestCase {
         return (list, nav)
     }
 
+    /// A tenant store exactly as getStoreListData() hands it over: `address`
+    /// carries the server's full_address.
+    fileprivate func store(_ uid: String, _ name: String, _ address: String) -> StoreModel {
+        return Mapper<StoreModel>().map(JSON: ["unique_id": uid, "store_name": name, "full_address": address])!
+    }
+
     // MARK: Projection of the current workday
 
     func testARemainingDeliveryBecomesAMissionWithItsStableOrderProductId() {
@@ -205,4 +211,240 @@ final class NextStopWorkflowHostedTests: XCTestCase {
                        "It is not this driver's work any more; the picker must refuse it.")
         XCTAssertEqual(opened, [])
     }
+}
+
+// MARK: - Task 4: the Next Stop screen and the mission picker
+
+extension NextStopWorkflowHostedTests {
+
+    /// A Next Stop screen with every outside edge injected: the durable state,
+    /// the tenant's stores, and the map opener.
+    fileprivate func nextStop(state: NextStopState = .idle,
+                              cached: [StoreModel] = [],
+                              refreshed: [StoreModel]? = nil,
+                              mapSucceeds: Bool = true) -> NextStopProbe {
+        let probe = NextStopProbe()
+        probe.saved = state
+        let vc = NextStopViewController()
+        vc.loadState = { probe.saved }
+        vc.persistState = { probe.saved = $0; probe.events.append("saved(\($0.shop?.name ?? "idle"))") }
+        vc.cachedStores = { cached }
+        vc.refreshStores = { done in if let r = refreshed { done(r) } }
+        vc.openMap = { address, done in
+            probe.events.append("map(\(address))")
+            probe.mapAddresses.append(address)
+            done(mapSucceeds)
+        }
+        vc.now = { Date(timeIntervalSince1970: 1_792_000_000) }
+        probe.vc = vc
+        vc.loadViewIfNeeded()
+        return probe
+    }
+
+    // MARK: The question
+
+    func testTheScreenAsksWhatTheDriverIsDoingNextAndOffersExactlyTwoPaths() {
+        let p = nextStop()
+
+        XCTAssertEqual(p.vc.headlineText, "What are you doing next?")
+        XCTAssertEqual(p.vc.primaryChoiceTitles, ["Next Customer / Mission", "Return to Shop"])
+    }
+
+    func testOpeningTheScreenTouchesNoSyncOperationAndNoAssignment() {
+        let ops = [SyncOperation(type: "manual_dispatch.update_status", capturedAt: Date(), queuedAt: Date(),
+                                 identity: SyncBusinessIdentity(manualTaskUniqueId: "MDT-1"),
+                                 payload: .object(["status": .string(DispatchManualStatus.arrived)]))]
+        let (list, _) = board(orders: [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: garyId)],
+                              driverId: garyId, ops: ops)
+        let before = list.arrDispatchList.map { ($0.unique_id, $0.delivery_employee?.id, $0.is_delivered) }
+
+        let p = nextStop()
+        p.vc.missions = { list.currentNextStopMissions() }
+        p.vc.loadViewIfNeeded()
+
+        XCTAssertEqual(list.operationsSnapshot().count, 1, "Opening Next Stop must not add, drop or alter an operation.")
+        XCTAssertEqual(list.arrDispatchList.map { ($0.unique_id, $0.delivery_employee?.id, $0.is_delivered) }.count, before.count)
+        XCTAssertEqual(p.saved, .idle, "Merely asking the question persists nothing.")
+    }
+
+    // MARK: Return to Shop — the tenant's own active stores
+
+    func testTheShopListIsTheTenantsCachedActiveStoresWithTheirCanonicalNameAndAddress() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd, Bon Aqua, TN, 37025"),
+                                  store("STR-2", "Waverly", "9 Depot St, Waverly, TN, 37185")])
+
+        p.vc.returnToShopTapped()
+
+        XCTAssertEqual(p.vc.shopChoices.map(\.name), ["Bon Aqua", "Waverly"],
+                       "Rent N King sees its own stores because they are its active stores — never because they are hard-coded.")
+        XCTAssertEqual(p.vc.shopChoices.map(\.fullAddress).first, "100 Yard Rd, Bon Aqua, TN, 37025")
+    }
+
+    func testAnOnlineRefreshNeverBlanksTheListTheDriverIsAlreadyLookingAt() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")], refreshed: [])
+
+        p.vc.returnToShopTapped()
+
+        XCTAssertEqual(p.vc.shopChoices.map(\.name), ["Bon Aqua"],
+                       "A failed/empty refresh must not erase the cached stores under the driver's finger.")
+    }
+
+    func testAnOnlineRefreshDoesReplaceTheListWhenItBringsStores() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")],
+                         refreshed: [store("STR-1", "Bon Aqua", "100 Yard Rd"),
+                                     store("STR-3", "New Yard", "5 New Rd")])
+
+        p.vc.returnToShopTapped()
+
+        XCTAssertEqual(p.vc.shopChoices.map(\.name), ["Bon Aqua", "New Yard"])
+    }
+
+    func testWithNoCachedStoresTheScreenSaysSoHonestlyAndStillOffersTheNextMissionPath() {
+        let p = nextStop(cached: [])
+
+        p.vc.returnToShopTapped()
+
+        XCTAssertTrue(p.vc.shopChoices.isEmpty)
+        XCTAssertEqual(p.vc.shopUnavailableText,
+                       "Your shops have not been downloaded to this phone yet. Connect once to load them.")
+        XCTAssertTrue(p.vc.primaryChoiceTitles.contains("Next Customer / Mission"),
+                      "No shop list is not a dead end — the driver can still take the next mission.")
+    }
+
+    // MARK: Durability before navigation
+
+    func testTheShopIsOnDiskBeforeMapsIsEverAskedToOpen() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd, Bon Aqua, TN, 37025")])
+        p.vc.returnToShopTapped()
+
+        p.vc.selectShop(at: 0)
+
+        XCTAssertEqual(p.events, ["saved(Bon Aqua)", "map(100 Yard Rd, Bon Aqua, TN, 37025)"],
+                       "The driver leaves the app for Maps — the choice must already be durable when they go.")
+        XCTAssertEqual(p.saved, .shopSelected(shop: NextStopShop(uniqueId: "STR-1", name: "Bon Aqua",
+                                                                 fullAddress: "100 Yard Rd, Bon Aqua, TN, 37025"),
+                                              selectedAt: Date(timeIntervalSince1970: 1_792_000_000)))
+    }
+
+    func testMapsFailingToOpenLeavesTheShopStopIntactAndUsable() {
+        let p = nextStop(cached: [store("STR-1", "Bon Aqua", "nowhere at all")], mapSucceeds: false)
+        p.vc.returnToShopTapped()
+
+        p.vc.selectShop(at: 0)
+
+        XCTAssertEqual(p.saved.shop?.name, "Bon Aqua", "A geocode failure is not a reason to forget where the driver is going.")
+        XCTAssertEqual(p.vc.arrivedActionTitle, "Arrived at Bon Aqua")
+    }
+
+    // MARK: Resume after leaving for Maps
+
+    func testComingBackToTheAppStillShowsTheShopAsTheCurrentDestination() {
+        let shop = NextStopShop(uniqueId: "STR-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let p = nextStop(state: .shopSelected(shop: shop, selectedAt: Date(timeIntervalSince1970: 1_792_000_000)))
+
+        p.vc.refreshFromDurableState()   // what viewWillAppear does
+
+        XCTAssertEqual(p.vc.currentDestinationText, "Heading to Bon Aqua")
+        XCTAssertEqual(p.vc.arrivedActionTitle, "Arrived at Bon Aqua")
+    }
+
+    func testArrivingRecordsTheArrivalAndThenOffersTheNextMission() {
+        let shop = NextStopShop(uniqueId: "STR-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let selectedAt = Date(timeIntervalSince1970: 1_792_000_000)
+        let p = nextStop(state: .shopSelected(shop: shop, selectedAt: selectedAt))
+        p.vc.refreshFromDurableState()
+
+        p.vc.arrivedTapped()
+
+        XCTAssertEqual(p.saved, .arrivedAtShop(shop: shop, selectedAt: selectedAt, arrivedAt: selectedAt))
+        XCTAssertEqual(p.vc.currentDestinationText, "At Bon Aqua")
+        XCTAssertEqual(p.vc.primaryChoiceTitles, ["Choose Next Mission"],
+                       "Once the driver is at the shop the only forward move is the next mission.")
+    }
+
+    // MARK: The mission picker
+
+    fileprivate func picker(_ missions: [NextStopMission],
+                            source: MissionSourceState = .available) -> NextMissionProbe {
+        let probe = NextMissionProbe()
+        let vc = NextMissionPickerViewController()
+        vc.missions = { missions }
+        vc.sourceState = { source }
+        vc.openOrderMission = { probe.opened.append("order:\($0)"); return probe.openSucceeds }
+        vc.openManualMission = { probe.opened.append("manual:\($0)"); return probe.openSucceeds }
+        vc.clearShopStop = { probe.events.append("clearedShopStop") }
+        vc.refreshDispatch = { probe.events.append("refreshedDispatch") }
+        probe.vc = vc
+        vc.loadViewIfNeeded()
+        return probe
+    }
+
+    func testThePickerRendersDeliveryReturnAndManualDispatchTogether() {
+        let p = picker([NextStopMission(identity: .orderProduct("OP-1"), kindLabel: "Delivery",
+                                        primaryText: "Cody Cash", secondaryText: "Skid Steer · #4108", sortKey: "a"),
+                        NextStopMission(identity: .orderProduct("OP-2"), kindLabel: "Return",
+                                        primaryText: "Jane Roe", secondaryText: "Excavator · #4109", sortKey: "b"),
+                        NextStopMission(identity: .manualTask("MDT-1"), kindLabel: "Manual Dispatch",
+                                        primaryText: "Acme", secondaryText: "Equipment Drop-Off", sortKey: "c")])
+
+        XCTAssertEqual(p.vc.renderedKindLabels, ["Delivery", "Return", "Manual Dispatch"])
+        XCTAssertEqual(p.vc.renderedPrimaryTexts, ["Cody Cash", "Jane Roe", "Acme"])
+    }
+
+    func testChoosingAMissionEndsTheShopStopBeforeEnteringTheMission() {
+        let p = picker([NextStopMission(identity: .orderProduct("OP-1"), kindLabel: "Delivery",
+                                        primaryText: "Cody Cash", secondaryText: "", sortKey: "a")])
+
+        p.vc.selectMission(at: 0)
+
+        XCTAssertEqual(p.events, ["clearedShopStop"],
+                       "A real mission is the next stop now — the shop stop is over before we route.")
+        XCTAssertEqual(p.opened, ["order:OP-1"])
+    }
+
+    func testChoosingAManualMissionRoutesThroughTheManualHelper() {
+        let p = picker([NextStopMission(identity: .manualTask("MDT-9"), kindLabel: "Manual Dispatch",
+                                        primaryText: "Acme", secondaryText: "", sortKey: "a")])
+
+        p.vc.selectMission(at: 0)
+
+        XCTAssertEqual(p.opened, ["manual:MDT-9"])
+    }
+
+    func testAMissionThatVanishedBeforeTheTapSaysSoAndRefreshesInsteadOfRouting() {
+        let p = picker([NextStopMission(identity: .orderProduct("OP-1"), kindLabel: "Delivery",
+                                        primaryText: "Cody Cash", secondaryText: "", sortKey: "a")])
+        p.openSucceeds = false
+
+        p.vc.selectMission(at: 0)
+
+        XCTAssertEqual(p.vc.noticeText, "This mission is no longer assigned here. Dispatch has been refreshed.")
+        XCTAssertTrue(p.events.contains("refreshedDispatch"))
+        XCTAssertEqual(p.opened, ["order:OP-1"], "It tried once, by identity, and was refused — not retried blindly.")
+    }
+
+    func testARealEmptyWorkdayAndAnUndownloadedOneReadDifferently() {
+        XCTAssertEqual(picker([], source: .available).vc.emptyText,
+                       "No remaining missions. You're done for now.")
+
+        XCTAssertEqual(picker([], source: .notDownloaded).vc.emptyText,
+                       "Your remaining work has not been downloaded to this phone. Connect once to load it.",
+                       "An unavailable cache must never be presented as a finished day.")
+    }
+}
+
+// MARK: - Probes
+
+final class NextStopProbe {
+    var vc: NextStopViewController!
+    var saved: NextStopState = .idle
+    var events: [String] = []
+    var mapAddresses: [String] = []
+}
+
+final class NextMissionProbe {
+    var vc: NextMissionPickerViewController!
+    var opened: [String] = []
+    var events: [String] = []
+    var openSucceeds = true
 }

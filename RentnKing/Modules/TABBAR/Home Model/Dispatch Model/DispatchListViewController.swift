@@ -2358,3 +2358,42 @@ extension DispatchListViewController {
         return false
     }
 }
+
+extension DispatchListViewController {
+
+    /// Enters the Next Stop workflow with THIS Dispatch screen as the anchor
+    /// beneath it. Done as ONE navigation transition (setViewControllers) so the
+    /// driver never sees a flash of the board before being asked the question —
+    /// the board is where they'd otherwise be stranded, which is the whole point
+    /// of the feature.
+    ///
+    /// Everything Next Stop needs about missions is handed in as a closure
+    /// pointing back here, so Dispatch stays the single owner of what work is
+    /// left, in what order, and whether a given mission is still this driver's.
+    func beginNextStopFlow() {
+        guard let nav = self.navigationController else { return }
+
+        let next = NextStopViewController()
+        next.missions = { [weak self] in self?.currentNextStopMissions() ?? [] }
+        next.openOrderMission = { [weak self] in self?.openOrderMission(orderProductUniqueId: $0) ?? false }
+        next.openManualMission = { [weak self] in self?.openManualMission(taskUniqueId: $0) ?? false }
+        next.refreshDispatch = { [weak self] in self?.refreshList() }
+        // An empty workload means two different things and must never be
+        // flattened: a finished day, or a workload this phone never received.
+        next.missionSourceState = { [weak self] in
+            guard let self = self else { return .notDownloaded }
+            if !self.arrRows.isEmpty { return .available }
+            return (self.isAwaitingFirstDownload || !self.isReachable()) ? .notDownloaded : .available
+        }
+
+        // Keep the stack up to and including this screen, then Next Stop on top.
+        var stack = nav.viewControllers
+        if let mine = stack.firstIndex(where: { $0 === self }) {
+            stack = Array(stack.prefix(through: mine))
+        } else {
+            stack.append(self)
+        }
+        stack.append(next)
+        nav.setViewControllers(stack, animated: true)
+    }
+}

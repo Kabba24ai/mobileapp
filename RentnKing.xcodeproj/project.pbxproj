@@ -161,6 +161,8 @@
 		5A5D000000000000000000F2 /* DispatchWake.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5D000000000000000000F0 /* DispatchWake.swift */; };
 		5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */; };
 		5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F0 /* NextStopCoordinator.swift */; };
+		5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F2 /* NextStopViewController.swift */; };
+		5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F4 /* NextMissionPickerViewController.swift */; };
 		5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */; };
 		5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E7 /* ManualDispatchListCell.swift */; };
 		5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */; };
@@ -705,6 +707,8 @@
 		5A5D000000000000000000F0 /* DispatchWake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWake.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchSyncHandler.swift; sourceTree = "<group>"; };
 		5A6A000000000000000000F0 /* NextStopCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopCoordinator.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000F2 /* NextStopViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopViewController.swift; sourceTree = "<group>"; };
+		5A6A000000000000000000F4 /* NextMissionPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextMissionPickerViewController.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E7 /* ManualDispatchListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchListCell.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkloadTests.swift; sourceTree = "<group>"; };
@@ -1922,6 +1926,7 @@
 				C53C13122FE41DCA0076E2D1 /* Driver Checklist */,
 				DD0001A52FE5000000000005 /* Warning Checklist */,
 				5A5C000000000000000000EB /* Manual Dispatch */,
+				5A6A000000000000000000FA /* Next Stop */,
 				5A5E000000000000000000B8 /* DispatchOfflineRowAdapter.swift */,
 			);
 			path = "Dispatch Model";
@@ -2328,6 +2333,15 @@
 				5A5C000000000000000000E7 /* ManualDispatchListCell.swift */,
 			);
 			path = "Manual Dispatch";
+			sourceTree = "<group>";
+		};
+		5A6A000000000000000000FA /* Next Stop */ = {
+			isa = PBXGroup;
+			children = (
+				5A6A000000000000000000F2 /* NextStopViewController.swift */,
+				5A6A000000000000000000F4 /* NextMissionPickerViewController.swift */,
+			);
+			path = "Next Stop";
 			sourceTree = "<group>";
 		};
 		5A5C000000000000000000CA /* KabbaSyncCore */ = {
@@ -2818,6 +2832,8 @@
 				5A5D000000000000000000F1 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000E4 /* ManualDispatchSyncHandler.swift in Sources */,
 				5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */,
+				5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */,
+				5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
 				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
