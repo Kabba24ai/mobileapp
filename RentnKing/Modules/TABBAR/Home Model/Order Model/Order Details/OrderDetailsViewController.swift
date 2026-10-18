@@ -150,6 +150,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     var cachedChecklistContext: (String) -> ChecklistContext? = { KabbaSync.checklistContexts?.cached(orderProductUniqueId: $0, leg: .delivery) }
+    /// Next Stop test seam: the post-completion success animation.
+    /// nil (production) runs the real full-screen overlay.
+    var presentSuccessOverlay: ((@escaping () -> Void) -> Void)?
 
     /// The mission bar (spec §10 / §11): the trip status, the locked unit and Review
     /// Assembly — shown only when this screen is the customer-site hub of a Delivery mission.
@@ -1193,20 +1196,39 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     /// server terminally rejected it — reconciliation is the office's job
     /// (Mobile Sync Issues / Settings › Sync), so the driver proceeds and sees
     /// the existing sync-status treatment instead of "100% completed".
-    private func completeLegWithSyncAttention(operationId: String) {
+    func completeLegWithSyncAttention(operationId: String) {
         KabbaSync.showStatusToast(for: operationId)
-        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController }) {
-            self.navigationController?.popToViewController(targetViewController, animated: true)
+        // The physical work is done, so the workday continues. The parked
+        // operation is left exactly as it is — Next Stop never retries,
+        // re-states or discards field work.
+        self.continueToNextStop()
+    }
+
+    /// Runs the success animation, then asks the driver what is next.
+    func completeDeliveryWithSuccess() {
+        let present = self.presentSuccessOverlay ?? { [weak self] done in self?.showOrderSuccessOverlay(completion: done) }
+        present { [weak self] in
+            self?.continueToNextStop()
         }
     }
 
-    /// Runs the success animation, then returns to the dispatch list.
-    private func completeDeliveryWithSuccess() {
-        self.showOrderSuccessOverlay {
-            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController }) {
-                self.navigationController?.popToViewController(targetViewController, animated: true)
-            }
+    /// The ONE post-completion destination. The mission is behind the driver,
+    /// so the Dispatch screen beneath becomes the anchor and immediately asks
+    /// what they are doing next — in one transition, so the board they would
+    /// otherwise be stranded on never flashes up.
+    ///
+    /// Completion evaluation, checklist state and Sync operations are not
+    /// touched here: this only replaces where the driver lands.
+    func continueToNextStop() {
+        guard let nav = self.navigationController else { return }
+        guard let dispatch = nav.viewControllers.compactMap({ $0 as? DispatchListViewController }).first else {
+            // Opened from somewhere with no Dispatch beneath (Orders list, a
+            // deep link): there is no workday to continue, so keep the
+            // pre-existing behaviour.
+            nav.popViewController(animated: true)
+            return
         }
+        dispatch.beginNextStopFlow()
     }
 
     /// Shows a full-screen success popup (~1.5s) with animation, then runs `completion`.

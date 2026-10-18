@@ -448,3 +448,99 @@ final class NextMissionProbe {
     var events: [String] = []
     var openSucceeds = true
 }
+
+// MARK: - Task 5: completed Delivery / Return continue into Next Stop
+
+extension NextStopWorkflowHostedTests {
+
+    /// Main Order over a Dispatch board, which is the stack the driver is
+    /// actually in when they finish a job.
+    fileprivate func orderOverDispatch(completionLeg: ChecklistLeg = .delivery, ops: [SyncOperation] = [])
+        throws -> (details: OrderDetailsViewController, list: DispatchListViewController, nav: UINavigationController) {
+        let (list, nav) = board(orders: [leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
+                                driverId: garyId, ops: ops)
+        let details = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController)
+        details.objOrderData = Mapper<OrdersListModel>().map(JSON: [
+            "unique_id": "ORD-1", "order_number": "4108", "customer_name": "Cody Cash",
+        ])
+        details.strOrderUniqueId = "ORD-1"
+        details.strOrderID = "4108"
+        details.strProductID = "OP-DONE"
+        details.isOrderScreen = true
+        details.fromCheckListScreen = true
+        details.completionLeg = completionLeg
+        details.operationsSnapshot = { ops }
+        details.cachedAssemblyReview = { _ in nil }
+        details.cachedChecklistContext = { _ in nil }
+        // The success animation is not what these tests are about.
+        details.presentSuccessOverlay = { (done: @escaping () -> Void) in done() }
+        nav.pushViewController(details, animated: false)
+        return (details, list, nav)
+    }
+
+    func testASuccessfulDeliveryCompletionContinuesIntoNextStop() throws {
+        let (details, list, nav) = try orderOverDispatch(completionLeg: .delivery)
+
+        details.completeDeliveryWithSuccess()
+
+        XCTAssertTrue(nav.topViewController is NextStopViewController,
+                      "A finished delivery must ask what's next, not strand the driver on the board.")
+        XCTAssertTrue(nav.viewControllers.contains { $0 === list },
+                      "Dispatch stays the anchor underneath Next Stop.")
+        XCTAssertFalse(nav.viewControllers.contains { $0 === details },
+                       "The completed job is behind the driver — Main Order must not stay on the stack.")
+    }
+
+    func testASuccessfulReturnCompletionContinuesIntoNextStop() throws {
+        let (details, _, nav) = try orderOverDispatch(completionLeg: .return)
+
+        details.completeDeliveryWithSuccess()
+
+        XCTAssertTrue(nav.topViewController is NextStopViewController)
+    }
+
+    func testNeedsAttentionCompletionStillContinuesAndLeavesTheParkedWorkUntouched() throws {
+        var parked = SyncOperation(type: "delivery_checklist.complete", capturedAt: Date(), queuedAt: Date(),
+                                   identity: SyncBusinessIdentity(orderProductUniqueId: "OP-DONE"),
+                                   payload: .object([:]))
+        parked.state = .needsAttention
+        let (details, _, nav) = try orderOverDispatch(ops: [parked])
+
+        details.completeLegWithSyncAttention(operationId: parked.id)
+
+        XCTAssertTrue(nav.topViewController is NextStopViewController,
+                      "The physical work happened; reconciliation is the office's job, so the driver moves on.")
+        let after = details.operationsSnapshot()
+        XCTAssertEqual(after.count, 1)
+        XCTAssertEqual(after.first?.id, parked.id)
+        XCTAssertEqual(after.first?.state, .needsAttention,
+                       "Next Stop must never retry, discard or re-state parked field work.")
+    }
+
+    func testGenuinelyIncompleteWorkStillGoesToTheWarningScreenAndNeverToNextStop() throws {
+        // No evidence of terms/licence/video/checklist at all, so the canonical
+        // LegCompletionEvaluator must refuse to proceed.
+        let (details, _, nav) = try orderOverDispatch(completionLeg: .delivery)
+        XCTAssertFalse(details.legCompletionDecision(for: .delivery).canProceed,
+                       "Fixture guard: this leg must genuinely be incomplete.")
+
+        details.btnDeliveryComplatedClicked(UIButton())
+
+        XCTAssertTrue(nav.topViewController is WarningViewController,
+                      "Incomplete physical work keeps the existing Driver Override screen.")
+        XCTAssertFalse(nav.viewControllers.contains { $0 is NextStopViewController })
+    }
+
+    func testContinuingWithNoDispatchBeneathDoesNotCrashOrInventAStack() throws {
+        let details = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController)
+        details.presentSuccessOverlay = { (done: @escaping () -> Void) in done() }
+        let nav = UINavigationController(rootViewController: details)
+
+        details.completeDeliveryWithSuccess()
+
+        XCTAssertFalse(nav.viewControllers.contains { $0 is NextStopViewController },
+                       "Without a Dispatch anchor there is no workday to continue; the old pop is the correct fallback.")
+    }
+}

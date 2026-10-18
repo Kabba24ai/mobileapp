@@ -2394,6 +2394,9 @@ extension DispatchListViewController {
             stack.append(self)
         }
         stack.append(next)
-        nav.setViewControllers(stack, animated: true)
+        // Animate only a transition the driver can actually see. UIKit drops an
+        // animated setViewControllers on an off-screen navigation controller
+        // entirely, which would leave the stack unchanged.
+        nav.setViewControllers(stack, animated: nav.view.window != nil)
     }
 }
