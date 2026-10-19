@@ -44,10 +44,13 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
-        AppRelease(version: "1.0.26", notes: [
+        AppRelease(version: "1.0.27", notes: [
             "Finishing a delivery, return or manual dispatch now asks what you're doing next instead of sending you back to the board",
             "Pick your next customer or task from the work still assigned to you, or head back to one of your shops",
             "The shop you picked stays your destination while you navigate, and is still there when you come back to the app",
+            "Various fixes and refinements",
+        ]),
+        AppRelease(version: "1.0.26", notes: [
             "Fuel is charged at the machine's own fuel price and tank size; a DEF tank no longer replaces the diesel charge",
             "Machines with a DEF tank can record DEF separately from fuel, with the same tank levels, once enabled for your company",
             "Each piece of equipment on a return is charged only for its own fuel, cleaning and hours",
