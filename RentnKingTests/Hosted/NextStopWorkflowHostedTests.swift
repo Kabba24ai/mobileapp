@@ -54,8 +54,10 @@ final class NextStopWorkflowHostedTests: XCTestCase {
                         type: String = "Equipment Drop-Off",
                         description: String = "Pick up repaired equipment",
                         location: String = "Acme",
-                        sortKey: String) -> DispatchManualJob {
+                        sortKey: String,
+                        driverId: Int? = nil) -> DispatchManualJob {
         var job = DispatchManualJob()
+        if let d = driverId { job.driver = DispatchManualJob.DriverRef(id: d, name: "Driver \(d)") }
         job.unique_id = taskId
         job.is_manual = true
         job.type = type
@@ -66,22 +68,58 @@ final class NextStopWorkflowHostedTests: XCTestCase {
         return job
     }
 
-    /// A Dispatch board holding the given work, scoped to one driver, rebuilt
-    /// exactly as the screen rebuilds it.
+    /// The same leg as the company-wide Dispatch offline working set holds it.
+    private func workdayRow(_ model: SchedulesModel) -> DispatchOfflineRow {
+        let data = try! JSONSerialization.data(withJSONObject: model.toJSON())
+        let isDelivery = model.is_delivered == false
+        let key = model.sort_key ?? DispatchWorkload.openEndedSortKey
+        let uid = model.unique_id ?? ""
+        return DispatchOfflineRow(missionKey: "\(uid):\(isDelivery ? "delivery" : "return")",
+                                  orderProductUniqueId: uid,
+                                  leg: isDelivery ? .delivery : .return,
+                                  effectiveDate: String(key.prefix(10)),
+                                  revision: "r1", sortKey: key, isOverdue: false, isStale: false,
+                                  serverObservedAt: nil, row: JSONValue.parse(data)!)
+    }
+
+    /// A Dispatch board, rebuilt exactly as the screen rebuilds it.
+    ///
+    /// `orders` / `manuals` / `driverId` are what the BOARD holds and shows —
+    /// its own, possibly filtered, lists. `workday` is the company-wide offline
+    /// working set and `myManuals` the signed-in driver's own Manual Dispatch
+    /// slot: the canonical sources Next Stop reads. Each defaults to mirroring
+    /// the board, which is the board's default state (my jobs, every leg, today).
     private func board(orders: [SchedulesModel] = [],
                        manuals: [DispatchManualJob] = [],
                        driverId: Int? = nil,
-                       ops: [SyncOperation] = []) -> (list: DispatchListViewController, nav: UINavigationController) {
+                       ops: [SyncOperation] = [],
+                       workday: [SchedulesModel]? = nil,
+                       myManuals: [DispatchManualJob]? = nil,
+                       signedIn: Int? = 7,
+                       downloaded: Bool = true) -> (list: DispatchListViewController, nav: UINavigationController) {
         let list = DispatchListViewController()
         list.arrDispatchList = orders
         list.arrManualList = manuals
         list.selectDriverID = driverId.map { "\($0)" } ?? ""
         list.operationsSnapshot = { ops }
         list.cachedAssemblyReview = { _ in nil }
+        // The working set's own contract: rows sorted by (sort_key, mission key).
+        let rows = (workday ?? orders).map(workdayRow)
+            .sorted { ($0.sortKey, $0.missionKey) < ($1.sortKey, $1.missionKey) }
+        list.offlinePresentation = { [weak self] query in
+            self?.lastWorkdayQuery = query
+            guard downloaded else { return .notDownloaded }
+            return .ready(rows: rows, freshness: .init(lastManifestAt: nil, throughDate: nil, staleCount: 0, pendingCount: 0))
+        }
+        list.signedInDriverId = { signedIn }
+        list.nextStopManualJobs = { _ in myManuals ?? manuals }
         let nav = UINavigationController(rootViewController: list)
         list.rebuildRows()
         return (list, nav)
     }
+
+    /// The query Next Stop last asked the working set for.
+    private var lastWorkdayQuery: DispatchOfflineQuery?
 
     /// A tenant store exactly as getStoreListData() hands it over: `address`
     /// carries the server's full_address.
@@ -140,16 +178,15 @@ final class NextStopWorkflowHostedTests: XCTestCase {
                        "Next Stop must present the SAME order the Dispatch board does, not its own.")
     }
 
-    func testTheProjectionIsExactlyTheRenderedRowsAndInventsNothing() {
-        // Blake's leg is in the feed but the board is scoped to Gary: it is not
-        // Gary's remaining work, so Next Stop must not offer it.
+    func testTheWorkdayIsTheSignedInDriversOwnAndInventsNothing() {
+        // The working set is company-wide; Blake's leg is in it but is not Gary's
+        // remaining work, so Next Stop must not offer it.
         let (list, _) = board(orders: [leg("OP-MINE", sortKey: "2026-10-18|00001", deliveryDriver: garyId),
                                        leg("OP-THEIRS", sortKey: "2026-10-18|00002", deliveryDriver: blakeId)],
                               driverId: garyId)
 
-        XCTAssertEqual(list.currentNextStopMissions().map(\.identity), [.orderProduct("OP-MINE")])
-        XCTAssertEqual(list.currentNextStopMissions().count, list.arrRows.count,
-                       "One mission per rendered row — no synthesis, no omission.")
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity), [.orderProduct("OP-MINE")],
+                       "Exactly the signed-in driver's work — nothing synthesized, nobody else's.")
     }
 
     // MARK: Stable reopen
@@ -159,7 +196,7 @@ final class NextStopWorkflowHostedTests: XCTestCase {
                                        leg("OP-2", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
                               driverId: garyId)
         var opened: [Int] = []
-        list.openOrderMissionAt = { opened.append($0) }
+        list.openOrderMissionSeam = { _, index in opened.append(index ?? -1) }
 
         // A Dispatch reconciliation reorders the feed underneath the open picker.
         list.arrDispatchList = [leg("OP-2", sortKey: "2026-10-18|00002", deliveryDriver: garyId),
@@ -187,7 +224,7 @@ final class NextStopWorkflowHostedTests: XCTestCase {
                                 manuals: [manual("MDT-1", sortKey: "2026-10-18|00002")],
                                 driverId: garyId)
         var opened: [Int] = []
-        list.openOrderMissionAt = { opened.append($0) }
+        list.openOrderMissionSeam = { _, index in opened.append(index ?? -1) }
 
         XCTAssertFalse(list.openOrderMission(orderProductUniqueId: "OP-GONE"))
         XCTAssertFalse(list.openManualMission(taskUniqueId: "MDT-GONE"))
@@ -200,10 +237,11 @@ final class NextStopWorkflowHostedTests: XCTestCase {
         let (list, _) = board(orders: [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: garyId)],
                               driverId: garyId)
         var opened: [Int] = []
-        list.openOrderMissionAt = { opened.append($0) }
+        list.openOrderMissionSeam = { _, index in opened.append(index ?? -1) }
         XCTAssertEqual(list.currentNextStopMissions().map(\.identity), [.orderProduct("OP-1")])
 
-        // The office moves the delivery to Blake while the picker is open.
+        // The office moves the delivery to Blake while the picker is open, and
+        // the board's live feed hears about it first.
         list.arrDispatchList = [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: blakeId)]
         list.rebuildRows()
 
@@ -374,8 +412,8 @@ extension NextStopWorkflowHostedTests {
         let vc = NextMissionPickerViewController()
         vc.missions = { missions }
         vc.sourceState = { source }
-        vc.openOrderMission = { probe.opened.append("order:\($0)"); return probe.openSucceeds }
-        vc.openManualMission = { probe.opened.append("manual:\($0)"); return probe.openSucceeds }
+        vc.openOrderMission = { probe.opened.append("order:\($0)"); probe.events.append("opened"); return probe.openSucceeds }
+        vc.openManualMission = { probe.opened.append("manual:\($0)"); probe.events.append("opened"); return probe.openSucceeds }
         vc.clearShopStop = { probe.events.append("clearedShopStop") }
         vc.refreshDispatch = { probe.events.append("refreshedDispatch") }
         probe.vc = vc
@@ -395,14 +433,14 @@ extension NextStopWorkflowHostedTests {
         XCTAssertEqual(p.vc.renderedPrimaryTexts, ["Cody Cash", "Jane Roe", "Acme"])
     }
 
-    func testChoosingAMissionEndsTheShopStopBeforeEnteringTheMission() {
+    func testTheShopStopEndsOnlyOnceTheChosenMissionHasActuallyOpened() {
         let p = picker([NextStopMission(identity: .orderProduct("OP-1"), kindLabel: "Delivery",
                                         primaryText: "Cody Cash", secondaryText: "", sortKey: "a")])
 
         p.vc.selectMission(at: 0)
 
-        XCTAssertEqual(p.events, ["clearedShopStop"],
-                       "A real mission is the next stop now — the shop stop is over before we route.")
+        XCTAssertEqual(p.events, ["opened", "clearedShopStop"],
+                       "Re-resolve and open FIRST; only a mission that really opened ends the shop stop.")
         XCTAssertEqual(p.opened, ["order:OP-1"])
     }
 
@@ -424,6 +462,7 @@ extension NextStopWorkflowHostedTests {
 
         XCTAssertEqual(p.vc.noticeText, "This mission is no longer assigned here. Dispatch has been refreshed.")
         XCTAssertTrue(p.events.contains("refreshedDispatch"))
+        XCTAssertFalse(p.events.contains("clearedShopStop"), "A refused pick must not end the shop stop.")
         XCTAssertEqual(p.opened, ["order:OP-1"], "It tried once, by identity, and was refused — not retried blindly.")
     }
 
@@ -711,7 +750,7 @@ extension NextStopWorkflowHostedTests {
         let (list, _) = board(orders: [leg("OP-NEXT", sortKey: "2026-10-18|00002", deliveryDriver: garyId)],
                               driverId: garyId)
         var opened: [Int] = []
-        list.openOrderMissionAt = { opened.append($0) }
+        list.openOrderMissionSeam = { _, index in opened.append(index ?? -1) }
 
         let p = nextStop(cached: [store("STR-1", "Bon Aqua", "100 Yard Rd")])
         p.vc.missions = { list.currentNextStopMissions() }
@@ -753,15 +792,15 @@ extension NextStopWorkflowHostedTests {
         XCTAssertEqual(list.arrManualList.map { $0.unique_id }, manualsBefore)
     }
 
-    func testOfflineWithNoCachedWorkTheWorkdayIsUnknownNotFinished() {
-        let (list, _) = board(driverId: garyId)
-        list.isAwaitingFirstDownload = true
-        list.beginNextStopFlow()
-        // The source state the board hands Next Stop when it has nothing cached.
-        let p = picker([], source: .notDownloaded)
+    func testOfflineWithNoCachedWorkTheWorkdayIsUnknownNotFinished() throws {
+        let (list, nav) = board(driverId: garyId, downloaded: false)
 
-        XCTAssertTrue(list.arrRows.isEmpty)
-        XCTAssertEqual(p.vc.emptyText,
+        list.beginNextStopFlow()
+
+        let next = try XCTUnwrap(nav.topViewController as? NextStopViewController)
+        XCTAssertEqual(next.missionSourceState(), .notDownloaded,
+                       "The board hands Next Stop the WORKING SET's state, not its own list's.")
+        XCTAssertEqual(picker(next.missions(), source: next.missionSourceState()).vc.emptyText,
                        "Your remaining work has not been downloaded to this phone. Connect once to load it.")
     }
 }
@@ -829,5 +868,247 @@ extension NextStopWorkflowHostedTests {
         XCTAssertEqual(p.saved, .shopSelected(shop: shop, selectedAt: selectedAt),
                        "An unrecorded arrival is not an arrival.")
         XCTAssertEqual(p.vc.arrivedActionTitle, "Arrived at Bon Aqua", "The action stays available to retry.")
+    }
+}
+
+// MARK: - Release gate: Next Stop's workday is the signed-in driver's, not the board's scope
+
+extension NextStopWorkflowHostedTests {
+
+    private var garyDelivery: SchedulesModel {
+        leg("OP-DEL", customer: "Delivery Customer", sortKey: "2026-10-18|00001", deliveryDriver: garyId)
+    }
+    private var garyReturn: SchedulesModel {
+        leg("OP-RET", customer: "Return Customer", delivered: true, sortKey: "2026-10-18|00002",
+            deliveryDriver: garyId, pickupDriver: garyId)
+    }
+
+    func testABoardFilteredToReturnOnlyStillLeavesTheDeliveryOnOffer() {
+        // The board asked the server for Returns only, so its own list holds only the return.
+        let (list, _) = board(orders: [garyReturn], driverId: garyId, workday: [garyDelivery, garyReturn])
+        list.isDeliverySelect = false
+        list.isReturnSelect = true
+        list.rebuildRows()
+        XCTAssertEqual(list.selectScheduleType(), "Return", "Fixture guard: the board is Return-only.")
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity),
+                       [.orderProduct("OP-DEL"), .orderProduct("OP-RET")],
+                       "The board's Delivery/Return toggle is a presentation filter — Next Stop must not inherit it.")
+    }
+
+    func testABoardFilteredToDeliveryOnlyStillLeavesTheReturnOnOffer() {
+        let (list, _) = board(orders: [garyDelivery], driverId: garyId, workday: [garyDelivery, garyReturn])
+        list.isDeliverySelect = true
+        list.isReturnSelect = false
+        list.rebuildRows()
+        XCTAssertEqual(list.selectScheduleType(), "Delivery", "Fixture guard: the board is Delivery-only.")
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity),
+                       [.orderProduct("OP-DEL"), .orderProduct("OP-RET")])
+    }
+
+    func testABoardShowingAnotherDriverStillOffersTheSignedInDriversOwnWork() {
+        let blakesLeg = leg("OP-BLAKE", customer: "Blake's Customer", sortKey: "2026-10-18|00001", deliveryDriver: blakeId)
+        // Gary is signed in but has the board on Blake: the board holds Blake's work only.
+        let (list, _) = board(orders: [blakesLeg],
+                              manuals: [manual("MDT-BLAKE", sortKey: "2026-10-18|00003", driverId: blakeId)],
+                              driverId: blakeId,
+                              workday: [blakesLeg, garyDelivery, garyReturn],
+                              myManuals: [manual("MDT-GARY", sortKey: "2026-10-18|00004", driverId: garyId)],
+                              signedIn: garyId)
+
+        let offered = list.currentNextStopMissions().map(\.identity)
+
+        XCTAssertEqual(offered, [.orderProduct("OP-DEL"), .orderProduct("OP-RET"), .manualTask("MDT-GARY")],
+                       "Next Stop follows the SIGNED-IN driver, never the driver selected on the board.")
+        XCTAssertFalse(offered.contains(.orderProduct("OP-BLAKE")), "Blake's leg is not Gary's next stop.")
+        XCTAssertFalse(offered.contains(.manualTask("MDT-BLAKE")), "Nor is Blake's manual task.")
+    }
+
+    func testAManualTaskAssignedToSomeoneElseIsNeverOfferedEvenFromTheDriversOwnSlot() {
+        let (list, _) = board(myManuals: [manual("MDT-MINE", sortKey: "2026-10-18|00001", driverId: garyId),
+                                          manual("MDT-MOVED", sortKey: "2026-10-18|00002", driverId: blakeId)],
+                              signedIn: garyId)
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity), [.manualTask("MDT-MINE")])
+    }
+
+    func testCategorySearchAndTransportFiltersDoNotRemoveValidMissions() {
+        // The server narrowed the board's feed by category, search and transport,
+        // so the board's own list is empty.
+        let (list, _) = board(orders: [], driverId: garyId, workday: [garyDelivery, garyReturn])
+        list.selectCategoryID = "12"
+        list.selectDeliveryType = "Store"
+        list.rebuildRows()
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity),
+                       [.orderProduct("OP-DEL"), .orderProduct("OP-RET")])
+
+        // And the working set was asked with Next Stop's OWN query, not the board's.
+        let query = lastWorkdayQuery
+        XCTAssertNil(query?.categoryId, "No category narrowing.")
+        XCTAssertEqual(query?.legs, .all, "Both legs, always.")
+        XCTAssertEqual(query?.dates, .today, "Today's workday (overdue included), whatever day the board shows.")
+        XCTAssertNil(query?.selectedDriverId,
+                     "Company-wide read, so this phone's local edits apply BEFORE the driver rule — the board's own order.")
+    }
+
+    func testDeliveryReturnAndManualDispatchStayInCanonicalDispatchOrder() {
+        let (list, _) = board(orders: [],
+                              driverId: blakeId,
+                              workday: [leg("OP-A", sortKey: "2026-10-18|00001", deliveryDriver: garyId),
+                                        leg("OP-B", delivered: true, sortKey: "2026-10-18|00004",
+                                            deliveryDriver: garyId, pickupDriver: garyId)],
+                              myManuals: [manual("MDT-X", sortKey: "2026-10-18|00002", driverId: garyId),
+                                          manual("MDT-Y", sortKey: "2026-10-18|00009", driverId: garyId)],
+                              signedIn: garyId)
+
+        XCTAssertEqual(list.currentNextStopMissions().map(\.identity),
+                       [.orderProduct("OP-A"), .manualTask("MDT-X"), .orderProduct("OP-B"), .manualTask("MDT-Y")],
+                       "The board's own sort_key weave — not a second ordering.")
+    }
+
+    func testAReassignmentMadeOnThisPhoneIsRespected() {
+        let (list, _) = board(orders: [], driverId: garyId, workday: [garyDelivery])
+        // This screen reassigned the delivery to Blake (a local edit at the package's revision).
+        list.offlineEdits["OP-DEL"] = (revision: "r1",
+                                       row: leg("OP-DEL", sortKey: "2026-10-18|00001", deliveryDriver: blakeId))
+
+        XCTAssertTrue(list.currentNextStopMissions().isEmpty,
+                      "The working set must be read the way the board reads it: this phone's edits first.")
+    }
+
+    func testSignedOutThereIsNoWorkdayToOffer() throws {
+        let (list, nav) = board(orders: [garyDelivery], workday: [garyDelivery],
+                                myManuals: [manual("MDT-1", sortKey: "2026-10-18|00002")], signedIn: nil)
+
+        XCTAssertTrue(list.currentNextStopMissions().isEmpty, "No signed-in driver, nobody's workday.")
+        list.beginNextStopFlow()
+        XCTAssertEqual(try XCTUnwrap(nav.topViewController as? NextStopViewController).missionSourceState(),
+                       .notDownloaded)
+    }
+
+    // MARK: Opening a mission the board's filters hide
+
+    func testAHiddenMissionOpensThroughTheExistingPathWithNoWriteBackIntoTheBoard() throws {
+        // Board on Delivery only; Next Stop offers the Return. A Return's first stage is the
+        // Driver Checklist (Return has no Assembly Review).
+        let (list, nav) = board(orders: [garyDelivery], driverId: garyId, workday: [garyDelivery, garyReturn])
+        list.isDeliverySelect = true
+        list.isReturnSelect = false
+        let boardBefore = list.arrDispatchList.map { $0.unique_id }
+
+        XCTAssertTrue(list.openOrderMission(orderProductUniqueId: "OP-RET"))
+
+        let screen2 = try XCTUnwrap(nav.topViewController as? DriverChecklistViewController,
+                                    "The hidden mission enters its EXISTING workflow.")
+        XCTAssertEqual(screen2.objDispatch?.unique_id, "OP-RET")
+        XCTAssertEqual(screen2.checklistType, "pickup")
+        XCTAssertNil(screen2.delegate_Data,
+                     "The board holds no row for this mission, so nothing may write back into it by position.")
+        XCTAssertEqual(list.arrDispatchList.map { $0.unique_id }, boardBefore, "The board's own list is untouched.")
+    }
+
+    func testABoardRowStillOpensExactlyAsBeforeWithItsWriteBack() throws {
+        let (list, nav) = board(orders: [garyReturn], driverId: garyId)
+
+        XCTAssertTrue(list.openOrderMission(orderProductUniqueId: "OP-RET"))
+
+        let screen2 = try XCTUnwrap(nav.topViewController as? DriverChecklistViewController)
+        XCTAssertTrue(screen2.delegate_Data as AnyObject? === list,
+                      "When the board holds the row, the existing write-back path is unchanged.")
+        XCTAssertEqual(screen2.selectIndex, 0)
+    }
+
+    func testTheReviewCanContinueAHiddenMissionThatNextStopOpenedButNothingElse() {
+        let (list, _) = board(orders: [garyDelivery], driverId: garyId,
+                              workday: [garyDelivery, leg("OP-HIDDEN", sortKey: "2026-10-18|00003", deliveryDriver: garyId)])
+        list.isDeliverySelect = true
+        list.isReturnSelect = false
+
+        // Before Next Stop opened it: unchanged behaviour — the board does not hold it.
+        XCTAssertFalse(list.openDriverChecklist(orderProductUniqueId: "OP-HIDDEN"))
+
+        list.openOrderMissionSeam = { _, _ in }   // the Assembly Review leg of the journey is not under test
+        XCTAssertTrue(list.openOrderMission(orderProductUniqueId: "OP-HIDDEN"))
+
+        // Assembly Review's Continue finds it by id now.
+        XCTAssertTrue(list.openDriverChecklist(orderProductUniqueId: "OP-HIDDEN"))
+    }
+
+    func testTheReviewRefusesAHiddenMissionReassignedAfterNextStopOpenedIt() {
+        var workday = [garyDelivery, leg("OP-HIDDEN", sortKey: "2026-10-18|00003", deliveryDriver: garyId)]
+        let (list, _) = board(orders: [garyDelivery], driverId: garyId, workday: workday)
+        list.openOrderMissionSeam = { _, _ in }
+        XCTAssertTrue(list.openOrderMission(orderProductUniqueId: "OP-HIDDEN"))
+
+        // The office reassigns it while the driver is in the review.
+        workday[1] = leg("OP-HIDDEN", sortKey: "2026-10-18|00003", deliveryDriver: blakeId)
+        let rows = workday.map(workdayRow)
+        list.offlinePresentation = { _ in
+            .ready(rows: rows, freshness: .init(lastManifestAt: nil, throughDate: nil, staleCount: 0, pendingCount: 0))
+        }
+
+        XCTAssertFalse(list.openDriverChecklist(orderProductUniqueId: "OP-HIDDEN"),
+                       "Re-resolved at the moment of continuing: no longer this driver's, so it does not open.")
+    }
+
+    // MARK: A refused pick never ends the shop stop
+
+    func testAStaleMissionCannotEraseAnActiveShopStop() throws {
+        let shop = NextStopShop(uniqueId: "STR-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let selectedAt = Date(timeIntervalSince1970: 1_792_000_000)
+
+        for state in [NextStopState.shopSelected(shop: shop, selectedAt: selectedAt),
+                      .arrivedAtShop(shop: shop, selectedAt: selectedAt, arrivedAt: selectedAt.addingTimeInterval(900))] {
+            let (list, _) = board(orders: [], driverId: garyId, workday: [garyDelivery])
+            let p = nextStop(state: state)
+            p.vc.missions = { list.currentNextStopMissions() }
+            p.vc.openOrderMission = { list.openOrderMission(orderProductUniqueId: $0) }
+            p.vc.refreshFromDurableState()
+            let nav = UINavigationController(rootViewController: p.vc)
+            p.vc.nextCustomerTapped()
+            let picker = try XCTUnwrap(nav.topViewController as? NextMissionPickerViewController)
+            picker.loadViewIfNeeded()
+            XCTAssertEqual(picker.renderedPrimaryTexts, ["Delivery Customer"])
+
+            // The office reassigns it while the picker is open.
+            let moved = [leg("OP-DEL", sortKey: "2026-10-18|00001", deliveryDriver: blakeId)].map(workdayRow)
+            list.offlinePresentation = { _ in
+                .ready(rows: moved, freshness: .init(lastManifestAt: nil, throughDate: nil, staleCount: 0, pendingCount: 0))
+            }
+            picker.selectMission(at: 0)
+
+            XCTAssertEqual(p.saved, state, "A refused, stale pick must leave \(state) exactly as it was.")
+            XCTAssertEqual(picker.noticeText, "This mission is no longer assigned here. Dispatch has been refreshed.")
+        }
+    }
+}
+
+// MARK: - Review: neither copy can make someone else's work yours
+
+extension NextStopWorkflowHostedTests {
+
+    func testAStaleBoardCopyCannotMakeAnotherDriversLineLookLikeYours() {
+        // The working set (newer) says the line moved to Blake; the board still holds an
+        // older copy that says Gary.
+        let (list, _) = board(orders: [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: garyId)],
+                              driverId: garyId,
+                              workday: [leg("OP-1", sortKey: "2026-10-18|00001", deliveryDriver: blakeId)])
+
+        XCTAssertTrue(list.currentNextStopMissions().isEmpty,
+                      "Either copy saying \"not yours\" vetoes — a copy can never ADD a mission.")
+        XCTAssertFalse(list.openOrderMission(orderProductUniqueId: "OP-1"))
+    }
+
+    func testABoardCopyOfAManualTaskThatMovedVetoesItToo() {
+        // Gary's own slot still lists MDT-1; the board (on All Drivers) holds a copy
+        // showing it now belongs to Blake.
+        let (list, _) = board(manuals: [manual("MDT-1", sortKey: "2026-10-18|00001", driverId: blakeId)],
+                              myManuals: [manual("MDT-1", sortKey: "2026-10-18|00001", driverId: garyId)],
+                              signedIn: garyId)
+
+        XCTAssertTrue(list.currentNextStopMissions().isEmpty)
+        XCTAssertFalse(list.openManualMission(taskUniqueId: "MDT-1"))
     }
 }

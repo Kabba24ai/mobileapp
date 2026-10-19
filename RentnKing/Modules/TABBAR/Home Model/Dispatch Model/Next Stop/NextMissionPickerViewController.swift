@@ -89,14 +89,14 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
         notice.isHidden = noticeText == nil
     }
 
-    /// The driver picked a mission. The shop stop ends first — the mission is
-    /// the next stop now — then Dispatch re-resolves the identity. A refusal
-    /// means the mission moved on without this screen: say so and refresh.
+    /// The driver picked a mission. Dispatch re-resolves the identity and opens it
+    /// FIRST; only a mission that actually opened becomes the next stop, so only then
+    /// does the shop stop end. A refusal means the mission completed or was reassigned
+    /// while this screen sat open: the shop stop is left exactly as it was, the driver
+    /// is told, Dispatch refreshes, and they choose again.
     func selectMission(at index: Int) {
         guard index >= 0, index < rows.count else { return }
         let mission = rows[index]
-
-        clearShopStop()
 
         let opened: Bool
         switch mission.identity {
@@ -104,7 +104,10 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
         case let .manualTask(uid):   opened = openManualMission(uid)
         }
 
-        guard !opened else { return }
+        if opened {
+            clearShopStop()
+            return
+        }
 
         noticeText = "This mission is no longer assigned here. Dispatch has been refreshed."
         refreshDispatch()

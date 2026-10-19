@@ -101,9 +101,19 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var driverStageOverlay = DriverStageOverlay.from([])
     /// Seams (hosted tests inject; production reads the shared engine and the cached review).
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
-    /// Next Stop test seam: how a RESOLVED order mission is opened. nil (production)
-    /// = the real openMission(at:), so the routing under test is identity resolution.
-    var openOrderMissionAt: ((Int) -> Void)?
+    /// Next Stop test seam: how a RESOLVED order mission is opened — (order-product id,
+    /// its index in THIS board's list, or nil when this board does not hold it).
+    /// nil (production) = the real mission router.
+    var openOrderMissionSeam: ((String, Int?) -> Void)?
+    /// Next Stop: the SIGNED-IN driver, from the login session — never the driver
+    /// selected on this board, which may be anyone (or All Drivers).
+    var signedInDriverId: () -> Int? = { Int(UserDefaults.standard.user?.id ?? "").flatMap { $0 > 0 ? $0 : nil } }
+    /// Next Stop seam: the signed-in driver's own Manual Dispatch list. nil (production)
+    /// = this board's own cache slot for that driver's day (manualCacheKey "Today" + id).
+    var nextStopManualJobs: ((Int) -> [DispatchManualJob])?
+    /// Order missions Next Stop opened although THIS board's own filters hide them —
+    /// the only ids the Assembly Review's Continue may resolve outside the board's list.
+    var nextStopHostedIds: Set<String> = []
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     /// Release 2026-09-30 seams (hosted tests inject; production reads the network, the offline
     /// mission store and the MMKV feed snapshot).
@@ -1692,11 +1702,19 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     func openMission(at index: Int) {
         guard index < self.arrDispatchList.count else { return }
         let raw = self.arrDispatchList[index]
+        self.openMission(row: raw, boardIndex: index, serverObservedAt: self.serverObservedAt(for: raw))
+    }
+
+    /// The ONE mission router, by row. `boardIndex` is the row's position in THIS board's
+    /// list — or nil when the board does not hold it (Next Stop opened a mission this
+    /// board's own filters hide). Then the same stage routing applies, but no screen is
+    /// wired to write back into this board by position: there is no card here to update,
+    /// and a position would name some OTHER mission.
+    func openMission(row raw: SchedulesModel, boardIndex: Int?, serverObservedAt observedAt: Date?) {
         let isDeliveryLeg = raw.is_delivered == false
         let productId = raw.unique_id ?? ""
         let checklist = isDeliveryLeg ? raw.delivery_checklist : raw.pickup_checklist
         let serverTrip = DriverStagePresentation.serverState(checklist)
-        let observedAt = self.serverObservedAt(for: raw)
 
         // The ONE builder Dispatch, Screen 2 and the driver-origin review share. The leg's
         // completion is the ROW's flag (is_delivered / is_returned): the checklist block's
@@ -1719,12 +1737,16 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 orderNumber: "\(raw.order?.order_number ?? "")",
                 focusOrderProductUniqueId: productId,
                 origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: productId, enteredFrom: stage, isRevisit: false),
-                                              selectIndex: index, fromCheckListScreen: true,
+                                              selectIndex: boardIndex ?? 0, fromCheckListScreen: true,
                                               missionServerTrip: serverTrip, missionServerObservedAt: observedAt))
         case .driverChecklist:
-            self.openDriverChecklist(at: index)
+            if let index = boardIndex {
+                self.openDriverChecklist(at: index)
+            } else {
+                self.openDriverChecklist(offBoard: raw, serverObservedAt: observedAt)
+            }
         case .mainOrder:
-            if let details = Self.makeOrderDetails(for: raw, index: index, serverObservedAt: observedAt) {
+            if let details = Self.makeOrderDetails(for: raw, index: boardIndex ?? 0, serverObservedAt: observedAt) {
                 self.navigationController?.pushViewController(details, animated: true)
             }
         case .none:
@@ -1737,8 +1759,18 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     /// have moved. Returns false when the line is no longer in this list.
     @discardableResult
     func openDriverChecklist(orderProductUniqueId: String) -> Bool {
-        guard let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) else { return false }
-        self.openDriverChecklist(at: index)
+        if let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) {
+            self.openDriverChecklist(at: index)
+            return true
+        }
+        // Next Stop opened this mission although this board's own filters hide it. Only
+        // such a mission may be continued from outside the board's list, and only while it
+        // is STILL the signed-in driver's remaining work — re-resolved now, never trusted
+        // from when it was opened.
+        guard self.nextStopHostedIds.contains(orderProductUniqueId),
+              let mission = self.nextStopWorkday().orders.first(where: { $0.row.unique_id == orderProductUniqueId })
+        else { return false }
+        self.openDriverChecklist(offBoard: mission.row, serverObservedAt: mission.observedAt)
         return true
     }
 
@@ -1748,6 +1780,23 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         guard index < self.arrDispatchList.count else { return }
         // F2: the stage (button colour) comes from durable Sync Engine steps too.
         let objData = self.presentedRow(index)
+        self.presentDriverChecklist(presented: objData, raw: self.arrDispatchList[index],
+                                    serverObservedAt: self.serverObservedAt(for: objData), boardIndex: index)
+    }
+
+    /// Screen 2 for a mission this board does not hold (Next Stop; the board's filters hide
+    /// it): the same screen, from the canonical row with this phone's durable trip stage
+    /// applied, and NO write-back into this board.
+    func openDriverChecklist(offBoard raw: SchedulesModel, serverObservedAt: Date?) {
+        let presented = DriverStagePresentation.applying(DriverStageOverlay.from(self.operationsSnapshot()),
+                                                         to: raw, serverObservedAt: serverObservedAt)
+        self.presentDriverChecklist(presented: presented, raw: raw, serverObservedAt: serverObservedAt, boardIndex: nil)
+    }
+
+    /// `boardIndex` nil = no delegate: the checklist's answers are durable in the Sync
+    /// Engine either way, and only a row this board holds has a card to refresh.
+    private func presentDriverChecklist(presented objData: SchedulesModel, raw: SchedulesModel,
+                                        serverObservedAt: Date?, boardIndex: Int?) {
         let isDeliveryLeg = objData.is_delivered == false
         let checklist = isDeliveryLeg ? objData.delivery_checklist : objData.pickup_checklist
         let ready_to_go_at = checklist?.ready_to_go_at ?? ""
@@ -1757,11 +1806,11 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
 
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
-            newViewController.delegate_Data = self
+            newViewController.delegate_Data = boardIndex == nil ? nil : self
             newViewController.buttonColour = buttonColour
-            newViewController.objDispatch = self.arrDispatchList[index]
-            newViewController.serverObservedAt = self.serverObservedAt(for: objData)
-            newViewController.selectIndex = index
+            newViewController.objDispatch = raw
+            newViewController.serverObservedAt = serverObservedAt
+            newViewController.selectIndex = boardIndex ?? 0
             newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
             newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
             newViewController.productUniqueId = objData.unique_id ?? ""
@@ -2280,57 +2329,153 @@ struct NextStopMission: Equatable {
 
 extension DispatchListViewController {
 
-    /// The driver's remaining work, projected from the rows this screen has
-    /// ALREADY reconciled and filtered (arrRows) — same weave, same sort_key
-    /// order, same driver-membership and locally-completed rules the board
-    /// renders. Deliberately a projection and not a query: there is one
-    /// Dispatch ordering in the app and this is not a second one.
-    func currentNextStopMissions() -> [NextStopMission] {
-        var missions: [NextStopMission] = []
-        missions.reserveCapacity(self.arrRows.count)
-
-        let finishedHere = EffectiveFieldState.CompletionOverlay.from(self.operationsSnapshot())
-
-        for row in 0..<self.arrRows.count {
-            if let manual = self.manualJobForRow(row) {
-                guard let uid = manual.unique_id, !uid.isEmpty else { continue }
-                let where_ = [manual.location_name, manual.locationLine]
-                    .compactMap { ($0?.isEmpty == false) ? $0 : nil }.first
-                missions.append(NextStopMission(
-                    identity: .manualTask(uid),
-                    kindLabel: "Manual Dispatch",
-                    primaryText: where_ ?? (manual.type ?? "Manual Dispatch"),
-                    secondaryText: [manual.type, manual.description]
-                        .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
-                    sortKey: manual.sort_key ?? DispatchWorkload.openEndedSortKey))
-                continue
-            }
-
-            guard let index = self.orderIndexForRow(row) else { continue }
-            let leg = self.arrDispatchList[index]
-            guard let uid = leg.unique_id, !uid.isEmpty else { continue }
-            // Next Stop's OWN rule (spec §3.2): never offer work already
-            // finished here. The board filters locally-completed legs only on
-            // the Pending tab, so inheriting that would offer the driver the
-            // very job they just completed whenever the board sat on Completed.
-            guard !Self.isFinishedHere(finishedHere, leg) else { continue }
-            // Active leg, the board's own rule: the delivery until it is
-            // delivered, the return afterwards.
-            let isDeliveryLeg = leg.is_delivered == false
-            let orderNumber = "\(leg.order?.order_number ?? "")"
-            missions.append(NextStopMission(
-                identity: .orderProduct(uid),
-                kindLabel: isDeliveryLeg ? "Delivery" : "Return",
-                primaryText: leg.order?.customer_name ?? "—",
-                secondaryText: [leg.product_name, orderNumber.isEmpty ? nil : "#" + orderNumber]
-                    .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
-                sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey))
-        }
-        return missions
+    /// The signed-in driver's remaining workday.
+    struct NextStopWorkday {
+        /// Order legs: the copy to open, and when the server last vouched for it.
+        var orders: [(row: SchedulesModel, observedAt: Date?)] = []
+        var manuals: [DispatchManualJob] = []
+        /// false = the order working set could not be read (never downloaded, or nobody
+        /// signed in). Unknown — never to be presented as a finished day.
+        var downloaded = false
     }
 
-    /// Has THIS phone durably completed the row's active leg? One rule, used
-    /// by both the projection and the reopen guard.
+    /// Next Stop's OWN, fixed question to the working set: every leg, today's workday
+    /// (end-only, so overdue work stays), no category. Company-wide on purpose, like the
+    /// board's own offlineQuery(): this phone's local edits apply BEFORE the driver rule.
+    /// Nothing the board happens to be filtered by — leg toggle, category, search,
+    /// transport, day, Pending/Completed tab, selected driver — reaches this query.
+    static let nextStopWorkdayQuery = DispatchOfflineQuery(selectedDriverId: nil, legs: .all,
+                                                           dates: .today, categoryId: nil)
+
+    /// The SIGNED-IN driver's entire remaining workday — Delivery, Return and Manual
+    /// Dispatch — independent of how this board is filtered.
+    ///
+    /// Orders come from the company-wide Dispatch offline working set (the canonical,
+    /// reconciled source the Pending board itself is built from), read the way the board
+    /// reads it: this phone's local edits first, then the active-leg driver rule. Where
+    /// this board's own list holds a line, that copy is the fresher truth and is used —
+    /// so a reassignment or completion the live feed has already seen is honoured. It
+    /// can only veto or refresh a candidate; it never adds one, so no board filter can
+    /// shape the set.
+    ///
+    /// Manual tasks come from the signed-in driver's own slot (keyed by THAT driver,
+    /// never the board's selection), less any task assigned elsewhere or effectively
+    /// finished on this phone.
+    func nextStopWorkday() -> NextStopWorkday {
+        var workday = NextStopWorkday()
+        guard let me = self.signedInDriverId() else { return workday }
+        let operations = self.operationsSnapshot()
+        let finishedHere = EffectiveFieldState.CompletionOverlay.from(operations)
+
+        if let presentation = self.offlinePresentation(Self.nextStopWorkdayQuery),
+           case let .ready(rows, _) = presentation {
+            workday.downloaded = true
+            var candidates: [(row: SchedulesModel, observedAt: Date?, position: Int)] = []
+            for (position, row) in rows.enumerated() {
+                let uid = row.orderProductUniqueId
+                guard !uid.isEmpty, var model = DispatchOfflineRowAdapter.schedulesModel(from: row.row) else { continue }
+                if let edit = self.offlineEdits[uid], edit.revision == row.revision {
+                    guard let local = edit.row else { continue }   // removed on this screen
+                    model = local
+                }
+                // Either copy saying "not yours" or "finished" vetoes; neither can make a
+                // line yours. Which copy is newer is not always knowable, and opening another
+                // driver's job is worse than offering a reassigned-to-you one a refresh late.
+                guard Self.isOpenWork(model, for: me, finishedHere) else { continue }
+                if let live = self.arrDispatchList.first(where: { $0.unique_id == uid }) {
+                    guard Self.isOpenWork(live, for: me, finishedHere) else { continue }
+                    model = live   // the copy the board itself would open, write-back included
+                }
+                candidates.append((model, row.serverObservedAt, position))
+            }
+            // The working set is sort_key-ordered; a fresher live copy may carry a newer key,
+            // so restore the order (ties keep the working set's own sequence).
+            workday.orders = candidates
+                .sorted { ($0.row.sort_key ?? DispatchWorkload.openEndedSortKey, $0.position)
+                        < ($1.row.sort_key ?? DispatchWorkload.openEndedSortKey, $1.position) }
+                .map { ($0.row, $0.observedAt) }
+        }
+
+        let myManuals = self.nextStopManualJobs?(me)
+            ?? self.getDispatchManualData(key: self.manualCacheKey(dateFilter: "Today", driverId: "\(me)"))
+        let isOpenTask: (DispatchManualJob) -> Bool = { job in
+            guard let uid = job.unique_id, !uid.isEmpty else { return false }
+            if let assigned = job.driver?.id, assigned != me { return false }
+            let status = DispatchManualStatus.effectiveStatus(serverStatus: job.status, operations: operations,
+                                                              manualTaskUniqueId: uid)
+            return !DispatchManualStatus.isTerminal(status)
+        }
+        // Same veto rule as the orders: a copy of the task on this board can only remove it.
+        workday.manuals = myManuals.filter { job in
+            guard isOpenTask(job) else { return false }
+            if let live = self.arrManualList.first(where: { $0.unique_id == job.unique_id }) { return isOpenTask(live) }
+            return true
+        }
+        return workday
+    }
+
+    /// Open work for this driver: their active leg, not completed on the server, not
+    /// completed on this phone.
+    fileprivate static func isOpenWork(_ leg: SchedulesModel, for driverId: Int,
+                                       _ finishedHere: EffectiveFieldState.CompletionOverlay) -> Bool {
+        return Self.isAssigned(leg, to: driverId)
+            && !(leg.is_delivered == true && leg.is_returned == true)
+            && !Self.isFinishedHere(finishedHere, leg)
+    }
+
+    /// The picker's rows: the workday woven by the board's own sort_key weave.
+    func currentNextStopMissions() -> [NextStopMission] {
+        let workday = self.nextStopWorkday()
+        let refs = DispatchWorkload.weave(orderSortKeys: workday.orders.map { $0.row.sort_key },
+                                          manualSortKeys: workday.manuals.map { $0.sort_key })
+        return refs.map { ref in
+            switch ref {
+            case let .order(i):  return Self.nextStopMission(order: workday.orders[i].row)
+            case let .manual(i): return Self.nextStopMission(manual: workday.manuals[i])
+            }
+        }
+    }
+
+    /// Whether the workday could be read at all — the picker keeps "finished" and
+    /// "unknown" apart.
+    func nextStopSourceState() -> MissionSourceState {
+        return self.nextStopWorkday().downloaded ? .available : .notDownloaded
+    }
+
+    fileprivate static func nextStopMission(order leg: SchedulesModel) -> NextStopMission {
+        // Active leg, the board's own rule: the delivery until it is delivered, then the return.
+        let isDeliveryLeg = leg.is_delivered == false
+        let orderNumber = "\(leg.order?.order_number ?? "")"
+        return NextStopMission(
+            identity: .orderProduct(leg.unique_id ?? ""),
+            kindLabel: isDeliveryLeg ? "Delivery" : "Return",
+            primaryText: leg.order?.customer_name ?? "—",
+            secondaryText: [leg.product_name, orderNumber.isEmpty ? nil : "#" + orderNumber]
+                .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+            sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey)
+    }
+
+    fileprivate static func nextStopMission(manual: DispatchManualJob) -> NextStopMission {
+        let place = [manual.location_name, manual.locationLine]
+            .compactMap { ($0?.isEmpty == false) ? $0 : nil }.first
+        return NextStopMission(
+            identity: .manualTask(manual.unique_id ?? ""),
+            kindLabel: "Manual Dispatch",
+            primaryText: place ?? (manual.type ?? "Manual Dispatch"),
+            secondaryText: [manual.type, manual.description]
+                .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+            sortKey: manual.sort_key ?? DispatchWorkload.openEndedSortKey)
+    }
+
+    /// The active leg's driver IS this driver — the board's own membership predicate.
+    fileprivate static func isAssigned(_ leg: SchedulesModel, to driverId: Int) -> Bool {
+        return DispatchWorkload.orderRowBelongs(selectedDriverId: driverId,
+                                                isDelivered: leg.is_delivered == true,
+                                                deliveryEmployeeId: leg.delivery_employee?.id,
+                                                pickupEmployeeId: leg.pickup_employee?.id)
+    }
+
+    /// Has THIS phone durably completed the row's active leg?
     fileprivate static func isFinishedHere(_ overlay: EffectiveFieldState.CompletionOverlay,
                                            _ leg: SchedulesModel) -> Bool {
         guard !overlay.isEmpty, let uid = leg.unique_id, !uid.isEmpty else { return false }
@@ -2338,46 +2483,45 @@ extension DispatchListViewController {
                                              isDeliveryLeg: leg.is_delivered == false)
     }
 
-    /// Opens an order mission by its order-product unique id, RE-RESOLVED
-    /// against the rows as they stand right now. Returns false when that
-    /// mission is no longer part of this driver's rendered workload — it
-    /// completed, or the office reassigned it while the picker was open — so a
-    /// stale pick can never open whichever mission inherited its index.
+    /// Opens an order mission by its order-product id, RE-RESOLVED against the
+    /// signed-in driver's workday at the moment of the tap. false = it is no longer
+    /// theirs (completed, or reassigned while the picker sat open) and NOTHING opens.
+    ///
+    /// When this board holds the line, it opens through exactly today's path, write-back
+    /// included. When the board's own filters hide it, it opens through the same stage
+    /// routing from the canonical row, with no write-back into this board.
     @discardableResult
     func openOrderMission(orderProductUniqueId: String) -> Bool {
-        guard !orderProductUniqueId.isEmpty else { return false }
-        let finishedHere = EffectiveFieldState.CompletionOverlay.from(self.operationsSnapshot())
-        for row in 0..<self.arrRows.count {
-            guard let index = self.orderIndexForRow(row),
-                  self.arrDispatchList[index].unique_id == orderProductUniqueId else { continue }
-            // Same rule on the way in: a finished job cannot be reopened from a
-            // picker that was built before it completed.
-            guard !Self.isFinishedHere(finishedHere, self.arrDispatchList[index]) else { return false }
-            if let seam = self.openOrderMissionAt {
-                seam(index)
-            } else {
-                self.openMission(at: index)
-            }
+        guard !orderProductUniqueId.isEmpty,
+              let mission = self.nextStopWorkday().orders.first(where: { $0.row.unique_id == orderProductUniqueId })
+        else { return false }
+
+        if let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) {
+            if let seam = self.openOrderMissionSeam { seam(orderProductUniqueId, index) } else { self.openMission(at: index) }
             return true
         }
-        return false
+        self.nextStopHostedIds.insert(orderProductUniqueId)
+        if let seam = self.openOrderMissionSeam {
+            seam(orderProductUniqueId, nil)
+        } else {
+            self.openMission(row: mission.row, boardIndex: nil, serverObservedAt: mission.observedAt)
+        }
+        return true
     }
 
-    /// Opens a Manual Dispatch mission by its task unique id, re-resolved the
-    /// same way, into the same Task Details screen the board pushes.
+    /// Opens a Manual Dispatch mission by its task id, re-resolved the same way, into
+    /// the same Task Details screen the board pushes.
     @discardableResult
     func openManualMission(taskUniqueId: String) -> Bool {
-        guard !taskUniqueId.isEmpty else { return false }
-        for row in 0..<self.arrRows.count {
-            guard let job = self.manualJobForRow(row), job.unique_id == taskUniqueId else { continue }
-            let detail = ManualDispatchDetailViewController()
-            detail.item = job
-            detail.onChanged = { [weak self] in self?.refreshList() }
-            detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
-            self.navigationController?.pushViewController(detail, animated: true)
-            return true
-        }
-        return false
+        guard !taskUniqueId.isEmpty,
+              let job = self.nextStopWorkday().manuals.first(where: { $0.unique_id == taskUniqueId })
+        else { return false }
+        let detail = ManualDispatchDetailViewController()
+        detail.item = job
+        detail.onChanged = { [weak self] in self?.refreshList() }
+        detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
+        self.navigationController?.pushViewController(detail, animated: true)
+        return true
     }
 }
 
@@ -2402,11 +2546,8 @@ extension DispatchListViewController {
         next.refreshDispatch = { [weak self] in self?.refreshList() }
         // An empty workload means two different things and must never be
         // flattened: a finished day, or a workload this phone never received.
-        next.missionSourceState = { [weak self] in
-            guard let self = self else { return .notDownloaded }
-            if !self.arrRows.isEmpty { return .available }
-            return (self.isAwaitingFirstDownload || !self.isReachable()) ? .notDownloaded : .available
-        }
+        // Read from the working set Next Stop offers — not this board's own list.
+        next.missionSourceState = { [weak self] in self?.nextStopSourceState() ?? .notDownloaded }
 
         // Keep the stack up to and including this screen, then Next Stop on top.
         var stack = nav.viewControllers
