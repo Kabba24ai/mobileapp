@@ -287,7 +287,8 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: false)
         XCTAssertEqual(scope.leftOut, ["SWAPPED-BLANK"], "blank outside a combined checklist: dropped before Phase 4 too")
         scope = C.submitScope(needingConnection: [untouchedWithUnit], combine: true)
-        XCTAssertEqual(scope.blocking, ["SWAPPED-BLANK"], "a combined checklist submits every line together")
+        XCTAssertEqual(scope.leftOut, ["SWAPPED-BLANK"], "Combine never includes an untouched sibling")
+        XCTAssertEqual(scope.blocking, [])
 
         scope = C.submitScope(needingConnection: [answered], combine: false)
         XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"], "entered answers are never cleared by a partial submit")
@@ -297,7 +298,8 @@ final class DispatchOfflineFieldBridgeHostedTests: XCTestCase {
         XCTAssertEqual(scope.blocking, ["SWAPPED-ANSWERED"])
 
         scope = C.submitScope(needingConnection: [answeredNoUnit], combine: false)
-        XCTAssertEqual(scope.leftOut, ["PICKED-NOTHING-ANSWERED"], "no unit: the no-unit rule drops it, as before Phase 4")
+        XCTAssertEqual(scope.blocking, ["PICKED-NOTHING-ANSWERED"], "partial work is never silently discarded")
+        XCTAssertEqual(scope.leftOut, [])
     }
 
     // MARK: - Amendment B: company A → B → A on one phone

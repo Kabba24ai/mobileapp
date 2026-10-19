@@ -24,6 +24,18 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
     /// Called after a status change was enqueued so the list can refresh + pop back.
     var onChanged: (() -> Void)?
 
+    /// Called ONLY after a durably-recorded Completed transition, so the driver
+    /// continues into Next Stop instead of the task ending their route. Every
+    /// other transition keeps the existing pop. nil = the plain pop (the task
+    /// was opened from somewhere with no workday behind it).
+    var onCompleted: (() -> Void)?
+
+    /// Next Stop test seam: the durable transition, as (taskUniqueId, status)
+    /// -> operation id. nil (production) is the canonical
+    /// ManualDispatchSyncHandler enqueue through the one Sync Engine — this
+    /// feature adds no second status writer.
+    var enqueueStatus: ((String, String) throws -> String)?
+
     private enum Palette {
         static let page   = UIColor.background
         static let card   = UIColor(hex: 0x141C26)
@@ -282,19 +294,37 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
     /// Kabba" in moments); offline the operation stays Pending Sync and the
     /// server converges on reconnect. A reassigned-away task answers
     /// 403/409 — non-retryable — and parks as Needs Attention.
-    private func submitStatus(_ status: String) {
-        guard let uid = item?.unique_id, let engine = KabbaSync.engine else { return }
+    func submitStatus(_ status: String) {
+        guard let uid = item?.unique_id else { return }
         do {
-            let operation = try ManualDispatchSyncHandler.enqueue(into: engine, taskUniqueId: uid, status: status)
-            KabbaSync.showStatusToast(for: operation.id)
-            finishAfterChange()
+            let operationId: String
+            if let seam = self.enqueueStatus {
+                operationId = try seam(uid, status)
+            } else {
+                guard let engine = KabbaSync.engine else { return }
+                operationId = try ManualDispatchSyncHandler.enqueue(into: engine, taskUniqueId: uid, status: status).id
+            }
+            KabbaSync.showStatusToast(for: operationId)
+            finishAfterChange(status: status)
         } catch {
+            // Nothing reached disk, so nothing is announced and the driver is
+            // not advanced — the task is genuinely not in its new status.
             showAlertMessage(strMessage: str.somethingWentWrong)
         }
     }
 
-    private func finishAfterChange() {
+    /// Completed is accomplished work, so the workday continues into Next Stop.
+    /// On My Way, Arrived and Cancelled keep the existing pop: the first two are
+    /// mid-route and the last is not accomplished work.
+    private func finishAfterChange(status: String) {
         onChanged?()
+
+        if status == DispatchManualStatus.completed, let onCompleted = self.onCompleted {
+            // Next Stop replaces the stack with Dispatch + the question, so this
+            // screen is removed by that transition — no pop of its own.
+            onCompleted()
+            return
+        }
         navigationController?.popViewController(animated: true)
     }
 

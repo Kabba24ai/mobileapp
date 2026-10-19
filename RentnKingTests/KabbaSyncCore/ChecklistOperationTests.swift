@@ -203,6 +203,58 @@ final class ChecklistOperationTests: XCTestCase {
     }
 }
 
+extension ChecklistOperationTests {
+
+    /// 1.0.26: a Return captured OFFLINE with independent DEF readings and THIS line's own fuel
+    /// charge is durable — it survives an app relaunch and reaches Laravel unchanged once the
+    /// network is back (the trailer beside it would carry "0.00", never this machine's charge).
+    func testAnOfflineReturnWithDEFAndItsOwnFuelChargeSurvivesARelaunchAndSyncsUnchanged() throws {
+        var c = ChecklistCapture(context: context(product: "ORD-SCH-DEF", leg: .return, execution: "ORD-CHK-RET-0001"),
+                                 answers: ["CAQST-Q1": "CAANS-A1"], employeeUserId: 7, equipmentUniqueId: "EQP-UNIT-0001")
+        c.storeId = 36
+        c.fuelFinalReading = "5"
+        c.defFinalReading = "5"
+        c.fuelTotalCharge = ChecklistLineCharge(total: 113.95, fuel: Decimal(string: "113.95")!).fuelString
+        c.totalCharge = ChecklistLineCharge(total: 113.95).totalString
+        XCTAssertEqual(c.fuelTotalCharge, "113.95")
+
+        // Offline: the engine keeps retrying; nothing is lost.
+        let offline = FakeSyncHTTPClient()
+        let store = try FileSyncOperationStore(rootDirectory: dir)
+        let first = SyncEngine(store: store, httpClient: offline, handlers: [ReturnChecklistHandler()], policy: SyncRetryPolicy(backoffSchedule: [30]))
+        let op = try ChecklistOperationBuilder.enqueueCompletion(c, signatureJPEG: Data("SIG".utf8), into: first)
+        waitUntil(timeout: 5) { offline.requestCount >= 1 }
+        XCTAssertNotEqual(first.operation(id: op.id)?.state, .synced)
+
+        // Relaunch: the durable operation still holds the DEF reading and this line's charge.
+        let relaunched = try FileSyncOperationStore(rootDirectory: dir)
+        let saved = try XCTUnwrap(try relaunched.loadAll().first { $0.id == op.id })
+        XCTAssertEqual(saved.payload["def_final_reading"]?.stringValue, "5")
+        XCTAssertEqual(saved.payload["fuel_final_reading"]?.stringValue, "5")
+        XCTAssertEqual(saved.payload["fuel_total_charge"]?.stringValue, "113.95")
+        XCTAssertNil(saved.payload["def_initial_reading"], "a delivery reading never rides on a return")
+
+        // Back online: the same body reaches Laravel.
+        let online = FakeSyncHTTPClient()
+        online.enqueue(Fixtures.ok(["success": true, "data": ["status": "completed", "leg": "return"], "request_id": "srv-9"]))
+        let second = SyncEngine(store: relaunched, httpClient: online, handlers: [ReturnChecklistHandler()], policy: SyncRetryPolicy(backoffSchedule: [0.05]))
+        second.kick(reason: "relaunch", ignoreBackoff: true)
+        waitUntil(timeout: 5) { second.operation(id: op.id)?.state == .synced }
+        let sent = try XCTUnwrap(online.recorded.first?.jsonBody)
+        XCTAssertEqual(sent["def_final_reading"]?.stringValue, "5")
+        XCTAssertEqual(sent["fuel_total_charge"]?.stringValue, "113.95")
+        XCTAssertEqual(sent["operation_id"]?.stringValue, op.id, "the same operation, so a replay converges")
+    }
+}
+
+/// Core-only stand-in for the Return completion handler.
+struct ReturnChecklistHandler: SyncOperationHandler {
+    var operationType: String { ChecklistOperationBuilder.completeType(.return) }
+    func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
+        try ChecklistRequestFactory.completeRequest(for: operation)
+    }
+}
+
 /// Core-only stand-in for ChecklistCompleteSyncHandler (the app-layer handler adds the session check).
 struct TestChecklistHandler: SyncOperationHandler {
     var operationType: String { ChecklistOperationBuilder.completeType(.delivery) }

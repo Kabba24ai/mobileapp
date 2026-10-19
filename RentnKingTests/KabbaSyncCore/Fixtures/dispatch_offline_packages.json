@@ -266,6 +266,8 @@
                         "end_hours": 0,
                         "fuel_initial_reading": "",
                         "fuel_final_reading": "",
+                        "def_initial_reading": "",
+                        "def_final_reading": "",
                         "delivery_clean_id": "",
                         "return_clean_id": "",
                         "delivery_notes": "",
@@ -493,6 +495,8 @@
                             "end_hours": 0,
                             "fuel_initial_reading": "",
                             "fuel_final_reading": "",
+                            "def_initial_reading": "",
+                            "def_final_reading": "",
                             "fuel_total_charge": 0,
                             "total_charge": 0,
                             "equipment": {

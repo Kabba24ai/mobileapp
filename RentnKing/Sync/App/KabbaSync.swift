@@ -37,6 +37,8 @@ enum KabbaSync {
     private(set) static var checklistContexts: ChecklistContextClient?
     /// Dispatch offline Phase 5: the orders' frozen Terms agreements this phone holds (per company).
     private(set) static var termsAgreements: TermsAgreementStore?
+    /// Next Stop (2026-10-18): the driver's shop stop — local workflow state, never a queued operation.
+    private(set) static var nextStop: NextStopStore?
 
     private static var observers: [NSObjectProtocol] = []
     private static var sessionExpiredHandler: (() -> Void)?
@@ -105,6 +107,14 @@ enum KabbaSync {
             KabbaSync.contextStore = contextStore
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
             KabbaSync.termsAgreements = try? TermsAgreementStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+
+            // Next Stop (2026-10-18): where the driver said they are heading when
+            // the next stop is not a Dispatch mission — the shop. Beside the other
+            // tenant-scoped stores, but with NO Sync Engine handler: it is local
+            // workflow state the driver resumes, not work the server reconciles.
+            let nextStop = try? NextStopStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+            KabbaSync.nextStop = nextStop
+            if let nextStop = nextStop { NextStopCoordinator.configure(store: nextStop) }
 
             // Dispatch offline (Phase 3): the company-wide durable Dispatch working set.
             DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, accessToken: accessToken)

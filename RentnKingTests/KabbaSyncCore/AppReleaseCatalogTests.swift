@@ -137,4 +137,25 @@ final class AppReleaseCatalogTests: XCTestCase {
             XCTAssertFalse(release.notes.isEmpty, "\(release.version) has no notes")
         }
     }
+
+    // 6. The history says what each build actually shipped. 1.0.26 (1012) was approved
+    //    without Next Stop, so Next Stop belongs to 1.0.27 — never to 1.0.26.
+    func testNextStopIsCreditedTo1027AndThe1026NotesAreWhat1012Shipped() {
+        let v27 = AppReleaseCatalog.release(for: "1.0.27")
+        XCTAssertEqual(v27?.notes.first,
+                       "Finishing a delivery, return or manual dispatch now asks what you're doing next instead of sending you back to the board")
+        XCTAssertEqual(v27?.notes.count, 4)
+
+        XCTAssertEqual(AppReleaseCatalog.release(for: "1.0.26")?.notes, [
+            "Fuel is charged at the machine's own fuel price and tank size; a DEF tank no longer replaces the diesel charge",
+            "Machines with a DEF tank can record DEF separately from fuel, with the same tank levels, once enabled for your company",
+            "Each piece of equipment on a return is charged only for its own fuel, cleaning and hours",
+            "Totals update as soon as current prices load",
+            "Various fixes and refinements",
+        ], "1.0.26 must read exactly as build 1012 shipped it.")
+
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.27", "Newest first, for presentation.")
+        XCTAssertEqual(Set(AppReleaseCatalog.history.map(\.version)).count, AppReleaseCatalog.history.count,
+                       "One entry per version.")
+    }
 }

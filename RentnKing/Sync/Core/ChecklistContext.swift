@@ -167,6 +167,13 @@ struct ChecklistContext: Codable, Equatable {
         let deliveryBy: JSONValue?
         let pickupBy: JSONValue?
         let pickupStoreId: JSONValue?
+        /// DEF readings (1.0.26 backend). nil = this server does not carry DEF readings at all
+        /// (the key is absent) — the phone then shows no DEF row; "" = carried, not recorded.
+        var defInitialReading: String? = nil
+        var defFinalReading: String? = nil
+
+        /// Laravel stores independent DEF readings for this line.
+        var carriesDEFReadings: Bool { defInitialReading != nil }
 
         enum CodingKeys: String, CodingKey {
             case hourTracking = "hour_tracking", isProductClean = "is_product_clean"
@@ -175,6 +182,7 @@ struct ChecklistContext: Codable, Equatable {
             case deliveryCleanId = "delivery_clean_id", returnCleanId = "return_clean_id"
             case deliveryNotes = "delivery_notes", pickupNotes = "pickup_notes"
             case deliveryBy = "delivery_by", pickupBy = "pickup_by", pickupStoreId = "pickup_store_id"
+            case defInitialReading = "def_initial_reading", defFinalReading = "def_final_reading"
         }
     }
 

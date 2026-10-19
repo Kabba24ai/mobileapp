@@ -249,25 +249,10 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
                             cleaningItem = objCheckList
                         }
                         
-                        //FUEL — only when the equipment has a power source
-                        var fuelItem: CustomerCheckListModel?
-                        if objEquipment != nil, objEquipment?.powerSourceType != ""{
-                            let map = Map(mappingType: .fromJSON, JSON: [:])
-                            var objCheckListFule = CustomerCheckListModel(map: map)
-                            objCheckListFule?.type = "fuel"
-                            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                            objCheckListFule?.fuleType = objEquipment?.powerSourceType ?? ""
-                            objCheckListFule?.isDEF = objEquipment?.hasDEF ?? ""
-                            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-
-                            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-                            fuelItem = objCheckListFule
-
-                        }
+                        //FUEL — the primary fuel row, plus an independent DEF row for a machine with a
+                        //DEF tank when Laravel carries DEF readings (FuelChecklistRows).
+                        let fuelItems = FuelChecklistRows.rows(machine: objEquipment, product: objProduct,
+                                                               defSupported: FuelChecklistRows.carriesDEFReadings(product: objProduct, context: self.checklistContexts[objProduct.unique_id ?? ""]))
                         
 //                        
 //                        //ADD START HOUR
@@ -346,11 +331,8 @@ extension CheckListUpdateViewController :WebServiceHelperDelegate{
 //                            }
 //                        }                        
 
-                        for item in [fuelItem, cleaningItem, textItem] {
-                            if let item = item {
-                                objProduct.arrQuestions.insert(item, at: 0)
-                            }
-                        }
+                        // Final order: text, cleaning, fuel row(s), then the base questions.
+                        objProduct.arrQuestions.insert(contentsOf: [textItem, cleaningItem].compactMap { $0 } + fuelItems, at: 0)
                         
                         self.objOrderData.arrProduct.remove(at: index)
                         self.objOrderData.arrProduct.insert(objProduct, at: index)
