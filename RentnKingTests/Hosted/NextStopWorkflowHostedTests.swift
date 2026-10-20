@@ -278,6 +278,8 @@ extension NextStopWorkflowHostedTests {
             done(mapSucceeds)
         }
         vc.now = { Date(timeIntervalSince1970: 1_792_000_000) }
+        // Route events go to a probe, never to the test host's real Sync Engine.
+        vc.recordRouteEvent = { _ in }
         probe.vc = vc
         vc.loadViewIfNeeded()
         return probe
@@ -1235,6 +1237,55 @@ extension NextStopWorkflowHostedTests {
         XCTAssertEqual(r.events, [.nextMission(from: .manualTask(uniqueId: "MDT-JUST-DONE"), to: .orderLeg(orderProductUniqueId: "OP-B", isReturn: false),
                                                headingToShop: false, at: tapped)],
                        "the driver is standing at the job they just finished, not at the shop of an older answer")
+    }
+
+    func testPickingAgainAfterBackingOutStillStartsFromTheShopTheDriverReached() throws {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: true))
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        p.vc.arrivedTapped()
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "B",
+                                              secondaryText: "", sortKey: "2026-10-18|00002"))
+        XCTAssertEqual(p.saved, .idle, "the first pick ended the shop stop")
+
+        // Back out and choose another mission: the driver is still at the shop.
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-C"), kindLabel: "Delivery", primaryText: "C",
+                                              secondaryText: "", sortKey: "2026-10-18|00003"))
+
+        XCTAssertEqual(r.events.last, .nextMission(from: .shop(storeUniqueId: "STO-1"), to: .orderLeg(orderProductUniqueId: "OP-C", isReturn: false),
+                                                   headingToShop: false, at: tapped))
+    }
+
+    func testPickingAgainOnTheWayToTheShopKeepsSayingSo() throws {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .manualTask(uniqueId: "MDT-1"))
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "B",
+                                              secondaryText: "", sortKey: "2026-10-18|00002"))
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-C"), kindLabel: "Delivery", primaryText: "C",
+                                              secondaryText: "", sortKey: "2026-10-18|00003"))
+
+        XCTAssertEqual(r.events.compactMap { $0?.headingToShop }, [false, true, true])
+    }
+
+    func testChoosingTheSameShopAgainOnlyReopensMapsAndIsNotANewAnswer() {
+        let stores = bonAqua + [store("STO-2", "Waverly", "200 Main St")]
+        let p = nextStop(cached: stores)
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false))
+
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)          // the same shop: only Maps again
+
+        XCTAssertEqual(r.events.count, 1)
+        XCTAssertEqual(p.mapAddresses, ["100 Yard Rd", "100 Yard Rd"], "navigation still reopens")
+
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 1)          // a different shop: a change of plan, recorded
+        XCTAssertEqual(r.events.last, .returnToShop(from: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false), shopUniqueId: "STO-2", at: tapped))
     }
 
     func testAPickThatDidNotOpenRecordsNothing() throws {

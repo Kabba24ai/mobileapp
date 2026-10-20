@@ -144,31 +144,29 @@ enum NextStopRouteEventOperation {
                                operationId: operation.id)
     }
 
-    /// The canonical reading, with one difference: a 404 means this server does
-    /// not have the endpoint yet (an app that reached drivers before its
-    /// backend). The endpoint itself never answers 404 for a record — it keeps
-    /// the reference — so the answer WAITS and is retried, instead of parking
-    /// as Needs Attention on the driver's phone; it is delivered once the
-    /// backend is deployed.
-    static func interpret(_ response: SyncHTTPResponse, now: Date) -> SyncOutcome {
-        let outcome = SyncResponseInterpreter.interpret(response, now: now)
-        guard case let .failed(error) = outcome, error.statusCode == 404 else { return outcome }
-        return .failed(APIError(kind: .http, statusCode: 404, code: error.code,
-                                message: "Kabba is not accepting Next Stop answers yet. Saved on this phone — will retry.",
-                                requestId: error.requestId, serverRetryable: true))
-    }
-
     /// Durably records one answer. Returns after the record is on disk.
     ///
-    /// Its own ordering key (no business identity): an answer never waits
-    /// behind, or holds up, a mission's own checklist or status operations.
+    /// `employeeId` is the driver signed in when they tapped: it travels with
+    /// the answer, and the server refuses it under anybody else's session, so
+    /// an answer left unsent at a sign-out can never be credited to the next
+    /// driver on the phone.
+    ///
+    /// Its own ordering key (no order or task identity): an answer never waits
+    /// behind, or holds up, a mission's own checklist or status operations. A
+    /// refusal parks only the answer (Needs Attention, preserved) — the engine
+    /// keeps draining everything else.
     @discardableResult
     static func enqueue(into engine: SyncEngine,
                         event: NextStopRouteEvent,
+                        employeeId: Int?,
                         operationId: String = UUID().uuidString) throws -> SyncOperation {
+        var payload = event.payload
+        if let employeeId = employeeId, employeeId > 0 {
+            payload["employee_id"] = .number(Double(employeeId))
+        }
         return try engine.enqueue(type: operationType,
-                                  payload: .object(event.payload),
-                                  identity: SyncBusinessIdentity(),
+                                  payload: .object(payload),
+                                  identity: SyncBusinessIdentity(employeeId: employeeId.map(String.init)),
                                   capturedAt: event.occurredAt,
                                   displayTitle: event.displayTitle,
                                   operationId: operationId)

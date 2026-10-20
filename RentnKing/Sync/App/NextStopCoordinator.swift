@@ -54,6 +54,7 @@ enum NextStopCoordinator {
     /// report then shows that trip's start as not recorded.
     static func record(_ event: NextStopRouteEvent?) {
         guard let event = event, let engine = KabbaSync.engine else { return }
-        _ = try? NextStopRouteEventOperation.enqueue(into: engine, event: event)
+        let employeeId = Int(UserDefaults.standard.user?.id ?? "")
+        _ = try? NextStopRouteEventOperation.enqueue(into: engine, event: event, employeeId: employeeId)
     }
 }

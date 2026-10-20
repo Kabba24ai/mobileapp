@@ -10,9 +10,6 @@ private struct RouteEventTestHandler: SyncOperationHandler {
     func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
         try NextStopRouteEventOperation.request(for: operation)
     }
-    func interpret(_ response: SyncHTTPResponse, for operation: SyncOperation, now: Date) -> SyncOutcome {
-        NextStopRouteEventOperation.interpret(response, now: now)
-    }
 }
 
 /// Next Stop route events (2026-10-20): each answer on the Next Stop screen is
@@ -99,7 +96,7 @@ final class NextStopRouteEventsTests: XCTestCase {
         client.defaultResult = Fixtures.ok()
         let e = engine()
 
-        let op = try NextStopRouteEventOperation.enqueue(into: e, event: event, operationId: "NSE-0001")
+        let op = try NextStopRouteEventOperation.enqueue(into: e, event: event, employeeId: 7, operationId: "NSE-0001")
         waitUntil("synced") { e.operation(id: op.id)?.state == .synced }
 
         let request = client.recorded.last
@@ -116,7 +113,7 @@ final class NextStopRouteEventsTests: XCTestCase {
         client.defaultResult = .failure(APIError.transport(.offline))
         let first = engine()
         let event = try XCTUnwrap(NextStopRouteEvent.returnToShop(from: .orderLeg(orderProductUniqueId: "ORD-SCH-A", isReturn: true), shopUniqueId: "STO-1", at: tapped))
-        let op = try NextStopRouteEventOperation.enqueue(into: first, event: event, operationId: "NSE-OFFLINE-1")
+        let op = try NextStopRouteEventOperation.enqueue(into: first, event: event, employeeId: 7, operationId: "NSE-OFFLINE-1")
         waitUntil("first attempt") { self.client.requestCount >= 1 }
         XCTAssertEqual(first.operation(id: op.id)?.state, .pending, "offline keeps the answer, never drops it")
 
@@ -136,26 +133,38 @@ final class NextStopRouteEventsTests: XCTestCase {
                                                                 to: .orderLeg(orderProductUniqueId: "ORD-SCH-B", isReturn: false),
                                                                 headingToShop: false, at: tapped))
         client.defaultResult = .failure(APIError.transport(.offline))
-        let op = try NextStopRouteEventOperation.enqueue(into: engine(), event: event)
+        let op = try NextStopRouteEventOperation.enqueue(into: engine(), event: event, employeeId: nil)
 
         XCTAssertEqual(op.identity, SyncBusinessIdentity())
         XCTAssertEqual(op.orderingKey, op.id)
     }
 
-    func testAServerWithoutTheEndpointYetMakesTheAnswerWaitNotNeedAttention() throws {
-        let event = try XCTUnwrap(NextStopRouteEvent.arrivedAtShop(shopUniqueId: "STO-1", at: tapped))
-        client.enqueue(.response(SyncHTTPResponse(statusCode: 404, body: Fixtures.json(["message": "The route api/admin/v1/dispatch/next-stop/events could not be found."]))))
-        let e = engine()
+    func testARefusedAnswerParksAloneAndNeverHoldsUpTheMissionWorkBehindIt() throws {
+        // A server without the route: every answer is refused (404), every mission operation accepted.
+        let byPath = PathAnsweringClient(answers: ["dispatch/next-stop/events": 404])
+        let e = SyncEngine(store: try! FileSyncOperationStore(rootDirectory: dir), httpClient: byPath,
+                           handlers: [RouteEventTestHandler(), TestOperationHandler()],
+                           policy: SyncRetryPolicy(backoffSchedule: [0.05]))
+        let answer = try NextStopRouteEventOperation.enqueue(into: e, event: XCTUnwrap(NextStopRouteEvent.arrivedAtShop(shopUniqueId: "STO-1", at: tapped)), employeeId: 7)
+        let mission = try e.enqueue(type: TestOperationHandler.type, payload: .object(["x": .string("y")]), capturedAt: tapped)
+        e.kick(reason: "network restored", ignoreBackoff: true)
 
-        let op = try NextStopRouteEventOperation.enqueue(into: e, event: event, operationId: "NSE-EARLY-1")
-        waitUntil("first attempt") { self.client.requestCount >= 1 }
-        waitUntil("back to pending") { e.operation(id: op.id)?.state == .pending }
-        XCTAssertNotEqual(e.operation(id: op.id)?.state, .needsAttention, "nothing for the driver to deal with")
+        waitUntil("answer parked") { e.operation(id: answer.id)?.state == .needsAttention }
+        waitUntil("mission synced") { e.operation(id: mission.id)?.state == .synced }
+        e.kick(reason: "network restored again", ignoreBackoff: true)
+        waitUntil("still synced") { e.operation(id: mission.id)?.state == .synced }
+        XCTAssertEqual(e.operation(id: answer.id)?.state, .needsAttention, "parked, preserved, and not retried on its own")
+    }
 
-        // The backend is deployed: the same answer is delivered.
+    func testTheAnswerCarriesTheDriverWhoTapped() throws {
         client.defaultResult = Fixtures.ok()
-        e.kick(reason: "later", ignoreBackoff: true)
+        let e = engine()
+        let op = try NextStopRouteEventOperation.enqueue(into: e, event: XCTUnwrap(NextStopRouteEvent.arrivedAtShop(shopUniqueId: "STO-1", at: tapped)), employeeId: 7)
         waitUntil("synced") { e.operation(id: op.id)?.state == .synced }
+
+        XCTAssertEqual(body(client.recorded.last)["employee_id"], .number(7))
+        XCTAssertEqual(op.identity.employeeId, "7")
+        XCTAssertEqual(op.orderingKey, op.id, "the employee is not an ordering key")
     }
 
     func testAValidationRefusalStillNeedsAttention() throws {
@@ -165,7 +174,7 @@ final class NextStopRouteEventsTests: XCTestCase {
         ])))
         let e = engine()
 
-        let op = try NextStopRouteEventOperation.enqueue(into: e, event: event)
+        let op = try NextStopRouteEventOperation.enqueue(into: e, event: event, employeeId: 7)
         waitUntil("parked") { e.operation(id: op.id)?.state == .needsAttention }
     }
 
@@ -176,5 +185,16 @@ final class NextStopRouteEventsTests: XCTestCase {
         XCTAssertThrowsError(try NextStopRouteEventOperation.request(for: op)) { error in
             guard case SyncHandlerError.invalidPayload = error else { return XCTFail("expected invalidPayload, got \(error)") }
         }
+    }
+}
+
+/// Answers each request by its path: a status from `answers`, otherwise 200.
+private final class PathAnsweringClient: SyncHTTPClient {
+    let answers: [String: Int]
+    init(answers: [String: Int]) { self.answers = answers }
+    func perform(_ request: SyncHTTPRequest, completion: @escaping (SyncHTTPResult) -> Void) {
+        let status = answers[request.path] ?? 200
+        let body = status == 200 ? Fixtures.json(["success": true, "data": [:]]) : Fixtures.json(["message": "Not found."])
+        completion(.response(SyncHTTPResponse(statusCode: status, body: body)))
     }
 }

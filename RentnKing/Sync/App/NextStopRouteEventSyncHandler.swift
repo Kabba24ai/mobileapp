@@ -10,9 +10,9 @@
 //  shape lives in Core (NextStopRouteEventOperation) so it is unit-testable.
 //
 //  Requires the matching Kabba backend (the route ships with Driver
-//  Efficiency). Deploy the backend first; should an app still reach a server
-//  without the route, its answers wait on the phone and are retried (404 is
-//  read as "not yet", never Needs Attention).
+//  Efficiency): DEPLOY THE BACKEND FIRST. A server without the route answers
+//  404 and the answers park as Needs Attention — preserved on the phone, and
+//  never blocking any other work.
 //
 
 import Foundation
@@ -31,10 +31,5 @@ struct NextStopRouteEventSyncHandler: SyncOperationHandler {
     func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
         guard hasSession() else { throw SyncHandlerError.notAuthenticated("No active session") }
         return try NextStopRouteEventOperation.request(for: operation)
-    }
-
-    /// A server without the endpoint yet (404) means wait and retry, never Needs Attention.
-    func interpret(_ response: SyncHTTPResponse, for operation: SyncOperation, now: Date) -> SyncOutcome {
-        NextStopRouteEventOperation.interpret(response, now: now)
     }
 }

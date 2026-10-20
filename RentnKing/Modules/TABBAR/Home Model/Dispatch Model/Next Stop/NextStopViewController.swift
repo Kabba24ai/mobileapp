@@ -71,10 +71,22 @@ final class NextStopViewController: UIViewController {
     private(set) var shopChoices: [NextStopShop] = []
     private(set) var isShowingShopList = false
 
-    /// True once the driver chose or reached a shop on THIS screen. A shop stop
-    /// loaded from disk was set before the mission just completed, so it is not
-    /// where the driver is now: their answers then start from that mission.
-    private(set) var shopActedThisSession = false
+    /// Where the driver is, from what they did on THIS screen — kept for the
+    /// whole session (the shop stop itself ends when a mission opens, but a
+    /// driver who backs out and picks again is still standing in the same
+    /// place). A shop stop loaded from disk was set before the job just
+    /// completed, so it is not where the driver is: answers then start from
+    /// that job.
+    private(set) var reachedShop: NextStopShop?
+    /// A shop chosen on this screen and not reached yet.
+    private(set) var headingToShopId: String?
+
+    /// Where this screen's answers start from.
+    var answerOrigin: NextStopPlace? {
+        if let shop = reachedShop { return .shop(storeUniqueId: shop.uniqueId) }
+        if completedMission == nil, case let .arrivedAtShop(shop, _, _) = state { return .shop(storeUniqueId: shop.uniqueId) }
+        return completedMission
+    }
 
     let headlineText = "What are you doing next?"
 
@@ -198,13 +210,16 @@ final class NextStopViewController: UIViewController {
         }
 
         state = chosen
-        shopActedThisSession = true
         isShowingShopList = false
         render()
 
-        // Leaving for the shop from the stop just finished (a second choice on
-        // the way names the same start — the server reads it as a change of shop).
-        recordRouteEvent(.returnToShop(from: completedMission, shopUniqueId: shop.uniqueId, at: at))
+        // Leaving for the shop from where the driver is. Picking the SAME shop
+        // again only reopens Maps (there is no other way back to navigation)
+        // and is not a new answer; a different shop is a change of plan.
+        if headingToShopId != shop.uniqueId {
+            recordRouteEvent(.returnToShop(from: answerOrigin, shopUniqueId: shop.uniqueId, at: at))
+        }
+        headingToShopId = shop.uniqueId
 
         guard !shop.fullAddress.isEmpty else { return }
         openMap(shop.fullAddress) { _ in
@@ -225,7 +240,10 @@ final class NextStopViewController: UIViewController {
             return
         }
         state = arrived
-        shopActedThisSession = true
+        if let shop = arrived.shop {
+            reachedShop = shop
+            headingToShopId = nil
+        }
         render()
 
         if let shop = arrived.shop {
@@ -237,17 +255,9 @@ final class NextStopViewController: UIViewController {
     /// where they chose it from — the shop they reached on this screen, else
     /// the mission they just completed.
     func recordNextMission(_ mission: NextStopMission) {
-        let from: NextStopPlace?
-        var headingToShop = false
-        switch state {
-        case let .arrivedAtShop(shop, _, _) where shopActedThisSession || completedMission == nil:
-            from = .shop(storeUniqueId: shop.uniqueId)
-        case .shopSelected where shopActedThisSession:
-            from = completedMission
-            headingToShop = true   // chose a mission on the way, before reaching the shop
-        default:
-            from = completedMission
-        }
+        let from = answerOrigin
+        // Chose a mission on the way, before reaching the shop they picked here.
+        let headingToShop = headingToShopId != nil && reachedShop == nil
 
         let to: NextStopPlace
         switch mission.identity {

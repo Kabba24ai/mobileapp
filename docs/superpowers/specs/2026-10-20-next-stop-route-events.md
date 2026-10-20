@@ -27,17 +27,19 @@
 
 - **Durable and idempotent.** A canonical Sync Engine operation: durable before anything else, operation id = idempotency key, `captured_at` = the tap. It is offline-safe, and a retry or a relaunch delivers it exactly once.
 - **Its own ordering key**, with no business identity. It never waits behind a mission's operations, and never holds them up.
-- **A 404 means "not yet".** It is read as a server without the endpoint (an app ahead of its backend): the answer waits and retries, never Needs Attention. Validation refusals still need attention.
+- **A refusal parks only that answer.** Any refusal, including a 404 from a server that does not have the endpoint yet, parks the answer as Needs Attention. It stays preserved, and the engine keeps draining everything else. **The backend must be deployed first.**
+- **The employee who tapped** (signed-in user id) is stamped at the tap: `employee_id` in the payload and `identity.employeeId`. The server refuses it under another driver's session.
 - **Best-effort for the driver.** Recording never blocks or changes the screen's behaviour.
 - **Where the driver is standing.** `beginNextStopFlow(completed:)` receives the completed mission:
   - Order Details passes its leg (`effectiveCompletionLeg`);
   - Manual Dispatch passes its task (both the board row and the Next Stop picker path).
-- **A stale shop stop is ignored.** A shop stop loaded from disk was set before the job just completed, so answers start from that job. Only a shop chosen or reached **on this screen** is "from the shop".
+- **A stale shop stop is ignored.** A shop stop loaded from disk was set before the job just completed, so answers start from that job. Only a shop **reached on this screen** is "from the shop". That stays true for the whole session: backing out of a picked mission and choosing again still starts from the shop.
+- **Choosing the same shop again** only reopens Maps and is not a new answer.
 - **Manual Dispatch** status operations now send `captured_at` (the tap). The server keeps it on the operation record only.
 
 ## Tests
 
-- **Core (`swift test`):** `NextStopRouteEventsTests` covers payload shapes, refused shapes, the request (operation id, `captured_at`), offline → relaunch → delivered once with its original time, its own ordering key, 404 waits while 422 needs attention, and an invalid stored payload.
+- **Core (`swift test`):** `NextStopRouteEventsTests` covers payload shapes, refused shapes, the request (operation id, `captured_at`, `employee_id`), offline → relaunch → delivered once with its original time, its own ordering key, a refused answer parking alone without blocking mission work, 422 needs attention, and an invalid stored payload.
 - **Hosted:** `NextStopWorkflowHostedTests`, route-events extension:
   - the shop is durable, then the answer is recorded, then Maps opens;
   - a failed write records nothing;
@@ -47,6 +49,8 @@
   - on the way to a shop;
   - a stale shop stop;
   - a refused pick records nothing;
+  - picking again after backing out (still from the shop; still heading to the shop);
+  - the same shop chosen again;
   - Delivery, Return and Manual completions hand their identity to Next Stop;
   - a Return on offer carries its leg;
   - the Manual Dispatch request carries `captured_at`;
