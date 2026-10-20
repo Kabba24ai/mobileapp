@@ -97,6 +97,9 @@ enum KabbaSync {
                                         AvailabilitySyncHandler(hasSession: hasSession),
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)
                                         ManualDispatchSyncHandler(hasSession: hasSession),
+                                        // Next Stop route events (2026-10-20) — the driver's answers
+                                        // as route evidence for Driver Efficiency (record-only).
+                                        NextStopRouteEventSyncHandler(hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .pickup, hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .license, hasSession: hasSession),

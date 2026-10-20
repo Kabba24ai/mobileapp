@@ -1671,7 +1671,10 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             let detail = ManualDispatchDetailViewController()
             detail.item = manualJob
             detail.onChanged = { [weak self] in self?.refreshList() }
-            detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
+            let taskUniqueId = manualJob.unique_id ?? ""
+            detail.onCompleted = { [weak self] in
+                self?.beginNextStopFlow(completed: taskUniqueId.isEmpty ? nil : .manualTask(uniqueId: taskUniqueId))
+            }
             self.navigationController?.pushViewController(detail, animated: true)
         }
     }
@@ -2325,6 +2328,8 @@ struct NextStopMission: Equatable {
     let primaryText: String    // customer, or the manual task's location
     let secondaryText: String  // product + order, or the manual description
     let sortKey: String
+    /// An order line's Return leg (its Delivery is done) — route evidence names the leg.
+    var isReturnLeg: Bool = false
 }
 
 extension DispatchListViewController {
@@ -2452,7 +2457,8 @@ extension DispatchListViewController {
             primaryText: leg.order?.customer_name ?? "—",
             secondaryText: [leg.product_name, orderNumber.isEmpty ? nil : "#" + orderNumber]
                 .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
-            sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey)
+            sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey,
+            isReturnLeg: !isDeliveryLeg)
     }
 
     fileprivate static func nextStopMission(manual: DispatchManualJob) -> NextStopMission {
@@ -2519,7 +2525,7 @@ extension DispatchListViewController {
         let detail = ManualDispatchDetailViewController()
         detail.item = job
         detail.onChanged = { [weak self] in self?.refreshList() }
-        detail.onCompleted = { [weak self] in self?.beginNextStopFlow() }
+        detail.onCompleted = { [weak self] in self?.beginNextStopFlow(completed: .manualTask(uniqueId: taskUniqueId)) }
         self.navigationController?.pushViewController(detail, animated: true)
         return true
     }
@@ -2536,10 +2542,12 @@ extension DispatchListViewController {
     /// Everything Next Stop needs about missions is handed in as a closure
     /// pointing back here, so Dispatch stays the single owner of what work is
     /// left, in what order, and whether a given mission is still this driver's.
-    func beginNextStopFlow() {
+    func beginNextStopFlow(completed: NextStopPlace? = nil) {
         guard let nav = self.navigationController else { return }
 
         let next = NextStopViewController()
+        // Where the driver is standing: the mission just finished (route evidence).
+        next.completedMission = completed
         next.missions = { [weak self] in self?.currentNextStopMissions() ?? [] }
         next.openOrderMission = { [weak self] in self?.openOrderMission(orderProductUniqueId: $0) ?? false }
         next.openManualMission = { [weak self] in self?.openManualMission(taskUniqueId: $0) ?? false }

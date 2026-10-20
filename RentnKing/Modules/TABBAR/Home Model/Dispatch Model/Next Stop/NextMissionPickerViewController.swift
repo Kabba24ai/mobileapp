@@ -38,8 +38,11 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
     var openOrderMission: (String) -> Bool = { _ in false }
     var openManualMission: (String) -> Bool = { _ in false }
 
-    /// Ends the shop stop, called BEFORE routing into a real mission.
+    /// Ends the shop stop, called once the chosen mission has actually opened.
     var clearShopStop: () -> Void = {}
+    /// The mission the driver chose and that actually opened — Next Stop
+    /// records it as route evidence (2026-10-20). Called before clearShopStop.
+    var missionChosen: (NextStopMission) -> Void = { _ in }
     var refreshDispatch: () -> Void = {}
 
     // MARK: Rendered state
@@ -105,6 +108,7 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
         }
 
         if opened {
+            missionChosen(mission)
             clearShopStop()
             return
         }

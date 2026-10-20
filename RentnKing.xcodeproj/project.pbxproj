@@ -163,6 +163,10 @@
 		5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F0 /* NextStopCoordinator.swift */; };
 		5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F2 /* NextStopViewController.swift */; };
 		5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6A000000000000000000F4 /* NextMissionPickerViewController.swift */; };
+		5A6B000000000000000000A1 /* NextStopRouteEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B000000000000000000A0 /* NextStopRouteEvents.swift */; };
+		5A6B000000000000000000A2 /* NextStopRouteEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B000000000000000000A0 /* NextStopRouteEvents.swift */; };
+		5A6B000000000000000000B1 /* NextStopRouteEventSyncHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B000000000000000000B0 /* NextStopRouteEventSyncHandler.swift */; };
+		5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */; };
 		5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */; };
 		5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E7 /* ManualDispatchListCell.swift */; };
 		5A5C000000000000000000EA /* DispatchWorkloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */; };
@@ -709,6 +713,9 @@
 		5A6A000000000000000000F0 /* NextStopCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopCoordinator.swift; sourceTree = "<group>"; };
 		5A6A000000000000000000F2 /* NextStopViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopViewController.swift; sourceTree = "<group>"; };
 		5A6A000000000000000000F4 /* NextMissionPickerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextMissionPickerViewController.swift; sourceTree = "<group>"; };
+		5A6B000000000000000000A0 /* NextStopRouteEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEvents.swift; sourceTree = "<group>"; };
+		5A6B000000000000000000B0 /* NextStopRouteEventSyncHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEventSyncHandler.swift; sourceTree = "<group>"; };
+		5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEventsTests.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E5 /* ManualDispatchDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchDetailViewController.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E7 /* ManualDispatchListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualDispatchListCell.swift; sourceTree = "<group>"; };
 		5A5C000000000000000000E9 /* DispatchWorkloadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispatchWorkloadTests.swift; sourceTree = "<group>"; };
@@ -2194,6 +2201,7 @@
 				5A5C000000000000000000E0 /* DispatchWorkload.swift */,
 				5A6A000000000000000000A0 /* NextStopState.swift */,
 				5A6A000000000000000000B0 /* NextStopStore.swift */,
+				5A6B000000000000000000A0 /* NextStopRouteEvents.swift */,
 				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
@@ -2278,6 +2286,7 @@
 				5A5F00000000000000000044 /* StaleAvailabilityReconciler.swift */,
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A6A000000000000000000F0 /* NextStopCoordinator.swift */,
+				5A6B000000000000000000B0 /* NextStopRouteEventSyncHandler.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
 				5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */,
@@ -2355,6 +2364,7 @@
 				5A5C00000000000000000066 /* ChecklistContractTests.swift */,
 				5A6A000000000000000000C0 /* NextStopStateTests.swift */,
 				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
+				5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -2834,6 +2844,8 @@
 				5A6A000000000000000000F1 /* NextStopCoordinator.swift in Sources */,
 				5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */,
 				5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */,
+				5A6B000000000000000000A1 /* NextStopRouteEvents.swift in Sources */,
+				5A6B000000000000000000B1 /* NextStopRouteEventSyncHandler.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
 				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
@@ -3091,6 +3103,7 @@
 				5A5C00000000000000000067 /* ChecklistContractTests.swift in Sources */,
 				5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */,
 				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
+				5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
@@ -3142,6 +3155,7 @@
 				5A5C000000000000000000E2 /* DispatchWorkload.swift in Sources */,
 				5A6A000000000000000000A2 /* NextStopState.swift in Sources */,
 				5A6A000000000000000000B2 /* NextStopStore.swift in Sources */,
+				5A6B000000000000000000A2 /* NextStopRouteEvents.swift in Sources */,
 				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,

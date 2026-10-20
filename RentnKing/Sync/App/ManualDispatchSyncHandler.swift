@@ -3,7 +3,8 @@
 //  RentnKing — Sync App layer (Foundation only)
 //
 //  Dispatch parity (Phase 6A): a Manual Dispatch status transition
-//  (Assigned → On My Way → Arrived → Completed, or Cancelled) submitted to
+//  (Assigned → On My Way → Arrived → Completed, or Cancelled), with the
+//  driver's tap time as captured_at (2026-10-20), submitted to
 //  POST dispatch/manual/update-status through the canonical Sync Engine —
 //  durable local operation, operation id, idempotent server handling
 //  (operation type manual_dispatch.update_status), Pending Sync / Synced /
@@ -40,6 +41,11 @@ struct ManualDispatchSyncHandler: SyncOperationHandler {
         }
 
         body["operation_id"] = .string(operation.id)
+        // The moment the driver tapped (2026-10-20). The server keeps it on the
+        // operation record only — the task's own stamps stay server time — so
+        // Driver Efficiency can measure a task synchronized late on the phone's
+        // clock. Older servers ignore the field.
+        body["captured_at"] = .string(KabbaISO8601.string(from: operation.capturedAt))
 
         return SyncHTTPRequest(method: "POST",
                                path: ManualDispatchSyncHandler.path,

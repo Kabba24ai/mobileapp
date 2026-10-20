@@ -20,6 +20,12 @@
 //  Aqua and Waverly because those are its active stores, and another company
 //  sees its own for the same reason.
 //
+//  Route events (2026-10-20): every answer the driver gives here — the next
+//  mission, Return to Shop, Arrived at <shop> — is also handed to the Sync
+//  Engine as a next_stop.event, the evidence Kabba's Driver Efficiency report
+//  rebuilds the actual route from. Recording never blocks the driver and
+//  never changes what this screen does.
+//
 
 import UIKit
 
@@ -52,11 +58,23 @@ final class NextStopViewController: UIViewController {
 
     var now: () -> Date = Date.init
 
+    /// The mission whose completion opened this screen — where the driver is
+    /// standing. nil when it was opened some other way.
+    var completedMission: NextStopPlace?
+
+    /// Hands one answer to the Sync Engine (best-effort; see NextStopCoordinator.record).
+    var recordRouteEvent: (NextStopRouteEvent?) -> Void = { NextStopCoordinator.record($0) }
+
     // MARK: Rendered state (read by the UI and by the tests)
 
     private(set) var state: NextStopState = .idle
     private(set) var shopChoices: [NextStopShop] = []
     private(set) var isShowingShopList = false
+
+    /// True once the driver chose or reached a shop on THIS screen. A shop stop
+    /// loaded from disk was set before the mission just completed, so it is not
+    /// where the driver is now: their answers then start from that mission.
+    private(set) var shopActedThisSession = false
 
     let headlineText = "What are you doing next?"
 
@@ -132,6 +150,9 @@ final class NextStopViewController: UIViewController {
         picker.openOrderMission = openOrderMission
         picker.openManualMission = openManualMission
         picker.refreshDispatch = refreshDispatch
+        // Recorded BEFORE the shop stop ends: where the driver is choosing from
+        // depends on it.
+        picker.missionChosen = { [weak self] mission in self?.recordNextMission(mission) }
         // Choosing a real mission ends the shop stop — the mission is the next
         // stop now, and it carries no Next Stop state of its own.
         picker.clearShopStop = { [weak self] in
@@ -165,7 +186,8 @@ final class NextStopViewController: UIViewController {
         guard index >= 0, index < shopChoices.count else { return }
         let shop = shopChoices[index]
 
-        let chosen = NextStopTransition.selectShop(shop, at: now())
+        let at = now()
+        let chosen = NextStopTransition.selectShop(shop, at: at)
         // Durable FIRST. If the write cannot land there is no destination to
         // show and nowhere to send the driver, so nothing advances.
         do {
@@ -176,8 +198,13 @@ final class NextStopViewController: UIViewController {
         }
 
         state = chosen
+        shopActedThisSession = true
         isShowingShopList = false
         render()
+
+        // Leaving for the shop from the stop just finished (a second choice on
+        // the way names the same start — the server reads it as a change of shop).
+        recordRouteEvent(.returnToShop(from: completedMission, shopUniqueId: shop.uniqueId, at: at))
 
         guard !shop.fullAddress.isEmpty else { return }
         openMap(shop.fullAddress) { _ in
@@ -186,7 +213,8 @@ final class NextStopViewController: UIViewController {
     }
 
     @objc func arrivedTapped() {
-        let arrived = NextStopTransition.arrive(state, at: now())
+        let at = now()
+        let arrived = NextStopTransition.arrive(state, at: at)
         guard arrived != state else { return }
         // An arrival nobody recorded is not an arrival: leave the driver
         // heading there, with the action still available to retry.
@@ -197,7 +225,36 @@ final class NextStopViewController: UIViewController {
             return
         }
         state = arrived
+        shopActedThisSession = true
         render()
+
+        if let shop = arrived.shop {
+            recordRouteEvent(.arrivedAtShop(shopUniqueId: shop.uniqueId, at: at))
+        }
+    }
+
+    /// "Next Customer / Mission": the mission the driver actually opened, and
+    /// where they chose it from — the shop they reached on this screen, else
+    /// the mission they just completed.
+    func recordNextMission(_ mission: NextStopMission) {
+        let from: NextStopPlace?
+        var headingToShop = false
+        switch state {
+        case let .arrivedAtShop(shop, _, _) where shopActedThisSession || completedMission == nil:
+            from = .shop(storeUniqueId: shop.uniqueId)
+        case .shopSelected where shopActedThisSession:
+            from = completedMission
+            headingToShop = true   // chose a mission on the way, before reaching the shop
+        default:
+            from = completedMission
+        }
+
+        let to: NextStopPlace
+        switch mission.identity {
+        case let .orderProduct(uid): to = .orderLeg(orderProductUniqueId: uid, isReturn: mission.isReturnLeg)
+        case let .manualTask(uid):   to = .manualTask(uniqueId: uid)
+        }
+        recordRouteEvent(.nextMission(from: from, to: to, headingToShop: headingToShop, at: now()))
     }
 
     // MARK: Store mapping

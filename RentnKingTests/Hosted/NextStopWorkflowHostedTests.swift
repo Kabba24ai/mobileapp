@@ -1112,3 +1112,196 @@ extension NextStopWorkflowHostedTests {
         XCTAssertFalse(list.openManualMission(taskUniqueId: "MDT-1"))
     }
 }
+
+// MARK: - Route events (2026-10-20): every answer is also route evidence
+
+extension NextStopWorkflowHostedTests {
+
+    private var tapped: Date { Date(timeIntervalSince1970: 1_792_000_000) }
+
+    /// Captures what Next Stop hands to the Sync Engine, in order with the screen's own events.
+    fileprivate func recording(_ p: NextStopProbe, completed: NextStopPlace?) -> RouteEventProbe {
+        let r = RouteEventProbe()
+        p.vc.completedMission = completed
+        p.vc.recordRouteEvent = { event in
+            r.events.append(event)
+            p.events.append("recorded")
+        }
+        return r
+    }
+
+    /// Next Customer / Mission with one mission on offer, opened through the picker.
+    fileprivate func chooseMission(_ p: NextStopProbe, _ mission: NextStopMission, opens: Bool = true) throws {
+        p.vc.missions = { [mission] }
+        p.vc.openOrderMission = { _ in opens }
+        p.vc.openManualMission = { _ in opens }
+        let nav = UINavigationController(rootViewController: p.vc)
+        p.vc.nextCustomerTapped()
+        let picker = try XCTUnwrap(nav.topViewController as? NextMissionPickerViewController)
+        picker.loadViewIfNeeded()
+        picker.selectMission(at: 0)
+    }
+
+    private var bonAqua: [StoreModel] { [store("STO-1", "Bon Aqua", "100 Yard Rd")] }
+
+    func testReturnToShopIsRecordedAsLeavingTheStopJustFinishedAfterItReachesDisk() {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: true))
+
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+
+        XCTAssertEqual(r.events, [.returnToShop(from: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: true), shopUniqueId: "STO-1", at: tapped)])
+        XCTAssertEqual(p.events, ["saved(Bon Aqua)", "recorded", "map(100 Yard Rd)"],
+                       "the shop stop is durable first; the answer is recorded before Maps takes the driver away")
+    }
+
+    func testAShopChoiceThatNeverReachedDiskIsNotRecorded() {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .manualTask(uniqueId: "MDT-1"))
+        p.persistFails = true
+
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+
+        XCTAssertEqual(r.events, [])
+    }
+
+    func testArrivingAtTheShopIsRecorded() {
+        let shop = NextStopShop(uniqueId: "STO-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .manualTask(uniqueId: "MDT-1"))
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+
+        p.vc.arrivedTapped()
+
+        XCTAssertEqual(p.saved, .arrivedAtShop(shop: shop, selectedAt: tapped, arrivedAt: tapped))
+        XCTAssertEqual(r.events.last, .arrivedAtShop(shopUniqueId: "STO-1", at: tapped))
+    }
+
+    func testCustomerAToCustomerBRecordsTheMissionChosenFromTheStopJustFinished() throws {
+        let p = nextStop()
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false))
+
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Return", primaryText: "Cody Cash",
+                                              secondaryText: "Skid Steer", sortKey: "2026-10-18|00002", isReturnLeg: true))
+
+        XCTAssertEqual(r.events, [.nextMission(from: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false),
+                                               to: .orderLeg(orderProductUniqueId: "OP-B", isReturn: true),
+                                               headingToShop: false, at: tapped)])
+    }
+
+    func testStoreToCustomerRecordsTheMissionChosenAtTheShop() throws {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: true))
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+        p.vc.arrivedTapped()
+
+        try chooseMission(p, NextStopMission(identity: .manualTask("MDT-9"), kindLabel: "Manual Dispatch", primaryText: "Acme",
+                                              secondaryText: "Customer Drop-Off", sortKey: "2026-10-18|00003"))
+
+        XCTAssertEqual(r.events.map { $0?.kind }, [.returnToShop, .arrivedAtShop, .nextMission])
+        XCTAssertEqual(r.events.last, .nextMission(from: .shop(storeUniqueId: "STO-1"), to: .manualTask(uniqueId: "MDT-9"), headingToShop: false, at: tapped))
+        XCTAssertEqual(p.saved, .idle, "the shop stop still ends exactly as before")
+    }
+
+    func testAMissionChosenOnTheWayToTheShopIsMarkedSo() throws {
+        let p = nextStop(cached: bonAqua)
+        let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false))
+        p.vc.returnToShopTapped()
+        p.vc.selectShop(at: 0)
+
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "Cody Cash",
+                                              secondaryText: "Skid Steer", sortKey: "2026-10-18|00002"))
+
+        let last = try XCTUnwrap(r.events.last ?? nil)
+        XCTAssertTrue(last.headingToShop)
+        XCTAssertEqual(last.from, .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false))
+    }
+
+    func testAShopStopLeftOverFromAnEarlierSessionIsNotWhereTheDriverIsNow() throws {
+        // Arrived at Bon Aqua earlier, then took a job from the board (not the
+        // picker), finished it, and Next Stop opened on that finished job.
+        let shop = NextStopShop(uniqueId: "STO-1", name: "Bon Aqua", fullAddress: "100 Yard Rd")
+        let p = nextStop(state: .arrivedAtShop(shop: shop, selectedAt: tapped, arrivedAt: tapped))
+        p.vc.refreshFromDurableState()
+        let r = recording(p, completed: .manualTask(uniqueId: "MDT-JUST-DONE"))
+
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "Cody Cash",
+                                              secondaryText: "Skid Steer", sortKey: "2026-10-18|00002"))
+
+        XCTAssertEqual(r.events, [.nextMission(from: .manualTask(uniqueId: "MDT-JUST-DONE"), to: .orderLeg(orderProductUniqueId: "OP-B", isReturn: false),
+                                               headingToShop: false, at: tapped)],
+                       "the driver is standing at the job they just finished, not at the shop of an older answer")
+    }
+
+    func testAPickThatDidNotOpenRecordsNothing() throws {
+        let p = nextStop()
+        let r = recording(p, completed: .manualTask(uniqueId: "MDT-1"))
+
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-GONE"), kindLabel: "Delivery", primaryText: "—",
+                                              secondaryText: "", sortKey: "2026-10-18|00002"), opens: false)
+
+        XCTAssertEqual(r.events, [], "a mission that was refused is not where the driver went")
+    }
+
+    func testAFinishedDeliveryOrReturnHandsItsLegToNextStop() throws {
+        for (leg, isReturn) in [(ChecklistLeg.delivery, false), (.return, true)] {
+            let (details, _, nav) = try orderOverDispatch(completionLeg: leg)
+
+            details.completeDeliveryWithSuccess()
+
+            let next = try XCTUnwrap(nav.topViewController as? NextStopViewController)
+            XCTAssertEqual(next.completedMission, .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: isReturn))
+        }
+    }
+
+    func testAFinishedManualTaskHandsItsTaskToNextStop() throws {
+        let (list, nav) = board(manuals: [manual("MDT-7", sortKey: "2026-10-18|00001")])
+        XCTAssertTrue(list.openManualMission(taskUniqueId: "MDT-7"))
+        let detail = try XCTUnwrap(nav.topViewController as? ManualDispatchDetailViewController)
+        detail.enqueueStatus = { (_: String, _: String) in "op-1" }
+        detail.onChanged = {}
+
+        detail.submitStatus(DispatchManualStatus.completed)
+
+        let next = try XCTUnwrap(nav.topViewController as? NextStopViewController)
+        XCTAssertEqual(next.completedMission, .manualTask(uniqueId: "MDT-7"))
+    }
+
+    func testAReturnOnOfferIsNamedAsTheReturnLeg() {
+        let (list, _) = board(orders: [leg("OP-RET", delivered: true, sortKey: "2026-10-18|00001", pickupDriver: garyId)], driverId: garyId)
+
+        let missions = list.currentNextStopMissions()
+
+        XCTAssertEqual(missions.map(\.isReturnLeg), [true])
+    }
+
+    func testAManualDispatchStatusTapCarriesTheMomentTheDriverTapped() throws {
+        let op = SyncOperation(id: "OP-MD-1", type: "manual_dispatch.update_status", capturedAt: tapped, queuedAt: tapped.addingTimeInterval(3600),
+                               identity: SyncBusinessIdentity(manualTaskUniqueId: "MDT-1"),
+                               payload: .object(["manual_dispatch_task_unique_id": .string("MDT-1"), "status": .string("Arrived")]))
+
+        let request = try ManualDispatchSyncHandler(hasSession: { true }).makeRequest(for: op)
+
+        XCTAssertEqual(request.jsonBody?.objectValue?["captured_at"], .string(KabbaISO8601.string(from: tapped)),
+                       "the tap, not when the queued operation was sent")
+        XCTAssertEqual(request.jsonBody?.objectValue?["status"], .string("Arrived"), "the transition itself is unchanged")
+    }
+
+    func testTheRouteEventHandlerSendsToTheNextStopEndpointOnlyWithASession() throws {
+        let op = SyncOperation(id: "OP-NS-1", type: "next_stop.event", capturedAt: tapped,
+                               payload: .object(NextStopRouteEvent.arrivedAtShop(shopUniqueId: "STO-1", at: tapped)!.payload))
+
+        XCTAssertThrowsError(try NextStopRouteEventSyncHandler(hasSession: { false }).makeRequest(for: op))
+        let request = try NextStopRouteEventSyncHandler(hasSession: { true }).makeRequest(for: op)
+        XCTAssertEqual(request.path, "dispatch/next-stop/events")
+        XCTAssertEqual(request.headers["X-Operation-Id"], "OP-NS-1")
+    }
+}
+
+final class RouteEventProbe {
+    var events: [NextStopRouteEvent?] = []
+}

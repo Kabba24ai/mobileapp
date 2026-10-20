@@ -1228,7 +1228,10 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             nav.popViewController(animated: true)
             return
         }
-        dispatch.beginNextStopFlow()
+        // Where the driver is standing: this leg (route evidence, 2026-10-20).
+        let leg = self.effectiveCompletionLeg()
+        dispatch.beginNextStopFlow(completed: self.strProductID.isEmpty ? nil
+                                   : .orderLeg(orderProductUniqueId: self.strProductID, isReturn: !leg.isDelivery))
     }
 
     /// Shows a full-screen success popup (~1.5s) with animation, then runs `completion`.
