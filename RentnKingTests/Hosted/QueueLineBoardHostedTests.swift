@@ -26,17 +26,18 @@ final class QueueLineBoardHostedTests: XCTestCase {
         super.tearDown()
     }
 
-    private func item(_ n: Int, payment: [String: Any]?, legacy: String? = "No Payment Recorded", equipment: Bool = true) -> QueueLineModel {
+    private func item(_ n: Int, payment: [String: Any]?, legacy: String? = "No Payment Recorded", equipment: Bool = true,
+                      urgency: String = "today", date: String = "2026-10-20") -> QueueLineModel {
         var json: [String: Any] = [
             "order_product_unique_id": "ORD-SCH-MQ01-\(n)",
             "order_unique_id": "ORD-MQ01-\(n)",
             "order_number": "#\(5090 + n)",
             "customer_name": "Customer \(n)",
             "status": "pending",
-            "urgency": "today",
+            "urgency": urgency,
             "store": ["unique_id": "STR-NORTH", "name": "North Store"],
             "product": ["unique_id": "PRD-\(n)", "name": "Skid Steer \(n)"],
-            "delivery": ["type_label": "Delivery", "transport_mode": "Truck", "date": "2026-10-20", "time": "09:00"],
+            "delivery": ["type_label": "Delivery", "transport_mode": "Truck", "date": date, "time": "09:00"],
         ]
         if let legacy { json["payment_label"] = legacy }
         if let payment { json["payment"] = payment }
@@ -100,6 +101,29 @@ final class QueueLineBoardHostedTests: XCTestCase {
         let row = try XCTUnwrap(try badge(paid).superview as? UIStackView)
         XCTAssertEqual(row.axis, .horizontal)
         XCTAssertTrue(row.arrangedSubviews.contains { texts(in: $0) == ["Available"] }, "Paid sits beside Available")
+    }
+
+    /// Owner decision 2026-10-21: Kabba orders the board — scheduled date first, then Paid before
+    /// Pending on the same date. The phone draws the cards in exactly that order and never
+    /// regroups them by payment.
+    func testCardsKeepKabbasDateFirstOrderAndAreNeverRegroupedByPayment() throws {
+        func paid(_ yes: Bool) -> [String: Any] { ["status": yes ? "paid" : "pending", "label": yes ? "Paid" : "Pending", "needs_review": false] }
+        let feed = [
+            item(1, payment: paid(false), urgency: "overdue", date: "2026-10-17"),
+            item(2, payment: paid(true), urgency: "overdue", date: "2026-10-19"),
+            item(3, payment: paid(false), urgency: "overdue", date: "2026-10-19"),
+            item(4, payment: paid(true), urgency: "today", date: "2026-10-20"),
+            item(5, payment: paid(false), urgency: "today", date: "2026-10-20"),
+            item(6, payment: paid(true), urgency: "tomorrow", date: "2026-10-21"),
+            item(7, payment: paid(false), urgency: "rush", date: "2026-10-21"),
+        ]
+        let (_, screen) = board(feed)
+        let tops = try feed.map { model -> CGFloat in
+            let link = try XCTUnwrap(find(UIButton.self, id: "queueLine.order.\(model.itemOrderProductUniqueId)", in: screen.view))
+            return link.convert(CGPoint.zero, to: screen.view).y
+        }
+        XCTAssertEqual(tops, tops.sorted(), "cards appear in Kabba's order")
+        XCTAssertEqual(Set(tops).count, tops.count, "one card per line")
     }
 
     // MARK: - Item 07

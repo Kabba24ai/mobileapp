@@ -174,4 +174,44 @@ final class SyncStatusHostedTests: XCTestCase {
         let headers = (0..<table.numberOfSections).flatMap { s in screen.tableView(table, viewForHeaderInSection: s).map { labels(in: $0).compactMap(\.text) } ?? [] }
         XCTAssertEqual(headers, ["WAITING TO SYNC (1)", "REMOVED FROM THIS PHONE · LAST 30 DAYS"])
     }
+
+    // MARK: - Owner decision 2026-10-21: any signed-in employee, one confirmation
+
+    func testAnyEmployeeRemovesARefusedRecordWithOneConfirmationAndTheCountDropsAtOnce() throws {
+        let refused = try step("ORD-SCH-REASSIGNED", title: "Driver checklist · On My Way (delivery)")
+        poll("parked") { engine.operation(id: refused.id)?.state == .needsAttention }
+
+        let settingsLine = SyncStatusSummaryView(engine: { [engine] in engine })
+        let value = try XCTUnwrap(labels(in: settingsLine).first { $0.accessibilityIdentifier == "sync.summary.value" })
+        XCTAssertEqual(value.text, "1 needs attention")
+
+        let review = SyncRecordReviewViewController(operationId: refused.id, theme: .system, engine: { [engine] in engine },
+                                                    remove: { [engine, log] id in _ = try KabbaSync.removeRecord(id, engine: engine, log: log) })
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = UINavigationController(rootViewController: review)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        review.loadViewIfNeeded()
+
+        // No role, password or approval step: the Remove button is there for whoever is signed in,
+        // and it asks exactly once.
+        try XCTUnwrap(find(UIButton.self, id: "sync.review.remove", in: review.view)).sendActions(for: .touchUpInside)
+        poll("confirmation") { review.presentedViewController is UIAlertController }
+        let confirm = try XCTUnwrap(review.presentedViewController as? UIAlertController)
+        XCTAssertEqual(confirm.title, "Remove this record from the phone?")
+        XCTAssertEqual(confirm.actions.map(\.title), ["Keep It", "Remove"])
+        XCTAssertTrue(confirm.textFields?.isEmpty ?? true, "no password or code to type")
+
+        typealias Handler = @convention(block) (UIAlertAction) -> Void
+        let removeAction = try XCTUnwrap(confirm.actions.first { $0.style == .destructive })
+        let handler = unsafeBitCast(try XCTUnwrap(removeAction.value(forKey: "handler") as AnyObject?), to: Handler.self)
+        confirm.dismiss(animated: false)
+        handler(removeAction)
+
+        XCTAssertNil(engine.operation(id: refused.id), "removed")
+        XCTAssertEqual(value.text, "Nothing to sync", "the Needs Attention count drops at once")
+        RunLoop.current.run(until: Date().addingTimeInterval(0.3))
+        XCTAssertFalse(review.presentedViewController is UIAlertController, "no second confirmation")
+        XCTAssertEqual(log.entries().map(\.operationId), [refused.id])
+    }
 }

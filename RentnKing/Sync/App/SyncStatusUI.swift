@@ -239,13 +239,16 @@ final class SyncStatusSummaryView: UIControl {
     var onTap: (() -> Void)?
 
     private let theme: SyncStatusTheme
+    private let engineProvider: () -> SyncEngine?
     private let titleLabel = UILabel()
     private let valueLabel = UILabel()
     private let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
     private var observer: NSObjectProtocol?
 
-    init(theme: SyncStatusTheme = .system) {
+    /// `engine` is a seam for tests; the app always reads KabbaSync.engine.
+    init(theme: SyncStatusTheme = .system, engine: @escaping () -> SyncEngine? = { KabbaSync.engine }) {
         self.theme = theme
+        self.engineProvider = engine
         super.init(frame: .zero)
         build()
         refresh()
@@ -289,7 +292,7 @@ final class SyncStatusSummaryView: UIControl {
     }
 
     func refresh() {
-        guard let engine = KabbaSync.engine else {
+        guard let engine = engineProvider() else {
             valueLabel.text = "Unavailable"
             accessibilityLabel = "Sync unavailable"
             return
@@ -299,6 +302,7 @@ final class SyncStatusSummaryView: UIControl {
         if summary.pause == .authentication { text += " · paused until sign-in" }
         if summary.pause == .appUpdate { text += " · paused until app update" }
         valueLabel.text = text
+        valueLabel.accessibilityIdentifier = "sync.summary.value"
         valueLabel.textColor = summary.needsAttention > 0 ? theme.warning : theme.secondaryText
         accessibilityLabel = "Sync status: \(text). Opens sync details."
     }
