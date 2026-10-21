@@ -85,7 +85,8 @@ final class ChecklistOwnLineHostedTests: XCTestCase {
 
         let compactor = try context(for: "ORD-SCH-COMPACTOR", unit: "EQP-COMPACTOR", question: "CAQST-DRUM")
         screen.applyChecklistContext(compactor, toProductWith: "ORD-SCH-COMPACTOR")
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        // Applying a unit reloads the table 0.5 s later: let that finish while the outlets are alive.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.7))
 
         let trailer = screen.objOrderData.arrProduct[0]
         XCTAssertEqual(trailer.objMachine?.unique_id, "EQP-TRAILER", "the trailer keeps its own unit")
@@ -108,7 +109,8 @@ final class ChecklistOwnLineHostedTests: XCTestCase {
 
         screen.applyChecklistContext(try context(for: "ORD-SCH-COMPACTOR", unit: "EQP-COMPACTOR", question: "CAQST-DRUM"),
                                      toProductWith: "ORD-SCH-COMPACTOR")
-        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        // Applying a unit reloads the table 0.5 s later: let that finish while the outlets are alive.
+        RunLoop.current.run(until: Date().addingTimeInterval(0.7))
 
         XCTAssertTrue(screen.objOrderData.arrProduct[1].arrQuestions.compactMap(\.unique_id).contains("CAQST-DRUM"))
         XCTAssertEqual(screen.objOrderData.arrProduct[0].arrQuestions.compactMap(\.unique_id), ["CAQST-OWN-ORD-SCH-TRAILER"])
