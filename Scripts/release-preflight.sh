@@ -37,13 +37,13 @@ else
 fi
 
 # App + extension (the test targets keep 1.0 / 1).
-VERSIONS=$(grep -E 'MARKETING_VERSION = ' "$PBX" | sed -E 's/.*= ([^;]+);/\1/' | grep -vx '1.0' | sort -u)
-BUILDS=$(grep -E 'CURRENT_PROJECT_VERSION = ' "$PBX" | sed -E 's/.*= ([^;]+);/\1/' | grep -vx '1' | sort -u)
+VERSIONS=$( { grep -E 'MARKETING_VERSION = ' "$PBX" || true; } | sed -E 's/.*= ([^;]+);/\1/' | { grep -vx '1.0' || true; } | sort -u)
+BUILDS=$( { grep -E 'CURRENT_PROJECT_VERSION = ' "$PBX" || true; } | sed -E 's/.*= ([^;]+);/\1/' | { grep -vx '1' || true; } | sort -u)
 [ "$VERSIONS" = "$VERSION" ] && ok "app and extension are version $VERSION" || fail "MARKETING_VERSION is '$(echo $VERSIONS)', expected $VERSION in every app/extension configuration"
 [ "$BUILDS" = "$BUILD" ] && ok "app and extension are build $BUILD" || fail "CURRENT_PROJECT_VERSION is '$(echo $BUILDS)', expected $BUILD in every app/extension configuration"
 
 if [ -f "$HISTORY" ]; then
-  MAXBUILD=$(grep -E '^\| [0-9]+\.[0-9]+\.[0-9]+ \| [0-9]+ \|' "$HISTORY" | awk -F'|' '{gsub(/ /,"",$3); print $3}' | sort -n | tail -1)
+  MAXBUILD=$( { grep -E '^\| [0-9]+\.[0-9]+\.[0-9]+ \| [0-9]+ \|' "$HISTORY" || true; } | awk -F'|' '{gsub(/ /,"",$3); print $3}' | sort -n | tail -1)
   if [ -n "$MAXBUILD" ] && [ "$BUILD" -le "$MAXBUILD" ]; then
     fail "build $BUILD is not higher than $MAXBUILD, the last build recorded in docs/releases/HISTORY.md (build numbers only ever increase)"
   else
