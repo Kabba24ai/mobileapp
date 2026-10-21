@@ -212,4 +212,105 @@ enum AppReleaseCatalog {
     private static func normalized(_ version: String) -> String {
         version.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    // MARK: App Store "What's New" (MOBILE-QUALITY-01, item 04)
+    //
+    // ONE authoritative draft per release: the catalog entry above. The App Store's
+    // "What's New" text is rendered from it (Scripts/whats-new.sh), so the phone's
+    // Settings → About and the App Store say the same thing. App Store Connect is
+    // still edited by hand — nothing publishes this text automatically.
+
+    /// App Store Connect's limit for "What's New in This Version".
+    static let appStoreWhatsNewLimit = 4000
+
+    /// "• note" per line — the text to paste into App Store Connect. nil when the version
+    /// has no entry (the release must not ship with another version's notes).
+    static func appStoreWhatsNew(for version: String, in releases: [AppRelease] = history) -> String? {
+        guard let entry = release(for: version, in: releases), !entry.notes.isEmpty else { return nil }
+        return entry.notes.map { "• \($0)" }.joined(separator: "\n")
+    }
+
+    // MARK: Build identity
+
+    static let buildStampConfigurationKey = "BuildConfiguration"
+    static let buildStampRevisionKey = "SourceRevision"
+    static let buildStampSourceStateKey = "SourceState"
+    static let buildStampBranchKey = "SourceBranch"
+
+    /// What the build-time stamp says about the source this binary was built from.
+    static func buildIdentity(fromStampPlist data: Data) -> BuildIdentity.Stamp {
+        guard let dict = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] else {
+            return BuildIdentity.Stamp()
+        }
+        func value(_ key: String) -> String? {
+            guard let v = (dict[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !v.isEmpty else { return nil }
+            return v
+        }
+        return BuildIdentity.Stamp(buildDate: value(buildStampDateKey).flatMap(buildDate(fromStamp:)),
+                                   configuration: value(buildStampConfigurationKey),
+                                   sourceRevision: value(buildStampRevisionKey),
+                                   sourceState: value(buildStampSourceStateKey),
+                                   sourceBranch: value(buildStampBranchKey))
+    }
+}
+
+/// How this copy of the app reached the phone — the question behind "my phone shows
+/// different notes than the office phones" (a computer-installed build vs the App Store).
+enum InstallChannel: String, Equatable {
+    case appStore = "App Store"
+    case testFlight = "TestFlight"
+    /// Installed from a computer (Xcode / development or ad-hoc signing).
+    case development = "Installed from a computer"
+    case simulator = "Simulator"
+
+    /// - Parameters:
+    ///   - receiptName: the App Store receipt's file name ("sandboxReceipt" under TestFlight).
+    ///   - hasEmbeddedProvisioningProfile: development and ad-hoc builds carry one; App Store builds never do.
+    static func detect(receiptName: String?, hasEmbeddedProvisioningProfile: Bool, isSimulator: Bool) -> InstallChannel {
+        if isSimulator { return .simulator }
+        if hasEmbeddedProvisioningProfile { return .development }
+        if receiptName == "sandboxReceipt" { return .testFlight }
+        return .appStore
+    }
+}
+
+/// Everything support needs to tell two builds of the same version apart, on one line.
+struct BuildIdentity: Equatable {
+
+    struct Stamp: Equatable {
+        var buildDate: Date?
+        var configuration: String?
+        var sourceRevision: String?
+        /// "clean" / "modified" (built with uncommitted changes).
+        var sourceState: String?
+        var sourceBranch: String?
+    }
+
+    let version: String
+    let build: String
+    let stamp: Stamp
+    let channel: InstallChannel
+
+    /// "Source 44927ea635b8" or "Source 44927ea635b8 + uncommitted changes" / "Source unknown".
+    var sourceLine: String {
+        guard let revision = stamp.sourceRevision else { return "Source unknown" }
+        return "Source \(revision)" + (stamp.sourceState == "modified" ? " + uncommitted changes" : "")
+    }
+
+    /// "1.0.28 (1014) · Source 44927ea635b8 · Release · App Store · Built Oct 21, 2026 14:03 UTC"
+    var summary: String {
+        var parts = [AppReleaseCatalog.versionDisplay(marketingVersion: version, build: build), sourceLine]
+        if let configuration = stamp.configuration { parts.append(configuration) }
+        parts.append(channel.rawValue)
+        if let date = stamp.buildDate { parts.append("Built " + Self.utc(date)) }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func utc(_ date: Date) -> String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(identifier: "UTC")
+        fmt.dateFormat = "MMM d, yyyy HH:mm 'UTC'"
+        return fmt.string(from: date)
+    }
 }
