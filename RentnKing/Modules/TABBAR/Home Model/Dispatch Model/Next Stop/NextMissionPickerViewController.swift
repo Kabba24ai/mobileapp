@@ -64,6 +64,8 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
         }
     }
 
+    /// The same Kabba theme as Next Stop: navy, cyan accent, white text, in light and dark mode alike.
+    private let theme = SyncStatusTheme.kabba
     private let table = UITableView()
     private let empty = UILabel()
     private let notice = UILabel()
@@ -71,13 +73,18 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Next Customer / Mission"
-        view.backgroundColor = .systemBackground
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = theme.background
         buildLayout()
         reload()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        setNavigationBarForButtons(controller: self, title: "Next Customer / Mission", isTransperent: true, hideShadowImage: true,
+                                   leftIcon: "icon_back", rightIcon: [], isFilter: false) { [weak self] in
+            self?.navigationController?.popViewController(animated: true)
+        }
         reload()
     }
 
@@ -126,11 +133,22 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
         let cell = tableView.dequeueReusableCell(withIdentifier: "mission") ??
                    UITableViewCell(style: .subtitle, reuseIdentifier: "mission")
         let mission = rows[indexPath.row]
+        cell.backgroundColor = .clear
+        cell.contentView.backgroundColor = .clear
         cell.textLabel?.text = "\(mission.kindLabel) · \(mission.primaryText)"
-        cell.textLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        cell.textLabel?.font = theme.bold(16)
+        cell.textLabel?.textColor = theme.text
+        cell.textLabel?.numberOfLines = 0
         cell.detailTextLabel?.text = mission.secondaryText
-        cell.detailTextLabel?.textColor = .secondaryLabel
-        cell.accessoryType = .disclosureIndicator
+        cell.detailTextLabel?.font = theme.regular(14)
+        cell.detailTextLabel?.textColor = theme.secondaryText
+        cell.detailTextLabel?.numberOfLines = 0
+        let chevron = UIImageView(image: UIImage(systemName: "chevron.right"))
+        chevron.tintColor = theme.accent
+        cell.accessoryView = chevron
+        let selected = UIView()
+        selected.backgroundColor = theme.card
+        cell.selectedBackgroundView = selected
         return cell
     }
 
@@ -142,20 +160,23 @@ final class NextMissionPickerViewController: UIViewController, UITableViewDataSo
     // MARK: Layout
 
     private func buildLayout() {
-        notice.font = .systemFont(ofSize: 14, weight: .medium)
-        notice.textColor = .systemOrange
+        notice.font = theme.bold(14)
+        notice.textColor = theme.warning
         notice.numberOfLines = 0
         notice.textAlignment = .center
         notice.isHidden = true
 
-        empty.font = .systemFont(ofSize: 15)
-        empty.textColor = .secondaryLabel
+        empty.font = theme.regular(15)
+        empty.textColor = theme.secondaryText
         empty.numberOfLines = 0
         empty.textAlignment = .center
         empty.isHidden = true
 
         table.dataSource = self
         table.delegate = self
+        table.backgroundColor = .clear
+        table.separatorColor = theme.secondaryText.withAlphaComponent(0.3)
+        table.tableFooterView = UIView()
         table.rowHeight = UITableView.automaticDimension
         table.estimatedRowHeight = 64
 

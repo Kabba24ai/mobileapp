@@ -52,6 +52,7 @@ enum AppReleaseCatalog {
             "Queue Line: tap an order number to open its Order Details; Back returns you to the same place",
             "Queue Line cards show Paid or Pending, and paid orders come first within each scheduled day",
             "Settings › About: tap the version to see exactly which build is installed",
+            "Next Stop: a Main Menu button at every step and the app's dark colors; a trip to a shop can be continued from Dispatch",
             "Various fixes and refinements",
         ]),
         AppRelease(version: "1.0.28", notes: [

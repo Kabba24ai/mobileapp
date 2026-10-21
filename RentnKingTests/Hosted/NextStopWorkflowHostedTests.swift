@@ -1356,3 +1356,197 @@ extension NextStopWorkflowHostedTests {
 final class RouteEventProbe {
     var events: [NextStopRouteEvent?] = []
 }
+
+// MARK: - Main Menu and the Kabba theme (2026-10-21)
+
+extension NextStopWorkflowHostedTests {
+
+    private var bonAquaShop: NextStopShop { NextStopShop(uniqueId: "STO-1", name: "Bon Aqua", fullAddress: "100 Yard Rd") }
+
+    private func homeScreen() throws -> HomeViewController {
+        try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.HOME_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "HomeViewController") as? HomeViewController)
+    }
+
+    private func findButton(_ id: String, in view: UIView) -> UIButton? {
+        if let b = view as? UIButton, b.accessibilityIdentifier == id { return b }
+        for sub in view.subviews { if let hit = findButton(id, in: sub) { return hit } }
+        return nil
+    }
+
+    private func allLabels(in view: UIView) -> [UILabel] {
+        ((view as? UILabel).map { [$0] } ?? []) + view.subviews.flatMap { allLabels(in: $0) }
+    }
+
+    private func assertSameColor(_ a: UIColor?, _ b: UIColor?, _ traits: UITraitCollection, _ message: String,
+                                 file: StaticString = #filePath, line: UInt = #line) {
+        guard let a = a?.resolvedColor(with: traits), let b = b?.resolvedColor(with: traits) else {
+            return XCTFail("missing color: \(message)", file: file, line: line)
+        }
+        var (r1, g1, b1, a1, r2, g2, b2, a2): (CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat) = (0, 0, 0, 0, 0, 0, 0, 0)
+        a.getRed(&r1, green: &g1, blue: &b1, alpha: &a1)
+        b.getRed(&r2, green: &g2, blue: &b2, alpha: &a2)
+        XCTAssertTrue(abs(r1 - r2) < 0.01 && abs(g1 - g2) < 0.01 && abs(b1 - b2) < 0.01 && abs(a1 - a2) < 0.01,
+                      "\(message): \(a) ≠ \(b)", file: file, line: line)
+    }
+
+    func testMainMenuIsOfferedInEveryStateAndOpensHomeWithOneTapChangingNothing() throws {
+        let states: [NextStopState] = [
+            .idle,                                                                    // after a completion
+            .shopSelected(shop: bonAquaShop, selectedAt: tapped),                     // heading to a shop
+            .arrivedAtShop(shop: bonAquaShop, selectedAt: tapped, arrivedAt: tapped.addingTimeInterval(1200)),
+        ]
+        for state in states {
+            let p = nextStop(state: state)
+            let r = recording(p, completed: state == .idle ? .orderLeg(orderProductUniqueId: "OP-DONE", isReturn: false) : nil)
+            p.vc.refreshFromDurableState()
+            let choicesBefore = p.vc.primaryChoiceTitles
+            let arrivedBefore = p.vc.arrivedActionTitle
+
+            let home = try homeScreen()
+            let (list, _) = board(orders: [], driverId: garyId)
+            let nav = UINavigationController(rootViewController: home)
+            nav.setViewControllers([home, list, p.vc], animated: false)
+            let operationsBefore = KabbaSync.engine?.snapshot().map(\.id) ?? []
+
+            let menu = try XCTUnwrap(findButton("nextStop.mainMenu", in: p.vc.view), "Main Menu missing in \(state)")
+            XCTAssertEqual(menu.title(for: .normal), "Main Menu")
+            menu.sendActions(for: .touchUpInside)
+
+            XCTAssertTrue(nav.topViewController === home, "one tap, straight to the Home screen (\(state))")
+            XCTAssertEqual(nav.viewControllers.count, 1, "no Back steps left over")
+            XCTAssertNil(nav.presentedViewController, "no confirmation for going home")
+            XCTAssertEqual(p.saved, state, "navigation only: the shop stop is exactly as it was (\(state))")
+            XCTAssertTrue(p.events.isEmpty, "nothing written, Maps not opened")
+            XCTAssertTrue(r.events.isEmpty, "Main Menu is not a route event")
+            XCTAssertEqual(KabbaSync.engine?.snapshot().map(\.id) ?? [], operationsBefore,
+                           "no sync operation of any kind: no clock change, no mission, no route event")
+            XCTAssertEqual(p.vc.primaryChoiceTitles, choicesBefore, "the other actions are unchanged")
+            XCTAssertEqual(p.vc.arrivedActionTitle, arrivedBefore)
+        }
+    }
+
+    func testMainMenuFromAnotherTabSelectsTheHomeTabAtItsRoot() throws {
+        let home = try homeScreen()
+        let homeNav = UINavigationController(rootViewController: home)
+        homeNav.pushViewController(UIViewController(), animated: false)
+        let p = nextStop()
+        let otherNav = UINavigationController(rootViewController: UIViewController())
+        otherNav.pushViewController(p.vc, animated: false)
+        let tabs = UITabBarController()
+        tabs.viewControllers = [homeNav, otherNav]
+        tabs.selectedViewController = otherNav
+
+        NextStopViewController.showMainMenu(from: p.vc)
+
+        XCTAssertTrue(tabs.selectedViewController === homeNav)
+        XCTAssertTrue(homeNav.topViewController === home)
+    }
+
+    func testAShopTripLeftWithMainMenuSurvivesARelaunchAndTheBoardOffersToContinueIt() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("NextStopMainMenu-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try NextStopStore(rootDirectory: dir, tenantKey: { "tenant-mq01" })
+        // Today, to the whole second (the store keeps milliseconds).
+        let trip = NextStopState.shopSelected(shop: bonAquaShop, selectedAt: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down)))
+        try store.save(trip)
+
+        // Offline, heading to the shop: Main Menu.
+        let screen = NextStopViewController()
+        screen.loadState = { store.load() }
+        screen.persistState = { try store.save($0) }
+        screen.recordRouteEvent = { _ in XCTFail("Main Menu records nothing") }
+        screen.goToMainMenu = { _ in }
+        screen.loadViewIfNeeded()
+        XCTAssertEqual(screen.arrivedActionTitle, "Arrived at Bon Aqua")
+        screen.mainMenuTapped()
+
+        // Relaunch: a fresh store over the same files still holds the trip.
+        let relaunched = try NextStopStore(rootDirectory: dir, tenantKey: { "tenant-mq01" })
+        XCTAssertEqual(relaunched.load(), trip)
+
+        // Dispatch offers to continue it; that opens Next Stop, where the arrival can be confirmed.
+        let (list, nav) = board(orders: [], driverId: garyId)
+        let table = UITableView(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+        list.tblView = table
+        list.nextStopTrip = { relaunched.load() }
+        list.renderBoardHeader()
+        let header = try XCTUnwrap(table.tableHeaderView)
+        let resume = try XCTUnwrap(findButton("dispatch.nextStop.continue", in: header))
+        XCTAssertEqual(resume.title(for: .normal), "Heading to Bon Aqua · Continue Next Stop ›")
+        resume.sendActions(for: .touchUpInside)
+
+        let next = try XCTUnwrap(nav.topViewController as? NextStopViewController)
+        XCTAssertNil(next.completedMission, "nothing was completed: the trip simply continues")
+        XCTAssertTrue(nav.viewControllers.first === list)
+        XCTAssertEqual(relaunched.load(), trip, "continuing never ends the trip")
+    }
+
+    func testTheBoardOffersOnlyATripStillUnderWayToday() {
+        let (list, _) = board(orders: [], driverId: garyId)
+        let table = UITableView(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
+        list.tblView = table
+        for state in [NextStopState.idle,
+                      .arrivedAtShop(shop: bonAquaShop, selectedAt: Date(), arrivedAt: Date()),
+                      .shopSelected(shop: bonAquaShop, selectedAt: Date().addingTimeInterval(-2 * 86_400))] {
+            list.nextStopTrip = { state }
+            list.renderBoardHeader()
+            XCTAssertNil(table.tableHeaderView, "nothing to continue for \(state)")
+        }
+    }
+
+    func testANewCompletionEndsAShopStopLeftFromBeforeItAndOffersBothPathsAgain() {
+        for state in [NextStopState.shopSelected(shop: bonAquaShop, selectedAt: tapped),
+                      .arrivedAtShop(shop: bonAquaShop, selectedAt: tapped, arrivedAt: tapped)] {
+            let p = nextStop(state: state)
+            let r = recording(p, completed: .orderLeg(orderProductUniqueId: "OP-JUST-DONE", isReturn: false))
+            p.vc.endShopStopLeftBeforeCompletion()
+            p.vc.refreshFromDurableState()
+
+            XCTAssertEqual(p.saved, .idle, "the old stop is over: the driver went on to other work")
+            XCTAssertNil(p.vc.currentDestinationText)
+            XCTAssertNil(p.vc.arrivedActionTitle, "no old arrival left to confirm")
+            XCTAssertEqual(p.vc.primaryChoiceTitles, ["Next Customer / Mission", "Return to Shop"])
+            XCTAssertTrue(r.events.isEmpty, "ending an old stop records nothing")
+        }
+
+        // Continuing a trip (nothing completed) never ends it.
+        let trip = NextStopState.shopSelected(shop: bonAquaShop, selectedAt: tapped)
+        let p = nextStop(state: trip)
+        p.vc.endShopStopLeftBeforeCompletion()
+        XCTAssertEqual(p.saved, trip)
+    }
+
+    func testNextStopAndThePickerKeepTheKabbaThemeInLightAndDarkMode() throws {
+        let navy = UIColor.background
+        let cyan = UIColor.secondary
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            let p = nextStop(state: .shopSelected(shop: bonAquaShop, selectedAt: tapped))
+            p.vc.refreshFromDurableState()
+
+            XCTAssertEqual(p.vc.overrideUserInterfaceStyle, .dark)
+            assertSameColor(p.vc.view.backgroundColor, navy, traits, "navy page (\(style))")
+            let headline = try XCTUnwrap(allLabels(in: p.vc.view).first { $0.text == "What are you doing next?" })
+            assertSameColor(headline.textColor, .white, traits, "white headline (\(style))")
+            let arrived = try XCTUnwrap(findButton("nextStop.arrived", in: p.vc.view))
+            assertSameColor(arrived.backgroundColor, cyan, traits, "cyan main action (\(style))")
+            assertSameColor(arrived.titleColor(for: .normal), navy, traits, "navy text on cyan (\(style))")
+            for id in ["nextStop.nextMission", "nextStop.returnToShop", "nextStop.mainMenu"] {
+                let b = try XCTUnwrap(findButton(id, in: p.vc.view), id)
+                assertSameColor(b.titleColor(for: .normal), cyan, traits, "\(id) cyan (\(style))")
+                assertSameColor(b.layer.borderColor.map { UIColor(cgColor: $0) }, cyan, traits, "\(id) outline (\(style))")
+            }
+
+            let picker = NextMissionPickerViewController()
+            picker.missions = { [NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "Cody Cash",
+                                                 secondaryText: "Skid Steer", sortKey: "2026-10-18|00002")] }
+            picker.loadViewIfNeeded()
+            XCTAssertEqual(picker.overrideUserInterfaceStyle, .dark)
+            assertSameColor(picker.view.backgroundColor, navy, traits, "picker navy (\(style))")
+            let cell = picker.tableView(UITableView(), cellForRowAt: IndexPath(row: 0, section: 0))
+            assertSameColor(cell.textLabel?.textColor, .white, traits, "picker row text (\(style))")
+            assertSameColor(cell.backgroundColor, .clear, traits, "picker row on the navy page (\(style))")
+        }
+    }
+}

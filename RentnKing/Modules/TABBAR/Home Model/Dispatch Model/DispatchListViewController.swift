@@ -71,6 +71,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var serverLastPage = 1
     var lastDispatchServerSyncAt: Date?
     private let lblFreshness = UILabel()
+    /// The offline/stale line, when there is one (see updateFreshnessLine).
+    private var freshnessLineText: String?
+    /// The shop stop on this phone (Next Stop); a seam for tests.
+    var nextStopTrip: () -> NextStopState = { NextStopCoordinator.state() }
 
     // Dispatch offline (Phase 3): Pending order legs render from the durable company-wide
     // working set (DispatchOfflineSync) — immediately, online or offline — while the one
@@ -231,6 +235,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
         //GET DATA
         self.refreshList()
+        // A shop trip left under way (Next Stop → Main Menu / Back) is offered to continue.
+        self.renderBoardHeader()
         
         
         //SET VIEW
@@ -678,20 +684,59 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                                                        lastRefreshFailed: refreshFailed,
                                                        pendingCount: 0)
         let showsBanner = refreshFailed
+        self.freshnessLineText = showsBanner ? text : nil
+        self.renderBoardHeader()
+    }
 
-        guard showsBanner else {
-            self.tblView.tableHeaderView = nil
+    /// The board's slim header, only when it has something to say: a shop trip still under
+    /// way that Next Stop can continue (2026-10-21 — the driver left it with Main Menu or
+    /// Back and has not confirmed the arrival), then the offline/stale line.
+    func renderBoardHeader() {
+        guard let table = self.tblView else { return }
+        let width = table.frame.size.width > 0 ? table.frame.size.width : UIScreen.main.bounds.width
+        let trip = self.nextStopTrip().tripToContinue(now: Date())
+        guard trip != nil || self.freshnessLineText != nil else {
+            table.tableHeaderView = nil
             return
         }
 
-        self.lblFreshness.text = text
-        self.lblFreshness.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12.0)
-        self.lblFreshness.textColor = .secondaryText
-        self.lblFreshness.textAlignment = .center
-        let wrap = UIView(frame: CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: 26))
-        self.lblFreshness.frame = wrap.bounds
-        wrap.addSubview(self.lblFreshness)
-        self.tblView.tableHeaderView = wrap
+        let wrap = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 0))
+        var y: CGFloat = 0
+        if let shop = trip {
+            let resume = UIButton(type: .system)
+            resume.setTitle("Heading to \(shop.name) · Continue Next Stop ›", for: .normal)
+            resume.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 14.0)
+            resume.titleLabel?.adjustsFontSizeToFitWidth = true
+            resume.titleLabel?.minimumScaleFactor = 0.8
+            resume.setTitleColor(.secondary, for: .normal)
+            resume.layer.borderWidth = 1
+            resume.layer.borderColor = UIColor.secondary.cgColor
+            resume.layer.cornerRadius = 8
+            resume.accessibilityIdentifier = "dispatch.nextStop.continue"
+            resume.frame = CGRect(x: 12, y: 6, width: width - 24, height: 36)
+            resume.autoresizingMask = [.flexibleWidth]
+            resume.addTarget(self, action: #selector(continueNextStopTapped), for: .touchUpInside)
+            wrap.addSubview(resume)
+            y = 48
+        }
+        if let text = self.freshnessLineText {
+            self.lblFreshness.text = text
+            self.lblFreshness.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12.0)
+            self.lblFreshness.textColor = .secondaryText
+            self.lblFreshness.textAlignment = .center
+            self.lblFreshness.frame = CGRect(x: 0, y: y, width: width, height: 26)
+            self.lblFreshness.autoresizingMask = [.flexibleWidth]
+            wrap.addSubview(self.lblFreshness)
+            y += 26
+        }
+        wrap.frame.size.height = y
+        table.tableHeaderView = wrap
+    }
+
+    /// Back into Next Stop for the trip under way: the arrival can be confirmed, or the next
+    /// mission chosen. Nothing was completed here, so no mission is handed in.
+    @objc func continueNextStopTapped() {
+        self.beginNextStopFlow(completed: nil)
     }
     
     func selectScheduleType() -> String{
@@ -2548,6 +2593,8 @@ extension DispatchListViewController {
         let next = NextStopViewController()
         // Where the driver is standing: the mission just finished (route evidence).
         next.completedMission = completed
+        // A shop stop left from before this mission is over (never shown or recorded as current).
+        next.endShopStopLeftBeforeCompletion()
         next.missions = { [weak self] in self?.currentNextStopMissions() ?? [] }
         next.openOrderMission = { [weak self] in self?.openOrderMission(orderProductUniqueId: $0) ?? false }
         next.openManualMission = { [weak self] in self?.openManualMission(taskUniqueId: $0) ?? false }

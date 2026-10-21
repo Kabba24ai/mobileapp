@@ -26,6 +26,11 @@
 //  rebuilds the actual route from. Recording never blocks the driver and
 //  never changes what this screen does.
 //
+//  Main Menu (2026-10-21): every state offers a way straight to the app's Home
+//  screen. It is navigation only — the shop stop stays as it is (a trip under
+//  way can be continued from the Dispatch board; an arrival stays recorded),
+//  and nothing is recorded, completed or clocked.
+//
 
 import UIKit
 
@@ -65,6 +70,9 @@ final class NextStopViewController: UIViewController {
     /// Hands one answer to the Sync Engine (best-effort; see NextStopCoordinator.record).
     var recordRouteEvent: (NextStopRouteEvent?) -> Void = { NextStopCoordinator.record($0) }
 
+    /// Main Menu: straight to the app's Home screen, one tap (see showMainMenu).
+    var goToMainMenu: (UIViewController) -> Void = { NextStopViewController.showMainMenu(from: $0) }
+
     // MARK: Rendered state (read by the UI and by the tests)
 
     private(set) var state: NextStopState = .idle
@@ -89,6 +97,7 @@ final class NextStopViewController: UIViewController {
     }
 
     let headlineText = "What are you doing next?"
+    let mainMenuTitle = "Main Menu"
 
     /// The forward choices, which depend on where the driver is in a shop stop.
     var primaryChoiceTitles: [String] {
@@ -124,23 +133,32 @@ final class NextStopViewController: UIViewController {
 
     // MARK: UI
 
+    /// The app's established dark theme (navy, cyan accent, white text), in light and dark mode alike.
+    private let theme = SyncStatusTheme.kabba
     private let stack = UIStackView()
     private let headline = UILabel()
     private let destination = UILabel()
     private let unavailable = UILabel()
     private let choices = UIStackView()
     private let shopList = UIStackView()
+    private let mainMenu = UIStackView()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = "Next Stop"
-        view.backgroundColor = .systemBackground
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = theme.background
         buildLayout()
         refreshFromDurableState()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        // The same header and Back as Dispatch beneath it.
+        setNavigationBarForButtons(controller: self, title: "Next Stop", isTransperent: true, hideShadowImage: true,
+                                   leftIcon: "icon_back", rightIcon: [], isFilter: false) { [weak self] in
+            self?.navigationController?.popViewController(animated: true)
+        }
         // Returning from Maps or from a backgrounded app: the durable state is
         // the truth, not whatever this screen last rendered.
         refreshFromDurableState()
@@ -153,7 +171,42 @@ final class NextStopViewController: UIViewController {
         render()
     }
 
+    /// Opened for a mission the driver just completed: a shop stop still on this phone was
+    /// chosen BEFORE that mission, so it is over — the driver went on to other work since.
+    /// Ending it means the screen offers both paths again, and nothing from the old trip
+    /// (an old "At Bon Aqua", an old "Arrived at") is shown or recorded as if it were
+    /// current. Answers already start from the completed mission. Records nothing;
+    /// best-effort, so a failed write never blocks the driver. Call before showing.
+    func endShopStopLeftBeforeCompletion() {
+        guard completedMission != nil, loadState() != .idle else { return }
+        try? persistState(NextStopTransition.finishShopStop(loadState()))
+        state = .idle
+    }
+
     // MARK: Actions
+
+    /// Main Menu — navigation only. The shop stop is left exactly as it is, nothing is
+    /// recorded, and no other work is touched.
+    @objc func mainMenuTapped() {
+        goToMainMenu(self)
+    }
+
+    /// The app's Home screen: the root of the Home tab. When Next Stop sits in that tab
+    /// (it always does — Dispatch is opened from Home), its own stack goes back to the
+    /// root in one step; otherwise the Home tab is selected and returned to its root.
+    static func showMainMenu(from screen: UIViewController) {
+        guard let nav = screen.navigationController else { return }
+        if let tabs = screen.tabBarController,
+           let homeNav = tabs.viewControllers?.compactMap({ $0 as? UINavigationController })
+               .first(where: { $0.viewControllers.first is HomeViewController }),
+           homeNav !== nav {
+            homeNav.popToRootViewController(animated: false)
+            tabs.selectedViewController = homeNav
+            nav.popToRootViewController(animated: false)
+            return
+        }
+        nav.popToRootViewController(animated: nav.view.window != nil)
+    }
 
     @objc func nextCustomerTapped() {
         let picker = NextMissionPickerViewController()
@@ -300,17 +353,19 @@ final class NextStopViewController: UIViewController {
         ])
 
         headline.text = headlineText
-        headline.font = .systemFont(ofSize: 24, weight: .bold)
+        headline.font = theme.bold(24)
+        headline.textColor = theme.text
         headline.numberOfLines = 0
         headline.textAlignment = .center
 
-        destination.font = .systemFont(ofSize: 16, weight: .semibold)
-        destination.textColor = .secondaryLabel
+        destination.font = theme.bold(16)
+        destination.textColor = theme.accent
         destination.numberOfLines = 0
         destination.textAlignment = .center
+        destination.accessibilityIdentifier = "nextStop.destination"
 
-        unavailable.font = .systemFont(ofSize: 14)
-        unavailable.textColor = .secondaryLabel
+        unavailable.font = theme.regular(14)
+        unavailable.textColor = theme.secondaryText
         unavailable.numberOfLines = 0
         unavailable.textAlignment = .center
 
@@ -319,7 +374,15 @@ final class NextStopViewController: UIViewController {
         shopList.axis = .vertical
         shopList.spacing = 10
 
-        [headline, destination, unavailable, choices, shopList].forEach { stack.addArrangedSubview($0) }
+        // Main Menu, in every state, set apart below the forward choices.
+        mainMenu.axis = .vertical
+        mainMenu.isLayoutMarginsRelativeArrangement = true
+        mainMenu.layoutMargins = UIEdgeInsets(top: 12, left: 0, bottom: 0, right: 0)
+        let menu = button(mainMenuTitle, filled: false, action: #selector(mainMenuTapped))
+        menu.accessibilityIdentifier = "nextStop.mainMenu"
+        mainMenu.addArrangedSubview(menu)
+
+        [headline, destination, unavailable, choices, shopList, mainMenu].forEach { stack.addArrangedSubview($0) }
     }
 
     private func render() {
@@ -332,13 +395,17 @@ final class NextStopViewController: UIViewController {
 
         choices.arrangedSubviews.forEach { $0.removeFromSuperview() }
         if let arrived = arrivedActionTitle {
-            choices.addArrangedSubview(button(arrived, filled: true, action: #selector(arrivedTapped)))
+            let b = button(arrived, filled: true, action: #selector(arrivedTapped))
+            b.accessibilityIdentifier = "nextStop.arrived"
+            choices.addArrangedSubview(b)
         }
         for title in primaryChoiceTitles {
             let isShop = title == "Return to Shop"
-            choices.addArrangedSubview(button(title,
-                                              filled: !isShop && arrivedActionTitle == nil,
-                                              action: isShop ? #selector(returnToShopTapped) : #selector(nextCustomerTapped)))
+            let b = button(title,
+                           filled: !isShop && arrivedActionTitle == nil,
+                           action: isShop ? #selector(returnToShopTapped) : #selector(nextCustomerTapped))
+            b.accessibilityIdentifier = isShop ? "nextStop.returnToShop" : "nextStop.nextMission"
+            choices.addArrangedSubview(b)
         }
 
         shopList.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -354,16 +421,18 @@ final class NextStopViewController: UIViewController {
         selectShop(at: sender.tag)
     }
 
+    /// Kabba's buttons: filled cyan with navy text for the main move, cyan outline otherwise.
     private func button(_ title: String, filled: Bool, action: Selector) -> UIButton {
         let b = UIButton(type: .system)
         b.setTitle(title, for: .normal)
-        b.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        b.titleLabel?.font = theme.bold(17)
         b.titleLabel?.numberOfLines = 0
-        b.backgroundColor = filled ? (UIColor.secondaryView ?? .systemBlue) : .clear
-        b.setTitleColor(filled ? .white : (UIColor.secondaryView ?? .systemBlue), for: .normal)
+        b.titleLabel?.textAlignment = .center
+        b.backgroundColor = filled ? theme.accent : .clear
+        b.setTitleColor(filled ? theme.background : theme.accent, for: .normal)
         b.layer.cornerRadius = 10
-        b.layer.borderWidth = filled ? 0 : 1
-        b.layer.borderColor = (UIColor.secondaryView ?? .systemBlue).cgColor
+        b.layer.borderWidth = filled ? 0 : 1.5
+        b.layer.borderColor = theme.accent.cgColor
         b.contentEdgeInsets = UIEdgeInsets(top: 14, left: 16, bottom: 14, right: 16)
         b.addTarget(self, action: action, for: .touchUpInside)
         return b
