@@ -5,9 +5,11 @@
 //  Just enough presentation so an employee is never misled:
 //   • SyncStatusToast        — after a save: "Saved · Pending Sync" → "Synced" / "Needs Attention"
 //   • SyncStatusSummaryView  — one line for Settings: "2 pending · 1 needs attention"
-//   • SyncStatusViewController — the diagnostics list (type, captured, attempts, sanitized error,
-//                              request/operation ids) with Retry / Discard / Sync Now.
-//  No payload contents, images or credentials are ever shown.
+//   • SyncStatusViewController — Settings → Sync: records grouped by what a person must do,
+//                              Sync Now with a result, and the review screen per record
+//                              (SyncRecordReviewUI.swift) with Try Again / Remove.
+//  The list never shows payload contents, images or credentials — only the review screen
+//  shows a record's own photos/signature thumbnails, so a person can decide about it.
 //
 
 import UIKit
@@ -36,11 +38,18 @@ struct SyncStatusTheme {
     )
 }
 
-private enum SyncStatusFormat {
+enum SyncStatusFormat {
     static let dateTime: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "MMM d, h:mm a"
+        return f
+    }()
+
+    static let time: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "h:mm a"
         return f
     }()
 
@@ -299,16 +308,58 @@ final class SyncStatusSummaryView: UIControl {
 
 // MARK: - Diagnostics screen
 
+/// Settings → Sync. Groups what is on this phone by what a person must do about it
+/// (MOBILE-QUALITY-01, items 01/02):
+///
+///   Needs your attention — Kabba refused it; never retried automatically; tap to review
+///   Waiting to sync      — saved on this phone; sends by itself (and why it hasn't yet)
+///   Synced recently      — Kabba has it (7 days of history)
+///   Retired              — history the world moved past
+///   Removed from this phone — a content-free trace of records a person removed (30 days)
+///
+/// Sync Now runs one pass and says what it did — including "nothing new to send" when
+/// everything left was refused, which before looked like a dead button.
 final class SyncStatusViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
 
-    private let theme: SyncStatusTheme
-    private let table = UITableView(frame: .zero, style: .insetGrouped)
-    private let headerLabel = UILabel()
-    private var entries: [SyncDiagnosticEntry] = []
-    private var observer: NSObjectProtocol?
+    private enum Section {
+        case attention, waiting, synced, retired, removed
 
-    init(theme: SyncStatusTheme = .system) {
+        var title: String {
+            switch self {
+            case .attention: return "Needs your attention"
+            case .waiting:   return "Waiting to sync"
+            case .synced:    return "Synced recently"
+            case .retired:   return "Retired"
+            case .removed:   return "Removed from this phone · last 30 days"
+            }
+        }
+    }
+
+    private enum Row {
+        case record(SyncOperation)
+        case removed(SyncRemovedRecord)
+    }
+
+    private let theme: SyncStatusTheme
+    private let engineProvider: () -> SyncEngine?
+    private let removedLogProvider: () -> SyncRemovedRecordLog?
+    private let table = UITableView(frame: .zero, style: .insetGrouped)
+    private let headerStack = UIStackView()
+    private let summaryLabel = UILabel()
+    private let reportLabel = UILabel()
+    private let installLabel = UILabel()
+    private var sections: [(Section, [Row])] = []
+    private var observer: NSObjectProtocol?
+    private var lastReport: SyncPassReport?
+    private var syncing = false
+
+    /// The providers are seams for hosted tests; the app uses the one engine.
+    init(theme: SyncStatusTheme = .system,
+         engine: @escaping () -> SyncEngine? = { KabbaSync.engine },
+         removedRecords: @escaping () -> SyncRemovedRecordLog? = { KabbaSync.removedRecords }) {
         self.theme = theme
+        self.engineProvider = engine
+        self.removedLogProvider = removedRecords
         super.init(nibName: nil, bundle: nil)
         title = "Sync Status"
         hidesBottomBarWhenPushed = true
@@ -323,19 +374,34 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = theme.background
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Sync Now", style: .plain, target: self, action: #selector(syncNow))
-        navigationItem.rightBarButtonItem?.tintColor = theme.accent
+        let syncButton = UIBarButtonItem(title: "Sync Now", style: .plain, target: self, action: #selector(syncNow))
+        syncButton.tintColor = theme.accent
+        syncButton.accessibilityIdentifier = "sync.status.syncNow"
+        navigationItem.rightBarButtonItem = syncButton
 
-        headerLabel.numberOfLines = 0
-        headerLabel.font = theme.regular(15)
-        headerLabel.textColor = theme.secondaryText
-        headerLabel.textAlignment = .center
+        for label in [summaryLabel, reportLabel, installLabel] {
+            label.numberOfLines = 0
+            label.textAlignment = .left
+        }
+        summaryLabel.font = theme.bold(16)
+        summaryLabel.textColor = theme.text
+        reportLabel.font = theme.regular(14)
+        reportLabel.textColor = theme.secondaryText
+        reportLabel.accessibilityIdentifier = "sync.status.report"
+        installLabel.font = theme.regular(12)
+        installLabel.textColor = theme.secondaryText
+        headerStack.axis = .vertical
+        headerStack.spacing = 6
+        headerStack.isLayoutMarginsRelativeArrangement = true
+        headerStack.layoutMargins = UIEdgeInsets(top: 14, left: 20, bottom: 6, right: 20)
+        [summaryLabel, reportLabel, installLabel].forEach(headerStack.addArrangedSubview)
 
         table.dataSource = self
         table.delegate = self
         table.backgroundColor = theme.background
         table.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
         table.translatesAutoresizingMaskIntoConstraints = false
+        table.tableHeaderView = headerStack
         view.addSubview(table)
         NSLayoutConstraint.activate([
             table.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
@@ -357,43 +423,131 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         reload()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        sizeHeaderToFit()
+    }
+
+    private func sizeHeaderToFit() {
+        guard table.bounds.width > 0 else { return }
+        let size = headerStack.systemLayoutSizeFitting(CGSize(width: table.bounds.width, height: 0),
+                                                       withHorizontalFittingPriority: .required,
+                                                       verticalFittingPriority: .fittingSizeLevel)
+        if abs(headerStack.frame.height - size.height) > 0.5 || headerStack.frame.width != table.bounds.width {
+            headerStack.frame = CGRect(x: 0, y: 0, width: table.bounds.width, height: size.height)
+            table.tableHeaderView = headerStack
+        }
+    }
+
     private func reload() {
-        guard let engine = KabbaSync.engine else {
-            entries = []
-            headerLabel.text = "Sync engine unavailable"
+        guard let engine = engineProvider() else {
+            sections = []
+            summaryLabel.text = "Sync engine unavailable"
+            reportLabel.text = nil
+            installLabel.text = nil
             table.reloadData()
             return
         }
-        entries = engine.diagnostics()
+        let ops = engine.snapshot()
+        let attention = ops.filter { $0.state == .needsAttention }
+        let waiting = ops.filter { $0.state == .pending || $0.state == .syncing }
+        let synced = ops.filter { $0.state == .synced }.sorted { $0.queuedAt > $1.queuedAt }
+        let retired = ops.filter { $0.state == .superseded }.sorted { $0.queuedAt > $1.queuedAt }
+        let removed = removedLogProvider()?.entries() ?? []
+
+        sections = [
+            (.attention, attention.map(Row.record)),
+            (.waiting, waiting.map(Row.record)),
+            (.synced, synced.map(Row.record)),
+            (.retired, retired.map(Row.record)),
+            (.removed, removed.map(Row.removed)),
+        ].filter { !$0.1.isEmpty }
+
         let summary = engine.summary()
-        var lines = [summary.line]
-        if summary.pause == .authentication { lines.append("Paused — sign in to resume.") }
-        if summary.pause == .appUpdate { lines.append("Paused — update the app to resume.") }
-        if let install = KabbaSync.installation { lines.append("Install id: \(install.identifier())") }
-        headerLabel.text = lines.joined(separator: "\n")
+        var line = summary.line
+        if summary.pause == .authentication { line += " · paused until you sign in" }
+        if summary.pause == .appUpdate { line += " · paused until the app is updated" }
+        summaryLabel.text = line
+        summaryLabel.textColor = summary.needsAttention > 0 ? theme.warning : theme.text
+        renderReport()
+        installLabel.text = KabbaSync.installation.map { "Install id: \($0.identifier())" }
         table.reloadData()
+        sizeHeaderToFit()
+    }
+
+    private func renderReport() {
+        if syncing {
+            reportLabel.text = "Syncing…"
+            reportLabel.isHidden = false
+            return
+        }
+        guard let report = lastReport else {
+            reportLabel.text = nil
+            reportLabel.isHidden = true
+            return
+        }
+        let text = NSMutableAttributedString(string: report.headline,
+                                             attributes: [.font: theme.bold(14), .foregroundColor: theme.text])
+        for line in report.lines(timeFormatter: { SyncStatusFormat.time.string(from: $0) }) {
+            text.append(NSAttributedString(string: "\n" + line, attributes: [.font: theme.regular(14), .foregroundColor: theme.secondaryText]))
+        }
+        reportLabel.attributedText = text
+        reportLabel.isHidden = false
     }
 
     @objc private func syncNow() {
-        KabbaSync.kick("Sync Now (Settings)", ignoreBackoff: true)
+        guard !syncing else { return }
+        guard let engine = engineProvider() else { return }
+        syncing = true
+        navigationItem.rightBarButtonItem?.isEnabled = false
+        navigationItem.rightBarButtonItem?.title = "Syncing…"
+        renderReport()
+        sizeHeaderToFit()
+
+        let before = Dictionary(uniqueKeysWithValues: engine.snapshot().map { ($0.id, $0.state) })
+        var answered = false
+        let finish: (SyncPassReport) -> Void = { [weak self] report in
+            guard let self = self, !answered else { return }
+            answered = true
+            self.syncing = false
+            self.lastReport = report
+            self.navigationItem.rightBarButtonItem?.isEnabled = true
+            self.navigationItem.rightBarButtonItem?.title = "Sync Now"
+            self.reload()
+            UIAccessibility.post(notification: .announcement, argument: report.headline)
+        }
+        engine.syncNow(reason: "Sync Now (Settings)") { report in
+            DispatchQueue.main.async { finish(report) }
+        }
+        // A large upload can outlast the screen's patience: say what is known so far.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 45) {
+            finish(SyncPassReport.make(before: before, after: engine.snapshot(), pause: engine.pause, timedOut: true))
+        }
     }
 
     // MARK: Table
 
-    func numberOfSections(in tableView: UITableView) -> Int { 1 }
+    func numberOfSections(in tableView: UITableView) -> Int { max(sections.count, 1) }
 
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { max(entries.count, 1) }
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        sections.isEmpty ? 1 : sections[section].1.count
+    }
 
     func tableView(_ tableView: UITableView, viewForHeaderInSection section: Int) -> UIView? {
+        guard !sections.isEmpty else { return nil }
+        let (kind, rows) = sections[section]
+        let label = UILabel()
+        label.font = theme.bold(13)
+        label.textColor = kind == .attention ? theme.warning : theme.secondaryText
+        label.text = kind == .removed ? kind.title.uppercased() : "\(kind.title.uppercased()) (\(rows.count))"
         let container = UIView()
-        headerLabel.translatesAutoresizingMaskIntoConstraints = false
-        headerLabel.removeFromSuperview()
-        container.addSubview(headerLabel)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
         NSLayoutConstraint.activate([
-            headerLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
-            headerLabel.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12),
-            headerLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            headerLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            label.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            label.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -6),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 20),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -20),
         ])
         return container
     }
@@ -402,10 +556,10 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         cell.backgroundColor = theme.card
         cell.textLabel?.numberOfLines = 0
-        cell.detailTextLabel?.numberOfLines = 0
 
-        guard !entries.isEmpty else {
-            cell.textLabel?.text = "Nothing waiting to sync."
+        guard !sections.isEmpty else {
+            cell.textLabel?.attributedText = nil
+            cell.textLabel?.text = "Nothing on this phone is waiting to sync."
             cell.textLabel?.font = theme.regular(15)
             cell.textLabel?.textColor = theme.secondaryText
             cell.accessoryType = .none
@@ -413,26 +567,14 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
             return cell
         }
 
-        let entry = entries[indexPath.row]
-        let stateColor = SyncStatusFormat.color(for: entry.state, theme: theme)
-
-        let text = NSMutableAttributedString(string: entry.title + "\n",
-                                             attributes: [.font: theme.bold(15), .foregroundColor: theme.text])
-        text.append(NSAttributedString(string: entry.stateLabel,
-                                       attributes: [.font: theme.bold(13), .foregroundColor: stateColor]))
-        var detail = "  ·  captured \(SyncStatusFormat.dateTime.string(from: entry.capturedAt))"
-        if entry.attemptCount > 0 { detail += "  ·  \(entry.attemptCount) attempt\(entry.attemptCount == 1 ? "" : "s")" }
-        if let last = entry.lastAttemptedAt { detail += ", last \(SyncStatusFormat.relative(last))" }
-        text.append(NSAttributedString(string: detail, attributes: [.font: theme.regular(13), .foregroundColor: theme.secondaryText]))
-        if !entry.identitySummary.isEmpty {
-            text.append(NSAttributedString(string: "\n" + entry.identitySummary, attributes: [.font: theme.regular(12), .foregroundColor: theme.secondaryText]))
+        switch sections[indexPath.section].1[indexPath.row] {
+        case .record(let op):
+            cell.textLabel?.attributedText = SyncStatusRowText.make(for: op, theme: theme)
+            cell.accessibilityIdentifier = "sync.status.row.\(op.id)"
+        case .removed(let trace):
+            cell.textLabel?.attributedText = SyncStatusRowText.make(for: trace, theme: theme)
+            cell.accessibilityIdentifier = "sync.status.removed.\(trace.operationId)"
         }
-        if entry.state == .needsAttention, let reason = entry.errorSummary {
-            text.append(NSAttributedString(string: "\n" + reason, attributes: [.font: theme.regular(13), .foregroundColor: theme.warning]))
-        } else if entry.state == .superseded, let reason = entry.errorSummary {
-            text.append(NSAttributedString(string: "\n" + reason, attributes: [.font: theme.regular(13), .foregroundColor: theme.secondaryText]))
-        }
-        cell.textLabel?.attributedText = text
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
         return cell
@@ -440,57 +582,83 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        guard indexPath.row < entries.count else { return }
-        presentDetail(for: entries[indexPath.row])
+        guard !sections.isEmpty else { return }
+        switch sections[indexPath.section].1[indexPath.row] {
+        case .record(let op):
+            let engineProvider = self.engineProvider
+            let logProvider = self.removedLogProvider
+            let review = SyncRecordReviewViewController(operationId: op.id, theme: theme, engine: engineProvider,
+                                                        remove: { try KabbaSync.removeRecord($0, engine: engineProvider(), log: logProvider()) })
+            navigationController?.pushViewController(review, animated: true)
+        case .removed(let trace):
+            presentTrace(trace)
+        }
     }
 
-    private func presentDetail(for entry: SyncDiagnosticEntry) {
-        var lines: [String] = [
-            "State: \(entry.stateLabel)",
-            "Captured: \(SyncStatusFormat.dateTime.string(from: entry.capturedAt))",
-            "Queued: \(SyncStatusFormat.dateTime.string(from: entry.queuedAt))",
-            "Attempts: \(entry.attemptCount)",
+    private func presentTrace(_ trace: SyncRemovedRecord) {
+        var lines = [
+            "Removed: \(SyncStatusFormat.dateTime.string(from: trace.removedAt))\(trace.removedByName.map { " by \($0)" } ?? "")",
+            "Captured: \(SyncStatusFormat.dateTime.string(from: trace.capturedAt))",
+            "Kabba never received it.",
         ]
-        if let last = entry.lastAttemptedAt { lines.append("Last attempt: \(SyncStatusFormat.dateTime.string(from: last))") }
-        if let next = entry.nextAttemptAt, entry.state == .pending { lines.append("Next attempt: \(SyncStatusFormat.dateTime.string(from: next))") }
-        if let acked = entry.acknowledgedAt { lines.append("Acknowledged: \(SyncStatusFormat.dateTime.string(from: acked))\(entry.replayed ? " (replayed)" : "")") }
-        if let status = entry.lastStatusCode { lines.append("Last HTTP status: \(status)") }
-        if let code = entry.lastErrorCode { lines.append("Error code: \(code)") }
-        if let error = entry.errorSummary { lines.append("Error: \(error)") }
-        if !entry.identitySummary.isEmpty { lines.append(entry.identitySummary) }
-        if entry.assetCount > 0 { lines.append("Files: \(entry.assetCount)") }
-        lines.append("Operation id: \(entry.operationId)")
-        if let requestId = entry.lastRequestId { lines.append("Request id: \(requestId)") }
-
-        let alert = UIAlertController(title: entry.title, message: lines.joined(separator: "\n"), preferredStyle: .alert)
-
-        if entry.state == .needsAttention || entry.state == .pending {
-            alert.addAction(UIAlertAction(title: "Retry Now", style: .default) { _ in
-                KabbaSync.engine?.retryNow(operationId: entry.operationId)
-            })
-        }
+        if !trace.contentsSummary.isEmpty { lines.append("It held: \(trace.contentsSummary) (deleted)") }
+        if let code = trace.errorCode { lines.append("Refusal: \(code)") }
+        if !trace.identitySummary.isEmpty { lines.append(trace.identitySummary) }
+        lines.append("Operation id: \(trace.operationId)")
+        if let request = trace.requestId { lines.append("Request id: \(request)") }
+        let alert = UIAlertController(title: trace.title, message: lines.joined(separator: "\n"), preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Copy IDs", style: .default) { _ in
-            UIPasteboard.general.string = "operation_id=\(entry.operationId) request_id=\(entry.lastRequestId ?? "-")"
+            UIPasteboard.general.string = "operation_id=\(trace.operationId) request_id=\(trace.requestId ?? "-")"
         })
-        if entry.state != .synced && entry.state != .superseded {   // history is kept, not discarded
-            alert.addAction(UIAlertAction(title: "Discard…", style: .destructive) { [weak self] _ in
-                self?.confirmDiscard(entry)
-            })
-        }
         alert.addAction(UIAlertAction(title: "Close", style: .cancel))
         present(alert, animated: true)
     }
+}
 
-    private func confirmDiscard(_ entry: SyncDiagnosticEntry) {
-        let confirm = UIAlertController(
-            title: "Discard this record?",
-            message: "This removes \"\(entry.title)\" from this phone permanently. Kabba has NOT received it. Only do this if the work was redone another way.",
-            preferredStyle: .alert)
-        confirm.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        confirm.addAction(UIAlertAction(title: "Discard", style: .destructive) { _ in
-            try? KabbaSync.engine?.discard(operationId: entry.operationId)
-            NotificationCenter.default.post(name: .kabbaSyncQueueChanged, object: nil)
-        })
-        present(confirm, animated: true)
+/// One list row's text: title, what is going on, references, and what exists only here.
+enum SyncStatusRowText {
+
+    static func make(for op: SyncOperation, theme: SyncStatusTheme) -> NSAttributedString {
+        let review = SyncRecordReview.of(op)
+        let text = NSMutableAttributedString(string: review.title + "\n",
+                                             attributes: [.font: theme.bold(15), .foregroundColor: theme.text])
+        text.append(NSAttributedString(string: status(op, review),
+                                       attributes: [.font: theme.bold(13), .foregroundColor: SyncStatusFormat.color(for: op.state, theme: theme)]))
+        var detail = "\ncaptured \(SyncStatusFormat.dateTime.string(from: op.capturedAt))"
+        if !op.identity.summary.isEmpty { detail += " · \(op.identity.summary)" }
+        text.append(NSAttributedString(string: detail, attributes: [.font: theme.regular(12), .foregroundColor: theme.secondaryText]))
+        if op.state != .synced && op.state != .superseded && !review.contents.summary.isEmpty {
+            text.append(NSAttributedString(string: "\nOnly on this phone: " + review.contents.summary,
+                                           attributes: [.font: theme.regular(12), .foregroundColor: theme.secondaryText]))
+        }
+        return text
+    }
+
+    static func make(for trace: SyncRemovedRecord, theme: SyncStatusTheme) -> NSAttributedString {
+        let text = NSMutableAttributedString(string: trace.title + "\n",
+                                             attributes: [.font: theme.bold(15), .foregroundColor: theme.secondaryText])
+        var line = "Removed \(SyncStatusFormat.dateTime.string(from: trace.removedAt))"
+        if let name = trace.removedByName, !name.isEmpty { line += " by \(name)" }
+        text.append(NSAttributedString(string: line, attributes: [.font: theme.regular(13), .foregroundColor: theme.secondaryText]))
+        return text
+    }
+
+    static func status(_ op: SyncOperation, _ review: SyncRecordReview) -> String {
+        switch review.problem {
+        case .rejected:
+            return "Kabba refused this · " + (review.explanation?.headline ?? "needs review")
+        case .waiting:
+            return op.state == .syncing ? "Sending now…" : "Waiting to send"
+        case .waitingForConnection:
+            return "Waiting for a connection · sends automatically"
+        case .temporaryFailure:
+            if let next = op.attempts.nextAttemptAt { return "Kabba unavailable · retries automatically at \(SyncStatusFormat.time.string(from: next))" }
+            return "Kabba unavailable · retries automatically"
+        case .paused:
+            return op.attempts.lastDisposition == .waitForAppUpdate ? "Paused until the app is updated" : "Paused until you sign in"
+        case .none:
+            if op.state == .superseded { return "Retired" + (op.supersession.map { " · \($0.summary)" } ?? "") }
+            return "Synced · \(SyncStatusFormat.relative(op.acknowledgment?.acknowledgedAt))"
+        }
     }
 }
