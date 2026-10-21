@@ -53,6 +53,8 @@ final class SyncEngine {
     private var _pause: SyncPause = .none
     private var draining = false
     private var retryTimer: DispatchWorkItem?
+    /// The last queue time handed out (see nextQueuedAt).
+    private var lastQueuedAt = Date.distantPast
 
     private let clock: () -> Date
     private let queue: DispatchQueue
@@ -97,18 +99,18 @@ final class SyncEngine {
         guard case .object = payload else { throw SyncEngineError.payloadMustBeObject }
         guard !isOnQueue else { throw SyncEngineError.calledOnEngineQueue }
 
-        let operation = SyncOperation(id: operationId,
-                                      type: type,
-                                      capturedAt: capturedAt,
-                                      queuedAt: clock(),
-                                      identity: identity,
-                                      payload: payload,
-                                      assets: assets,
-                                      displayTitle: displayTitle)
-
-        try queue.sync {
+        let operation: SyncOperation = try queue.sync {
+            let operation = SyncOperation(id: operationId,
+                                          type: type,
+                                          capturedAt: capturedAt,
+                                          queuedAt: nextQueuedAt(),
+                                          identity: identity,
+                                          payload: payload,
+                                          assets: assets,
+                                          displayTitle: displayTitle)
             try store.save(operation)              // durable BEFORE we return
             operations[operation.id] = operation
+            return operation
         }
         log("queued \(operation.type) \(short(operation.id))")
         emit(.operationChanged(operation))
@@ -263,7 +265,29 @@ final class SyncEngine {
     var pause: SyncPause { onQueueSync { _pause } }
 
     func snapshot() -> [SyncOperation] {
-        onQueueSync { operations.values.sorted { $0.queuedAt < $1.queuedAt } }
+        onQueueSync { operations.values.sorted(by: Self.queueOrder) }
+    }
+
+    /// Queue times are strictly increasing, at least two milliseconds apart: records are
+    /// stored with millisecond times, and several enqueues can land in the same millisecond —
+    /// after a relaunch they tied and could be sent out of capture order. The nudge is never
+    /// more than the enqueues in one burst; capturedAt (the real moment the work was done) is
+    /// never touched. Engine queue only.
+    private func nextQueuedAt() -> Date {
+        let now = clock()
+        // 2 ms, not 1: stored with millisecond precision, two values must never format alike.
+        let next = max(now, lastQueuedAt.addingTimeInterval(0.002))
+        lastQueuedAt = next
+        return next
+    }
+
+    /// Capture order: when it was queued, then — for records stored before queue times kept
+    /// milliseconds — when it was captured, then its id, so the order never depends on how a
+    /// dictionary happens to iterate after a relaunch.
+    static func queueOrder(_ a: SyncOperation, _ b: SyncOperation) -> Bool {
+        if a.queuedAt != b.queuedAt { return a.queuedAt < b.queuedAt }
+        if a.capturedAt != b.capturedAt { return a.capturedAt < b.capturedAt }
+        return a.id < b.id
     }
 
     func operation(id: String) -> SyncOperation? {
@@ -512,7 +536,7 @@ final class SyncEngine {
     private func nextEligible(now: Date) -> SyncOperation? {
         let pending = operations.values
             .filter { $0.state == .pending }
-            .sorted { $0.queuedAt < $1.queuedAt }
+            .sorted(by: Self.queueOrder)
 
         var seenKeys = Set<String>()
         for op in pending {
@@ -567,6 +591,7 @@ final class SyncEngine {
                     persistQuietly(op)
                 }
                 operations[op.id] = op
+                lastQueuedAt = max(lastQueuedAt, op.queuedAt)
             }
             log("loaded \(operations.count) operation(s) from store")
         }

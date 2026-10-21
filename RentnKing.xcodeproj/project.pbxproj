@@ -542,6 +542,7 @@
 		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
 		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
 		5A5CFADE0000000000000091 /* ReleaseSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */; };
+		5A7C00000000000000000011 /* SyncCaptureOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1038,6 +1039,7 @@
 		5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleUITests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSmokeUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCaptureOrderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2365,6 +2367,7 @@
 				5A6A000000000000000000C0 /* NextStopStateTests.swift */,
 				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
 				5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */,
+				5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -3104,6 +3107,7 @@
 				5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */,
 				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
 				5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */,
+				5A7C00000000000000000011 /* SyncCaptureOrderTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
