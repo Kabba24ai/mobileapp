@@ -263,6 +263,13 @@
                         },
                         "options_count": 1,
                         "payment_label": "No Payment Recorded",
+                        "payment": {
+                            "status": "pending",
+                            "label": "Pending",
+                            "basis": "unpaid",
+                            "needs_review": false,
+                            "review_reason": null
+                        },
                         "status": "pending",
                         "staged": false,
                         "staged_by": null,
@@ -584,6 +591,13 @@
                         },
                         "options_count": 0,
                         "payment_label": "No Payment Recorded",
+                        "payment": {
+                            "status": "pending",
+                            "label": "Pending",
+                            "basis": "unpaid",
+                            "needs_review": false,
+                            "review_reason": null
+                        },
                         "status": "pending",
                         "staged": false,
                         "staged_by": null,

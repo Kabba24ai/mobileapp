@@ -558,6 +558,10 @@
 		5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000120 /* LocalLicenseTests.swift */; };
 		5A7A00000000000000000131 /* LicenseLocalSaveHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */; };
 		5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */; };
+		5A7B000000000000000000A1 /* QueueLinePayment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000A0 /* QueueLinePayment.swift */; };
+		5A7B000000000000000000A2 /* QueueLinePayment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000A0 /* QueueLinePayment.swift */; };
+		5A7B000000000000000000B1 /* QueueLinePaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */; };
+		5A7B000000000000000000C1 /* QueueLineBoardHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1066,6 +1070,9 @@
 		5A7A00000000000000000120 /* LocalLicenseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLicenseTests.swift; sourceTree = "<group>"; };
 		5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseLocalSaveHostedTests.swift; sourceTree = "<group>"; };
 		5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEventsSyncReviewTests.swift; sourceTree = "<group>"; };
+		5A7B000000000000000000A0 /* QueueLinePayment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePayment.swift; sourceTree = "<group>"; };
+		5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePaymentTests.swift; sourceTree = "<group>"; };
+		5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineBoardHostedTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2234,6 +2241,7 @@
 				5A7A000000000000000000C0 /* SyncRemovedRecordLog.swift */,
 				5A7A000000000000000000B0 /* SyncPassReport.swift */,
 				5A7A000000000000000000A0 /* SyncRecordReview.swift */,
+				5A7B000000000000000000A0 /* QueueLinePayment.swift */,
 				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
@@ -2362,6 +2370,7 @@
 				5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */,
 				5A7A00000000000000000100 /* ChecklistOwnLineHostedTests.swift */,
 				5A7A000000000000000000F0 /* SyncStatusHostedTests.swift */,
+				5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */,
 				5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
@@ -2405,6 +2414,7 @@
 				5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */,
 				5A7A00000000000000000120 /* LocalLicenseTests.swift */,
 				5A7A000000000000000000D0 /* SyncRecordResolutionTests.swift */,
+				5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -2889,6 +2899,7 @@
 				5A7A000000000000000000C1 /* SyncRemovedRecordLog.swift in Sources */,
 				5A7A000000000000000000B1 /* SyncPassReport.swift in Sources */,
 				5A7A000000000000000000A1 /* SyncRecordReview.swift in Sources */,
+				5A7B000000000000000000A1 /* QueueLinePayment.swift in Sources */,
 				5A6B000000000000000000B1 /* NextStopRouteEventSyncHandler.swift in Sources */,
 				5A7A000000000000000000E1 /* SyncRecordReviewUI.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
@@ -3153,6 +3164,7 @@
 				5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */,
 				5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */,
 				5A7A000000000000000000D1 /* SyncRecordResolutionTests.swift in Sources */,
+				5A7B000000000000000000B1 /* QueueLinePaymentTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
@@ -3209,6 +3221,7 @@
 				5A7A000000000000000000C2 /* SyncRemovedRecordLog.swift in Sources */,
 				5A7A000000000000000000B2 /* SyncPassReport.swift in Sources */,
 				5A7A000000000000000000A2 /* SyncRecordReview.swift in Sources */,
+				5A7B000000000000000000A2 /* QueueLinePayment.swift in Sources */,
 				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
@@ -3288,6 +3301,7 @@
 				5A7A00000000000000000131 /* LicenseLocalSaveHostedTests.swift in Sources */,
 				5A7A00000000000000000101 /* ChecklistOwnLineHostedTests.swift in Sources */,
 				5A7A000000000000000000F1 /* SyncStatusHostedTests.swift in Sources */,
+				5A7B000000000000000000C1 /* QueueLineBoardHostedTests.swift in Sources */,
 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
