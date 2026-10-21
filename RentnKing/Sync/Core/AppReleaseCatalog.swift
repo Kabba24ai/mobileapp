@@ -44,6 +44,13 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.28", notes: [
+            "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them",
+            "Answers given without a connection stay on the phone and are sent once you're back online",
+            "Manual Dispatch status changes keep the time you tapped them, even when they are sent later",
+            "Work saved without a connection is sent in the order you did it, even after the app is closed and reopened",
+            "Various fixes and refinements",
+        ]),
         AppRelease(version: "1.0.27", notes: [
             "Finishing a delivery, return or manual dispatch now asks what you're doing next instead of sending you back to the board",
             "Pick your next customer or task from the work still assigned to you, or head back to one of your shops",

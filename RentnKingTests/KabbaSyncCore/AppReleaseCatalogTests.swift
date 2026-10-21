@@ -154,8 +154,23 @@ final class AppReleaseCatalogTests: XCTestCase {
             "Various fixes and refinements",
         ], "1.0.26 must read exactly as build 1012 shipped it.")
 
-        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.27", "Newest first, for presentation.")
         XCTAssertEqual(Set(AppReleaseCatalog.history.map(\.version)).count, AppReleaseCatalog.history.count,
                        "One entry per version.")
+    }
+
+    // 7. 1.0.28 (1014) is the route-evidence release: its notes are the App Store "What's New"
+    //    text too, and 1.0.27's entry still reads exactly as build 1013 shipped it.
+    func testThe1028NotesDescribeTheRouteEvidenceAndComeFirst() {
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.28", "Newest first, for presentation.")
+        let v28 = AppReleaseCatalog.release(for: "1.0.28")
+        XCTAssertEqual(v28?.notes.first,
+                       "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them")
+        XCTAssertEqual(v28?.notes.last, "Various fixes and refinements")
+        XCTAssertEqual(AppReleaseCatalog.release(for: "1.0.27")?.notes, [
+            "Finishing a delivery, return or manual dispatch now asks what you're doing next instead of sending you back to the board",
+            "Pick your next customer or task from the work still assigned to you, or head back to one of your shops",
+            "The shop you picked stays your destination while you navigate, and is still there when you come back to the app",
+            "Various fixes and refinements",
+        ], "1.0.27 must read exactly as build 1013 shipped it.")
     }
 }
