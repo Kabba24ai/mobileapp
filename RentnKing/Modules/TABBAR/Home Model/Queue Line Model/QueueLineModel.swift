@@ -28,6 +28,10 @@ struct QueueLineModel: Mappable {
     internal var assignment_state: String?
     internal var options_count: Int?
     internal var payment_label: String?
+    // MOBILE-QUALITY-01 (item 08): Kabba's Queue Line classification — always Paid or Pending.
+    internal var payment_status: String?            // "paid" | "pending"
+    internal var payment_needs_review: Bool?
+    internal var payment_review_reason: String?
     internal var status: String?        // "pending" | "staged" | "completed"
     internal var staged: Bool?
     internal var completed: Bool?
@@ -74,6 +78,9 @@ struct QueueLineModel: Mappable {
         assignment_state <- map["assignment_state"]
         options_count    <- map["options_count"]
         payment_label    <- map["payment_label"]
+        payment_status   <- map["payment.status"]
+        payment_needs_review <- map["payment.needs_review"]
+        payment_review_reason <- map["payment.review_reason"]
         status           <- map["status"]
         staged           <- map["staged"]
         completed        <- map["completed"]
@@ -116,6 +123,13 @@ struct QueueLineModel: Mappable {
     var itemEquipmentUniqueId: String? { identity?.equipment_unique_id ?? equipment?.unique_id }
     var deliveryChecklistExecutionId: String? { checklist?.delivery?.checklist_execution_id ?? identity?.checklist_execution_id }
     var deliveryChecklistStatus: String { checklist?.delivery?.status ?? "not_prepared" }
+
+    /// The card's Paid / Pending badge (QueueLinePaymentBadge: the server's classification;
+    /// on an older board only a "Paid" latest payment reads Paid).
+    var paymentBadge: QueueLinePaymentBadge {
+        QueueLinePaymentBadge.resolve(status: payment_status, needsReview: payment_needs_review,
+                                      reviewReason: payment_review_reason, legacyLabel: payment_label)
+    }
 }
 
 // MARK: - Assembly Review (2026-09-14) — the `assembly` block on a board item

@@ -542,6 +542,10 @@
 		5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C000000000000000000EC /* DispatchParityUITests.swift */; };
 		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
 		5A5CFADE0000000000000091 /* ReleaseSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */; };
+		5A7B000000000000000000A1 /* QueueLinePayment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000A0 /* QueueLinePayment.swift */; };
+		5A7B000000000000000000A2 /* QueueLinePayment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000A0 /* QueueLinePayment.swift */; };
+		5A7B000000000000000000B1 /* QueueLinePaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */; };
+		5A7B000000000000000000C1 /* QueueLineBoardHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1038,6 +1042,9 @@
 		5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparationLifecycleUITests.swift; sourceTree = "<group>"; };
 		5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSmokeUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5A7B000000000000000000A0 /* QueueLinePayment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePayment.swift; sourceTree = "<group>"; };
+		5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePaymentTests.swift; sourceTree = "<group>"; };
+		5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineBoardHostedTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2202,6 +2209,7 @@
 				5A6A000000000000000000A0 /* NextStopState.swift */,
 				5A6A000000000000000000B0 /* NextStopStore.swift */,
 				5A6B000000000000000000A0 /* NextStopRouteEvents.swift */,
+				5A7B000000000000000000A0 /* QueueLinePayment.swift */,
 				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
@@ -2326,6 +2334,7 @@
 				5A6A000000000000000000E0 /* NextStopWorkflowHostedTests.swift */,
 				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
 				5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */,
+				5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */,
 				5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
@@ -2365,6 +2374,7 @@
 				5A6A000000000000000000C0 /* NextStopStateTests.swift */,
 				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
 				5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */,
+				5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -2845,6 +2855,7 @@
 				5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */,
 				5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */,
 				5A6B000000000000000000A1 /* NextStopRouteEvents.swift in Sources */,
+				5A7B000000000000000000A1 /* QueueLinePayment.swift in Sources */,
 				5A6B000000000000000000B1 /* NextStopRouteEventSyncHandler.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
@@ -3104,6 +3115,7 @@
 				5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */,
 				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
 				5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */,
+				5A7B000000000000000000B1 /* QueueLinePaymentTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
@@ -3156,6 +3168,7 @@
 				5A6A000000000000000000A2 /* NextStopState.swift in Sources */,
 				5A6A000000000000000000B2 /* NextStopStore.swift in Sources */,
 				5A6B000000000000000000A2 /* NextStopRouteEvents.swift in Sources */,
+				5A7B000000000000000000A2 /* QueueLinePayment.swift in Sources */,
 				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
@@ -3232,6 +3245,7 @@
                 5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
                 5A5CF0E10000000000000009 /* FuelDEFChecklistHostedTests.swift in Sources */,
 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
+				5A7B000000000000000000C1 /* QueueLineBoardHostedTests.swift in Sources */,
 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
