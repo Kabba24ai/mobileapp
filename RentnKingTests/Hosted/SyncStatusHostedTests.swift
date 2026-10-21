@@ -196,7 +196,10 @@ final class SyncStatusHostedTests: XCTestCase {
         // No role, password or approval step: the Remove button is there for whoever is signed in,
         // and it asks exactly once.
         try XCTUnwrap(find(UIButton.self, id: "sync.review.remove", in: review.view)).sendActions(for: .touchUpInside)
-        poll("confirmation") { review.presentedViewController is UIAlertController }
+        poll("confirmation on screen") {
+            guard let alert = review.presentedViewController as? UIAlertController else { return false }
+            return !alert.isBeingPresented && alert.view.window != nil
+        }
         let confirm = try XCTUnwrap(review.presentedViewController as? UIAlertController)
         XCTAssertEqual(confirm.title, "Remove this record from the phone?")
         XCTAssertEqual(confirm.actions.map(\.title), ["Keep It", "Remove"])
@@ -205,13 +208,15 @@ final class SyncStatusHostedTests: XCTestCase {
         typealias Handler = @convention(block) (UIAlertAction) -> Void
         let removeAction = try XCTUnwrap(confirm.actions.first { $0.style == .destructive })
         let handler = unsafeBitCast(try XCTUnwrap(removeAction.value(forKey: "handler") as AnyObject?), to: Handler.self)
+        // What UIKit does on a tap: the alert goes away, then the action runs.
         confirm.dismiss(animated: false)
+        poll("confirmation dismissed") { review.presentedViewController == nil }
         handler(removeAction)
 
         XCTAssertNil(engine.operation(id: refused.id), "removed")
         XCTAssertEqual(value.text, "Nothing to sync", "the Needs Attention count drops at once")
         RunLoop.current.run(until: Date().addingTimeInterval(0.3))
-        XCTAssertFalse(review.presentedViewController is UIAlertController, "no second confirmation")
+        XCTAssertNil(review.presentedViewController, "no second confirmation")
         XCTAssertEqual(log.entries().map(\.operationId), [refused.id])
     }
 }
