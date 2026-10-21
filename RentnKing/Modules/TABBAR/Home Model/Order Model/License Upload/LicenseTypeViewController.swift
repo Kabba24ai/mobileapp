@@ -36,6 +36,8 @@ class LicenseTypeViewController: UIViewController, UIGestureRecognizerDelegate {
     var selectIndex : Int = -1
     var strSelectedEmpID = ""
     var arrEmployesList : [EmployeesModel] = []
+    /// Sides photographed on the screen before this one (only those, or new details, are re-sent).
+    var changedSides: Set<String> = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -103,12 +105,54 @@ class LicenseTypeViewController: UIViewController, UIGestureRecognizerDelegate {
         
         //SET THE VIEW
         self.setTheView()
-        
+
+        // MOBILE-QUALITY-01 (item 06): the expiration and employee saved on this phone are shown
+        // again — they used to be lost the moment the screen closed.
+        self.prefillSavedLicenseDetails()
         
         //GET EMPLOYEE LIST DATA
         getEmployeeList { arr_data in
             self.arrEmployesList = arr_data
+            self.prefillSavedLicenseDetails()
         }
+    }
+
+    /// Fills empty fields from the license saved on this phone (Sync Engine copy).
+    func prefillSavedLicenseDetails() {
+        guard KabbaSync.isReady else { return }
+        let local = KabbaMediaSync.localLicense(orderUniqueId: self.strOrderID)
+        if (self.txtMonth.text ?? "").isEmpty, (self.txtYear.text ?? "").isEmpty,
+           let parts = Self.monthAndYear(LocalLicense.expiryDate(local)) {
+            self.txtMonth.text = parts.month
+            self.txtYear.text = parts.year
+        }
+        let savedEmployee = local["front"]?.autoInjectBy ?? local["back"]?.autoInjectBy
+        if self.strSelectedEmpID.isEmpty, let id = savedEmployee {
+            self.strSelectedEmpID = id
+        }
+        if (self.txtLicenseType.text ?? "").isEmpty, !self.strSelectedEmpID.isEmpty,
+           let employee = self.arrEmployesList.first(where: { "\($0.id ?? 0)" == self.strSelectedEmpID }) {
+            self.txtLicenseType.text = employee.name
+        }
+    }
+
+    /// Month names the picker offers AND formattedDate(month:year:) reads: always English
+    /// ("Jan"…"Dec"). The picker used the phone's language, so on a non-English phone the
+    /// expiration silently became empty.
+    static var monthSymbols: [String] {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.shortMonthSymbols ?? []
+    }
+
+    /// "2028-04-01" → ("Apr", "2028").
+    static func monthAndYear(_ expiry: String?) -> (month: String, year: String)? {
+        guard let expiry = expiry else { return nil }
+        let parts = expiry.split(separator: "-")
+        guard parts.count >= 2, let month = Int(parts[1]), (1...12).contains(month), parts[0].count == 4 else { return nil }
+        let symbols = monthSymbols
+        guard symbols.count == 12 else { return nil }
+        return (symbols[month - 1], String(parts[0]))
     }
     
     //SET THE VIEW
@@ -172,8 +216,7 @@ extension LicenseTypeViewController {
     @IBAction func btnSelectMonthClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
-        let formatter = DateFormatter()
-        let arrMonth = formatter.shortMonthSymbols ?? []
+        let arrMonth = Self.monthSymbols
         
         actionPicker(sender, strTitle: "Select Month", arrData: arrMonth, selectValue: "") { index, selectValue in
             
@@ -212,28 +255,27 @@ extension LicenseTypeViewController {
             showAlertMessage(strMessage: "Please select year.")
         }
         else if KabbaSync.isReady {
-            // Phase 4: two durable license_media.upload operations carrying the expiry date and the
+            // Phase 4: durable license_media.upload operations carrying the expiry date and the
             // auto-inject attribution — protected storage, stable client ids, offline-safe.
-            var strExpDate = ""
-            if let result = formattedDate(month: strMonth, year: strYear) { strExpDate = result }
-            guard let front = self.imgFront.jpegData(compressionQuality: 0.25),
-                  let back = self.imgBack.jpegData(compressionQuality: 0.25) else {
-                showAlertMessage(strMessage: "The license images could not be saved. Please retake them.")
+            // MOBILE-QUALITY-01 (item 06): only what changed is queued (a waiting copy is replaced),
+            // a ~1 s confirmation that needs no tap, then straight back to Order Details.
+            guard let strExpDate = formattedDate(month: strMonth, year: strYear) else {
+                showAlertMessage(strMessage: "The expiration date could not be read. Please select the month and year again.")
                 return
             }
+            let save: KabbaMediaSync.LicenseSave
             do {
-                _ = try KabbaMediaSync.enqueueLicense(jpeg: front, side: "front", orderUniqueId: self.strOrderID,
-                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID)
-                _ = try KabbaMediaSync.enqueueLicense(jpeg: back, side: "back", orderUniqueId: self.strOrderID,
-                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID)
+                save = try KabbaMediaSync.saveLicense(orderUniqueId: self.strOrderID, changedSides: self.changedSides,
+                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID) { side in
+                    (side == "front" ? self.imgFront : self.imgBack).jpegData(compressionQuality: 0.25)
+                }
             } catch {
+                // Not on the phone: say so and stay — never a success message, never navigation.
                 showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
                 return
             }
-            showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                self.routeAfterSave()
-            }
+            self.changedSides = []
+            KabbaSync.confirmSavedOnPhone(KabbaMediaSync.licenseSavedMessage(save)) { self.routeAfterSave() }
         }
         else {
             //CALL API

@@ -138,4 +138,66 @@ enum KabbaMediaSync {
         guard let item = pendingItems(orderUniqueId: orderUniqueId, kind: .license).last(where: { $0.side == side }) else { return nil }
         return try? Data(contentsOf: item.fileURL)
     }
+
+    // MARK: Driver's license on this phone (MOBILE-QUALITY-01, item 06)
+
+    /// The latest local copy of each license side for the order — what the license screens show
+    /// before anything the order record says (see LocalLicense).
+    static func localLicense(orderUniqueId: String) -> [String: LocalLicenseSide] {
+        guard let engine = engine else { return [:] }
+        return LocalLicense.sides(orderUniqueId: orderUniqueId, operations: engine.snapshot())
+    }
+
+    /// The image bytes of a local copy, while the phone still holds the file.
+    static func licenseImageData(_ copy: LocalLicenseSide) -> Data? {
+        guard let engine = engine, let asset = copy.asset else { return nil }
+        return try? Data(contentsOf: SyncAssetWriter.url(of: asset, in: engine.store.assetsDirectory))
+    }
+
+    struct LicenseSave: Equatable {
+        /// Sides queued by this save ("front" / "back"); empty = everything was already on this phone.
+        let queuedSides: [String]
+        let operationIds: [String]
+    }
+
+    /// The license screens' one Save. Queues only the sides that need it (a changed image, or
+    /// license details the side's copy does not carry yet); a copy of the same side still
+    /// WAITING to send is replaced by the new one instead of uploaded twice. The new copy is
+    /// durable before the old one is retired. Throws when the phone could not store it —
+    /// nothing may be called saved then.
+    static func saveLicense(orderUniqueId: String,
+                            changedSides: Set<String>,
+                            licenseExpiryDate: String? = nil,
+                            autoInjectBy: String? = nil,
+                            jpeg: (String) -> Data?) throws -> LicenseSave {
+        guard let engine = engine else { throw Failure.engineUnavailable }
+        let before = engine.snapshot()
+        let existing = LocalLicense.sides(orderUniqueId: orderUniqueId, operations: before)
+        let sides = LocalLicense.sidesToQueue(changed: changedSides, expiryDate: licenseExpiryDate,
+                                              autoInjectBy: autoInjectBy, existing: existing)
+        // Encode every side first: a side that cannot be stored stops the save before anything is queued.
+        var bytes: [String: Data] = [:]
+        for side in sides {
+            guard let data = jpeg(side), !data.isEmpty else { throw Failure.encodingFailed }
+            bytes[side] = data
+        }
+        var ids: [String] = []
+        for side in sides {
+            let replaced = LocalLicense.replacedBy(side: side, orderUniqueId: orderUniqueId, operations: before)
+            let op = try enqueueLicense(jpeg: bytes[side]!, side: side, orderUniqueId: orderUniqueId,
+                                        licenseExpiryDate: licenseExpiryDate, autoInjectBy: autoInjectBy)
+            ids.append(op.id)
+            // An older copy already being sent stays (Laravel keeps the last image per side).
+            for id in replaced { _ = try? engine.remove(operationId: id) }
+        }
+        if !ids.isEmpty { NotificationCenter.default.post(name: .kabbaSyncQueueChanged, object: nil) }
+        return LicenseSave(queuedSides: sides, operationIds: ids)
+    }
+
+    /// The confirmation a license save shows (non-blocking, ~1 s): it never says Kabba has it.
+    static func licenseSavedMessage(_ save: LicenseSave) -> String {
+        save.queuedSides.isEmpty
+            ? "Driver's license already saved on this phone."
+            : "Driver's license saved on this phone. Will sync when available."
+    }
 }

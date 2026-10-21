@@ -148,6 +148,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
 
     /// Seams (hosted tests inject; production reads the engine and the caches).
     var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    /// One order refresh per burst of license sides reaching Kabba (MOBILE-QUALITY-01, item 06).
+    private var licenseRefresh: DispatchWorkItem?
     var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     var cachedChecklistContext: (String) -> ChecklistContext? = { KabbaSync.checklistContexts?.cached(orderProductUniqueId: $0, leg: .delivery) }
     /// Next Stop test seam: the post-completion success animation.
@@ -172,6 +174,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         // needs attention) the moment it changes, so what the driver sees and
         // what the completion gate judges are never two different snapshots.
         NotificationCenter.default.addObserver(self, selector: #selector(syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(syncOperationDidChange(_:)), name: .kabbaSyncOperationChanged, object: nil)
 
         //UPDATE NOTIFICTION
         GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: self.OrderID))
@@ -934,6 +937,25 @@ extension OrderDetailsViewController {
         guard self.objOrderData != nil, self.isViewLoaded else { return }
         self.setFooter()
         if missionBarInstalled { self.updateMissionBar() }
+    }
+
+    /// A driver's license saved on this phone for THIS order just reached Kabba: refresh the
+    /// order once so its license is Kabba's copy — nobody has to re-enter or reopen anything.
+    @objc func syncOperationDidChange(_ note: Notification) {
+        guard note.userInfo?["state"] as? String == SyncState.synced.rawValue,
+              let id = note.userInfo?["operationId"] as? String,
+              let op = KabbaSync.engine?.operation(id: id),
+              op.type == EffectiveFieldState.licenseMediaType,
+              !self.strOrderUniqueId.isEmpty, op.identity.orderUniqueId == self.strOrderUniqueId,
+              self.isViewLoaded else { return }
+        licenseRefresh?.cancel()
+        let refresh = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.isLoading = false
+            self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
+        }
+        licenseRefresh = refresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: refresh)
     }
 }
 

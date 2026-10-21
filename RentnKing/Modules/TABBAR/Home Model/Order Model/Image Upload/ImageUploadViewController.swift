@@ -506,17 +506,17 @@ extension ImageUploadViewController {
         else{
             //SUCCESS — saved durably on this phone; the Sync Engine uploads it (Pending Sync until Kabba confirms).
             indicatorHide()
-            showAlertMessage(strMessage: KabbaSync.isReady ? "Saved on this phone · Pending Sync" : "Uploaded Successfully", isDismiss: true)
-           
+
             //UPLOAD LOCAL DATA
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
                 GlobalMainConstants.appDelegate?.uploadAllData()
             }
-            
-            
-            if self.isQueueLine == false, self.returnedToReview == false {
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+            // MOBILE-QUALITY-01 (item 06): a non-blocking confirmation instead of an alert that
+            // was presented while the screen was already leaving; the legacy single pop is at once.
+            let saved = KabbaSync.isReady ? "Saved on this phone. Will sync when available." : "Uploaded Successfully"
+            KabbaSync.confirmSavedOnPhone(saved) {
+                if self.isQueueLine == false, self.returnedToReview == false {
                     self.navigationController?.popViewController(animated: true)
                 }
             }

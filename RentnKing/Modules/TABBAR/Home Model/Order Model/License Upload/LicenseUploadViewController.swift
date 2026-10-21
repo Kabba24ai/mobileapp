@@ -51,6 +51,14 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
     var isSelctFrontImage : Bool = false
     var strOrderID : String = ""
     var arrLicense : [LicenseModel] = []
+    /// Sides the employee photographed on this visit — only these (or new license details)
+    /// are queued again; reopening and saving never uploads the same license twice.
+    var changedSides: Set<String> = []
+    private var syncObserver: NSObjectProtocol?
+
+    deinit {
+        if let syncObserver = syncObserver { NotificationCenter.default.removeObserver(syncObserver) }
+    }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -60,6 +68,11 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         // Do any additional setup after loading the view.
         
         self.setTheView()
+
+        // The badge follows the copy on this phone: Pending Sync → Synced / Needs Attention.
+        syncObserver = NotificationCenter.default.addObserver(forName: .kabbaSyncOperationChanged, object: nil, queue: .main) { [weak self] _ in
+            self?.refreshLicenseStatus()
+        }
         
         //GET DATA
 //        self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderID, product_id: ""))
@@ -135,22 +148,15 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
         self.lblSecond.configureLable(textColor: .lightGray, fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, fontSize: 14.0, text: str.strUplodSecod)
         
         //SET IMAGE
-        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
-
-        // Phase 4: a licence still waiting on this phone (Sync Engine) previews here only — this
-        // capture screen is the one place the image is ever shown; Sync Status never renders it.
-        if arrData.isEmpty {
-            if let data = KabbaMediaSync.pendingLicenseData(orderUniqueId: self.strOrderID, side: "front"), let img = UIImage(data: data) {
-                self.viewEditFront.isHidden = false
-                self.imgFront.image = img
-                self.imgFront.backgroundColor = .white
-            }
-            if let data = KabbaMediaSync.pendingLicenseData(orderUniqueId: self.strOrderID, side: "back"), let img = UIImage(data: data) {
-                self.viewEditBack.isHidden = false
-                self.imgBack.image = img
-                self.imgBack.backgroundColor = .white
-            }
+        // MOBILE-QUALITY-01 (item 06): with the Sync Engine, the license THIS PHONE saved wins
+        // over the order record — an older or empty server copy never hides it — and each side
+        // says where it stands (Pending Sync / Needs Attention / Synced), with its expiration.
+        if KabbaSync.isReady {
+            self.renderSavedLicense()
+            return
         }
+
+        let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderID, strType: uploadType.image.rawValue)
         
         if arrData.count != 0 {
             
@@ -261,26 +267,25 @@ extension LicenseUploadViewController {
             showAlertMessage(strMessage: "Please upload the back of your license.")
         }
         else if KabbaSync.isReady {
-            // Phase 4: both sides go straight into the Sync Engine's protected storage as two durable
-            // license_media.upload operations (stable client ids, replayed by Kabba, removed from the
-            // phone only after acceptance). Nothing is written to the legacy LicenseUpload folder.
-            guard let front = (self.imgFront.image ?? UIImage()).jpegData(compressionQuality: 0.25),
-                  let back = (self.imgBack.image ?? UIImage()).jpegData(compressionQuality: 0.25) else {
-                showAlertMessage(strMessage: "The license images could not be saved. Please retake them.")
-                return
-            }
+            // Phase 4: each side lives in the Sync Engine's protected storage as a durable
+            // license_media.upload operation (stable client ids, replayed by Kabba, removed from
+            // the phone only after acceptance). MOBILE-QUALITY-01 (item 06): only a side that
+            // changed is queued; a waiting copy is replaced, never uploaded twice.
+            let save: KabbaMediaSync.LicenseSave
             do {
-                _ = try KabbaMediaSync.enqueueLicense(jpeg: front, side: "front", orderUniqueId: self.strOrderID)
-                _ = try KabbaMediaSync.enqueueLicense(jpeg: back, side: "back", orderUniqueId: self.strOrderID)
+                save = try KabbaMediaSync.saveLicense(orderUniqueId: self.strOrderID, changedSides: self.changedSides) { side in
+                    (side == "front" ? self.imgFront.image : self.imgBack.image)?.jpegData(compressionQuality: 0.25)
+                }
             } catch {
+                // Not on the phone: say so and stay — never a success message, never navigation.
                 showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
                 return
             }
-            showAlertMessage(strMessage: "License saved on this phone · Pending Sync")
+            self.changedSides = []
             self.delegate?.linceUploadSucess(selectIndex: self.selectIndex, arrImage: [])
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
-                self.routeAfterSave()
-            }
+            // Non-blocking (~1 s, no button) and straight back to Order Details — no alert to
+            // dismiss, nothing for a pop to race with. Sync continues on its own.
+            KabbaSync.confirmSavedOnPhone(KabbaMediaSync.licenseSavedMessage(save)) { self.routeAfterSave() }
         }
         else{
             //CALL API
@@ -322,6 +327,7 @@ extension LicenseUploadViewController {
                 newViewController.selectIndex = self.selectIndex
                 newViewController.imgFront = self.imgFront.image ?? UIImage()
                 newViewController.imgBack = self.imgBack.image ?? UIImage()
+                newViewController.changedSides = self.changedSides
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
@@ -447,12 +453,16 @@ extension LicenseUploadViewController: UIImagePickerControllerDelegate, UINaviga
                         self.imgFront.backgroundColor = .primary
                         self.imgFront.image = PickedImage
                         self.viewEditFront.isHidden = false
+                        self.changedSides.insert("front")
+                        self.setLicenseBadge(nil, on: self.imgFront)
 
                     }
                     else{
                         self.imgBack.backgroundColor = .primary
                         self.imgBack.image = PickedImage
                         self.viewEditBack.isHidden = false
+                        self.changedSides.insert("back")
+                        self.setLicenseBadge(nil, on: self.imgBack)
 
                     }
                 }
@@ -472,11 +482,15 @@ extension LicenseUploadViewController: UIImagePickerControllerDelegate, UINaviga
                 self.imgFront.backgroundColor = .primary
                 self.imgFront.image = image
                 self.viewEditFront.isHidden = false
+                self.changedSides.insert("front")
+                self.setLicenseBadge(nil, on: self.imgFront)
             }
             else{
                 self.imgBack.backgroundColor = .primary
                 self.imgBack.image = image
                 self.viewEditBack.isHidden = false
+                self.changedSides.insert("back")
+                self.setLicenseBadge(nil, on: self.imgBack)
             }
         }
     }
@@ -525,3 +539,123 @@ extension LicenseUploadViewController {
     }
 }
 
+// MARK: - The license saved on this phone (MOBILE-QUALITY-01, item 06)
+extension LicenseUploadViewController {
+
+    private static let badgeTag = 0x4C1C
+    private static let expiryTag = 0x4C2A   // never badgeTag + 0 or + 1 (front / back badges)
+
+    /// Each side: the copy saved on this phone (Pending Sync / Needs Attention — kept for review),
+    /// else Kabba's copy of what this phone synced, else the order record. Plus the expiration.
+    func renderSavedLicense() {
+        let local = KabbaMediaSync.localLicense(orderUniqueId: self.strOrderID)
+        for (side, imageView, editView) in [("front", self.imgFront!, self.viewEditFront!), ("back", self.imgBack!, self.viewEditBack!)] {
+            if let copy = local[side] {
+                var shown = false
+                if let data = KabbaMediaSync.licenseImageData(copy), let image = UIImage(data: data) {
+                    imageView.image = image
+                    shown = true
+                } else if let url = copy.serverMediaURL ?? serverLicenseURL(side: side) {
+                    imageView.setImageURL(strImg: url)
+                    shown = true
+                }
+                if shown {
+                    editView.isHidden = false
+                    imageView.backgroundColor = .white
+                }
+                setLicenseBadge(copy, on: imageView)
+            } else if let url = serverLicenseURL(side: side) {
+                editView.isHidden = false
+                imageView.setImageURL(strImg: url)
+                imageView.backgroundColor = .white
+                setLicenseBadge(nil, on: imageView)
+            }
+        }
+        setExpiry(LocalLicense.displayExpiry(LocalLicense.expiryDate(local)))
+    }
+
+    /// Live: the badges follow the sync state without re-entering anything.
+    func refreshLicenseStatus() {
+        guard isViewLoaded, KabbaSync.isReady else { return }
+        let local = KabbaMediaSync.localLicense(orderUniqueId: self.strOrderID)
+        for (side, imageView) in [("front", self.imgFront!), ("back", self.imgBack!)] where !changedSides.contains(side) {
+            setLicenseBadge(local[side], on: imageView)
+        }
+        setExpiry(LocalLicense.displayExpiry(LocalLicense.expiryDate(local)))
+    }
+
+    private func serverLicenseURL(side: String) -> String? {
+        let match = arrLicense.first(where: { $0.side?.lowercased() == side })
+            ?? (side == "front" ? arrLicense.first : (arrLicense.count > 1 ? arrLicense[1] : nil))
+        guard let url = match?.media_url, !url.isEmpty else { return nil }
+        return url
+    }
+
+    func setLicenseBadge(_ copy: LocalLicenseSide?, on imageView: UIImageView) {
+        let host = imageView.superview ?? imageView
+        let label = (host.viewWithTag(Self.badgeTag + (imageView === imgFront ? 0 : 1)) as? UILabel) ?? {
+            let l = LicenseBadgeLabel()
+            l.tag = Self.badgeTag + (imageView === imgFront ? 0 : 1)
+            l.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 12)
+            l.textColor = .white
+            l.layer.cornerRadius = 6
+            l.layer.masksToBounds = true
+            l.translatesAutoresizingMaskIntoConstraints = false
+            host.addSubview(l)
+            NSLayoutConstraint.activate([
+                l.topAnchor.constraint(equalTo: imageView.topAnchor, constant: 6),
+                l.trailingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: -6),
+            ])
+            return l
+        }()
+        guard let copy = copy, !copy.statusLabel.isEmpty else {
+            label.isHidden = true
+            return
+        }
+        label.text = copy.statusLabel
+        label.accessibilityIdentifier = "license.status.\(copy.side)"
+        label.accessibilityLabel = "\(copy.side.capitalized) image: \(copy.statusLabel)"
+        switch copy.state {
+        case .needsAttention: label.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.92)
+        case .synced:         label.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.92)
+        default:              label.backgroundColor = UIColor.secondary.withAlphaComponent(0.92)
+        }
+        label.isHidden = false
+        host.bringSubviewToFront(label)
+    }
+
+    private func setExpiry(_ text: String?) {
+        guard let imageView = self.imgBack else { return }
+        let host = imageView.superview ?? imageView
+        let label = (host.viewWithTag(Self.expiryTag) as? UILabel) ?? {
+            let l = LicenseBadgeLabel()
+            l.tag = Self.expiryTag
+            l.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12)
+            l.textColor = .white
+            l.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+            l.layer.cornerRadius = 6
+            l.layer.masksToBounds = true
+            l.accessibilityIdentifier = "license.expiry"
+            l.translatesAutoresizingMaskIntoConstraints = false
+            host.addSubview(l)
+            NSLayoutConstraint.activate([
+                l.bottomAnchor.constraint(equalTo: imageView.bottomAnchor, constant: -6),
+                l.leadingAnchor.constraint(equalTo: imageView.leadingAnchor, constant: 6),
+            ])
+            return l
+        }()
+        label.text = text.map { "Expires \($0)" }
+        label.isHidden = text == nil
+        host.bringSubviewToFront(label)
+    }
+}
+
+/// A label with a little room around its text (status badges over the license images).
+private final class LicenseBadgeLabel: UILabel {
+    var insets = UIEdgeInsets(top: 3, left: 7, bottom: 3, right: 7)
+    override func drawText(in rect: CGRect) { super.drawText(in: rect.inset(by: insets)) }
+    override var intrinsicContentSize: CGSize {
+        let size = super.intrinsicContentSize
+        return CGSize(width: size.width + insets.left + insets.right, height: size.height + insets.top + insets.bottom)
+    }
+}
