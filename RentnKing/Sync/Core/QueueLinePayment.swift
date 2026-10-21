@@ -9,9 +9,10 @@
 //  in full, No Cost, or On Account for an approved credit account = Paid; anything
 //  still to collect = Pending; unknown or inconsistent = Pending, flagged for review).
 //  The phone never re-implements it. A board served before that classification
-//  existed only has the latest payment row's raw status (payment_label); then only
-//  "Paid" reads Paid — everything else, On Account included, is Pending: the phone
-//  cannot tell an approved account from an unapproved one, so it never guesses Paid.
+//  existed only has the latest payment row's raw status (payment_label), which says
+//  nothing about the whole order (a deposit's latest row can read "Paid"; On Account
+//  needs the customer's approval): there, every card is Pending — the phone never
+//  guesses Paid. Kabba's classification must be deployed for Paid to appear.
 //  Operational priority only; nothing here is a financial record.
 //
 
@@ -43,8 +44,9 @@ struct QueueLinePaymentBadge: Equatable {
         case "pending":
             return QueueLinePaymentBadge(isPaid: false, needsReview: needsReview ?? false, reviewReason: reviewReason)
         case nil, "":
-            let legacy = legacyLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            return QueueLinePaymentBadge(isPaid: legacy == "paid", needsReview: false, reviewReason: nil)
+            // An older Kabba: no order-level classification — conservatively Pending.
+            _ = legacyLabel
+            return QueueLinePaymentBadge(isPaid: false, needsReview: false, reviewReason: nil)
         default:
             // A classification this app does not know: never Paid.
             return QueueLinePaymentBadge(isPaid: false, needsReview: true, reviewReason: "Unrecognised payment status \(status ?? "")")

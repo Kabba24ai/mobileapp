@@ -117,6 +117,8 @@ final class QueueLineBoardHostedTests: XCTestCase {
         XCTAssertEqual(link.attributedTitle(for: .normal)?.string, "#5100")
         XCTAssertEqual(link.accessibilityLabel, "Open order #5100")
         link.sendActions(for: .touchUpInside)
+        link.sendActions(for: .touchUpInside)       // a double tap
+        XCTAssertEqual(nav.viewControllers.count, 2, "a double tap opens Order Details once")
 
         let details = try XCTUnwrap(nav.topViewController as? OrderDetailsViewController, "the app's own Order Details, never a browser")
         XCTAssertEqual(details.strOrderUniqueId, "ORD-MQ01-10")

@@ -66,6 +66,8 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     // Order links (MOBILE-QUALITY-01, item 07): where the board was when an order was opened
     // from it — restored on the re-render that follows the return, for the same tab.
     private var scrollToRestore: (tab: Int, offset: CGPoint)?
+    /// One Order Details at a time from a card (a double tap never pushes it twice).
+    private var isOpeningOrder = false
 
     // Filters (2026-09-13): Delivery Store is sticky (UserDefaults), Type is per visit.
     // Applied at render time over the ONE cached feed — never a second feed per store.
@@ -96,6 +98,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         headerStack.addArrangedSubview(freshnessLabel)
         headerStack.setCustomSpacing(6, after: freshnessLabel)
         updateFreshnessLine()
+
+        // The employee scrolling takes over: a pending restore never jumps them back.
+        scrollView.panGestureRecognizer.addTarget(self, action: #selector(boardWasScrolled(_:)))
 
         // Re-render when a queued staging command changes state (synced, needs attention…).
         syncObserver = NotificationCenter.default.addObserver(forName: .kabbaSyncQueueChanged, object: nil, queue: .main) { [weak self] _ in
@@ -318,9 +323,14 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         isOpeningChecklist = false
     }
 
+    @objc private func boardWasScrolled(_ pan: UIPanGestureRecognizer) {
+        if pan.state == .began { scrollToRestore = nil }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         finishOpeningChecklist()   // back on the board: the Update button is tappable again
+        isOpeningOrder = false     // … and so are the order links
         AppUtility.PortraitMode()
         self.view.backgroundColor = Palette.page
         setNeedsStatusBarAppearanceUpdate()
@@ -990,9 +1000,13 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         button.setAttributedTitle(NSAttributedString(string: title, attributes: [
             .font: font, .foregroundColor: Palette.cyan, .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]), for: .normal)
-        button.contentEdgeInsets = .zero
+        // Without an order to open it reads as plain text, not a link.
+        button.setAttributedTitle(NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: Palette.ink]), for: .disabled)
+        // A finger-sized target inside the header's existing height (the Update button sets it).
+        button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 4)
         button.setContentHuggingPriority(.required, for: .horizontal)
-        button.setContentCompressionResistancePriority(.required, for: .horizontal)
+        // The customer name gives way first; the RUSH / sync / transit badges are never squeezed by it.
+        button.setContentCompressionResistancePriority(UILayoutPriority(760), for: .horizontal)
         button.accessibilityLabel = "Open order \(title)"
         button.accessibilityIdentifier = "queueLine.order.\(item.itemOrderProductUniqueId)"
         button.isEnabled = !item.itemOrderUniqueId.isEmpty
@@ -1001,8 +1015,8 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     }
 
     @objc private func orderNumberTapped(_ sender: UIButton) {
-        guard let item = (sender as? QueueMenuButton)?.item, !isOpeningChecklist else { return }
-        openOrderDetails(for: item)
+        guard let item = (sender as? QueueMenuButton)?.item, !isOpeningChecklist, !isOpeningOrder else { return }
+        if openOrderDetails(for: item) != nil { isOpeningOrder = true }
     }
 
     /// Opens the order's existing Order Details over the board (the same screen the Orders

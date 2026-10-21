@@ -34,8 +34,9 @@ final class QueueLinePaymentTests: XCTestCase {
     }
 
     func testAnOlderBoardFallsBackConservatively() {
-        XCTAssertTrue(QueueLinePaymentBadge.resolve(status: nil, needsReview: nil, reviewReason: nil, legacyLabel: "Paid").isPaid)
-        for legacy: String? in ["Account", "Partial Payment", "Pending", "No Payment Recorded", "Invoice Cash", nil, ""] {
+        // The latest row's raw status says nothing about the whole order (a deposit's latest row can
+        // read "Paid"), so without Kabba's classification every card is Pending.
+        for legacy: String? in ["Paid", "Account", "Partial Payment", "Pending", "No Payment Recorded", "Invoice Cash", nil, ""] {
             let badge = QueueLinePaymentBadge.resolve(status: nil, needsReview: nil, reviewReason: nil, legacyLabel: legacy)
             XCTAssertFalse(badge.isPaid, "\(String(describing: legacy)) must not read Paid without Kabba's classification")
             XCTAssertEqual(badge.text, "Pending")
