@@ -36,8 +36,20 @@ struct SyncRemovedRecord: Codable, Equatable, Identifiable {
     let requestId: String?
     /// Counts only, e.g. "12 checklist answers · 3 photos · a signature".
     let contentsSummary: String
+    /// Kabba's HTTP answer when it refused it (nil = Kabba never answered). Additive.
+    var statusCode: Int? = nil
+    /// Why it went, when it was not a review decision (e.g. replaced by a newer copy). Additive.
+    var reason: String? = nil
 
-    static func of(_ op: SyncOperation, removedAt: Date, byUserId: String?, byName: String?) -> SyncRemovedRecord {
+    /// What can be said about Kabba for this record, from what was stored when it was removed.
+    var kabbaLine: String {
+        if stateWhenRemoved == .needsAttention {
+            return statusCode != nil || errorCode != nil ? "Kabba refused it\(errorCode.map { " (\($0))" } ?? "")." : "This phone could not send it."
+        }
+        return "Kabba had not confirmed it."
+    }
+
+    static func of(_ op: SyncOperation, removedAt: Date, byUserId: String?, byName: String?, reason: String? = nil) -> SyncRemovedRecord {
         SyncRemovedRecord(operationId: op.id,
                           type: op.type,
                           title: op.displayTitle ?? op.type,
@@ -49,7 +61,9 @@ struct SyncRemovedRecord: Codable, Equatable, Identifiable {
                           stateWhenRemoved: op.state,
                           errorCode: op.attempts.lastErrorCode,
                           requestId: op.attempts.lastRequestId,
-                          contentsSummary: SyncRecordContents.of(op).summary)
+                          contentsSummary: SyncRecordContents.of(op).summary,
+                          statusCode: op.attempts.lastStatusCode,
+                          reason: reason)
     }
 }
 

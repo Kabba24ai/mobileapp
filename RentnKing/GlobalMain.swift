@@ -1637,12 +1637,19 @@ func formattedOrderID(_ id: Int) -> String {
 
 
 func formattedDate(month: String, year: String) -> String? {
+    // Gregorian + POSIX + one time zone on both sides (MOBILE-QUALITY-01): on a phone set to
+    // another calendar the year came out wrong, and a local zone could shift the day.
     let inputFormatter = DateFormatter()
     inputFormatter.dateFormat = "MMM yyyy"
     inputFormatter.locale = Locale(identifier: "en_US_POSIX")
+    inputFormatter.calendar = Calendar(identifier: .gregorian)
+    inputFormatter.timeZone = TimeZone(identifier: "UTC")
 
     let outputFormatter = DateFormatter()
     outputFormatter.dateFormat = "yyyy-MM-dd"
+    outputFormatter.locale = Locale(identifier: "en_US_POSIX")
+    outputFormatter.calendar = Calendar(identifier: .gregorian)
+    outputFormatter.timeZone = TimeZone(identifier: "UTC")
 
     if let date = inputFormatter.date(from: "\(month) \(year)") {
         return outputFormatter.string(from: date)

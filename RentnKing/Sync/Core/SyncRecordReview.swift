@@ -36,13 +36,15 @@ enum SyncRecordProblem: Equatable {
     case paused
     /// Kabba refused it permanently. It is never retried automatically; a person decides.
     case rejected
+    /// This phone parked it without Kabba ever answering (it could not be prepared or sent).
+    case parkedOnPhone
 
     static func of(_ op: SyncOperation) -> SyncRecordProblem {
         switch op.state {
         case .synced, .superseded:
             return .none
         case .needsAttention:
-            return .rejected
+            return op.attempts.lastStatusCode == nil ? .parkedOnPhone : .rejected
         case .syncing:
             return .waiting
         case .pending:
@@ -56,6 +58,45 @@ enum SyncRecordProblem: Equatable {
                 // Never tried, or put back by Try Again: simply queued.
                 return .waiting
             }
+        }
+    }
+}
+
+// MARK: - What Kabba knows about it
+
+/// What can honestly be said about whether Kabba has this record — the words on the review
+/// screen, the removal confirmation and the removal trace come from here, never a blanket claim.
+enum SyncKabbaKnowledge: Equatable {
+    /// Kabba answered and refused it: nothing of it is stored on Kabba.
+    case refused
+    /// It never reached Kabba (never sent, parked on this phone, or only "no connection" failures).
+    case notReceived
+    /// A request went out but no answer came back (timeout, dropped connection, unreadable or
+    /// server-error reply): Kabba MAY already have it.
+    case uncertain
+
+    static func of(_ op: SyncOperation) -> SyncKabbaKnowledge {
+        if op.state == .needsAttention {
+            return op.attempts.lastStatusCode == nil ? .notReceived : .refused
+        }
+        guard op.attempts.attemptCount > 0 else { return .notReceived }
+        if let transport = op.attempts.lastTransportFailure {
+            switch transport {
+            case .offline, .dns, .cannotConnect, .tls, .cancelled: return .notReceived
+            case .timeout, .connectionLost, .other: return .uncertain
+            }
+        }
+        // A reply Kabba sent but this phone could not read, or a server error: it may be applied.
+        if op.attempts.lastDisposition == .retry { return .uncertain }
+        return .notReceived
+    }
+
+    /// One sentence for the "saved on this phone" card and the removal confirmation.
+    var sentence: String {
+        switch self {
+        case .refused:     return "Kabba refused this record, so none of it is stored on Kabba."
+        case .notReceived: return "Kabba has not received any of this."
+        case .uncertain:   return "This may already have reached Kabba — the connection ended before Kabba answered. Check the order before removing it."
         }
     }
 }
@@ -304,6 +345,8 @@ struct SyncRecordReview: Equatable {
     let contents: SyncRecordContents
     /// The office also sees this rejection under Mobile Sync Issues.
     let officeSees: Bool
+    /// Whether Kabba has it — refused, not received, or possibly received.
+    let knowledge: SyncKabbaKnowledge
     /// What this phone will show differently once the record is removed.
     let removalConsequence: String
     /// A person may remove it: rejected, or still waiting (never while it is being sent,
@@ -321,9 +364,10 @@ struct SyncRecordReview: Equatable {
             operationId: op.id,
             title: op.displayTitle ?? op.type,
             problem: problem,
-            explanation: problem == .rejected ? SyncRejectionCatalog.explain(op) : nil,
+            explanation: (problem == .rejected || problem == .parkedOnPhone) ? SyncRejectionCatalog.explain(op) : nil,
             contents: SyncRecordContents.of(op),
             officeSees: SyncRejectionCatalog.officeSees(op),
+            knowledge: SyncKabbaKnowledge.of(op),
             removalConsequence: consequence(of: op),
             canRemove: isRemovable(op),
             canRetry: op.state == .needsAttention || op.state == .pending,
@@ -344,17 +388,17 @@ struct SyncRecordReview: Equatable {
         }()
         switch op.type {
         case "delivery_checklist.complete", "return_checklist.complete", "legacy_customer_checklist.submit":
-            return "This phone will show the \(leg) checklist as not completed, the same as Kabba."
+            return "This phone will show the \(leg) checklist as not completed."
         case "delivery_checklist.prepare", "return_checklist.prepare":
-            return "This phone will show the saved \(leg) checklist as not saved, the same as Kabba."
+            return "This phone will show the saved \(leg) checklist as not saved."
         case EffectiveFieldState.driverChecklistType:
-            return "This phone will show this driver step (for example On My Way or Arrived) as not recorded, the same as Kabba."
+            return "This phone will show this driver step (for example On My Way or Arrived) as not recorded."
         case "delivery_media.upload", "return_media.upload":
-            return "The file will be deleted from this phone. Kabba does not have it."
+            return "The file will be deleted from this phone."
         case EffectiveFieldState.licenseMediaType:
-            return "The license image will be deleted from this phone. Kabba does not have it."
+            return "The license image will be deleted from this phone."
         case EffectiveFieldState.termsAcceptedType, EffectiveFieldState.termsSignedType:
-            return "The customer's signature will be deleted from this phone. Kabba does not have it."
+            return "The customer's signature will be deleted from this phone."
         case "fulfillment_inputs.update":
             return "These checklist inputs will not be recorded; this phone will show them as not saved."
         case "manual_dispatch.update_status":
@@ -364,7 +408,7 @@ struct SyncRecordReview: Equatable {
         case "queue_line.availability", "queue_line.switch_equipment", "delivery_checklist.reset", "return_checklist.reset":
             return "This yard change will not be recorded; this phone will show the line as Kabba has it."
         default:
-            return "Kabba never received this record. Removing it deletes it from this phone."
+            return "Removing it deletes it from this phone."
         }
     }
 }

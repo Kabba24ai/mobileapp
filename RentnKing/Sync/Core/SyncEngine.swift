@@ -324,14 +324,15 @@ final class SyncEngine {
         onQueueSync { operations.values.sorted(by: Self.queueOrder) }
     }
 
-    /// Queue times are strictly increasing, at least a millisecond apart (MOBILE-QUALITY-01):
+    /// Queue times are strictly increasing, at least two milliseconds apart (MOBILE-QUALITY-01):
     /// records are stored with millisecond times, and several enqueues can land in the same
     /// millisecond — after a relaunch they tied and could be sent out of capture order. The
     /// nudge is never more than the enqueues in one burst; capturedAt (the real moment the
     /// work was done) is never touched. Engine queue only.
     private func nextQueuedAt() -> Date {
         let now = clock()
-        let next = max(now, lastQueuedAt.addingTimeInterval(0.001))
+        // 2 ms, not 1: stored with millisecond precision, two values must never format alike.
+        let next = max(now, lastQueuedAt.addingTimeInterval(0.002))
         lastQueuedAt = next
         return next
     }
@@ -472,12 +473,9 @@ final class SyncEngine {
     /// `fromDrain` = this result belongs to the request the drain loop is waiting on; an
     /// external (background-session) completion must never clear the drain flag.
     private func handle(_ result: SyncHTTPResult, operationId: String, handler: SyncOperationHandler, fromDrain: Bool) {
-        defer {
-            if fromDrain { draining = false }
-        }
-
         guard var op = operations[operationId] else {
             // Discarded while in flight — nothing to record.
+            if fromDrain { draining = false }
             queue.async { [weak self] in self?.drain() }
             return
         }
@@ -519,6 +517,10 @@ final class SyncEngine {
         persistQuietly(op)
         emit(.operationChanged(op))
 
+        // The pass this result belongs to is over BEFORE .drainFinished, so Sync Now callers are
+        // answered only when a pass really ends — never by a background upload completing while
+        // a pass is still sending (that result leaves `draining` as it is).
+        if fromDrain { draining = false }
         if continueDraining {
             queue.async { [weak self] in self?.drain() }
         } else {
@@ -679,7 +681,7 @@ final class SyncEngine {
 
     private func emit(_ event: SyncEngineEvent) {
         eventHandler?(event)
-        if event == .drainFinished, isOnQueue { answerPassWaiters() }
+        if event == .drainFinished, isOnQueue, !draining { answerPassWaiters() }
     }
 
     /// A pass ended: every Sync Now caller learns what it did.

@@ -38,6 +38,10 @@ class LicenseTypeViewController: UIViewController, UIGestureRecognizerDelegate {
     var arrEmployesList : [EmployeesModel] = []
     /// Sides photographed on the screen before this one (only those, or new details, are re-sent).
     var changedSides: Set<String> = []
+    /// Sides whose order image finished loading on the screen before this one (safe to re-send).
+    var trustedImageSides: Set<String> = []
+    /// The saved expiration fills the fields once — never over a month/year picked since.
+    private var didPrefillDates = false
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -121,10 +125,13 @@ class LicenseTypeViewController: UIViewController, UIGestureRecognizerDelegate {
     func prefillSavedLicenseDetails() {
         guard KabbaSync.isReady else { return }
         let local = KabbaMediaSync.localLicense(orderUniqueId: self.strOrderID)
-        if (self.txtMonth.text ?? "").isEmpty, (self.txtYear.text ?? "").isEmpty,
-           let parts = Self.monthAndYear(LocalLicense.expiryDate(local)) {
-            self.txtMonth.text = parts.month
-            self.txtYear.text = parts.year
+        if !didPrefillDates {
+            didPrefillDates = true
+            if (self.txtMonth.text ?? "").isEmpty, (self.txtYear.text ?? "").isEmpty,
+               let parts = Self.monthAndYear(LocalLicense.expiryDate(local)) {
+                self.txtMonth.text = parts.month
+                self.txtYear.text = parts.year
+            }
         }
         let savedEmployee = local["front"]?.autoInjectBy ?? local["back"]?.autoInjectBy
         if self.strSelectedEmpID.isEmpty, let id = savedEmployee {
@@ -162,12 +169,13 @@ class LicenseTypeViewController: UIViewController, UIGestureRecognizerDelegate {
         self.lblTopText.configureLable(textColor: UIColor.primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 15.0, text: str.strLicenseTypeTopText)
         
         self.lblLicenseType.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: str.strSelectEmployess, numberOfLines: 1)
-        self.txtLicenseType.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: str.strSelectEmployess)
+        self.txtLicenseType.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.txtLicenseType.text ?? "", placeholder: str.strSelectEmployess)
         
         self.lblLicenseExpiratation.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: "License Expiration", numberOfLines: 1)
         
-        self.txtMonth.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: "Month")
-        self.txtYear.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "", placeholder: "Year")
+        // Keep what the employee already picked (a cancelled back-swipe re-runs this).
+        self.txtMonth.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.txtMonth.text ?? "", placeholder: "Month")
+        self.txtYear.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.txtYear.text ?? "", placeholder: "Year")
         
         //SET VIEW
         self.viewLicenseType.setTheTextView(bgColor: .secondary )
@@ -228,7 +236,7 @@ extension LicenseTypeViewController {
     @IBAction func btnSelectYearClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         
-        let currentYear = Calendar.current.component(.year, from: Date())
+        let currentYear = Calendar(identifier: .gregorian).component(.year, from: Date())
 
         // Create year array (current year → next 50 years)
         let arrYear = (0...50).map { "\(currentYear + $0)" }
@@ -266,12 +274,13 @@ extension LicenseTypeViewController {
             let save: KabbaMediaSync.LicenseSave
             do {
                 save = try KabbaMediaSync.saveLicense(orderUniqueId: self.strOrderID, changedSides: self.changedSides,
-                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID) { side in
+                                                      licenseExpiryDate: strExpDate, autoInjectBy: self.strSelectedEmpID,
+                                                      trustedImageSides: self.trustedImageSides) { side in
                     (side == "front" ? self.imgFront : self.imgBack).jpegData(compressionQuality: 0.25)
                 }
             } catch {
                 // Not on the phone: say so and stay — never a success message, never navigation.
-                showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
+                showAlertMessage(strMessage: KabbaMediaSync.licenseSaveFailureMessage(error))
                 return
             }
             self.changedSides = []

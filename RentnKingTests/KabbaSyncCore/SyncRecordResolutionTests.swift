@@ -89,7 +89,8 @@ final class SyncRecordResolutionTests: XCTestCase {
         XCTAssertTrue(review.contents.note)
         XCTAssertTrue(review.contents.signature)
         XCTAssertEqual(review.contents.summary, "2 checklist answers · hours / fuel readings · a note · a signature")
-        XCTAssertEqual(review.removalConsequence, "This phone will show the return checklist as not completed, the same as Kabba.")
+        XCTAssertEqual(review.removalConsequence, "This phone will show the return checklist as not completed.")
+        XCTAssertEqual(review.knowledge, .refused)
     }
 
     func testEveryKnownServerCodeHasItsOwnExplanationAndUnknownCodesAreNeverCalledAccepted() {
@@ -123,7 +124,10 @@ final class SyncRecordResolutionTests: XCTestCase {
         XCTAssertEqual(SyncRecordProblem.of(op(.pending, .retry, transport: .offline)), .waitingForConnection)
         XCTAssertEqual(SyncRecordProblem.of(op(.pending, .retry)), .temporaryFailure)
         XCTAssertEqual(SyncRecordProblem.of(op(.pending, .waitForAuthentication)), .paused)
-        XCTAssertEqual(SyncRecordProblem.of(op(.needsAttention, .needsAttention)), .rejected)
+        var refused = op(.needsAttention, .needsAttention)
+        refused.attempts.lastStatusCode = 409
+        XCTAssertEqual(SyncRecordProblem.of(refused), .rejected)
+        XCTAssertEqual(SyncRecordProblem.of(op(.needsAttention, .needsAttention)), .parkedOnPhone, "no answer from Kabba")
         XCTAssertEqual(SyncRecordProblem.of(op(.syncing, nil)), .waiting)
         XCTAssertEqual(SyncRecordProblem.of(op(.synced, nil)), .none)
         XCTAssertEqual(SyncRecordProblem.of(op(.superseded, nil)), .none)
@@ -289,7 +293,7 @@ final class SyncRecordResolutionTests: XCTestCase {
         XCTAssertEqual(report.needsAttention, 2)
         XCTAssertEqual(report.headline, "Nothing new to send.")
         XCTAssertEqual(report.lines(timeFormatter: { _ in "" }).last,
-                       "2 records need your attention. Kabba refused them, so Sync Now does not resend them. Tap a record to review it.")
+                       "2 records need your attention. Sync Now does not resend them — a person decides. Tap a record to review it.")
     }
 
     func testSyncNowReportsWhatWasSentAndWhatKabbaRefusedDuringThisPass() throws {
@@ -403,5 +407,72 @@ final class SyncRecordResolutionTests: XCTestCase {
         let decoded = try KabbaISO8601.makeDecoder().decode(SyncOperation.self, from: Data(json.utf8))
         XCTAssertEqual(decoded.queuedAt.timeIntervalSince1970, 1_790_000_000, accuracy: 0.001)
         _ = s
+    }
+
+    // MARK: - Honest wording (independent review)
+
+    func testWhatIsSaidAboutKabbaFollowsTheRecordsOwnHistory() {
+        func op(_ state: SyncState, attempts: Int, status: Int? = nil, transport: TransportFailure? = nil, disposition: RetryDisposition? = nil) -> SyncOperation {
+            var o = SyncOperation(type: "x", capturedAt: Date(), payload: .object([:]))
+            o.state = state
+            o.attempts.attemptCount = attempts
+            o.attempts.lastStatusCode = status
+            o.attempts.lastTransportFailure = transport
+            o.attempts.lastDisposition = disposition
+            return o
+        }
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.needsAttention, attempts: 1, status: 409, disposition: .needsAttention)), .refused)
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.needsAttention, attempts: 1, disposition: .needsAttention)), .notReceived, "parked on this phone")
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.pending, attempts: 0)), .notReceived)
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.pending, attempts: 2, transport: .offline, disposition: .retry)), .notReceived)
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.pending, attempts: 1, transport: .timeout, disposition: .retry)), .uncertain,
+                       "a timeout after sending may have been applied by Kabba")
+        XCTAssertEqual(SyncKabbaKnowledge.of(op(.pending, attempts: 1, status: 503, disposition: .retry)), .uncertain)
+        XCTAssertTrue(SyncKabbaKnowledge.uncertain.sentence.contains("Check the order before removing it"))
+        XCTAssertEqual(SyncRecordProblem.of(op(.needsAttention, attempts: 1, disposition: .needsAttention)), .parkedOnPhone)
+    }
+
+    func testARecordThisPhoneCouldNotSendIsNeverReportedAsRefusedByKabba() throws {
+        // No handler for the type: the engine parks it without Kabba ever answering.
+        let engine = makeEngine(store: try store(), client: client)
+        let op = try engine.enqueue(type: "unknown.type", payload: Fixtures.payload, capturedAt: Date())
+        waitUntil { engine.operation(id: op.id)?.state == .needsAttention }
+        XCTAssertNil(engine.operation(id: op.id)?.attempts.lastStatusCode)
+
+        let review = SyncRecordReview.of(try XCTUnwrap(engine.operation(id: op.id)))
+        XCTAssertEqual(review.problem, .parkedOnPhone)
+        XCTAssertEqual(review.knowledge, .notReceived)
+        XCTAssertEqual(review.explanation?.headline, "This phone couldn't send this record")
+
+        let report = SyncPassReport.make(before: [op.id: .pending], after: [try XCTUnwrap(engine.operation(id: op.id))], pause: .none)
+        XCTAssertEqual(report.parkedNow, 1)
+        XCTAssertEqual(report.rejectedNow, 0)
+        XCTAssertEqual(report.headline, "This phone could not send 1 record.")
+    }
+
+    func testABackgroundUploadFinishingMidPassDoesNotEndSyncNowEarly() throws {
+        let s = try store()
+        var held = SyncOperation(type: TestOperationHandler.type, capturedAt: Date(),
+                                 identity: SyncBusinessIdentity(orderProductUniqueId: "HELD"), payload: Fixtures.payload)
+        held.state = .pending
+        try s.save(held)
+        client.latency = 0.4
+        client.defaultResult = Fixtures.ok()
+        let engine = makeEngine(store: s, client: client, backoff: [60])
+        engine.holdForExternalTransfer(operationId: held.id)
+        waitUntil { engine.operation(id: held.id)?.state == .syncing }
+
+        let slow = try engine.enqueue(type: TestOperationHandler.type, payload: Fixtures.payload,
+                                      identity: SyncBusinessIdentity(orderProductUniqueId: "SLOW"), capturedAt: Date())
+        var report: SyncPassReport?
+        engine.syncNow(reason: "test") { report = $0 }
+        // The held background upload fails while the slow record is still in flight.
+        engine.completeExternalTransfer(operationId: held.id, result: .failure(APIError.transport(.timeout, description: "bg timeout")))
+        RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+        XCTAssertNil(report, "the pass is still sending — its report must wait for it")
+
+        waitUntil { report != nil }
+        XCTAssertEqual(engine.operation(id: slow.id)?.state, .synced)
+        XCTAssertEqual(report?.sent, 1, "the record this pass sent is in its report")
     }
 }

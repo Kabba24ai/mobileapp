@@ -506,10 +506,9 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         sizeHeaderToFit()
 
         let before = Dictionary(uniqueKeysWithValues: engine.snapshot().map { ($0.id, $0.state) })
-        var answered = false
-        let finish: (SyncPassReport) -> Void = { [weak self] report in
-            guard let self = self, !answered else { return }
-            answered = true
+        var finalReportArrived = false
+        let show: (SyncPassReport) -> Void = { [weak self] report in
+            guard let self = self else { return }
             self.syncing = false
             self.lastReport = report
             self.navigationItem.rightBarButtonItem?.isEnabled = true
@@ -518,11 +517,16 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
             UIAccessibility.post(notification: .announcement, argument: report.headline)
         }
         engine.syncNow(reason: "Sync Now (Settings)") { report in
-            DispatchQueue.main.async { finish(report) }
+            DispatchQueue.main.async {
+                finalReportArrived = true
+                show(report)                     // the pass's own report always wins, even after the interim one
+            }
         }
-        // A large upload can outlast the screen's patience: say what is known so far.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 45) {
-            finish(SyncPassReport.make(before: before, after: engine.snapshot(), pause: engine.pause, timedOut: true))
+        // A large upload can outlast the screen's patience: say what is known so far, and let the
+        // real report replace it when the pass ends.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 45) { [weak self] in
+            guard self != nil, !finalReportArrived else { return }
+            show(SyncPassReport.make(before: before, after: engine.snapshot(), pause: engine.pause, timedOut: true))
         }
     }
 
@@ -600,8 +604,9 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
         var lines = [
             "Removed: \(SyncStatusFormat.dateTime.string(from: trace.removedAt))\(trace.removedByName.map { " by \($0)" } ?? "")",
             "Captured: \(SyncStatusFormat.dateTime.string(from: trace.capturedAt))",
-            "Kabba never received it.",
+            trace.kabbaLine,
         ]
+        if let reason = trace.reason { lines.append(reason) }
         if !trace.contentsSummary.isEmpty { lines.append("It held: \(trace.contentsSummary) (deleted)") }
         if let code = trace.errorCode { lines.append("Refusal: \(code)") }
         if !trace.identitySummary.isEmpty { lines.append(trace.identitySummary) }
@@ -648,6 +653,8 @@ enum SyncStatusRowText {
         switch review.problem {
         case .rejected:
             return "Kabba refused this · " + (review.explanation?.headline ?? "needs review")
+        case .parkedOnPhone:
+            return "Needs attention · this phone could not send it"
         case .waiting:
             return op.state == .syncing ? "Sending now…" : "Waiting to send"
         case .waitingForConnection:

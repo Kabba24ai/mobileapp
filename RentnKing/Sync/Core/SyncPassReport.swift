@@ -25,6 +25,8 @@ struct SyncPassReport: Equatable {
     var sent = 0
     /// Records Kabba refused during this pass (now Needs Attention).
     var rejectedNow = 0
+    /// Records this phone could not send during this pass (parked without an answer from Kabba).
+    var parkedNow = 0
     /// Not sent: the last attempt could not reach Kabba.
     var waitingForConnection = 0
     /// Not sent: Kabba failed temporarily; the engine retries by itself.
@@ -45,7 +47,7 @@ struct SyncPassReport: Equatable {
 
     /// True when nothing was eligible to send (everything left needs a person, or nothing was there).
     var nothingToSend: Bool {
-        sent == 0 && rejectedNow == 0 && waiting == 0 && inProgress == 0
+        sent == 0 && rejectedNow == 0 && parkedNow == 0 && waiting == 0 && inProgress == 0
     }
 
     // MARK: Build
@@ -64,7 +66,9 @@ struct SyncPassReport: Equatable {
                 if was != nil && was != .synced { r.sent += 1 }
             case .needsAttention:
                 r.needsAttention += 1
-                if was != nil && was != .needsAttention { r.rejectedNow += 1 }
+                if was != nil && was != .needsAttention {
+                    if op.attempts.lastStatusCode == nil { r.parkedNow += 1 } else { r.rejectedNow += 1 }
+                }
             case .syncing:
                 r.inProgress += 1
             case .pending:
@@ -108,6 +112,7 @@ struct SyncPassReport: Equatable {
         if waitingForConnection > 0 { return "Couldn't reach Kabba." }
         if temporaryFailures > 0 { return "Kabba is temporarily unavailable." }
         if rejectedNow > 0 { return "Kabba refused \(Self.records(rejectedNow))." }
+        if parkedNow > 0 { return "This phone could not send \(Self.records(parkedNow))." }
         return "Nothing was sent yet."
     }
 
@@ -117,6 +122,9 @@ struct SyncPassReport: Equatable {
         let refusalIsHeadline = headline.hasPrefix("Kabba refused")
         if rejectedNow > 0 && !refusalIsHeadline {
             out.append("Kabba refused \(Self.records(rejectedNow)) during this sync.")
+        }
+        if parkedNow > 0 && !headline.hasPrefix("This phone could not send") {
+            out.append("This phone could not send \(Self.records(parkedNow)) during this sync.")
         }
         if inProgress > 0 {
             out.append("\(Self.records(inProgress)) still uploading — \(inProgress == 1 ? "it finishes" : "they finish") in the background.")
@@ -132,7 +140,7 @@ struct SyncPassReport: Equatable {
         if stillQueued > 0 { out.append("\(Self.records(stillQueued)) still queued to send.") }
         if needsAttention > 0 {
             let them = needsAttention == 1 ? "it" : "them"
-            out.append("\(Self.records(needsAttention)) need\(needsAttention == 1 ? "s" : "") your attention. Kabba refused \(them), so Sync Now does not resend \(them). Tap a record to review it.")
+            out.append("\(Self.records(needsAttention)) need\(needsAttention == 1 ? "s" : "") your attention. Sync Now does not resend \(them) — a person decides. Tap a record to review it.")
         }
         return out
     }

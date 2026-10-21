@@ -148,4 +148,59 @@ final class LicenseLocalSaveHostedTests: XCTestCase {
         }
         XCTAssertEqual(KabbaMediaSync.licenseSavedMessage(retake), "Driver's license saved on this phone. Will sync when available.")
     }
+
+    // MARK: - Independent review fixes
+
+    func testNewDetailsNeverUploadAnImageThatDidNotLoad() throws {
+        // The license exists only on Kabba and its image never loaded here (offline): the screen shows
+        // a placeholder. New details for an unchanged side must not upload that placeholder.
+        var encoded: [String] = []
+        XCTAssertThrowsError(try KabbaMediaSync.saveLicense(orderUniqueId: order, changedSides: [],
+                                                            licenseExpiryDate: "2029-01-01", autoInjectBy: "12",
+                                                            trustedImageSides: []) { side in encoded.append(side); return Data([1, 2, 3]) }) { error in
+            XCTAssertEqual(error as? KabbaMediaSync.Failure, .imageNotAvailable(side: "front"))
+            XCTAssertEqual(KabbaMediaSync.licenseSaveFailureMessage(error),
+                           "The front of the license isn't loaded on this phone. Reconnect and open the license again, or retake the front.")
+        }
+        XCTAssertTrue(encoded.isEmpty, "the screen image was never even encoded")
+        XCTAssertTrue(licenseOps().isEmpty, "nothing queued")
+
+        // Kabba's image confirmed loaded on screen: it may be re-sent with the new details.
+        let save = try KabbaMediaSync.saveLicense(orderUniqueId: order, changedSides: [],
+                                                  licenseExpiryDate: "2029-01-01", autoInjectBy: "12",
+                                                  trustedImageSides: ["front", "back"]) { _ in self.image(.gray).jpegData(compressionQuality: 0.5) }
+        XCTAssertEqual(save.queuedSides, ["front", "back"])
+    }
+
+    func testAnUnchangedSideReusesItsExactSavedFileAndSubmitOnlyKeepsTheSavedDetails() throws {
+        _ = try KabbaMediaSync.saveLicense(orderUniqueId: order, changedSides: ["front", "back"],
+                                           licenseExpiryDate: "2028-04-01", autoInjectBy: "17") { side in
+            self.image(side == "front" ? .red : .blue).jpegData(compressionQuality: 0.5)
+        }
+        let local = KabbaMediaSync.localLicense(orderUniqueId: order)
+        let savedBack = try XCTUnwrap(KabbaMediaSync.licenseImageData(try XCTUnwrap(local["back"])))
+
+        // Retake only the front from the first screen ("Submit Only" carries no details).
+        let save = try KabbaMediaSync.saveLicense(orderUniqueId: order, changedSides: ["front"]) { _ in
+            self.image(.green).jpegData(compressionQuality: 0.5)
+        }
+        XCTAssertEqual(save.queuedSides, ["front"])
+        let now = KabbaMediaSync.localLicense(orderUniqueId: order)
+        XCTAssertEqual(now["front"]?.expiryDate, "2028-04-01", "the saved expiration travels with the new front")
+        XCTAssertEqual(now["front"]?.autoInjectBy, "17")
+        XCTAssertEqual(now["back"]?.operationId, local["back"]?.operationId, "the untouched back is not re-sent")
+
+        // New details for both sides: the unchanged back goes with its EXACT saved bytes, not a re-encode.
+        var encodedSides: [String] = []
+        _ = try KabbaMediaSync.saveLicense(orderUniqueId: order, changedSides: [], licenseExpiryDate: "2030-06-01", autoInjectBy: "17") { side in
+            encodedSides.append(side)
+            return Data([0])
+        }
+        XCTAssertTrue(encodedSides.isEmpty, "both sides already had files on this phone")
+        let after = KabbaMediaSync.localLicense(orderUniqueId: order)
+        XCTAssertEqual(KabbaMediaSync.licenseImageData(try XCTUnwrap(after["back"])), savedBack)
+        XCTAssertEqual(LocalLicense.expiryDate(after), "2030-06-01")
+        XCTAssertEqual(licenseOps().count, 2, "one copy per side")
+    }
 }
+

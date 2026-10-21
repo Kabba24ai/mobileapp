@@ -118,7 +118,7 @@ final class SyncStatusHostedTests: XCTestCase {
         poll("report shown") { (report.attributedText?.string ?? report.text ?? "").hasPrefix("Couldn't reach Kabba.") }
         let text = report.attributedText?.string ?? ""
         XCTAssertTrue(text.contains("1 record waiting for a connection."), text)
-        XCTAssertTrue(text.contains("1 record needs your attention. Kabba refused it, so Sync Now does not resend it."), text)
+        XCTAssertTrue(text.contains("1 record needs your attention. Sync Now does not resend it — a person decides."), text)
         XCTAssertEqual(item.title, "Sync Now")
         XCTAssertTrue(item.isEnabled)
         XCTAssertEqual(engine.operation(id: refused.id)?.attempts.attemptCount, 1, "Sync Now never resends a refusal")
@@ -143,7 +143,7 @@ final class SyncStatusHostedTests: XCTestCase {
 
         let op = try XCTUnwrap(engine.operation(id: refused.id))
         let message = SyncRecordReviewViewController.removalMessage(op: op, review: SyncRecordReview.of(op))
-        XCTAssertTrue(message.hasPrefix("Kabba has not received this record."), message)
+        XCTAssertTrue(message.hasPrefix("Kabba refused this record, so none of it is stored on Kabba."), message)
         XCTAssertTrue(message.contains("driver step"), message)
         XCTAssertFalse(message.lowercased().contains("synced with"), message)
 

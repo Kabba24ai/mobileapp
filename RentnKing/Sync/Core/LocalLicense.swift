@@ -55,7 +55,7 @@ enum LocalLicense {
         var out: [String: LocalLicenseSide] = [:]
         let ordered = operations
             .filter { $0.type == EffectiveFieldState.licenseMediaType && $0.identity.orderUniqueId == orderUniqueId && $0.state != .superseded }
-            .sorted { $0.queuedAt < $1.queuedAt }
+            .sorted(by: SyncEngine.queueOrder)
         for op in ordered {
             guard let side = op.payload["side"]?.stringValue?.lowercased(), sides.contains(side) else { continue }
             out[side] = LocalLicenseSide(

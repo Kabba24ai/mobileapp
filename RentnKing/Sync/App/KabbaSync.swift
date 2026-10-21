@@ -198,11 +198,12 @@ enum KabbaSync {
     @discardableResult
     static func removeRecord(_ operationId: String,
                              engine: SyncEngine? = KabbaSync.engine,
-                             log: SyncRemovedRecordLog? = KabbaSync.removedRecords) throws -> SyncRemovedRecord {
+                             log: SyncRemovedRecordLog? = KabbaSync.removedRecords,
+                             reason: String? = nil) throws -> SyncRemovedRecord {
         guard let engine = engine else { throw SyncEngineError.unknownOperation(operationId) }
         let removed = try engine.remove(operationId: operationId)
         let user = UserDefaults.standard.user
-        let trace = SyncRemovedRecord.of(removed, removedAt: Date(), byUserId: user?.id, byName: user?.full_name)
+        let trace = SyncRemovedRecord.of(removed, removedAt: Date(), byUserId: user?.id, byName: user?.full_name, reason: reason)
         try? log?.append(trace)   // the trace never blocks the person's decision
         NotificationCenter.default.post(name: .kabbaSyncQueueChanged, object: nil)
         return trace

@@ -736,14 +736,11 @@ extension CheckListViewController{
                 // MOBILE-QUALITY-01 (item 03): never queue a line with answers that are not on its
                 // own checklist (Laravel refuses them: CHECKLIST_QUESTION_MISMATCH). The draft above
                 // keeps the answers; the employee is told which line to reopen.
-                do {
-                    try ChecklistOperationBuilder.assertOwnChecklist(capture)
-                } catch let refusal as ChecklistCaptureError {
-                    notOwnChecklistProblems.append(refusal.employeeMessage)
-                    continue
-                } catch {
-                    continue
-                }
+                let notOwnChecklist: String? = {
+                    do { try ChecklistOperationBuilder.assertOwnChecklist(capture); return nil }
+                    catch let refusal as ChecklistCaptureError { return refusal.employeeMessage }
+                    catch { return error.localizedDescription }
+                }()
 
                 let problems = capture.localValidationProblems()
                 let complete = problems.isEmpty && !errorSections.contains(index)
@@ -759,6 +756,10 @@ extension CheckListViewController{
                 if self.queueLineFocusedStaging, uid != self.focusOrderProductUniqueId {
                     let fingerprint = Self.answersFingerprint(capture)
                     if lastSyncedFingerprint[uid] == fingerprint || loadedFingerprint[uid] == fingerprint { continue }
+                    if let refusal = notOwnChecklist {
+                        notOwnChecklistProblems.append(refusal)
+                        continue
+                    }
                     if inTransit, !complete {
                         let productName = product.product_name ?? "This equipment"
                         inTransitProblems.append("\(productName) is IN TRANSIT — its prepared checklist must stay complete. " + problems.joined(separator: ". "))
@@ -767,6 +768,11 @@ extension CheckListViewController{
                     if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
                         lastSyncedFingerprint[uid] = fingerprint
                     }
+                    continue
+                }
+
+                if let refusal = notOwnChecklist {
+                    notOwnChecklistProblems.append(refusal)
                     continue
                 }
 
@@ -816,9 +822,13 @@ extension CheckListViewController{
             }
         }
 
-        // 3) Outcome.
+        // 3) Outcome. A refused line never hides what happened to the others.
         if !notOwnChecklistProblems.isEmpty {
-            showAlertMessage(strMessage: notOwnChecklistProblems.joined(separator: "\n\n"))
+            var parts = notOwnChecklistProblems
+            if enqueueFailed { parts.append("Other equipment could not be saved on this phone. Please try again.") }
+            if stagedCount > 0 { parts.append("\(stagedCount) other line\(stagedCount == 1 ? " was" : "s were") saved on this phone and staged.") }
+            if progressCount > 0 { parts.append("Progress on \(progressCount) other line\(progressCount == 1 ? "" : "s") was saved on this phone.") }
+            showAlertMessage(strMessage: parts.joined(separator: "\n\n"))
             return
         }
 

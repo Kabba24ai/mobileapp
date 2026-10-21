@@ -6,6 +6,8 @@
 //
 
 import UIKit
+import Nuke
+import NukeExtensions
 
 protocol LicenseUploadDelegate : NSObject {
     func linceUploadSucess(selectIndex : Int, arrImage : [String])
@@ -54,6 +56,9 @@ class LicenseUploadViewController: UIViewController, UIGestureRecognizerDelegate
     /// Sides the employee photographed on this visit — only these (or new license details)
     /// are queued again; reopening and saving never uploads the same license twice.
     var changedSides: Set<String> = []
+    /// Sides whose order image (Kabba's copy) actually finished loading on screen — only those
+    /// may be re-sent from the screen; a placeholder never is.
+    var remoteLoadedSides: Set<String> = []
     private var syncObserver: NSObjectProtocol?
 
     deinit {
@@ -273,12 +278,13 @@ extension LicenseUploadViewController {
             // changed is queued; a waiting copy is replaced, never uploaded twice.
             let save: KabbaMediaSync.LicenseSave
             do {
-                save = try KabbaMediaSync.saveLicense(orderUniqueId: self.strOrderID, changedSides: self.changedSides) { side in
+                save = try KabbaMediaSync.saveLicense(orderUniqueId: self.strOrderID, changedSides: self.changedSides,
+                                                      trustedImageSides: self.remoteLoadedSides) { side in
                     (side == "front" ? self.imgFront.image : self.imgBack.image)?.jpegData(compressionQuality: 0.25)
                 }
             } catch {
                 // Not on the phone: say so and stay — never a success message, never navigation.
-                showAlertMessage(strMessage: "The license could not be saved on this phone. Please try again.")
+                showAlertMessage(strMessage: KabbaMediaSync.licenseSaveFailureMessage(error))
                 return
             }
             self.changedSides = []
@@ -328,6 +334,7 @@ extension LicenseUploadViewController {
                 newViewController.imgFront = self.imgFront.image ?? UIImage()
                 newViewController.imgBack = self.imgBack.image ?? UIImage()
                 newViewController.changedSides = self.changedSides
+                newViewController.trustedImageSides = self.remoteLoadedSides
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
@@ -555,8 +562,10 @@ extension LicenseUploadViewController {
                 if let data = KabbaMediaSync.licenseImageData(copy), let image = UIImage(data: data) {
                     imageView.image = image
                     shown = true
-                } else if let url = copy.serverMediaURL ?? serverLicenseURL(side: side) {
-                    imageView.setImageURL(strImg: url)
+                } else if let url = serverLicenseURL(side: side) ?? copy.serverMediaURL {
+                    // Synced: the order record is Kabba's current license (the office may have
+                    // replaced it since); this phone's acknowledgment is only the fallback.
+                    loadOrderImage(url, into: imageView, side: side)
                     shown = true
                 }
                 if shown {
@@ -566,7 +575,7 @@ extension LicenseUploadViewController {
                 setLicenseBadge(copy, on: imageView)
             } else if let url = serverLicenseURL(side: side) {
                 editView.isHidden = false
-                imageView.setImageURL(strImg: url)
+                loadOrderImage(url, into: imageView, side: side)
                 imageView.backgroundColor = .white
                 setLicenseBadge(nil, on: imageView)
             }
@@ -582,6 +591,17 @@ extension LicenseUploadViewController {
             setLicenseBadge(local[side], on: imageView)
         }
         setExpiry(LocalLicense.displayExpiry(LocalLicense.expiryDate(local)))
+    }
+
+    /// Loads Kabba's image of a side and records whether it really arrived (the placeholder
+    /// shown meanwhile must never be uploaded as the license).
+    private func loadOrderImage(_ url: String, into imageView: UIImageView, side: String) {
+        remoteLoadedSides.remove(side)
+        let encoded = (url.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "").replacingOccurrences(of: " ", with: "%20")
+        guard let link = URL(string: encoded) else { return }
+        NukeExtensions.loadImage(with: imageView.makeRequest(with: link), options: imageView.makeImageLoadingOptions(), into: imageView) { [weak self] result in
+            if case .success = result, self?.changedSides.contains(side) == false { self?.remoteLoadedSides.insert(side) }
+        }
     }
 
     private func serverLicenseURL(side: String) -> String? {

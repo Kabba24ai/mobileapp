@@ -108,6 +108,12 @@ final class SyncRecordReviewViewController: UIViewController {
                                                   font: theme.regular(13), color: theme.secondaryText))
             }
             stack.addArrangedSubview(wrap(card))
+        } else if review.problem == .paused {
+            let card = cardStack()
+            let action = op.attempts.lastDisposition == .waitForAppUpdate ? "update the app" : "sign in again"
+            card.addArrangedSubview(paragraph("Saved on this phone. Sending is paused — \(action), and it sends to Kabba by itself.",
+                                              font: theme.regular(15), color: theme.secondaryText))
+            stack.addArrangedSubview(wrap(card))
         } else if review.problem != .none {
             let card = cardStack()
             card.addArrangedSubview(paragraph("Saved on this phone. It sends to Kabba automatically — nothing for you to do.",
@@ -120,7 +126,7 @@ final class SyncRecordReviewViewController: UIViewController {
             card.addArrangedSubview(paragraph("Saved only on this phone", font: theme.bold(15), color: theme.text))
             card.addArrangedSubview(paragraph(review.contents.items.map { "• \($0)" }.joined(separator: "\n"),
                                               font: theme.regular(15), color: theme.secondaryText))
-            card.addArrangedSubview(paragraph("Kabba has not received any of this.", font: theme.regular(13), color: theme.warning))
+            card.addArrangedSubview(paragraph(review.knowledge.sentence, font: theme.regular(13), color: theme.warning))
             if let strip = thumbnails(for: op, assetsDirectory: engine.store.assetsDirectory) { card.addArrangedSubview(strip) }
             stack.addArrangedSubview(wrap(card))
         }
@@ -147,7 +153,8 @@ final class SyncRecordReviewViewController: UIViewController {
 
     private func stateLine(_ op: SyncOperation, _ review: SyncRecordReview) -> String {
         switch op.state {
-        case .needsAttention: return "Needs Attention — Kabba refused this record"
+        case .needsAttention:
+            return review.problem == .parkedOnPhone ? "Needs Attention — this phone could not send it" : "Needs Attention — Kabba refused this record"
         case .synced:         return "Synced with Kabba"
         case .superseded:     return "Retired — kept as history"
         case .pending, .syncing: return SyncStatusRowText.status(op, review)
@@ -200,7 +207,7 @@ final class SyncRecordReviewViewController: UIViewController {
 
     /// The confirmation's words: never claims Kabba has it; lists what is deleted; says what changes.
     static func removalMessage(op: SyncOperation, review: SyncRecordReview) -> String {
-        var parts = ["Kabba has not received this record."]
+        var parts = [review.knowledge.sentence]
         if !review.contents.items.isEmpty {
             parts.append("This permanently deletes from this phone: " + review.contents.items.joined(separator: ", ") + ".")
         }
