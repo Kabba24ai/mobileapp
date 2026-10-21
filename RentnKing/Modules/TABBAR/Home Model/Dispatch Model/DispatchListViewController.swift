@@ -75,6 +75,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     private var freshnessLineText: String?
     /// The shop stop on this phone (Next Stop); a seam for tests.
     var nextStopTrip: () -> NextStopState = { NextStopCoordinator.state() }
+    /// Builds the Next Stop screen beginNextStopFlow shows; a seam for tests.
+    var makeNextStop: () -> NextStopViewController = { NextStopViewController() }
 
     // Dispatch offline (Phase 3): Pending order legs render from the durable company-wide
     // working set (DispatchOfflineSync) — immediately, online or offline — while the one
@@ -2590,7 +2592,7 @@ extension DispatchListViewController {
     func beginNextStopFlow(completed: NextStopPlace? = nil) {
         guard let nav = self.navigationController else { return }
 
-        let next = NextStopViewController()
+        let next = self.makeNextStop()
         // Where the driver is standing: the mission just finished (route evidence).
         next.completedMission = completed
         // A shop stop left from before this mission is over (never shown or recorded as current).

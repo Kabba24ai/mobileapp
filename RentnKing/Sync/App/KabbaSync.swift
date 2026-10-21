@@ -117,7 +117,10 @@ enum KabbaSync {
             // the next stop is not a Dispatch mission — the shop. Beside the other
             // tenant-scoped stores, but with NO Sync Engine handler: it is local
             // workflow state the driver resumes, not work the server reconciles.
-            let nextStop = try? NextStopStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+            // Per company AND signed-in driver: on a shared phone a trip is never another driver's.
+            let nextStop = try? NextStopStore(rootDirectory: root, tenantKey: {
+                NextStopStore.scopeKey(tenant: KabbaTenantScope.currentKey, driverId: UserDefaults.standard.user?.id)
+            })
             KabbaSync.nextStop = nextStop
             if let nextStop = nextStop { NextStopCoordinator.configure(store: nextStop) }
 

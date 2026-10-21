@@ -1446,7 +1446,7 @@ extension NextStopWorkflowHostedTests {
     func testAShopTripLeftWithMainMenuSurvivesARelaunchAndTheBoardOffersToContinueIt() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("NextStopMainMenu-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        let store = try NextStopStore(rootDirectory: dir, tenantKey: { "tenant-mq01" })
+        let store = try NextStopStore(rootDirectory: dir, tenantKey: { NextStopStore.scopeKey(tenant: "tenant-mq01", driverId: "7") })
         // Today, to the whole second (the store keeps milliseconds).
         let trip = NextStopState.shopSelected(shop: bonAquaShop, selectedAt: Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down)))
         try store.save(trip)
@@ -1462,14 +1462,26 @@ extension NextStopWorkflowHostedTests {
         screen.mainMenuTapped()
 
         // Relaunch: a fresh store over the same files still holds the trip.
-        let relaunched = try NextStopStore(rootDirectory: dir, tenantKey: { "tenant-mq01" })
+        let relaunched = try NextStopStore(rootDirectory: dir, tenantKey: { NextStopStore.scopeKey(tenant: "tenant-mq01", driverId: "7") })
         XCTAssertEqual(relaunched.load(), trip)
 
-        // Dispatch offers to continue it; that opens Next Stop, where the arrival can be confirmed.
+        // The board offers to continue it, and the reopened Next Stop confirms the arrival.
+        var recorded: [NextStopRouteEvent?] = []
         let (list, nav) = board(orders: [], driverId: garyId)
         let table = UITableView(frame: CGRect(x: 0, y: 0, width: 390, height: 600))
         list.tblView = table
         list.nextStopTrip = { relaunched.load() }
+        list.makeNextStop = {
+            let vc = NextStopViewController()
+            vc.loadState = { relaunched.load() }
+            vc.persistState = { try relaunched.save($0) }
+            vc.cachedStores = { [self.store("STO-1", "Bon Aqua", "100 Yard Rd")] }
+            vc.refreshStores = { _ in }
+            vc.openMap = { _, done in done(true) }
+            vc.now = { Date(timeIntervalSince1970: 1_792_000_000) }
+            vc.recordRouteEvent = { recorded.append($0) }
+            return vc
+        }
         list.renderBoardHeader()
         let header = try XCTUnwrap(table.tableHeaderView)
         let resume = try XCTUnwrap(findButton("dispatch.nextStop.continue", in: header))
@@ -1477,9 +1489,43 @@ extension NextStopWorkflowHostedTests {
         resume.sendActions(for: .touchUpInside)
 
         let next = try XCTUnwrap(nav.topViewController as? NextStopViewController)
-        XCTAssertNil(next.completedMission, "nothing was completed: the trip simply continues")
         XCTAssertTrue(nav.viewControllers.first === list)
+        XCTAssertNil(next.completedMission, "nothing was completed: the trip simply continues")
+        next.loadViewIfNeeded()
+        XCTAssertEqual(next.currentDestinationText, "Heading to Bon Aqua")
         XCTAssertEqual(relaunched.load(), trip, "continuing never ends the trip")
+
+        // Picking the same shop again only reopens Maps: not a second departure.
+        next.returnToShopTapped()
+        next.selectShop(at: 0)
+        XCTAssertTrue(recorded.isEmpty, "re-opening navigation to the same shop is not a new answer")
+
+        next.arrivedTapped()
+        XCTAssertEqual(recorded, [.arrivedAtShop(shopUniqueId: "STO-1", at: Date(timeIntervalSince1970: 1_792_000_000))])
+        XCTAssertNotNil(relaunched.load().shop)
+        if case .arrivedAtShop = relaunched.load() {} else { XCTFail("the arrival is on disk") }
+    }
+
+    func testAMissionChosenFromAContinuedTripIsMarkedAsChosenOnTheWay() throws {
+        let p = nextStop(state: .shopSelected(shop: bonAquaShop, selectedAt: tapped))
+        let r = recording(p, completed: nil)
+        p.vc.refreshFromDurableState()
+        try chooseMission(p, NextStopMission(identity: .orderProduct("OP-B"), kindLabel: "Delivery", primaryText: "Cody Cash",
+                                              secondaryText: "Skid Steer", sortKey: "2026-10-18|00002"))
+        XCTAssertEqual(r.events, [.nextMission(from: nil, to: .orderLeg(orderProductUniqueId: "OP-B", isReturn: false),
+                                               headingToShop: true, at: tapped)])
+    }
+
+    func testTheBoardEndsAShopStopLeftFromBeforeACompletionWhenItOpensNextStop() throws {
+        let p = nextStop(state: .arrivedAtShop(shop: bonAquaShop, selectedAt: tapped, arrivedAt: tapped))
+        let (list, nav) = board(orders: [], driverId: garyId)
+        list.makeNextStop = { p.vc }
+        list.beginNextStopFlow(completed: .orderLeg(orderProductUniqueId: "OP-JUST-DONE", isReturn: false))
+
+        XCTAssertTrue(nav.topViewController === p.vc)
+        XCTAssertEqual(p.saved, .idle, "the board's completion hand-off ends the old stop")
+        p.vc.refreshFromDurableState()
+        XCTAssertEqual(p.vc.primaryChoiceTitles, ["Next Customer / Mission", "Return to Shop"])
     }
 
     func testTheBoardOffersOnlyATripStillUnderWayToday() {

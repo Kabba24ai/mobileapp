@@ -135,6 +135,7 @@ final class NextStopViewController: UIViewController {
 
     /// The app's established dark theme (navy, cyan accent, white text), in light and dark mode alike.
     private let theme = SyncStatusTheme.kabba
+    private let scroll = UIScrollView()
     private let stack = UIStackView()
     private let headline = UILabel()
     private let destination = UILabel()
@@ -168,6 +169,13 @@ final class NextStopViewController: UIViewController {
     func refreshFromDurableState() {
         state = loadState()
         if state.shop != nil { isShowingShopList = false }
+        // A trip continued from the Dispatch board (nothing was completed): the driver is still
+        // on the way to that shop. Picking it again only reopens Maps (not a new departure), and
+        // a mission chosen now is chosen on the way.
+        if completedMission == nil, reachedShop == nil, headingToShopId == nil,
+           case let .shopSelected(shop, _) = state {
+            headingToShopId = shop.uniqueId
+        }
         render()
     }
 
@@ -345,11 +353,20 @@ final class NextStopViewController: UIViewController {
         stack.spacing = 16
         stack.alignment = .fill
         stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(stack)
+        // Scrolls, so Main Menu stays reachable below a long shop list on a small phone.
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.alwaysBounceVertical = true
+        view.addSubview(scroll)
+        scroll.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 24),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 24),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 20),
+            stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -20),
         ])
 
         headline.text = headlineText

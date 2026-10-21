@@ -95,6 +95,17 @@ public final class NextStopStore {
         return dir.appendingPathComponent(NextStopStore.fileName)
     }
 
+    /// Whose shop stop this is: the signed-in DRIVER of the company (2026-10-21). On a phone
+    /// drivers share, one driver's trip is never shown to, continued or confirmed by another
+    /// (an arrival is recorded under whoever taps it). nil — no company, or nobody signed
+    /// in — means there is no shop stop. A stop saved before this rule (company only) is
+    /// simply not found: at worst one old shop stop is forgotten once.
+    public static func scopeKey(tenant: String?, driverId: String?) -> String? {
+        guard let tenant = tenant, !tenant.isEmpty,
+              let driver = driverId?.trimmingCharacters(in: .whitespacesAndNewlines), !driver.isEmpty else { return nil }
+        return "\(tenant)-driver-\(driver)"
+    }
+
     private static func sanitized(_ text: String) -> String {
         let safe = text.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" }
         return String(String.UnicodeScalarView(safe))
