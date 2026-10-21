@@ -1018,6 +1018,13 @@
                                         },
                                         "options_count": 0,
                                         "payment_label": "No Payment Recorded",
+                                        "payment": {
+                                            "status": "pending",
+                                            "label": "Pending",
+                                            "basis": "needs_review",
+                                            "needs_review": true,
+                                            "review_reason": "This order totals $0 but is not marked No Cost. Check its payment."
+                                        },
                                         "status": "pending",
                                         "staged": false,
                                         "staged_by": null,

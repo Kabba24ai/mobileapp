@@ -117,4 +117,20 @@ final class NextStopStateTests: XCTestCase {
 
         XCTAssertEqual(try KabbaISO8601.makeDecoder().decode(NextStopState.self, from: data), .idle)
     }
+
+    // MARK: - A trip to continue from Dispatch (2026-10-21, Main Menu)
+
+    func testOnlyAShopTripChosenTodayAndNotYetReachedCanBeContinued() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        let sameDay = selectedAt.addingTimeInterval(3 * 3600)
+        let nextDay = selectedAt.addingTimeInterval(26 * 3600)
+
+        XCTAssertEqual(NextStopState.shopSelected(shop: shop, selectedAt: selectedAt).tripToContinue(now: sameDay, calendar: calendar), shop)
+        XCTAssertNil(NextStopState.shopSelected(shop: shop, selectedAt: selectedAt).tripToContinue(now: nextDay, calendar: calendar),
+                     "yesterday's trip is over — confirming it now would record an arrival that never happened")
+        XCTAssertNil(NextStopState.arrivedAtShop(shop: shop, selectedAt: selectedAt, arrivedAt: arrivedAt).tripToContinue(now: sameDay, calendar: calendar),
+                     "an arrival is already recorded; nothing is left to confirm")
+        XCTAssertNil(NextStopState.idle.tripToContinue(now: sameDay, calendar: calendar))
+    }
 }

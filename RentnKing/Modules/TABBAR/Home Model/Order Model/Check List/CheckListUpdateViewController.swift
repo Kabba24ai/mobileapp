@@ -666,6 +666,25 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 }
             }
 
+            // MOBILE-QUALITY-01 (item 03): a line is only ever submitted with ITS OWN checklist's
+            // questions and answers. Refuse before anything is queued — Laravel would refuse the
+            // copy (CHECKLIST_QUESTION_MISMATCH) and the driver's work would sit in Needs Attention.
+            let notOwnChecklist: [String] = submissions.compactMap { plan in
+                guard case .canonical(let capture, _) = plan else { return nil }
+                do {
+                    try ChecklistOperationBuilder.assertOwnChecklist(capture)
+                    return nil
+                } catch let refusal as ChecklistCaptureError {
+                    return refusal.employeeMessage
+                } catch {
+                    return nil
+                }
+            }
+            guard notOwnChecklist.isEmpty else {
+                showAlertMessage(strMessage: notOwnChecklist.joined(separator: "\n\n"))
+                return
+            }
+
             //CALL API
             let alert = UIAlertController(title: Application.appName, message: "Are you sure you're ready to submit this report?", preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
@@ -700,7 +719,12 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1){
                         indicatorHide()
                         // Honest wording: the work is safely on the phone; Kabba confirms it on sync.
-                        showAlertMessage(strMessage: queued.usedEngine ? "Checklist saved on this phone · Pending Sync" : "Checklist updated successfully.", isDismiss: true)
+                        // With the Sync Engine the live status toast already says so (Pending Sync →
+                        // Synced / Needs Attention) — a second, blocking alert on the next screen
+                        // only cost a tap (MOBILE-QUALITY-01, item 06).
+                        if !queued.usedEngine {
+                            showAlertMessage(strMessage: "Checklist updated successfully.", isDismiss: true)
+                        }
                     }
                 })
                                 

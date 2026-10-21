@@ -63,6 +63,12 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
     private var isOpeningChecklist = false
     private weak var inFlightUpdateButton: QueueLineUpdateButton?
 
+    // Order links (MOBILE-QUALITY-01, item 07): where the board was when an order was opened
+    // from it — restored on the re-render that follows the return, for the same tab.
+    private var scrollToRestore: (tab: Int, offset: CGPoint)?
+    /// One Order Details at a time from a card (a double tap never pushes it twice).
+    private var isOpeningOrder = false
+
     // Filters (2026-09-13): Delivery Store is sticky (UserDefaults), Type is per visit.
     // Applied at render time over the ONE cached feed — never a second feed per store.
     private var filter = QueueLineFilter()
@@ -92,6 +98,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         headerStack.addArrangedSubview(freshnessLabel)
         headerStack.setCustomSpacing(6, after: freshnessLabel)
         updateFreshnessLine()
+
+        // The employee scrolling takes over: a pending restore never jumps them back.
+        scrollView.panGestureRecognizer.addTarget(self, action: #selector(boardWasScrolled(_:)))
 
         // Re-render when a queued staging command changes state (synced, needs attention…).
         syncObserver = NotificationCenter.default.addObserver(forName: .kabbaSyncQueueChanged, object: nil, queue: .main) { [weak self] _ in
@@ -141,13 +150,14 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
                     self.arrQueueLine = fresh
                     self.restoreRememberedStore()
                     self.renderLanes()
+                    self.scrollToRestore = nil   // the refreshed list is in place; the employee scrolls from here
                 }
             }
         }
     }
 
     /// Splits items into the three lanes and rebuilds the scrolling content.
-    private func renderLanes() {
+    func renderLanes() {
         hideSkeletonLoading()   // stop the shimmer before showing real cards
         contentStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         laneContents.removeAll()
@@ -187,6 +197,18 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         laneContents = [pending, staged, completed]
         laneContents.forEach { contentStack.addArrangedSubview($0) }
         selectTab(selectedTab)
+        restoreScrollIfNeeded()
+    }
+
+    /// Back from an order opened on this board: the same tab, at the same place (clamped to
+    /// what the refreshed list now holds). Filters and the store are the screen's own state
+    /// and never changed.
+    private func restoreScrollIfNeeded() {
+        guard let restore = scrollToRestore, restore.tab == selectedTab else { return }
+        view.layoutIfNeeded()
+        let maxY = max(0, scrollView.contentSize.height - scrollView.bounds.height + scrollView.adjustedContentInset.bottom)
+        let y = min(max(restore.offset.y, -scrollView.adjustedContentInset.top), maxY)
+        scrollView.setContentOffset(CGPoint(x: restore.offset.x, y: y), animated: false)
     }
 
     // MARK: - Shimmer skeleton (loading placeholder)
@@ -301,9 +323,14 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         isOpeningChecklist = false
     }
 
+    @objc private func boardWasScrolled(_ pan: UIPanGestureRecognizer) {
+        if pan.state == .began { scrollToRestore = nil }
+    }
+
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         finishOpeningChecklist()   // back on the board: the Update button is tappable again
+        isOpeningOrder = false     // … and so are the order links
         AppUtility.PortraitMode()
         self.view.backgroundColor = Palette.page
         setNeedsStatusBarAppearanceUpdate()
@@ -777,9 +804,9 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         ])
 
         // 1) Header: order#  customer .......... 👍 count  (styled like the Order List page)
-        let idLabel = UILabel()
-        idLabel.attributedText = attr(item.order_number ?? "", Palette.ink, rFont(regular, 14))
-        idLabel.setContentHuggingPriority(.required, for: .horizontal)
+        // The order number opens that order's Order Details (MOBILE-QUALITY-01, item 07) —
+        // same size as before, so the card never grows.
+        let idLabel = orderLink(for: item, font: rFont(regular, 14))
 
         let customer = UILabel()
         customer.attributedText = attr(item.customer_name ?? "", Palette.ink, rFont(bold, 16))
@@ -881,7 +908,14 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         code.attributedText = attr(codeText, UIColor(hex: 0xC7CED8), rFont(medium, 13))
 
         var machineViews: [UIView] = [name, code]
-        for badge in statusBadges(for: item) { machineViews.append(leftAlign(badge)) }
+        // Availability and Paid / Pending side by side (MOBILE-QUALITY-01, item 08): every
+        // card shows exactly one payment classification, with or without equipment.
+        let statusRow = UIStackView(arrangedSubviews: (availabilityBadge(for: item).map { [$0] } ?? []) + [paymentBadge(for: item), UIView()])
+        statusRow.axis = .horizontal
+        statusRow.spacing = 8
+        statusRow.alignment = .center
+        machineViews.append(statusRow)
+        if let wrong = wrongLocationBadge(for: item) { machineViews.append(leftAlign(wrong)) }
         // (No "Checklist Prepared" badge: a prepared, saved checklist IS the Staged lane —
         //  the lifecycle tab already says it. Badge removed 2026-09-13.)
         let info = UIStackView(arrangedSubviews: machineViews)
@@ -918,31 +952,86 @@ final class QueueLineViewController: UIViewController, UIGestureRecognizerDelega
         return card
     }
 
-    /// Equipment status badges: tappable amber "Maint. Hold" or green-filled "Available",
-    /// plus a red "Wrong Location — at <place>" when the machine is at the wrong store.
-    private func statusBadges(for item: QueueLineModel) -> [UIView] {
-        guard let eq = item.equipment else { return [] }
-        var badges: [UIView] = []
+    /// Equipment status badge: tappable amber "Maint. Hold" or green-filled "Available".
+    private func availabilityBadge(for item: QueueLineModel) -> UIView? {
+        guard let eq = item.equipment else { return nil }
 
         // Completed cards show Maint. Hold as a plain (non-tappable) badge.
         let isCompleted = (item.status ?? "") == "completed" || item.completed == true
 
         if eq.status == "maintenance", let label = eq.status_label, !label.isEmpty {
             if isCompleted {
-                badges.append(makeBadge(label, bg: .clear, text: Palette.amber, bordered: true))   // non-tappable
-            } else {
-                badges.append(maintHoldBadge(text: label, item: item))                             // tappable
+                return makeBadge(label, bg: .clear, text: Palette.amber, bordered: true)   // non-tappable
             }
+            return maintHoldBadge(text: label, item: item)                                 // tappable
         } else if let ready = eq.rental_ready, !ready.isEmpty {
-            badges.append(makeBadge("Available", bg: Palette.green, text: .white, bordered: false)) // filled green
+            return makeBadge("Available", bg: Palette.green, text: .white, bordered: false) // filled green
         }
+        return nil
+    }
 
-        if eq.wrong_location == true {
-            let loc = eq.location ?? ""
-            let text = loc.isEmpty ? "Wrong Location" : "Wrong Location — at \(loc)"
-            badges.append(makeBadge(text, bg: .clear, text: .redText, bordered: true))
-        }
-        return badges
+    /// A red "Wrong Location — at <place>" when the machine is at the wrong store.
+    private func wrongLocationBadge(for item: QueueLineModel) -> UIView? {
+        guard let eq = item.equipment, eq.wrong_location == true else { return nil }
+        let loc = eq.location ?? ""
+        let text = loc.isEmpty ? "Wrong Location" : "Wrong Location — at \(loc)"
+        return makeBadge(text, bg: .clear, text: .redText, bordered: true)
+    }
+
+    /// Paid (green outline) or Pending (amber outline) — always exactly one. A payment Kabba
+    /// flagged for review reads "Pending ⚠︎" and says why to VoiceOver. Display only.
+    private func paymentBadge(for item: QueueLineModel) -> UIView {
+        let payment = item.paymentBadge
+        let badge = makeBadge(payment.needsReview ? "Pending ⚠︎" : payment.text, bg: .clear,
+                              text: payment.isPaid ? Palette.green : Palette.amber, bordered: true)
+        badge.isAccessibilityElement = true
+        badge.accessibilityLabel = payment.accessibilityLabel
+        badge.accessibilityIdentifier = "queueLine.payment.\(item.itemOrderProductUniqueId)"
+        return badge
+    }
+
+    /// The order number as a link to that order's existing Order Details (item 07). Not a
+    /// browser, no new screen: the board stays underneath, so Back returns to the same tab,
+    /// filters, store and scroll position. The Update button is unchanged.
+    private func orderLink(for item: QueueLineModel, font: UIFont) -> UIView {
+        let button = QueueMenuButton(type: .system)
+        button.item = item
+        let title = item.order_number ?? ""
+        button.setAttributedTitle(NSAttributedString(string: title, attributes: [
+            .font: font, .foregroundColor: Palette.cyan, .underlineStyle: NSUnderlineStyle.single.rawValue,
+        ]), for: .normal)
+        // Without an order to open it reads as plain text, not a link.
+        button.setAttributedTitle(NSAttributedString(string: title, attributes: [.font: font, .foregroundColor: Palette.ink]), for: .disabled)
+        // A finger-sized target inside the header's existing height (the Update button sets it).
+        button.contentEdgeInsets = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 4)
+        button.setContentHuggingPriority(.required, for: .horizontal)
+        // The customer name gives way first; the RUSH / sync / transit badges are never squeezed by it.
+        button.setContentCompressionResistancePriority(UILayoutPriority(760), for: .horizontal)
+        button.accessibilityLabel = "Open order \(title)"
+        button.accessibilityIdentifier = "queueLine.order.\(item.itemOrderProductUniqueId)"
+        button.isEnabled = !item.itemOrderUniqueId.isEmpty
+        button.addTarget(self, action: #selector(orderNumberTapped(_:)), for: .touchUpInside)
+        return button
+    }
+
+    @objc private func orderNumberTapped(_ sender: UIButton) {
+        guard let item = (sender as? QueueMenuButton)?.item, !isOpeningChecklist, !isOpeningOrder else { return }
+        if openOrderDetails(for: item) != nil { isOpeningOrder = true }
+    }
+
+    /// Opens the order's existing Order Details over the board (the same screen the Orders
+    /// list and Machine Profile push; Kabba's own authorization applies to what it loads).
+    @discardableResult
+    func openOrderDetails(for item: QueueLineModel) -> OrderDetailsViewController? {
+        let uid = item.itemOrderUniqueId
+        guard !uid.isEmpty, let nav = navigationController,
+              let details = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+                .instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController else { return nil }
+        details.strOrderUniqueId = uid
+        details.strOrderID = item.order_number ?? ""
+        scrollToRestore = (tab: selectedTab, offset: scrollView.contentOffset)
+        nav.pushViewController(details, animated: CustomerSiteNavigation.animated(nav))
+        return details
     }
 
     /// Tappable "Maint. Hold" badge (amber outline). Calls `maintHoldTapped`.
