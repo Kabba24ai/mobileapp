@@ -44,6 +44,16 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        AppRelease(version: "1.0.29", notes: [
+            "Settings › Sync shows what is waiting to send and what needs your attention; open a refused record to see why, what it holds, and remove it from the phone with one confirmation",
+            "Sync Now tells you what it sent, what is waiting for a connection and what needs attention",
+            "A checklist can no longer be sent with another machine's answers; the app tells you which line to reopen",
+            "Driver's license: Save shows a short confirmation and goes straight back to Order Details, and reopening shows the photos and expiration saved on the phone with their sync status",
+            "Queue Line: tap an order number to open its Order Details; Back returns you to the same place",
+            "Queue Line cards show Paid or Pending, and paid orders come first within each scheduled day",
+            "Settings › About: tap the version to see exactly which build is installed",
+            "Various fixes and refinements",
+        ]),
         AppRelease(version: "1.0.28", notes: [
             "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them",
             "Answers given without a connection stay on the phone and are sent once you're back online",

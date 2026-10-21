@@ -10,9 +10,10 @@ One row per build uploaded to App Store Connect. `Scripts/release-preflight.sh` 
 | 1.0.25 | 1011 | ec5e410 | fix/independent-checklist-combine-release-2026-10-06 | 2026-10-07 | Released |
 | 1.0.26 | 1012 | 6e5e1ec | fix/fuel-def-readings-1.0.26 | 2026-10-15 | Approved |
 | 1.0.26 | 1013 | 47d24e9 | fix/fuel-def-readings-1.0.26 | 2026-10-18 | Rejected by App Store Connect: version 1.0.26 already closed (90062/90186) |
-| 1.0.27 | 1013 | 44927ea635b8 | fix/fuel-def-readings-1.0.26 | 2026-10-18 | Released (current App Store version, per the MOBILE-QUALITY-01 work order) |
+| 1.0.27 | 1013 | 44927ea635b8 | fix/fuel-def-readings-1.0.26 | 2026-10-18 | Released (approved; on every company phone, per Gary 2026-10-21) |
+| 1.0.28 | 1014 | 375115102806 | release/1.0.28-1014 | 2026-10-21 | Uploaded; submit for review in App Store Connect |
 
-The next build must be **1014 or higher**, under a version above 1.0.27. The route-events release is planned as 1.0.28 (1014).
+The next build must be **1015 or higher**. 1.0.29 (1015) is the MOBILE-QUALITY-01 release, built on 1.0.28. When Apple approves 1.0.28, change its status to Approved (the preflight then treats 1.0.28 as closed).
 
 ## Notes
 - **Copies installed from a computer.** A copy installed with Xcode shows the in-app release notes of the code it was built from. Before 1.0.28, those notes could differ from the shorter text pasted into App Store Connect. From 1.0.28, both come from one draft (see `RELEASE_PROCESS.md`).

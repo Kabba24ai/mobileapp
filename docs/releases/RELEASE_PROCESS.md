@@ -9,7 +9,7 @@ The draft is the version's entry in `AppReleaseCatalog.history`, in `RentnKing/S
 - **On the App Store:** the "What's New in This Version" text is rendered from the same entry:
 
 ```
-Scripts/whats-new.sh 1.0.28 > whats-new-1.0.28.txt
+Scripts/whats-new.sh 1.0.29 > whats-new-1.0.29.txt
 ```
 
 Write each line for a customer-facing reader. The same words appear on every phone, so don't keep a separate, shorter App Store version.

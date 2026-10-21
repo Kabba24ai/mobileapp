@@ -160,8 +160,8 @@ final class AppReleaseCatalogTests: XCTestCase {
 
     // 7. 1.0.28 (1014) is the route-evidence release: its notes are the App Store "What's New"
     //    text too, and 1.0.27's entry still reads exactly as build 1013 shipped it.
-    func testThe1028NotesDescribeTheRouteEvidenceAndComeFirst() {
-        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.28", "Newest first, for presentation.")
+    func testThe1028NotesDescribeTheRouteEvidence() {
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.29", "Newest first, for presentation.")
         let v28 = AppReleaseCatalog.release(for: "1.0.28")
         XCTAssertEqual(v28?.notes.first,
                        "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them")
@@ -172,6 +172,17 @@ final class AppReleaseCatalogTests: XCTestCase {
             "The shop you picked stays your destination while you navigate, and is still there when you come back to the app",
             "Various fixes and refinements",
         ], "1.0.27 must read exactly as build 1013 shipped it.")
+        XCTAssertEqual(v28?.notes.count, 5, "1.0.28 must read exactly as build 1014 was uploaded")
+    }
+
+    // 7b. 1.0.29 describes the MOBILE-QUALITY-01 improvements, ends with the usual line, and fits
+    //     App Store Connect's What's New field.
+    func testThe1029NotesComeFirstAndFitTheAppStore() throws {
+        let notes = AppReleaseCatalog.notes(for: "1.0.29")
+        XCTAssertEqual(notes.last, "Various fixes and refinements")
+        XCTAssertTrue(notes.contains { $0.hasPrefix("Queue Line cards show Paid or Pending") })
+        let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.29"))
+        XCTAssertLessThanOrEqual(text.count, AppReleaseCatalog.appStoreWhatsNewLimit)
     }
 
     // MARK: - MOBILE-QUALITY-01 (item 04): one draft per release, traceable builds
