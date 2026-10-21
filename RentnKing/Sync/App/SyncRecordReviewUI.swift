@@ -53,6 +53,7 @@ final class SyncRecordReviewViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = theme.background
+        applyThemedNavigationBar(theme)
         scroll.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical
         stack.spacing = 14

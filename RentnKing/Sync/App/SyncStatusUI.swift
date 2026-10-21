@@ -374,6 +374,7 @@ final class SyncStatusViewController: UIViewController, UITableViewDataSource, U
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = theme.background
+        applyThemedNavigationBar(theme)
         let syncButton = UIBarButtonItem(title: "Sync Now", style: .plain, target: self, action: #selector(syncNow))
         syncButton.tintColor = theme.accent
         syncButton.accessibilityIdentifier = "sync.status.syncNow"
@@ -660,5 +661,20 @@ enum SyncStatusRowText {
             if op.state == .superseded { return "Retired" + (op.supersession.map { " · \($0.summary)" } ?? "") }
             return "Synced · \(SyncStatusFormat.relative(op.acknowledgment?.acknowledgedAt))"
         }
+    }
+}
+
+extension UIViewController {
+    /// The Sync screens' own bar look (this screen only — never the shared navigation bar), so
+    /// the title reads on the dark theme whichever screen pushed it.
+    func applyThemedNavigationBar(_ theme: SyncStatusTheme) {
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = theme.background
+        appearance.shadowColor = .clear
+        appearance.titleTextAttributes = [.foregroundColor: theme.text, .font: theme.bold(17)]
+        navigationItem.standardAppearance = appearance
+        navigationItem.scrollEdgeAppearance = appearance
+        navigationItem.compactAppearance = appearance
     }
 }
