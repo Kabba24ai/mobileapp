@@ -370,4 +370,38 @@ final class SyncRecordResolutionTests: XCTestCase {
         waitUntil { first != nil && second != nil }
         XCTAssertEqual(client.requestCount, 1, "the second Sync Now joins the running pass instead of sending twice")
     }
+
+    // MARK: - Capture order survives a relaunch (found while verifying item 05)
+
+    func testRecordsForOneLineQueuedInTheSameSecondAreSentInCaptureOrderAfterARelaunch() throws {
+        let offline = makeEngine(store: try store(), client: client, backoff: [60])
+        var ids: [String] = []
+        for step in 0..<6 {
+            ids.append(try offline.enqueue(type: TestOperationHandler.type,
+                                           payload: .object(["order_product_unique_id": .string("ORD-SCH-1"), "step": .number(Double(step))]),
+                                           identity: SyncBusinessIdentity(orderProductUniqueId: "ORD-SCH-1"),
+                                           capturedAt: Date(timeIntervalSince1970: 1_790_000_000)).id)
+        }
+        waitUntil { offline.operation(id: ids[0])?.attempts.attemptCount == 1 }
+
+        let online = FakeSyncHTTPClient()
+        online.defaultResult = Fixtures.ok()
+        let relaunched = makeEngine(store: try store(), client: online)
+        relaunched.kick(reason: "relaunch", ignoreBackoff: true)
+        waitUntil { ids.allSatisfy { relaunched.operation(id: $0)?.state == .synced } }
+        XCTAssertEqual(online.recorded.map(\.operationId), ids, "same line → sent in the order captured, never reshuffled by a relaunch")
+    }
+
+    func testRecordsStoredWithWholeSecondTimesStillLoad() throws {
+        let s = try store()
+        let op = SyncOperation(id: "OLD-1", type: TestOperationHandler.type, capturedAt: Date(timeIntervalSince1970: 1_790_000_000),
+                               queuedAt: Date(timeIntervalSince1970: 1_790_000_000), payload: Fixtures.payload)
+        var json = try XCTUnwrap(String(data: KabbaISO8601.makeEncoder().encode(op), encoding: .utf8))
+        XCTAssertTrue(json.contains("."), "new records keep milliseconds")
+        // Rewrite as an older build stored it: whole seconds.
+        json = json.replacingOccurrences(of: #"\.\d{3}"#, with: "", options: .regularExpression)
+        let decoded = try KabbaISO8601.makeDecoder().decode(SyncOperation.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.queuedAt.timeIntervalSince1970, 1_790_000_000, accuracy: 0.001)
+        _ = s
+    }
 }

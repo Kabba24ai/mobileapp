@@ -556,6 +556,7 @@
 		5A7A00000000000000000112 /* LocalLicense.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000110 /* LocalLicense.swift */; };
 		5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000120 /* LocalLicenseTests.swift */; };
 		5A7A00000000000000000131 /* LicenseLocalSaveHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */; };
+		5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1062,6 +1063,7 @@
 		5A7A00000000000000000110 /* LocalLicense.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLicense.swift; sourceTree = "<group>"; };
 		5A7A00000000000000000120 /* LocalLicenseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLicenseTests.swift; sourceTree = "<group>"; };
 		5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseLocalSaveHostedTests.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEventsSyncReviewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2397,6 +2399,7 @@
 				5A6A000000000000000000C0 /* NextStopStateTests.swift */,
 				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
 				5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */,
+				5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */,
 				5A7A00000000000000000120 /* LocalLicenseTests.swift */,
 				5A7A000000000000000000D0 /* SyncRecordResolutionTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
@@ -3143,6 +3146,7 @@
 				5A6A000000000000000000C1 /* NextStopStateTests.swift in Sources */,
 				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
 				5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */,
+				5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */,
 				5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */,
 				5A7A000000000000000000D1 /* SyncRecordResolutionTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
