@@ -44,7 +44,14 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
-        AppRelease(version: "1.0.29", notes: [
+        // 1.0.28 (1015) — ONE combined release (owner decision 2026-10-21): the route events
+        // first uploaded as 1014 plus every MOBILE-QUALITY-01 improvement (prepared as 1.0.29,
+        // never shipped). Build 1014 is superseded and is not to be submitted.
+        AppRelease(version: "1.0.28", notes: [
+            "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are sent to the office with the time you tapped them, even when you were offline",
+            "Manual Dispatch status changes keep the time you tapped them, even when they are sent later",
+            "Work saved without a connection is sent in the order you did it, even after the app is closed and reopened",
+            "Next Stop: a Main Menu button at every step and the app's dark colors; a trip to a shop can be continued from Dispatch",
             "Settings › Sync shows what is waiting to send and what needs your attention; open a refused record to see why, what it holds, and remove it from the phone with one confirmation",
             "Sync Now tells you what it sent, what is waiting for a connection and what needs attention",
             "A checklist can no longer be sent with another machine's answers; the app tells you which line to reopen",
@@ -52,14 +59,6 @@ enum AppReleaseCatalog {
             "Queue Line: tap an order number to open its Order Details; Back returns you to the same place",
             "Queue Line cards show Paid or Pending, and paid orders come first within each scheduled day",
             "Settings › About: tap the version to see exactly which build is installed",
-            "Next Stop: a Main Menu button at every step and the app's dark colors; a trip to a shop can be continued from Dispatch",
-            "Various fixes and refinements",
-        ]),
-        AppRelease(version: "1.0.28", notes: [
-            "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them",
-            "Answers given without a connection stay on the phone and are sent once you're back online",
-            "Manual Dispatch status changes keep the time you tapped them, even when they are sent later",
-            "Work saved without a connection is sent in the order you did it, even after the app is closed and reopened",
             "Various fixes and refinements",
         ]),
         AppRelease(version: "1.0.27", notes: [
