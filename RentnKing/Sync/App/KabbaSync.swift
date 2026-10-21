@@ -39,6 +39,8 @@ enum KabbaSync {
     private(set) static var termsAgreements: TermsAgreementStore?
     /// Next Stop (2026-10-18): the driver's shop stop — local workflow state, never a queued operation.
     private(set) static var nextStop: NextStopStore?
+    /// MOBILE-QUALITY-01: a content-free trace of records a person removed from the queue (30 days).
+    private(set) static var removedRecords: SyncRemovedRecordLog?
 
     private static var observers: [NSObjectProtocol] = []
     private static var sessionExpiredHandler: (() -> Void)?
@@ -134,6 +136,7 @@ enum KabbaSync {
             KabbaSync.engine = engine
             KabbaSync.client = client
             KabbaSync.installation = installation
+            KabbaSync.removedRecords = SyncRemovedRecordLog(directory: root)
             KabbaSync.sessionExpiredHandler = onSessionExpired
 
             // Phase 5 — session record, update-required gate, and the install id the share
@@ -180,6 +183,30 @@ enum KabbaSync {
 
     static func kick(_ reason: String, ignoreBackoff: Bool = false) {
         engine?.kick(reason: reason, ignoreBackoff: ignoreBackoff)
+    }
+
+    /// Settings → Sync "Sync Now": one pass, then what it did (on main). nil = no engine.
+    static func syncNow(_ reason: String, completion: @escaping (SyncPassReport?) -> Void) {
+        guard let engine = engine else { completion(nil); return }
+        engine.syncNow(reason: reason) { report in
+            DispatchQueue.main.async { completion(report) }
+        }
+    }
+
+    /// A person removed ONE record from the queue after reviewing it (Settings → Sync).
+    /// Deletes the record and its own files; keeps a content-free trace of who removed what.
+    @discardableResult
+    static func removeRecord(_ operationId: String,
+                             engine: SyncEngine? = KabbaSync.engine,
+                             log: SyncRemovedRecordLog? = KabbaSync.removedRecords,
+                             reason: String? = nil) throws -> SyncRemovedRecord {
+        guard let engine = engine else { throw SyncEngineError.unknownOperation(operationId) }
+        let removed = try engine.remove(operationId: operationId)
+        let user = UserDefaults.standard.user
+        let trace = SyncRemovedRecord.of(removed, removedAt: Date(), byUserId: user?.id, byName: user?.full_name, reason: reason)
+        try? log?.append(trace)   // the trace never blocks the person's decision
+        NotificationCenter.default.post(name: .kabbaSyncQueueChanged, object: nil)
+        return trace
     }
 
     /// Login succeeded: lift an authentication pause and drain what accumulated while signed out.

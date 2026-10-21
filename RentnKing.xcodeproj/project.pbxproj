@@ -543,6 +543,21 @@
 		5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */; };
 		5A5CFADE0000000000000091 /* ReleaseSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */; };
 		5A7C00000000000000000011 /* SyncCaptureOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */; };
+		5A7A000000000000000000A1 /* SyncRecordReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000A0 /* SyncRecordReview.swift */; };
+		5A7A000000000000000000A2 /* SyncRecordReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000A0 /* SyncRecordReview.swift */; };
+		5A7A000000000000000000B1 /* SyncPassReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000B0 /* SyncPassReport.swift */; };
+		5A7A000000000000000000B2 /* SyncPassReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000B0 /* SyncPassReport.swift */; };
+		5A7A000000000000000000C1 /* SyncRemovedRecordLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000C0 /* SyncRemovedRecordLog.swift */; };
+		5A7A000000000000000000C2 /* SyncRemovedRecordLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000C0 /* SyncRemovedRecordLog.swift */; };
+		5A7A000000000000000000D1 /* SyncRecordResolutionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000D0 /* SyncRecordResolutionTests.swift */; };
+		5A7A000000000000000000E1 /* SyncRecordReviewUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000E0 /* SyncRecordReviewUI.swift */; };
+		5A7A000000000000000000F1 /* SyncStatusHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A000000000000000000F0 /* SyncStatusHostedTests.swift */; };
+		5A7A00000000000000000101 /* ChecklistOwnLineHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000100 /* ChecklistOwnLineHostedTests.swift */; };
+		5A7A00000000000000000111 /* LocalLicense.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000110 /* LocalLicense.swift */; };
+		5A7A00000000000000000112 /* LocalLicense.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000110 /* LocalLicense.swift */; };
+		5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000120 /* LocalLicenseTests.swift */; };
+		5A7A00000000000000000131 /* LicenseLocalSaveHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */; };
+		5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1040,6 +1055,17 @@
 		5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseSmokeUITests.swift; sourceTree = "<group>"; };
 		5A5C00000000000000000122 /* RentnKingUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RentnKingUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCaptureOrderTests.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000A0 /* SyncRecordReview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecordReview.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000B0 /* SyncPassReport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncPassReport.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000C0 /* SyncRemovedRecordLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRemovedRecordLog.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000D0 /* SyncRecordResolutionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecordResolutionTests.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000E0 /* SyncRecordReviewUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncRecordReviewUI.swift; sourceTree = "<group>"; };
+		5A7A000000000000000000F0 /* SyncStatusHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusHostedTests.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000100 /* ChecklistOwnLineHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChecklistOwnLineHostedTests.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000110 /* LocalLicense.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLicense.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000120 /* LocalLicenseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLicenseTests.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseLocalSaveHostedTests.swift; sourceTree = "<group>"; };
+		5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStopRouteEventsSyncReviewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2204,6 +2230,10 @@
 				5A6A000000000000000000A0 /* NextStopState.swift */,
 				5A6A000000000000000000B0 /* NextStopStore.swift */,
 				5A6B000000000000000000A0 /* NextStopRouteEvents.swift */,
+				5A7A00000000000000000110 /* LocalLicense.swift */,
+				5A7A000000000000000000C0 /* SyncRemovedRecordLog.swift */,
+				5A7A000000000000000000B0 /* SyncPassReport.swift */,
+				5A7A000000000000000000A0 /* SyncRecordReview.swift */,
 				5A5D000000000000000000F0 /* DispatchWake.swift */,
 				5A5C00000000000000000041 /* ClientMetadata.swift */,
 				5A5C00000000000000000043 /* SessionState.swift */,
@@ -2289,6 +2319,7 @@
 				5A5C000000000000000000E3 /* ManualDispatchSyncHandler.swift */,
 				5A6A000000000000000000F0 /* NextStopCoordinator.swift */,
 				5A6B000000000000000000B0 /* NextStopRouteEventSyncHandler.swift */,
+				5A7A000000000000000000E0 /* SyncRecordReviewUI.swift */,
 				5A5CFADE0000000000000014 /* TermsSyncHandler.swift */,
 				5A5CFADE0000000000000023 /* PreparationSyncHandlers.swift */,
 				5A5CFADE0000000000000083 /* AssemblySyncHandlers.swift */,
@@ -2328,6 +2359,9 @@
 				5A6A000000000000000000E0 /* NextStopWorkflowHostedTests.swift */,
 				5A5F00000000000000000036 /* DriverDeliveryFlowHostedTests.swift */,
 				5A5F00000000000000000048 /* StaleAvailabilityReconcilerHostedTests.swift */,
+				5A7A00000000000000000130 /* LicenseLocalSaveHostedTests.swift */,
+				5A7A00000000000000000100 /* ChecklistOwnLineHostedTests.swift */,
+				5A7A000000000000000000F0 /* SyncStatusHostedTests.swift */,
 				5A5F0000000000000000004A /* ReleaseSafetyHostedTests.swift */,
 				5A5E000000000000000000CD /* DispatchOfflineFieldBridgeHostedTests.swift */,
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
@@ -2368,6 +2402,9 @@
 				5A6A000000000000000000D0 /* NextStopStoreTests.swift */,
 				5A6B000000000000000000C0 /* NextStopRouteEventsTests.swift */,
 				5A7C00000000000000000010 /* SyncCaptureOrderTests.swift */,
+				5A7A00000000000000000140 /* NextStopRouteEventsSyncReviewTests.swift */,
+				5A7A00000000000000000120 /* LocalLicenseTests.swift */,
+				5A7A000000000000000000D0 /* SyncRecordResolutionTests.swift */,
 				5A5C00000000000000000068 /* ChecklistOperationTests.swift */,
 				5A5C0000000000000000006A /* DeprecatedEndpointGuardTests.swift */,
 				5A5C0000000000000000006C /* ExternalTransferTests.swift */,
@@ -2848,7 +2885,12 @@
 				5A6A000000000000000000F3 /* NextStopViewController.swift in Sources */,
 				5A6A000000000000000000F5 /* NextMissionPickerViewController.swift in Sources */,
 				5A6B000000000000000000A1 /* NextStopRouteEvents.swift in Sources */,
+				5A7A00000000000000000111 /* LocalLicense.swift in Sources */,
+				5A7A000000000000000000C1 /* SyncRemovedRecordLog.swift in Sources */,
+				5A7A000000000000000000B1 /* SyncPassReport.swift in Sources */,
+				5A7A000000000000000000A1 /* SyncRecordReview.swift in Sources */,
 				5A6B000000000000000000B1 /* NextStopRouteEventSyncHandler.swift in Sources */,
+				5A7A000000000000000000E1 /* SyncRecordReviewUI.swift in Sources */,
 				5A5C000000000000000000E6 /* ManualDispatchDetailViewController.swift in Sources */,
 				5A5C000000000000000000E8 /* ManualDispatchListCell.swift in Sources */,
 				5A5C0000000000000000001C /* KabbaSync.swift in Sources */,
@@ -3108,6 +3150,9 @@
 				5A6A000000000000000000D1 /* NextStopStoreTests.swift in Sources */,
 				5A6B000000000000000000C1 /* NextStopRouteEventsTests.swift in Sources */,
 				5A7C00000000000000000011 /* SyncCaptureOrderTests.swift in Sources */,
+				5A7A00000000000000000141 /* NextStopRouteEventsSyncReviewTests.swift in Sources */,
+				5A7A00000000000000000121 /* LocalLicenseTests.swift in Sources */,
+				5A7A000000000000000000D1 /* SyncRecordResolutionTests.swift in Sources */,
 				5A5C00000000000000000069 /* ChecklistOperationTests.swift in Sources */,
 				5A5C0000000000000000006B /* DeprecatedEndpointGuardTests.swift in Sources */,
 				5A5C0000000000000000006D /* ExternalTransferTests.swift in Sources */,
@@ -3160,6 +3205,10 @@
 				5A6A000000000000000000A2 /* NextStopState.swift in Sources */,
 				5A6A000000000000000000B2 /* NextStopStore.swift in Sources */,
 				5A6B000000000000000000A2 /* NextStopRouteEvents.swift in Sources */,
+				5A7A00000000000000000112 /* LocalLicense.swift in Sources */,
+				5A7A000000000000000000C2 /* SyncRemovedRecordLog.swift in Sources */,
+				5A7A000000000000000000B2 /* SyncPassReport.swift in Sources */,
+				5A7A000000000000000000A2 /* SyncRecordReview.swift in Sources */,
 				5A5D000000000000000000F2 /* DispatchWake.swift in Sources */,
 				5A5C000000000000000000BE /* SyncOperationStore.swift in Sources */,
 				5A5C000000000000000000BF /* SyncHTTP.swift in Sources */,
@@ -3236,6 +3285,9 @@
                 5A5CBA7C0000000000000002 /* ChecklistBatchIsolationHostedTests.swift in Sources */,
                 5A5CF0E10000000000000009 /* FuelDEFChecklistHostedTests.swift in Sources */,
 				5A5F00000000000000000049 /* StaleAvailabilityReconcilerHostedTests.swift in Sources */,
+				5A7A00000000000000000131 /* LicenseLocalSaveHostedTests.swift in Sources */,
+				5A7A00000000000000000101 /* ChecklistOwnLineHostedTests.swift in Sources */,
+				5A7A000000000000000000F1 /* SyncStatusHostedTests.swift in Sources */,
 				5A5F0000000000000000004B /* ReleaseSafetyHostedTests.swift in Sources */,
 				5A5E000000000000000000CE /* DispatchOfflineFieldBridgeHostedTests.swift in Sources */,
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,

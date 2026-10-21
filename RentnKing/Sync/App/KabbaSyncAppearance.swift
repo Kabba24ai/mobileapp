@@ -48,4 +48,14 @@ extension KabbaSync {
                                         duration: duration)
         }
     }
+
+    /// The one way a screen finishes after a DURABLE save on this phone (MOBILE-QUALITY-01,
+    /// item 06): a ~1 s confirmation that needs no tap, and the screen moves on at once. A
+    /// blocking alert followed by a timed pop raced UIKit — the OK looked disabled and the pop
+    /// was dropped, leaving the employee on the screen with several Backs to go. Call it only
+    /// after the save is on disk; the words must never claim Kabba already has it.
+    static func confirmSavedOnPhone(_ text: String, then route: () -> Void) {
+        showConfirmationToast(text, duration: 1.0)
+        route()
+    }
 }

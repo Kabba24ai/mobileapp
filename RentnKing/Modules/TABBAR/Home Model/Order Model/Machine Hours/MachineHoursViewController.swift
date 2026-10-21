@@ -174,9 +174,9 @@ extension MachineHoursViewController {
                 GlobalMainConstants.appDelegate?.uploadAllData()
             }
             
-            showAlertMessage(strMessage: "Machine hours updated successfully.")
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+            // MOBILE-QUALITY-01 (item 06): the hours are on this phone's upload queue — say so,
+            // without a blocking alert racing the pop, and go back at once.
+            KabbaSync.confirmSavedOnPhone("Machine hours saved on this phone. Will sync when available.") {
                 self.navigationController?.popViewController(animated: true)
             }
         }

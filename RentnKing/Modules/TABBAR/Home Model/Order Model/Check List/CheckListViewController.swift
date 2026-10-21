@@ -721,6 +721,7 @@ extension CheckListViewController{
         var firstIncomplete: IndexPath?
         var inTransitProblems: [String] = []
         var availabilityProblems: [String] = []
+        var notOwnChecklistProblems: [String] = []
 
         if let engine = KabbaSync.engine {
             for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
@@ -732,6 +733,15 @@ extension CheckListViewController{
                 var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                            isDelivery: self.isDeliveryType,
                                                            charges: ChecklistLineCharge())
+                // MOBILE-QUALITY-01 (item 03): never queue a line with answers that are not on its
+                // own checklist (Laravel refuses them: CHECKLIST_QUESTION_MISMATCH). The draft above
+                // keeps the answers; the employee is told which line to reopen.
+                let notOwnChecklist: String? = {
+                    do { try ChecklistOperationBuilder.assertOwnChecklist(capture); return nil }
+                    catch let refusal as ChecklistCaptureError { return refusal.employeeMessage }
+                    catch { return error.localizedDescription }
+                }()
+
                 let problems = capture.localValidationProblems()
                 let complete = problems.isEmpty && !errorSections.contains(index)
                 let inTransit = context.serverState.inTransit == true
@@ -746,6 +756,10 @@ extension CheckListViewController{
                 if self.queueLineFocusedStaging, uid != self.focusOrderProductUniqueId {
                     let fingerprint = Self.answersFingerprint(capture)
                     if lastSyncedFingerprint[uid] == fingerprint || loadedFingerprint[uid] == fingerprint { continue }
+                    if let refusal = notOwnChecklist {
+                        notOwnChecklistProblems.append(refusal)
+                        continue
+                    }
                     if inTransit, !complete {
                         let productName = product.product_name ?? "This equipment"
                         inTransitProblems.append("\(productName) is IN TRANSIT — its prepared checklist must stay complete. " + problems.joined(separator: ". "))
@@ -754,6 +768,11 @@ extension CheckListViewController{
                     if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
                         lastSyncedFingerprint[uid] = fingerprint
                     }
+                    continue
+                }
+
+                if let refusal = notOwnChecklist {
+                    notOwnChecklistProblems.append(refusal)
                     continue
                 }
 
@@ -803,7 +822,16 @@ extension CheckListViewController{
             }
         }
 
-        // 3) Outcome.
+        // 3) Outcome. A refused line never hides what happened to the others.
+        if !notOwnChecklistProblems.isEmpty {
+            var parts = notOwnChecklistProblems
+            if enqueueFailed { parts.append("Other equipment could not be saved on this phone. Please try again.") }
+            if stagedCount > 0 { parts.append("\(stagedCount) other line\(stagedCount == 1 ? " was" : "s were") saved on this phone and staged.") }
+            if progressCount > 0 { parts.append("Progress on \(progressCount) other line\(progressCount == 1 ? "" : "s") was saved on this phone.") }
+            showAlertMessage(strMessage: parts.joined(separator: "\n\n"))
+            return
+        }
+
         if !inTransitProblems.isEmpty {
             showAlertMessage(strMessage: inTransitProblems.joined(separator: "\n\n"))
             if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
@@ -3080,7 +3108,7 @@ extension CheckListViewController {
                 case .success(let context):
                     self.contextsNeedingConnection.remove(uid)
                     self.checklistContexts[uid] = context
-                    self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                    self.applyChecklistContext(context, toProductWith: uid)
                     self.refreshPreparationActions()
                 case .failure(.unavailableOffline):
                     self.markNeedsConnection(uid)
@@ -3145,7 +3173,7 @@ extension CheckListViewController {
         guard let client = KabbaSync.checklistContexts, let order = self.objOrderData else { return }
         let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
 
-        for (index, product) in order.arrProduct.enumerated() {
+        for product in order.arrProduct {
             guard let uid = product.unique_id, !uid.isEmpty else { continue }
             // The unit the Queue Line staged travels with the hand-off; the server still decides
             // (a different current assignment answers EQUIPMENT_ASSIGNMENT_CONFLICT, never a swap).
@@ -3158,7 +3186,7 @@ extension CheckListViewController {
                     case .success(let context):
                         self.contextsNeedingConnection.remove(uid)
                         self.checklistContexts[uid] = context
-                        self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
+                        self.applyChecklistContext(context, toProductWith: uid)
                         if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
                     case .failure(.unavailableOffline):
                         self.markNeedsConnection(uid)
@@ -3225,9 +3253,14 @@ extension CheckListViewController {
 
     /// Replaces the product's template questions with the context's (same visual model, canonical
     /// ids), keeps the synthesized hours/fuel/cleaning rows, and locks the office-assigned unit.
-    func applyChecklistContext(_ context: ChecklistContext, toProductWith uid: String, fallbackIndex: Int) {
+    ///
+    /// A context only ever lands on ITS OWN line (MOBILE-QUALITY-01, item 03). When the line is
+    /// no longer on screen (the order was rebuilt from another copy in the meantime) the context
+    /// is not applied at all — it used to fall back to whatever line now sat at the old position,
+    /// handing that line another machine's questions and unit.
+    func applyChecklistContext(_ context: ChecklistContext, toProductWith uid: String) {
         guard let order = self.objOrderData else { return }
-        guard let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }) ?? (fallbackIndex < order.arrProduct.count ? fallbackIndex : nil) else { return }
+        guard let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }) else { return }
         var product = order.arrProduct[index]
 
         // Assigned unit → shown and locked. No unit → the picker stays available; the context is
