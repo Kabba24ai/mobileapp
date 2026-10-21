@@ -61,7 +61,7 @@ fi
 if NOTES=$("$ROOT/Scripts/whats-new.sh" "$VERSION" 2>&1); then
   ok "release notes found for $VERSION"
 else
-  fail "$NOTES"
+  fail "${NOTES#✖ }"
   NOTES=""
 fi
 
