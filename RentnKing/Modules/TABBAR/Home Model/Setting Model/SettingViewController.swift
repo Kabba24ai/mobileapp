@@ -20,6 +20,9 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
 
     /// About / release-notes section (built once, below the email).
     private let aboutStack = UIStackView()
+    /// Build details for support — source revision, configuration, install channel and build
+    /// time. Hidden until the Version line is tapped, so normal Settings stays uncluttered.
+    private let buildDetailsLabel = UILabel()
 
     /// Release data now lives in the AppReleaseInfo model object.
     private var releases: [AppRelease] { AppReleaseInfo.all }
@@ -116,6 +119,21 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         let versionLabel = keyValue("Version:  ", AppReleaseInfo.versionDisplay)
         let buildDateLabel = keyValue("Build Date:  ", AppReleaseInfo.buildDate)
 
+        // Tap the version → the build details (tap them to copy for support).
+        versionLabel.isUserInteractionEnabled = true
+        versionLabel.accessibilityIdentifier = "settings.version"
+        versionLabel.accessibilityTraits = .button
+        versionLabel.accessibilityHint = "Shows the build details for support"
+        versionLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleBuildDetails)))
+        buildDetailsLabel.numberOfLines = 0
+        buildDetailsLabel.font = SetTheFont(fontName: regular, size: 13)
+        buildDetailsLabel.textColor = grayValue
+        buildDetailsLabel.text = AppReleaseInfo.buildIdentity.summary
+        buildDetailsLabel.isHidden = true
+        buildDetailsLabel.isUserInteractionEnabled = true
+        buildDetailsLabel.accessibilityIdentifier = "settings.buildDetails"
+        buildDetailsLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(copyBuildDetails)))
+
         let notesHeader = UILabel()
         notesHeader.attributedText = NSAttributedString(string: "Release Notes",
                 attributes: [.foregroundColor: cyan, .font: SetTheFont(fontName: bold, size: 18)])
@@ -145,6 +163,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         view.addSubview(aboutStack)
 
         aboutStack.addArrangedSubview(versionLabel)
+        aboutStack.addArrangedSubview(buildDetailsLabel)
         aboutStack.addArrangedSubview(buildDateLabel)
 
         // Sync status (Phase 2): what is still on this phone waiting for Kabba, and the
@@ -166,6 +185,15 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
             aboutStack.leadingAnchor.constraint(equalTo: lblName.leadingAnchor),
             aboutStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -16),
         ])
+    }
+
+    @objc func toggleBuildDetails() {
+        buildDetailsLabel.isHidden.toggle()
+    }
+
+    @objc func copyBuildDetails() {
+        UIPasteboard.general.string = AppReleaseInfo.buildIdentity.summary
+        KabbaSync.showConfirmationToast("Build details copied", duration: 1.0)
     }
 
     @objc func btnFullArchiveClicked() {

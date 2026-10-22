@@ -158,19 +158,91 @@ final class AppReleaseCatalogTests: XCTestCase {
                        "One entry per version.")
     }
 
-    // 7. 1.0.28 (1014) is the route-evidence release: its notes are the App Store "What's New"
-    //    text too, and 1.0.27's entry still reads exactly as build 1013 shipped it.
-    func testThe1028NotesDescribeTheRouteEvidenceAndComeFirst() {
+    // 7. 1.0.28 (1015) is ONE combined release (owner decision 2026-10-21): the route events
+    //    first uploaded as 1014 AND every MOBILE-QUALITY-01 improvement (prepared as 1.0.29, never
+    //    shipped). Its notes are the App Store "What's New" text too; 1.0.27 still reads exactly as
+    //    build 1013 shipped it, and no 1.0.29 entry exists.
+    func testThe1028NotesCoverBothScopesAndComeFirst() throws {
         XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.28", "Newest first, for presentation.")
-        let v28 = AppReleaseCatalog.release(for: "1.0.28")
-        XCTAssertEqual(v28?.notes.first,
-                       "Your Next Stop answers (next customer or task, Return to Shop and Arrived at Shop) are now sent to the office with the time you tapped them")
-        XCTAssertEqual(v28?.notes.last, "Various fixes and refinements")
+        XCTAssertNil(AppReleaseCatalog.release(for: "1.0.29"), "1.0.29 was folded into 1.0.28 and never shipped")
+        let notes = AppReleaseCatalog.notes(for: "1.0.28")
+        XCTAssertTrue(notes.first?.hasPrefix("Your Next Stop answers") == true, "route events")
+        for scope in ["Settings › Sync shows", "Sync Now tells you", "A checklist can no longer be sent", "Driver's license:",
+                      "Queue Line: tap an order number", "Queue Line cards show Paid or Pending", "Settings › About:", "Next Stop: a Main Menu button"] {
+            XCTAssertTrue(notes.contains { $0.hasPrefix(scope) }, "missing: \(scope)")
+        }
+        XCTAssertEqual(notes.last, "Various fixes and refinements")
+        let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.28"))
+        XCTAssertLessThanOrEqual(text.count, AppReleaseCatalog.appStoreWhatsNewLimit)
         XCTAssertEqual(AppReleaseCatalog.release(for: "1.0.27")?.notes, [
             "Finishing a delivery, return or manual dispatch now asks what you're doing next instead of sending you back to the board",
             "Pick your next customer or task from the work still assigned to you, or head back to one of your shops",
             "The shop you picked stays your destination while you navigate, and is still there when you come back to the app",
             "Various fixes and refinements",
         ], "1.0.27 must read exactly as build 1013 shipped it.")
+    }
+
+    // MARK: - MOBILE-QUALITY-01 (item 04): one draft per release, traceable builds
+
+    // 7. The App Store text is rendered from the SAME entry Settings shows — never a second draft.
+    func testWhatsNewIsRenderedFromTheEntrySettingsShows() throws {
+        let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.27"))
+        XCTAssertEqual(text, AppReleaseCatalog.notes(for: "1.0.27").map { "• \($0)" }.joined(separator: "\n"))
+        XCTAssertNil(AppReleaseCatalog.appStoreWhatsNew(for: "9.9.9"), "no entry → no text, never another version's")
+        for release in AppReleaseCatalog.history {
+            let rendered = AppReleaseCatalog.appStoreWhatsNew(for: release.version) ?? ""
+            XCTAssertLessThanOrEqual(rendered.count, AppReleaseCatalog.appStoreWhatsNewLimit, "\(release.version) is too long for App Store Connect")
+        }
+    }
+
+    // 8. The version this project builds has its notes — a release can never ship the
+    //    neutral fallback (or another version's text) by accident.
+    func testTheProjectsVersionAndBuildAreConsistentAndHaveReleaseNotes() throws {
+        let pbx = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("RentnKing.xcodeproj/project.pbxproj")
+        let project = try String(contentsOf: pbx, encoding: .utf8)
+        func values(_ key: String, ignoring placeholder: String) -> Set<String> {
+            let regex = try! NSRegularExpression(pattern: "\\b\(key) = ([^;]+);")
+            let matches = regex.matches(in: project, range: NSRange(project.startIndex..., in: project))
+            return Set(matches.compactMap { Range($0.range(at: 1), in: project).map { String(project[$0]) } }).subtracting([placeholder])
+        }
+        let versions = values("MARKETING_VERSION", ignoring: "1.0")      // test targets keep 1.0 / 1
+        let builds = values("CURRENT_PROJECT_VERSION", ignoring: "1")
+        XCTAssertEqual(versions.count, 1, "app and extension must carry ONE marketing version: \(versions.sorted())")
+        XCTAssertEqual(builds.count, 1, "app and extension must carry ONE build number: \(builds.sorted())")
+        let version = try XCTUnwrap(versions.first)
+        XCTAssertNotNil(AppReleaseCatalog.release(for: version), "\(version) has no release notes in AppReleaseCatalog.history")
+    }
+
+    // 9. A build tells support exactly what it is, including a build from a modified tree.
+    func testBuildIdentityReadsTheStampAndSaysWhenTheTreeWasModified() throws {
+        let stamp: [String: Any] = ["BuildDate": "2026-10-21T14:03:00Z", "BuildConfiguration": "Release",
+                                    "SourceRevision": "44927ea635b8", "SourceState": "clean", "SourceBranch": "fix/fuel-def-readings-1.0.26"]
+        let data = try PropertyListSerialization.data(fromPropertyList: stamp, format: .xml, options: 0)
+        let identity = BuildIdentity(version: "1.0.27", build: "1013", stamp: AppReleaseCatalog.buildIdentity(fromStampPlist: data), channel: .appStore)
+        XCTAssertEqual(identity.summary, "1.0.27 (1013) · Source 44927ea635b8 · Release · App Store · Built Oct 21, 2026 14:03 UTC")
+
+        var modified = identity.stamp
+        modified.sourceState = "modified"
+        XCTAssertEqual(BuildIdentity(version: "1.0.27", build: "1013", stamp: modified, channel: .development).sourceLine,
+                       "Source 44927ea635b8 + uncommitted changes")
+
+        // A binary stamped before MOBILE-QUALITY-01 (no revision keys) says so, never guesses.
+        let old = try PropertyListSerialization.data(fromPropertyList: ["BuildDate": "2026-10-18T02:00:00Z", "BuildConfiguration": "Release"], format: .xml, options: 0)
+        XCTAssertEqual(BuildIdentity(version: "1.0.27", build: "1013", stamp: AppReleaseCatalog.buildIdentity(fromStampPlist: old), channel: .appStore).sourceLine,
+                       "Source unknown")
+        XCTAssertNil(AppReleaseCatalog.buildIdentity(fromStampPlist: Data()).sourceRevision)
+    }
+
+    // 10. How the copy reached the phone — what told Gary's computer-installed 1.0.27 (1013)
+    //     apart from the office phones' App Store copy.
+    func testInstallChannelDetection() {
+        XCTAssertEqual(InstallChannel.detect(receiptName: "receipt", hasEmbeddedProvisioningProfile: false, isSimulator: false), .appStore)
+        XCTAssertEqual(InstallChannel.detect(receiptName: "sandboxReceipt", hasEmbeddedProvisioningProfile: false, isSimulator: false), .testFlight)
+        XCTAssertEqual(InstallChannel.detect(receiptName: nil, hasEmbeddedProvisioningProfile: true, isSimulator: false), .development)
+        XCTAssertEqual(InstallChannel.detect(receiptName: "sandboxReceipt", hasEmbeddedProvisioningProfile: true, isSimulator: false), .development,
+                       "a development profile wins over the receipt name")
+        XCTAssertEqual(InstallChannel.detect(receiptName: nil, hasEmbeddedProvisioningProfile: false, isSimulator: true), .simulator)
     }
 }

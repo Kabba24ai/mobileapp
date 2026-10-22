@@ -171,4 +171,30 @@ final class NextStopStoreTests: XCTestCase {
         try store.save(NextStopTransition.selectShop(shop, at: selectedAt))
         XCTAssertEqual(store.load().shop, shop)
     }
+
+    // MARK: - One driver's trip, never another's (2026-10-21)
+
+    func testATripBelongsToTheSignedInDriverOfTheCompany() throws {
+        var driver: String? = "12"
+        let store = try NextStopStore(rootDirectory: root, tenantKey: { NextStopStore.scopeKey(tenant: "acme", driverId: driver) })
+        try store.save(NextStopTransition.selectShop(shop, at: selectedAt))
+
+        driver = "34"                       // another driver signs in on the same phone
+        XCTAssertEqual(store.load(), .idle, "never shown, continued or confirmed by another driver")
+
+        driver = "12"
+        XCTAssertEqual(store.load(), .shopSelected(shop: shop, selectedAt: selectedAt), "the driver's own trip is still there")
+
+        driver = nil                        // signed out
+        XCTAssertEqual(store.load(), .idle)
+        XCTAssertThrowsError(try store.save(.idle))
+    }
+
+    func testTheScopeKeyNeedsBothACompanyAndADriver() {
+        XCTAssertEqual(NextStopStore.scopeKey(tenant: "acme", driverId: "12"), "acme-driver-12")
+        XCTAssertNil(NextStopStore.scopeKey(tenant: nil, driverId: "12"))
+        XCTAssertNil(NextStopStore.scopeKey(tenant: "acme", driverId: nil))
+        XCTAssertNil(NextStopStore.scopeKey(tenant: "acme", driverId: "  "))
+        XCTAssertNil(NextStopStore.scopeKey(tenant: "", driverId: "12"))
+    }
 }

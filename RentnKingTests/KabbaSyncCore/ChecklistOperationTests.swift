@@ -95,6 +95,36 @@ final class ChecklistOperationTests: XCTestCase {
         XCTAssertTrue(noUnit.localValidationProblems().contains("Equipment not selected"))
     }
 
+    // MARK: A line is only ever queued with its own checklist (MOBILE-QUALITY-01, item 03)
+
+    func testACompletionCarryingAnotherMachinesQuestionIsRefusedBeforeAnythingIsWritten() throws {
+        let store = try FileSyncOperationStore(rootDirectory: dir)
+        let engine = makeEngine(store: store, client: client)
+        let compactor = context(product: "ORD-SCH-COMPACTOR", execution: "ORD-CHK-C")
+        // CAQST-Q9-OTHER is on another machine's checklist, not this line's.
+        let foreign = capture(compactor, answers: ["CAQST-Q1": "CAANS-A1", "CAQST-Q9-OTHER": "CAANS-Z1"])
+
+        XCTAssertEqual(foreign.answersNotInThisChecklist, ["CAQST-Q9-OTHER:CAANS-Z1"])
+        XCTAssertThrowsError(try ChecklistOperationBuilder.enqueueCompletion(foreign, signatureJPEG: Data("SIG".utf8), into: engine)) { error in
+            XCTAssertEqual(error as? ChecklistCaptureError, .answersNotInThisChecklist(productName: "Skid Steer", count: 1))
+        }
+        XCTAssertTrue(engine.snapshot().isEmpty, "nothing queued")
+        let files = (try? FileManager.default.subpathsOfDirectory(atPath: store.assetsDirectory.path)) ?? []
+        XCTAssertFalse(files.contains { $0.hasSuffix(".jpg") }, "the signature was never written")
+    }
+
+    func testAPrepareWithAnAnswerOfAnotherQuestionIsRefusedWhileOwnAnswersStillQueue() throws {
+        let engine = makeEngine(store: try FileSyncOperationStore(rootDirectory: dir), client: client)
+        let ctx = context(product: "ORD-SCH-A")
+        XCTAssertThrowsError(try ChecklistOperationBuilder.enqueuePrepare(capture(ctx, answers: ["CAQST-Q1": "CAANS-B1"]), into: engine),
+                             "CAANS-B1 is an answer of Q2, never of Q1")
+        XCTAssertNoThrow(try ChecklistOperationBuilder.enqueuePrepare(capture(ctx, answers: ["CAQST-Q2": "CAANS-B1"]), into: engine),
+                         "a partial save with the line's own answers still queues")
+        XCTAssertEqual(engine.snapshot().count, 1)
+        XCTAssertTrue(ChecklistCaptureError.answersNotInThisChecklist(productName: "Compactor", count: 2).employeeMessage
+            .hasPrefix("Compactor: 2 answers are not on this equipment's checklist. Nothing was saved for it."))
+    }
+
     // MARK: One operation per product
 
     func testTwoProductsProduceTwoOperationsEachWithItsOwnSignatureAndExecution() throws {

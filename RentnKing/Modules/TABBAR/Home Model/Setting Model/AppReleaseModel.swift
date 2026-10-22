@@ -60,4 +60,28 @@ enum AppReleaseInfo {
     static func displayDate(for release: AppRelease) -> String {
         release.version == version ? buildDate : (release.date ?? "")
     }
+
+    // MARK: Build identity (MOBILE-QUALITY-01, item 04)
+
+    /// Source revision, configuration and build time from the build stamp, plus how this copy
+    /// was installed — what tells a computer-installed 1.0.27 (1013) from the App Store's.
+    static var buildIdentity: BuildIdentity {
+        let stamp: BuildIdentity.Stamp = {
+            guard let url = Bundle.main.url(forResource: AppReleaseCatalog.buildStampResourceName, withExtension: "plist"),
+                  let data = try? Data(contentsOf: url) else { return BuildIdentity.Stamp() }
+            return AppReleaseCatalog.buildIdentity(fromStampPlist: data)
+        }()
+        return BuildIdentity(version: version, build: build, stamp: stamp, channel: installChannel)
+    }
+
+    static var installChannel: InstallChannel {
+        #if targetEnvironment(simulator)
+        let isSimulator = true
+        #else
+        let isSimulator = false
+        #endif
+        return InstallChannel.detect(receiptName: Bundle.main.appStoreReceiptURL?.lastPathComponent,
+                                     hasEmbeddedProvisioningProfile: Bundle.main.path(forResource: "embedded", ofType: "mobileprovision") != nil,
+                                     isSimulator: isSimulator)
+    }
 }

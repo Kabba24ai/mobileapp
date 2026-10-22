@@ -57,6 +57,16 @@ public enum NextStopState: Equatable {
             return shop
         }
     }
+
+    /// A shop trip the driver left Next Stop during (Main Menu, Back) and can continue from
+    /// the Dispatch board to confirm the arrival: heading to a shop chosen TODAY. An arrival
+    /// is already recorded and has nothing left to confirm; a trip chosen on an earlier day
+    /// is over — confirming it now would record an arrival that never happened.
+    public func tripToContinue(now: Date, calendar: Calendar = .current) -> NextStopShop? {
+        guard case let .shopSelected(shop, selectedAt) = self,
+              calendar.isDate(selectedAt, inSameDayAs: now) else { return nil }
+        return shop
+    }
 }
 
 /// The only legal moves. Written as pure functions so the rules are testable

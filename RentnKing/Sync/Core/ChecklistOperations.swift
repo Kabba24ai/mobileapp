@@ -80,6 +80,12 @@ struct ChecklistCapture: Equatable {
     /// validates before requesting Pending → Staged (Laravel re-enforces).
     var isChecklistComplete: Bool { context.missingRequiredQuestionIds(answered: answers).isEmpty }
 
+    /// Selections that are not on THIS line's own checklist ("question:answer"): a question
+    /// of another machine's checklist, or an answer that no longer exists. Such a capture is
+    /// never queued (ChecklistOperationBuilder) — Laravel would refuse it with
+    /// CHECKLIST_QUESTION_MISMATCH and the driver's work would sit in Needs Attention.
+    var answersNotInThisChecklist: [String] { context.unknownSelections(answered: answers).sorted() }
+
     /// Local usability validation. Laravel re-validates the same rules on sync.
     func localValidationProblems() -> [String] {
         var problems: [String] = []
@@ -94,7 +100,32 @@ struct ChecklistCapture: Equatable {
     }
 }
 
+/// A capture the phone refuses to queue (MOBILE-QUALITY-01, item 03).
+enum ChecklistCaptureError: Error, Equatable {
+    /// Some answers are not on this line's own checklist — reopen it so its questions reload.
+    case answersNotInThisChecklist(productName: String, count: Int)
+
+    var employeeMessage: String {
+        switch self {
+        case .answersNotInThisChecklist(let product, let count):
+            return "\(product): \(count) answer\(count == 1 ? " is" : "s are") not on this equipment's checklist. Nothing was saved for it. Go back and open its checklist again — the questions reload for the equipment on this line."
+        }
+    }
+}
+
 enum ChecklistOperationBuilder {
+
+    /// Every checklist operation goes through here: a line is only ever submitted with ITS OWN
+    /// questions and answers. Laravel re-validates; this keeps a bad copy off the queue.
+    static func assertOwnChecklist(_ capture: ChecklistCapture) throws {
+        let foreign = capture.answersNotInThisChecklist
+        guard foreign.isEmpty else {
+            let identity = capture.context.identity
+            throw ChecklistCaptureError.answersNotInThisChecklist(
+                productName: identity.productName.isEmpty ? identity.orderProductUniqueId : identity.productName,
+                count: foreign.count)
+        }
+    }
 
     static func completeType(_ leg: ChecklistLeg) -> String { leg.operationPrefix + ".complete" }
     static func prepareType(_ leg: ChecklistLeg) -> String { leg.operationPrefix + ".prepare" }
@@ -171,6 +202,7 @@ enum ChecklistOperationBuilder {
                                   signatureJPEG: Data?,
                                   into engine: SyncEngine,
                                   operationId: String = UUID().uuidString) throws -> SyncOperation {
+        try assertOwnChecklist(capture)   // before the signature is written anywhere
         var assets: [SyncAsset] = []
         var signatureId: String?
         if let jpeg = signatureJPEG, !jpeg.isEmpty {
@@ -197,7 +229,8 @@ enum ChecklistOperationBuilder {
     static func enqueuePrepare(_ capture: ChecklistCapture,
                                into engine: SyncEngine,
                                operationId: String = UUID().uuidString) throws -> SyncOperation {
-        try engine.enqueue(type: prepareType(capture.leg),
+        try assertOwnChecklist(capture)
+        return try engine.enqueue(type: prepareType(capture.leg),
                            payload: preparePayload(capture),
                            identity: identity(capture),
                            capturedAt: capture.capturedAt,
