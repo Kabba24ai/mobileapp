@@ -1,0 +1,49 @@
+{
+    "success": true,
+    "data": {
+        "suppliers": [
+            {
+                "unique_id": "SUP-5MGM-UJEN",
+                "name": "Midway Parts",
+                "status": "Inactive",
+                "is_active": false,
+                "is_preferred": false,
+                "phone": null,
+                "email": null,
+                "city": "Maryville",
+                "state": null,
+                "primary_contact_name": null,
+                "category": null,
+                "tags": []
+            },
+            {
+                "unique_id": "SUP-PP8E-0MKW",
+                "name": "Smoky Mountain Hydraulics",
+                "status": "Active",
+                "is_active": true,
+                "is_preferred": true,
+                "phone": "(865) 555-0100",
+                "email": "sales@smh.example",
+                "city": "Knoxville",
+                "state": "TN",
+                "primary_contact_name": "Dana Brooks",
+                "category": "Hydraulics",
+                "tags": [
+                    "Same-day delivery"
+                ]
+            }
+        ],
+        "pagination": {
+            "current_page": 1,
+            "last_page": 1,
+            "per_page": 25,
+            "total": 2
+        },
+        "can": {
+            "view": true,
+            "create": true,
+            "view_payment_terms": false
+        }
+    },
+    "request_id": "e4ea179a-b39e-4dfe-8c68-5c252d469ab6"
+}
