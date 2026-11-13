@@ -229,7 +229,7 @@ final class SupplierListViewController: UIViewController, UITableViewDataSource,
                     self.isShowingOfflineCopy = true
                 } else if failure.isForbidden {
                     self.suppliers = []
-                    self.capabilities = .none
+                    self.capabilities = SupplierCapabilities.none
                 }
             }
             self.render()
