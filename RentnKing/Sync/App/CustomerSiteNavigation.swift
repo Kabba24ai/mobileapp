@@ -81,6 +81,7 @@ enum CustomerSiteNavigation {
                                                          operations: operations,
                                                          orderProductUniqueId: uid,
                                                          activeExecutionId: activeExecutionId,
+                                                         activeEquipmentUniqueId: context?.equipment.equipmentUniqueId,
                                                          orderHasVideo: feedVideo) {
             return true
         }

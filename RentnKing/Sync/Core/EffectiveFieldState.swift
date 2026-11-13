@@ -216,24 +216,30 @@ enum EffectiveFieldState {
     static func deliveryVideoSatisfied(serverHasVideo: Bool,
                                               operations: [SyncOperation],
                                               orderProductUniqueId: String,
-                                              activeExecutionId: String = "") -> Bool {
+                                              activeExecutionId: String = "",
+                                              activeEquipmentUniqueId: String = "") -> Bool {
         if serverHasVideo { return true }
         return !deliveryVideoEvidence(in: operations, orderProductUniqueId: orderProductUniqueId,
-                                      activeExecutionId: activeExecutionId).isEmpty
+                                      activeExecutionId: activeExecutionId,
+                                      activeEquipmentUniqueId: activeEquipmentUniqueId).isEmpty
     }
 
     /// The durable delivery-media operations that carry a VIDEO for this
     /// product and count for the active cycle (the ONE evidence rule behind
     /// `deliveryVideoSatisfied` and `MediaRequirementPolicy`, 2026-09-27).
+    ///
+    /// - `activeExecutionId`: the cycle the caller knows is active ("" = unknown).
+    /// - `activeEquipmentUniqueId`: the physical unit that cycle inspects ("" = unknown).
     static func deliveryVideoEvidence(in operations: [SyncOperation],
                                       orderProductUniqueId: String,
-                                      activeExecutionId: String = "") -> [SyncOperation] {
+                                      activeExecutionId: String = "",
+                                      activeEquipmentUniqueId: String = "") -> [SyncOperation] {
         guard !orderProductUniqueId.isEmpty else { return [] }
 
         // Preparation-cycle identity (2026-09): a walk-around video is evidence
-        // about ONE physical machine. When the caller knows which cycle is
-        // active, only that cycle's video counts — so a video shot for the unit
-        // a substitution replaced can never let the replacement skip its own.
+        // about ONE physical machine. A video that NAMES a cycle counts only for
+        // that cycle — so a video shot for the unit a substitution replaced can
+        // never let the replacement skip its own.
         let superseded = supersededExecutionIds(in: operations)
         let discardedAt = lastDiscardAt(in: operations, orderProductUniqueId: orderProductUniqueId)
 
@@ -245,15 +251,29 @@ enum EffectiveFieldState {
 
             let opExecution = op.identity.checklistExecutionId ?? ""
 
-            if !activeExecutionId.isEmpty {
-                return opExecution == activeExecutionId
+            if !opExecution.isEmpty {
+                if !activeExecutionId.isEmpty { return opExecution == activeExecutionId }
+                // No active cycle known (legacy/offline first open): the evidence
+                // still stands unless this phone discarded its cycle, or captured
+                // it before a discard it cannot attribute.
+                if superseded.contains(opExecution) { return false }
+                if let discardedAt, op.queuedAt < discardedAt { return false }
+                return true
             }
 
-            // No active cycle known (legacy/offline first open): the evidence
-            // still stands unless this phone discarded its cycle, or captured
-            // it before a discard it cannot attribute.
-            if !opExecution.isEmpty, superseded.contains(opExecution) { return false }
+            // Cycle-less video (2026-11-13, customer-site bounce): captured where
+            // this phone knew no cycle yet — Main Order on a phone that never
+            // loaded this line's checklist (another employee prepared the unit in
+            // the yard), or the legacy queue. Laravel files it with no cycle, so
+            // the server's per-cycle flag never reports it; this durable record is
+            // the only evidence the driver filmed. It stands for the active cycle
+            // — the same rule the Return leg applies — unless it is provably about
+            // something else: captured before this phone discarded the product's
+            // preparation, or filming a different physical unit than the one the
+            // active cycle inspects (a substitution made on another phone).
             if let discardedAt, op.queuedAt < discardedAt { return false }
+            let filmedUnit = op.identity.equipmentUniqueId ?? ""
+            if !filmedUnit.isEmpty, !activeEquipmentUniqueId.isEmpty, filmedUnit != activeEquipmentUniqueId { return false }
             return true
         }
     }
