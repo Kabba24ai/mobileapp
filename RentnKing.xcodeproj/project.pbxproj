@@ -565,6 +565,15 @@
 		5A7B000000000000000000A2 /* QueueLinePayment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000A0 /* QueueLinePayment.swift */; };
 		5A7B000000000000000000B1 /* QueueLinePaymentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */; };
 		5A7B000000000000000000C1 /* QueueLineBoardHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */; };
+		5A8100000000000000000002 /* SupplierDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000001 /* SupplierDirectory.swift */; };
+		5A8100000000000000000003 /* SupplierDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000001 /* SupplierDirectory.swift */; };
+		5A8100000000000000000005 /* SupplierDirectoryAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000004 /* SupplierDirectoryAPI.swift */; };
+		5A8100000000000000000007 /* SupplierListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000006 /* SupplierListViewController.swift */; };
+		5A8100000000000000000009 /* SupplierDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000008 /* SupplierDetailViewController.swift */; };
+		5A810000000000000000000B /* SupplierAddViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A810000000000000000000A /* SupplierAddViewController.swift */; };
+		5A810000000000000000000D /* HomeSupplierDirectoryTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A810000000000000000000C /* HomeSupplierDirectoryTile.swift */; };
+		5A810000000000000000000F /* SupplierDirectoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A810000000000000000000E /* SupplierDirectoryTests.swift */; };
+		5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1078,6 +1087,14 @@
 		5A7B000000000000000000A0 /* QueueLinePayment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePayment.swift; sourceTree = "<group>"; };
 		5A7B000000000000000000B0 /* QueueLinePaymentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLinePaymentTests.swift; sourceTree = "<group>"; };
 		5A7B000000000000000000C0 /* QueueLineBoardHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueLineBoardHostedTests.swift; sourceTree = "<group>"; };
+		5A8100000000000000000001 /* SupplierDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectory.swift; sourceTree = "<group>"; };
+		5A8100000000000000000004 /* SupplierDirectoryAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryAPI.swift; sourceTree = "<group>"; };
+		5A8100000000000000000006 /* SupplierListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierListViewController.swift; sourceTree = "<group>"; };
+		5A8100000000000000000008 /* SupplierDetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDetailViewController.swift; sourceTree = "<group>"; };
+		5A810000000000000000000A /* SupplierAddViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierAddViewController.swift; sourceTree = "<group>"; };
+		5A810000000000000000000C /* HomeSupplierDirectoryTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSupplierDirectoryTile.swift; sourceTree = "<group>"; };
+		5A810000000000000000000E /* SupplierDirectoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryTests.swift; sourceTree = "<group>"; };
+		5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryHostedTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1335,6 +1352,7 @@
 				C5FCEA9D2B7C6A6F007D6141 /* Schedule Model */,
 				B598A3CCA77F4F8CBDCAB495 /* Queue Line Model */,
 				5A6000000000000000000026 /* Equipment Audit Model */,
+				5A81000000000000000000F0 /* Supplier Directory Model */,
 			);
 			path = "Home Model";
 			sourceTree = "<group>";
@@ -2285,6 +2303,7 @@
 				5A5E000000000000000000D5 /* TermsSignOperations.swift */,
 				5A5E000000000000000000E0 /* TermsScreenPresentation.swift */,
 				5A5E000000000000000000FA /* TermsSignatureImage.swift */,
+				5A8100000000000000000001 /* SupplierDirectory.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2382,6 +2401,7 @@
 				5A5E000000000000000000F4 /* DispatchOfflineTermsHostedTests.swift */,
 				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
 				5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */,
+				5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2474,6 +2494,7 @@
 				5A5E000000000000000000DE /* DispatchOfflineTermsBridgeTests.swift */,
 				5A5E000000000000000000E3 /* TermsScreenPresentationTests.swift */,
 				5A5E000000000000000000FD /* TermsSignatureImageTests.swift */,
+				5A810000000000000000000E /* SupplierDirectoryTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -2500,6 +2521,18 @@
 				5A5C000000000000000000AE /* route_retired.json */,
 			);
 			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		5A81000000000000000000F0 /* Supplier Directory Model */ = {
+			isa = PBXGroup;
+			children = (
+				5A8100000000000000000004 /* SupplierDirectoryAPI.swift */,
+				5A8100000000000000000006 /* SupplierListViewController.swift */,
+				5A8100000000000000000008 /* SupplierDetailViewController.swift */,
+				5A810000000000000000000A /* SupplierAddViewController.swift */,
+				5A810000000000000000000C /* HomeSupplierDirectoryTile.swift */,
+			);
+			path = "Supplier Directory Model";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -3126,6 +3159,12 @@
 				5A5E000000000000000000E6 /* TermsSigningShell.swift in Sources */,
 				5A5E000000000000000000E8 /* TermsAgreementClient.swift in Sources */,
 				5A5E000000000000000000FB /* TermsSignatureImage.swift in Sources */,
+				5A8100000000000000000002 /* SupplierDirectory.swift in Sources */,
+				5A8100000000000000000005 /* SupplierDirectoryAPI.swift in Sources */,
+				5A8100000000000000000007 /* SupplierListViewController.swift in Sources */,
+				5A8100000000000000000009 /* SupplierDetailViewController.swift in Sources */,
+				5A810000000000000000000B /* SupplierAddViewController.swift in Sources */,
+				5A810000000000000000000D /* HomeSupplierDirectoryTile.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3291,6 +3330,8 @@
 				5A5E000000000000000000E4 /* TermsScreenPresentationTests.swift in Sources */,
 				5A5E000000000000000000FC /* TermsSignatureImage.swift in Sources */,
 				5A5E000000000000000000FE /* TermsSignatureImageTests.swift in Sources */,
+				5A8100000000000000000003 /* SupplierDirectory.swift in Sources */,
+				5A810000000000000000000F /* SupplierDirectoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3317,6 +3358,7 @@
 				5A5E000000000000000000F5 /* DispatchOfflineTermsHostedTests.swift in Sources */,
 				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,
 				5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */,
+				5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,12 @@
+{
+    "success": false,
+    "message": "Your account does not have access to the Supplier Directory.",
+    "error": {
+        "code": "FORBIDDEN",
+        "message": "Your account does not have access to the Supplier Directory.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "FORBIDDEN",
+    "request_id": "e73e8862-d202-4a42-9c5b-ee0c3b559a71"
+}

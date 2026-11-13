@@ -1,0 +1,20 @@
+{
+    "success": true,
+    "data": {
+        "duplicates": [
+            {
+                "unique_id": "SUP-PP8E-0MKW",
+                "name": "Smoky Mountain Hydraulics",
+                "city": "Knoxville",
+                "state": "TN",
+                "phone": "(865) 555-0100",
+                "status": "Active",
+                "reasons": [
+                    "name",
+                    "phone"
+                ]
+            }
+        ]
+    },
+    "request_id": "36087874-fdbc-42b7-bf1f-8ff1b7342771"
+}
