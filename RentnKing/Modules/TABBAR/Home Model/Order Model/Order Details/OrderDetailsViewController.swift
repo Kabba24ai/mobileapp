@@ -794,7 +794,8 @@ extension OrderDetailsViewController {
                                    // Phase 5: a phone signature counts only for the verified agreement held here.
                                    termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: orderUid) ?? "",
                                    deliveryVideoConfirmed: deliveryContext?.serverState.deliveryVideoPresent == true,
-                                   activeDeliveryExecutionId: deliveryContext?.executionId ?? "")
+                                   activeDeliveryExecutionId: deliveryContext?.executionId ?? "",
+                                   activeDeliveryEquipmentUniqueId: deliveryContext?.equipment.equipmentUniqueId ?? "")
     }
 
     /// The ONE decision for a leg: applicable requirements × effective satisfaction.

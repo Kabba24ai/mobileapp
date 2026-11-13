@@ -132,6 +132,14 @@ enum KabbaMediaSync {
         }
     }
 
+    /// Where the protected copy of an enqueued upload lives on this phone (nil once Kabba
+    /// acknowledged it and the file was removed, or when the engine is unavailable).
+    static func fileURL(for operation: SyncOperation) -> URL? {
+        guard let engine = engine, let asset = operation.assets.first else { return nil }
+        let url = SyncAssetWriter.url(of: asset, in: engine.store.assetsDirectory)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     static func hasPendingMedia(orderUniqueId: String, kind: MediaKind) -> Bool {
         !pendingItems(orderUniqueId: orderUniqueId, kind: kind).isEmpty
     }
