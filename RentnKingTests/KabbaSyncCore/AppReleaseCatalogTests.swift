@@ -159,12 +159,10 @@ final class AppReleaseCatalogTests: XCTestCase {
     }
 
     // 7. 1.0.28 (1015) is ONE combined release (owner decision 2026-10-21): the route events
-    //    first uploaded as 1014 AND every MOBILE-QUALITY-01 improvement (prepared as 1.0.29, never
-    //    shipped). Its notes are the App Store "What's New" text too; 1.0.27 still reads exactly as
-    //    build 1013 shipped it, and no 1.0.29 entry exists.
-    func testThe1028NotesCoverBothScopesAndComeFirst() throws {
-        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.28", "Newest first, for presentation.")
-        XCTAssertNil(AppReleaseCatalog.release(for: "1.0.29"), "1.0.29 was folded into 1.0.28 and never shipped")
+    //    first uploaded as 1014 AND every MOBILE-QUALITY-01 improvement. It shipped (App Store,
+    //    2026-10-22), so its notes stay exactly as released; 1.0.27 still reads exactly as build
+    //    1013 shipped it.
+    func testThe1028NotesCoverBothScopesAsReleased() throws {
         let notes = AppReleaseCatalog.notes(for: "1.0.28")
         XCTAssertTrue(notes.first?.hasPrefix("Your Next Stop answers") == true, "route events")
         for scope in ["Settings › Sync shows", "Sync Now tells you", "A checklist can no longer be sent", "Driver's license:",
@@ -180,6 +178,21 @@ final class AppReleaseCatalogTests: XCTestCase {
             "The shop you picked stays your destination while you navigate, and is still there when you come back to the app",
             "Various fixes and refinements",
         ], "1.0.27 must read exactly as build 1013 shipped it.")
+    }
+
+    // 7b. 1.0.29 (1016): the Supplier Directory and the customer-site video / checklist fix,
+    //     newest first, within the App Store limit.
+    func testThe1029NotesComeFirstAndCoverBothImprovements() throws {
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.29", "Newest first, for presentation.")
+        let notes = AppReleaseCatalog.notes(for: "1.0.29")
+        for scope in ["Suppliers on the Home screen", "Tap a supplier's phone number", "Search by part name",
+                      "Suppliers you have opened stay readable", "At the customer site the video and the equipment checklist",
+                      "The photo and video screen shows"] {
+            XCTAssertTrue(notes.contains { $0.hasPrefix(scope) }, "missing: \(scope)")
+        }
+        XCTAssertEqual(notes.last, "Various fixes and refinements")
+        let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.29"))
+        XCTAssertLessThanOrEqual(text.count, AppReleaseCatalog.appStoreWhatsNewLimit)
     }
 
     // MARK: - MOBILE-QUALITY-01 (item 04): one draft per release, traceable builds
