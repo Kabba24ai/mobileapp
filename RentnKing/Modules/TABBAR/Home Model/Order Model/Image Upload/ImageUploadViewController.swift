@@ -35,6 +35,9 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     /// A Submit is saving media on this phone (export + durable enqueue). A second Submit
     /// while it runs would queue the same files twice.
     private var isSavingMedia = false
+    /// Seam for tests: compress + write one selected item into the upload folder (called off the
+    /// main thread; true = written). nil = the real image / video export below.
+    var writeMedia: ((_ item: ImageVideoModel, _ folder: URL, _ fileName: String) -> Bool)?
     
     //OTHER
     var selectIndex : Int = -1
@@ -467,9 +470,9 @@ extension ImageUploadViewController {
                         ? "\(self.strOrderID)_\(Date().timeIntervalSince1970).jpg"
                         : "\(self.strOrderID)_\(Date().timeIntervalSince1970).mov"
 
-                    let saved = isImage
+                    let saved = self.writeMedia?(obj, uploadPath, fileName) ?? (isImage
                         ? self.saveImage(dataPath: uploadPath, image: obj.image, orderID: self.strOrderID, imageName: fileName)
-                        : self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: fileName)
+                        : self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: fileName))
 
                     DispatchQueue.main.async {
                         guard saved else {
