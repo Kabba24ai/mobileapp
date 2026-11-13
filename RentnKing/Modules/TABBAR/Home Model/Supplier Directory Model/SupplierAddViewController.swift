@@ -345,9 +345,9 @@ final class SupplierAddViewController: UIViewController, UITextFieldDelegate, UI
             case .failure(let failure) where failure.isOffline:
                 self.setSaving(false)
                 self.showErrors([:], general: SupplierDirectoryPresentation.offlineAdd)
-            case .failure(let failure) where failure.isForbidden:
+            case .failure(let failure) where failure.isForbidden || failure.isUnavailable:
                 self.setSaving(false)
-                self.showErrors([:], general: SupplierDirectoryPresentation.forbidden)
+                self.showErrors([:], general: failure.message)
             default:
                 // No likely duplicate (or the check itself failed — Kabba checks again on create).
                 self.create(acknowledgeDuplicates: false)

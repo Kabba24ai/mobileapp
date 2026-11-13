@@ -29,6 +29,9 @@ struct SupplierDirectoryFailure: Error {
     var isForbidden: Bool { statusCode == 403 }
     var isNotFound: Bool { statusCode == 404 }
     var isPossibleDuplicate: Bool { code == "SUPPLIER_POSSIBLE_DUPLICATE" }
+    /// The route itself is missing: this company's Kabba predates the Supplier Directory
+    /// (one app serves every Kabba customer, each on its own release).
+    var isUnavailable: Bool { statusCode == 404 && code != "SUPPLIER_NOT_FOUND" }
 
     static let offline = SupplierDirectoryFailure(message: "No connection to Kabba.", code: nil, statusCode: nil,
                                                   isOffline: true, validationErrors: [:], duplicates: [])
@@ -39,6 +42,10 @@ struct SupplierDirectoryFailure: Error {
                 ? "The connection dropped before Kabba answered."
                 : "No connection to Kabba."
             return SupplierDirectoryFailure(message: message, code: nil, statusCode: nil, isOffline: true, validationErrors: [:], duplicates: [])
+        }
+        if error.statusCode == 404, error.code != "SUPPLIER_NOT_FOUND" {
+            return SupplierDirectoryFailure(message: SupplierDirectoryPresentation.unavailable, code: error.code, statusCode: 404,
+                                            isOffline: false, validationErrors: [:], duplicates: [])
         }
         if error.statusCode == 403 {
             return SupplierDirectoryFailure(message: SupplierDirectoryPresentation.forbidden, code: error.code, statusCode: 403,
