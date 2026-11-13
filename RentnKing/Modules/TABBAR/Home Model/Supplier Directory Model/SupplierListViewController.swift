@@ -227,7 +227,7 @@ final class SupplierListViewController: UIViewController, UITableViewDataSource,
                                                                           status: self.status)
                     self.pagination = nil
                     self.isShowingOfflineCopy = true
-                } else if failure.isForbidden {
+                } else if failure.isForbidden || failure.isUnavailable {
                     self.suppliers = []
                     self.capabilities = SupplierCapabilities.none
                 }
@@ -245,6 +245,8 @@ final class SupplierListViewController: UIViewController, UITableViewDataSource,
 
         if let failure = failure, failure.isForbidden {
             showMessage(SupplierDirectoryPresentation.forbidden, spinner: false)
+        } else if let failure = failure, failure.isUnavailable {
+            showMessage(SupplierDirectoryPresentation.unavailable, spinner: false)
         } else if suppliers.isEmpty, isShowingOfflineCopy {
             showMessage(scope == .part ? "Searching by part needs a connection." : "No suppliers are saved on this phone yet.", spinner: false)
         } else if let failure = failure, suppliers.isEmpty {

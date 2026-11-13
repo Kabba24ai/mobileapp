@@ -378,6 +378,8 @@ enum SupplierDirectoryPresentation {
     static let offlineList = "No connection — showing suppliers saved on this phone. Pull to refresh when you're back online."
     static let offlineAdd = "Adding a supplier needs a connection to Kabba. Nothing was saved — try again when you're back online."
     static let forbidden = "Your account does not have access to the Supplier Directory. Ask the office if you need it."
+    /// This company's Kabba does not have the Supplier Directory yet (an older Kabba release).
+    static let unavailable = "The Supplier Directory isn't available in your company's Kabba yet. Ask the office to update Kabba."
 
     /// "Dana Brooks · Knoxville, TN · (865) 555-0142"
     static func subtitle(_ s: SupplierSummary) -> String {

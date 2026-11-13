@@ -123,7 +123,8 @@ final class SupplierDetailViewController: UIViewController, UIGestureRecognizerD
 
         guard let envelope = envelope else {
             if let failure = failure {
-                let text = failure.isNotFound ? "This supplier is no longer in Kabba."
+                let text = failure.isUnavailable ? failure.message
+                    : failure.isNotFound ? "This supplier is no longer in Kabba."
                     : failure.isOffline ? "No connection, and this supplier has not been opened on this phone before."
                     : failure.message
                 stack.addArrangedSubview(label(text, 15, .medium, Palette.subtle, id: "suppliers.detail.message"))

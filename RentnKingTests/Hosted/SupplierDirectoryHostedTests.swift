@@ -142,6 +142,25 @@ final class SupplierDirectoryHostedTests: XCTestCase {
         XCTAssertTrue(labels(in: screen.table.backgroundView ?? UIView()).contains(SupplierDirectoryPresentation.forbidden))
     }
 
+    func testAnOlderKabbaWithoutTheDirectoryIsExplainedNotShownAsAnError() throws {
+        // One app serves every Kabba customer; a customer on an older Kabba has no suppliers route.
+        let missing = Data(#"{"success":false,"message":"Not found.","error":{"code":"NOT_FOUND","message":"Not found.","retryable":false},"errors":{},"error_code":"NOT_FOUND"}"#.utf8)
+        SupplierStubProtocol.handler = { _ in (404, missing) }
+        let screen = SupplierListViewController(api: api())
+        _ = UINavigationController(rootViewController: screen)
+        screen.loadViewIfNeeded()
+        wait { screen.failure != nil }
+        XCTAssertTrue(screen.failure?.isUnavailable == true)
+        XCTAssertTrue(screen.addButton.isHidden, "nothing to add to")
+        XCTAssertTrue(labels(in: screen.table.backgroundView ?? UIView()).contains(SupplierDirectoryPresentation.unavailable))
+
+        let detail = SupplierDetailViewController(uniqueId: "SUP-ANY", api: api())
+        _ = UINavigationController(rootViewController: detail)
+        detail.loadViewIfNeeded()
+        wait { detail.failure != nil }
+        XCTAssertTrue(labels(in: detail.view).contains(SupplierDirectoryPresentation.unavailable), "not \"no longer in Kabba\"")
+    }
+
     // MARK: Detail
 
     func testTheDetailOffersCallEmailWebsiteAndDirectionsAndOnlyWhatIsOnFile() throws {
