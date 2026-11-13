@@ -383,16 +383,13 @@ extension ImageUploadViewController {
         else{
             indicatorShow()
             
-            //SAVE IN TABLE
-            self.saveTheVideoandImageLocal()
-
-            // Every checklist enters through Assembly Review (2026-09-14): the
-            // media saved durably, return to the review beneath — whatever the
-            // origin — which reflects the staged state immediately from the
-            // durable local operations. Legacy Queue Line stacks fall back to
-            // the board / the Orders list; other legacy stacks pop once the
-            // upload succeeds (below).
-            self.returnedToReview = self.routeAfterUpload()
+            // Video export and local enqueue run asynchronously. Wait until ALL selected
+            // media is durably saved on this phone before navigating: otherwise the driver
+            // can submit the checklist while the video still appears missing.
+            self.saveTheVideoandImageLocal { [weak self] in
+                guard let self = self, self.navigationController?.topViewController === self else { return }
+                self.returnedToReview = self.routeAfterUpload()
+            }
 
         }
     }
@@ -414,23 +411,31 @@ extension ImageUploadViewController {
         return false
     }
     
-    func saveTheVideoandImageLocal(){
+    func saveTheVideoandImageLocal(onSaved: @escaping () -> Void) {
         createOrderFolder(strOrderID: self.strOrderID)
         
         let dataPath = ImageVideoUploadDirectory.appendingPathComponent(strOrderID)
         if FileManager.default.fileExists(atPath: dataPath.path) == true {
             //self.checkFileExists(orderID: self.strOrderID, dataPath: dataPath)
             
-            let arrRecentSelectedImageVideo = self.arrImageVideoLisr.filter { $0.recentSelect == true }
-            
-            if arrRecentSelectedImageVideo.count != 0 {
-                self.updateFileLocal(arr: arrRecentSelectedImageVideo, uploadPath: dataPath)
+            let newlySelectedMedia = self.arrImageVideoLisr.filter { $0.recentSelect }
+            guard !newlySelectedMedia.isEmpty else {
+                indicatorHide()
+                showAlertMessage(strMessage: "Please select a new photo or video.")
+                return
             }
+            self.updateFileLocal(arr: newlySelectedMedia, uploadPath: dataPath, onSaved: onSaved)
         }
         else{
             createImageVideoUploadFolder()
             if FileManager.default.fileExists(atPath: dataPath.path) {
-                self.updateFileLocal(arr: self.arrImageVideoLisr, uploadPath: dataPath)
+                let newlySelectedMedia = self.arrImageVideoLisr.filter { $0.recentSelect }
+                guard !newlySelectedMedia.isEmpty else {
+                    indicatorHide()
+                    showAlertMessage(strMessage: "Please select a new photo or video.")
+                    return
+                }
+                self.updateFileLocal(arr: newlySelectedMedia, uploadPath: dataPath, onSaved: onSaved)
             } else {
                 indicatorHide()
                 showAlertMessage(strMessage: "Unable to create the upload folder.")
@@ -441,7 +446,7 @@ extension ImageUploadViewController {
     }
     
     
-    func updateFileLocal(arr : [ImageVideoModel], uploadPath : URL){
+    func updateFileLocal(arr: [ImageVideoModel], uploadPath: URL, onSaved: @escaping () -> Void) {
         var arrData = arr
         if arrData.count != 0{
             let obj = arrData[0]
@@ -463,7 +468,8 @@ extension ImageUploadViewController {
 
                     DispatchQueue.main.async {
                         guard saved else {
-                            self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                            indicatorHide()
+                            showAlertMessage(strMessage: "Could not save the photo or video on this phone. Please try again.")
                             return
                         }
 
@@ -482,7 +488,7 @@ extension ImageUploadViewController {
                                                                    mimeType: isImage ? "image/jpeg" : "video/quicktime",
                                                                    label: productName)
                                 arrData.remove(at: 0)
-                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath, onSaved: onSaved)
                                 return
                             } catch {
                                 debugPrint("Media: could not enqueue into the Sync Engine (\(error)) — falling back to the legacy queue")
@@ -492,11 +498,13 @@ extension ImageUploadViewController {
                         let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: isImage, name: fileName, videoType: self.strType, productID: obj.productId)
 
                         CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: saveParams) { isSave in
-                            if isSave{
-                                //REMOVE
+                            if isSave {
+                                // REMOVE
                                 arrData.remove(at: 0)
-
-                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath, onSaved: onSaved)
+                            } else {
+                                indicatorHide()
+                                showAlertMessage(strMessage: "Could not queue the photo or video on this phone. Please try again.")
                             }
                         }
                     }
@@ -504,8 +512,10 @@ extension ImageUploadViewController {
             }
         }
         else{
-            //SUCCESS — saved durably on this phone; the Sync Engine uploads it (Pending Sync until Kabba confirms).
+            // SUCCESS — each selected file is now durably stored or queued on the phone.
+            // Only NOW may the upload screen advance to Checklist / Main Order.
             indicatorHide()
+            onSaved()
 
             //UPLOAD LOCAL DATA
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
@@ -516,7 +526,8 @@ extension ImageUploadViewController {
             // was presented while the screen was already leaving; the legacy single pop is at once.
             let saved = KabbaSync.isReady ? "Saved on this phone. Will sync when available." : "Uploaded Successfully"
             KabbaSync.confirmSavedOnPhone(saved) {
-                if self.isQueueLine == false, self.returnedToReview == false {
+                if self.isQueueLine == false, self.returnedToReview == false,
+                   self.navigationController?.topViewController === self {
                     self.navigationController?.popViewController(animated: true)
                 }
             }
