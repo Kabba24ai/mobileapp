@@ -241,7 +241,15 @@ final class SupplierDetailViewController: UIViewController, UIGestureRecognizerD
         icon.tintColor = url == nil ? Palette.subtle : Palette.cyan
         icon.contentMode = .scaleAspectFit
         icon.widthAnchor.constraint(equalToConstant: 22).isActive = true
-        let text = UIStackView(arrangedSubviews: [label(title, 11, .semibold, Palette.subtle), label(value, 16, .medium, url == nil ? Palette.ink : Palette.cyan)])
+        let valueLabel = label(value, 16, .medium, url == nil ? Palette.ink : Palette.cyan)
+        if symbol == "envelope" || symbol == "safari" {
+            // One unbroken line for an address on the web: shrink, never split mid-word.
+            valueLabel.numberOfLines = 1
+            valueLabel.adjustsFontSizeToFitWidth = true
+            valueLabel.minimumScaleFactor = 0.6
+            valueLabel.lineBreakMode = .byTruncatingMiddle
+        }
+        let text = UIStackView(arrangedSubviews: [label(title, 11, .semibold, Palette.subtle), valueLabel])
         text.axis = .vertical
         text.spacing = 1
         let content = UIStackView(arrangedSubviews: [icon, text])

@@ -150,6 +150,8 @@ final class SupplierAddViewController: UIViewController, UITextFieldDelegate, UI
         header.accessibilityIdentifier = id
         header.addAction(UIAction { [weak header, weak body] _ in
             guard let body = body else { return }
+            // Put the keyboard (and its toolbar) away so the section's fields can be seen.
+            header?.window?.endEditing(true)
             let opening = body.isHidden
             UIView.animate(withDuration: 0.2) { body.isHidden = !opening; body.alpha = opening ? 1 : 0 }
             header?.setTitle((opening ? "▾  " : "▸  ") + title, for: .normal)
@@ -406,11 +408,18 @@ final class SupplierAddViewController: UIViewController, UITextFieldDelegate, UI
     private func finished(_ envelope: SupplierDetailEnvelope) {
         onCreated?(envelope)
         let detail = SupplierDetailViewController(uniqueId: envelope.supplier.uniqueId, title: envelope.supplier.name, initial: envelope, api: api)
+        let nav = navigationController
         replaceForm(with: detail)
         let saved = UIAlertController(title: "Supplier Saved", message: "\(envelope.supplier.name) was added to Kabba.", preferredStyle: .alert)
         saved.addAction(UIAlertAction(title: "OK", style: .default))
         saved.view.accessibilityIdentifier = "suppliers.add.saved"
-        detail.present(saved, animated: true)
+        // Shown once the record is on screen — presenting mid-transition would be dropped.
+        let show = { [weak detail] in detail?.present(saved, animated: true) }
+        if let coordinator = nav?.transitionCoordinator {
+            coordinator.animate(alongsideTransition: nil) { _ in show() }
+        } else {
+            show()
+        }
     }
 
     /// The form leaves the stack: Back from the supplier returns to the directory.

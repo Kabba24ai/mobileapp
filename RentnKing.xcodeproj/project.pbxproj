@@ -574,6 +574,7 @@
 		5A810000000000000000000D /* HomeSupplierDirectoryTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A810000000000000000000C /* HomeSupplierDirectoryTile.swift */; };
 		5A810000000000000000000F /* SupplierDirectoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A810000000000000000000E /* SupplierDirectoryTests.swift */; };
 		5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */; };
+		5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000020 /* SupplierDirectoryUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1095,6 +1096,7 @@
 		5A810000000000000000000C /* HomeSupplierDirectoryTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSupplierDirectoryTile.swift; sourceTree = "<group>"; };
 		5A810000000000000000000E /* SupplierDirectoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryTests.swift; sourceTree = "<group>"; };
 		5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryHostedTests.swift; sourceTree = "<group>"; };
+		5A8100000000000000000020 /* SupplierDirectoryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2327,6 +2329,7 @@
 				5A5C000000000000000000EC /* DispatchParityUITests.swift */,
 				5A5C00000000000000000200 /* PreparationLifecycleUITests.swift */,
 				5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */,
+				5A8100000000000000000020 /* SupplierDirectoryUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -3375,6 +3378,7 @@
 				5A5C000000000000000000ED /* DispatchParityUITests.swift in Sources */,
 				5A5C00000000000000000201 /* PreparationLifecycleUITests.swift in Sources */,
 				5A5CFADE0000000000000091 /* ReleaseSmokeUITests.swift in Sources */,
+				5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
