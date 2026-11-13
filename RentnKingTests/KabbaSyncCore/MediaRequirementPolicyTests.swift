@@ -63,6 +63,26 @@ final class MediaRequirementPolicyTests: XCTestCase {
         XCTAssertTrue(satisfied([video(execution: nil)], active: nil), "a cycle-less video stands when no cycle is known")
     }
 
+    func testVideoThenChecklistRoutesHomeAfterDurableVideoCapture() {
+        // Regression: saving a video starts asynchronously. The checklist screen must
+        // see the durable media operation when it finishes, not route to a blank upload.
+        let captured = video(state: .pending)
+        let videoMet = satisfied([captured])
+        XCTAssertTrue(videoMet)
+        XCTAssertEqual(CustomerSiteRouter.afterStep(.video, stage: .arrived, isDeliveryLeg: true,
+                                                    videoRequirementMet: videoMet, checklistComplete: false), .checklist)
+        XCTAssertEqual(CustomerSiteRouter.afterStep(.checklistCompleted, stage: .arrived, isDeliveryLeg: true,
+                                                    videoRequirementMet: videoMet, checklistComplete: true), .mainOrder)
+    }
+
+    func testChecklistThenVideoRoutesHomeAfterDurableVideoCapture() {
+        XCTAssertEqual(CustomerSiteRouter.afterStep(.checklistCompleted, stage: .arrived, isDeliveryLeg: true,
+                                                    videoRequirementMet: false, checklistComplete: true), .video)
+        let videoMet = satisfied([video(state: .pending)])
+        XCTAssertEqual(CustomerSiteRouter.afterStep(.video, stage: .arrived, isDeliveryLeg: true,
+                                                    videoRequirementMet: videoMet, checklistComplete: true), .mainOrder)
+    }
+
     func testTheEvidenceListFeedsTheNeedsAttentionTreatment() {
         let parked = video(state: .needsAttention)
         let evidence = MediaRequirementPolicy.deliveryVideoEvidence(operations: [photo(), parked, video(product: "P2")],
