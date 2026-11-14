@@ -1,0 +1,27 @@
+{
+    "success": false,
+    "message": "A supplier like this is already in Kabba. Open the existing record, or confirm that this is a different supplier.",
+    "error": {
+        "code": "SUPPLIER_POSSIBLE_DUPLICATE",
+        "message": "A supplier like this is already in Kabba. Open the existing record, or confirm that this is a different supplier.",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "SUPPLIER_POSSIBLE_DUPLICATE",
+    "data": {
+        "duplicates": [
+            {
+                "unique_id": "SUP-PP8E-0MKW",
+                "name": "Smoky Mountain Hydraulics",
+                "city": "Knoxville",
+                "state": "TN",
+                "phone": "(865) 555-0100",
+                "status": "Active",
+                "reasons": [
+                    "name"
+                ]
+            }
+        ]
+    },
+    "request_id": "4d4359d7-0fe7-470c-a77c-1e1d93b5d0eb"
+}

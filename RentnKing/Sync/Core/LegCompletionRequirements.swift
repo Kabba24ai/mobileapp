@@ -123,6 +123,10 @@ struct LegCompletionInputs: Equatable {
     /// The current delivery checklist execution for the focus product, when the
     /// phone knows it (cached context). Empty → unknown.
     var activeDeliveryExecutionId: String = ""
+    /// The physical unit that delivery cycle inspects (the cached context's
+    /// equipment), so a cycle-less video of another machine never satisfies.
+    /// Empty → unknown.
+    var activeDeliveryEquipmentUniqueId: String = ""
 
     init(orderUniqueId: String,
          orderProductUniqueId: String,
@@ -136,7 +140,8 @@ struct LegCompletionInputs: Equatable {
          activeReturnExecutionId: String = "",
          termsIdentity: String = "",
          deliveryVideoConfirmed: Bool = false,
-         activeDeliveryExecutionId: String = "") {
+         activeDeliveryExecutionId: String = "",
+         activeDeliveryEquipmentUniqueId: String = "") {
         self.orderUniqueId = orderUniqueId
         self.orderProductUniqueId = orderProductUniqueId
         self.orderProductUniqueIds = orderProductUniqueIds
@@ -150,6 +155,7 @@ struct LegCompletionInputs: Equatable {
         self.termsIdentity = termsIdentity
         self.deliveryVideoConfirmed = deliveryVideoConfirmed
         self.activeDeliveryExecutionId = activeDeliveryExecutionId
+        self.activeDeliveryEquipmentUniqueId = activeDeliveryEquipmentUniqueId
     }
 }
 
@@ -286,7 +292,8 @@ enum LegCompletionEvaluator {
         return best(targets.map { product in
             status(from: MediaRequirementPolicy.deliveryVideoEvidence(operations: operations,
                                                                       orderProductUniqueId: product,
-                                                                      activeExecutionId: active.isEmpty ? nil : active))
+                                                                      activeExecutionId: active.isEmpty ? nil : active,
+                                                                      activeEquipmentUniqueId: inputs.activeDeliveryEquipmentUniqueId))
         })
     }
 

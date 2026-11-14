@@ -1,0 +1,78 @@
+{
+    "success": true,
+    "data": {
+        "supplier": {
+            "unique_id": "SUP-PP8E-0MKW",
+            "name": "Smoky Mountain Hydraulics",
+            "status": "Active",
+            "is_active": true,
+            "is_preferred": true,
+            "phone": "(865) 555-0100",
+            "email": "sales@smh.example",
+            "website": "smh.example",
+            "address": {
+                "street": "12 Main St",
+                "city": "Knoxville",
+                "state": {
+                    "id": 1,
+                    "name": "Tennessee",
+                    "abbreviation": "TN"
+                },
+                "zip_code": "37902",
+                "country": null,
+                "one_line": "12 Main St, Knoxville, TN 37902"
+            },
+            "category": {
+                "id": 1,
+                "name": "Hydraulics"
+            },
+            "tags": [
+                {
+                    "id": 1,
+                    "name": "Same-day delivery"
+                }
+            ],
+            "contacts": [
+                {
+                    "role": "primary_contact",
+                    "label": "Primary Contact",
+                    "name": "Dana Brooks",
+                    "phone": "865-555-0101",
+                    "email": "dana@smh.example"
+                },
+                {
+                    "role": "technical_support",
+                    "label": "Technical Support",
+                    "name": null,
+                    "phone": "865-555-0199 x12",
+                    "email": null
+                }
+            ],
+            "parts": {
+                "count": 2,
+                "items": [
+                    {
+                        "unique_id": "PRT-RZLQ-7NYP",
+                        "name": "Hose Kit",
+                        "part_number": "HK-1",
+                        "slot": "primary"
+                    },
+                    {
+                        "unique_id": "PRT-AI4J-SNZA",
+                        "name": "Seal Set",
+                        "part_number": "SS-9",
+                        "slot": "alternate"
+                    }
+                ]
+            },
+            "updated_at": "2026-11-13T21:33:58+00:00",
+            "payment_terms": "Net 30"
+        },
+        "can": {
+            "view": true,
+            "create": true,
+            "view_payment_terms": true
+        }
+    },
+    "request_id": "c8f03a1a-8be8-4b37-8c8a-5a29e4047ab9"
+}

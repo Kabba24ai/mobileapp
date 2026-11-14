@@ -58,6 +58,8 @@ struct MediaCapture: Equatable {
     var orderProductUniqueId: String?
     /// The Phase 3 checklist execution the evidence belongs to, when known.
     var checklistExecutionId: String?
+    /// The unit the phone believed it was filming. Sent as `equipment_unique_id` so Kabba
+    /// never anchors a cycle-less file to a cycle that inspects another unit (2026-11-14).
     var equipmentUniqueId: String?
     /// License only: "front" | "back".
     var side: String?
@@ -96,6 +98,7 @@ enum MediaOperationBuilder {
         ]
         if let product = capture.orderProductUniqueId, !product.isEmpty { body["order_product_unique_id"] = .string(product) }
         if let execution = capture.checklistExecutionId, !execution.isEmpty { body["checklist_execution_id"] = .string(execution) }
+        if capture.kind != .license, let unit = capture.equipmentUniqueId, !unit.isEmpty { body["equipment_unique_id"] = .string(unit) }
         if let side = capture.side, !side.isEmpty { body["side"] = .string(side) }
         if let expiry = capture.licenseExpiryDate, !expiry.isEmpty { body["license_expiry_date"] = .string(expiry) }
         if let by = capture.autoInjectBy, !by.isEmpty { body["auto_inject_by"] = .string(by) }

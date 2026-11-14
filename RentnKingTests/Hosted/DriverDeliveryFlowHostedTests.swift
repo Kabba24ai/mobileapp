@@ -1454,6 +1454,186 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertTrue(nav.topViewController === yardReview, "yard: today's returnToReview rule")
     }
 
+    // MARK: - Customer-site bounce (2026-11-13): each activity once, recognised immediately
+
+    /// A delivery video recorded from Main Order on a phone that knew no cycle for the line.
+    private func cycleLessVideo(unit: String?, state: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: EffectiveFieldState.deliveryMediaType, capturedAt: Date(),
+                               identity: SyncBusinessIdentity(orderUniqueId: orderUid, orderProductUniqueId: productId,
+                                                              equipmentUniqueId: unit),
+                               payload: .object(["order_product_unique_id": .string(productId)]),
+                               assets: [SyncAsset(clientMediaId: UUID().uuidString, relativePath: "v.mov",
+                                                  mimeType: "video/quicktime", fieldName: "media")])
+        op.state = state
+        return op
+    }
+
+    private func checklistSubmit(ops: [SyncOperation], context: ChecklistContext) throws -> CheckListUpdateViewController {
+        let cu = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController)
+        cu.objOrderData = try checklistOrderModel()
+        cu.isDeliveryType = true
+        cu.isOrderDetailsView = true
+        cu.strOrderUniqueId = orderUid
+        cu.focusOrderProductUniqueId = productId
+        cu.driverStageFloor = .arrived
+        cu.operationsSnapshot = { ops }
+        cu.cachedAssemblyReview = { _ in nil }
+        cu.checklistContexts[productId] = context
+        return cu
+    }
+
+    /// Defect 2: the driver films FIRST from Main Order on a phone that never loaded this line's
+    /// checklist (another employee prepared the unit in the yard), so the video carries no cycle.
+    /// The checklist then loads its cycle — and Submit must land on Main Order, never on Video.
+    func testVideoFirstWithoutACachedCycleThenChecklistSubmitLandsOnMainOrderNotVideo() throws {
+        let list = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController)
+        let details = try orderDetails(ops: arrivedOps)                 // no cached checklist context
+        let nav = UINavigationController(rootViewController: list)
+        nav.pushViewController(details, animated: false)
+
+        details.btnDeliveryImageVideoUploadClicked(UIButton())
+        let upload = try XCTUnwrap(nav.topViewController as? ImageUploadViewController)
+        XCTAssertNil(upload.checklistExecutionIds[productId], "no cached context: the video is recorded without a cycle")
+        let context = try context(videoPresent: false)                  // what the checklist loads later
+        let unit = try XCTUnwrap(context.equipment.equipmentUniqueId)
+        XCTAssertEqual(upload.filmedUnit(orderProductUniqueId: productId), unit, "the record names the unit Main Order showed")
+
+        // 1. Video saved durably (offline: still pending) → the checklist is incomplete → Checklist.
+        let video = cycleLessVideo(unit: unit)
+        upload.operationsSnapshot = { self.arrivedOps + [video] }
+        XCTAssertTrue(upload.routeAfterUpload())
+        let checklist = try XCTUnwrap(nav.topViewController as? CheckListViewController, "video done, checklist open → Checklist")
+
+        // 2. The checklist knows its cycle now; the driver submits.
+        let submit = try checklistSubmit(ops: arrivedOps + [video, deliveryCompleteOp()], context: context)
+        nav.pushViewController(submit, animated: false)
+        submit.routeAfterSubmit()
+        XCTAssertTrue(nav.topViewController === details, "the saved video is recognised: Main Order, never back to Video")
+
+        // Main Order's tiles agree once the checklist cached the context.
+        let after = try orderDetails(ops: arrivedOps + [video, deliveryCompleteOp()], context: context)
+        XCTAssertEqual(after.legCompletionDecision(for: .delivery).status(.deliveryMedia), .satisfied)
+
+        // A cycle-less video of ANOTHER machine (substituted on another phone) still asks for the video.
+        nav.setViewControllers([list, details, upload, checklist, submit], animated: false)
+        submit.operationsSnapshot = { self.arrivedOps + [self.cycleLessVideo(unit: "EQP-NOT-THIS-UNIT"), self.deliveryCompleteOp()] }
+        submit.routeAfterSubmit()
+        XCTAssertTrue(nav.topViewController === upload, "another machine's video never satisfies this unit")
+    }
+
+    /// Defect 1: the upload screen moved on before the export + durable enqueue finished, so a
+    /// quickly-submitted (yard-prepared) checklist could not see the video. The real screen now
+    /// stays put until the file is saved on the phone, ignores a second Submit meanwhile, then
+    /// routes — and the saved item is no longer "new", so a retry can never queue it twice.
+    func testTheUploadScreenMovesOnOnlyAfterTheMediaIsSavedOnThePhone() throws {
+        let engine = try XCTUnwrap(KabbaSync.engine, "the hosted app bootstraps the Sync Engine")
+        let list = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController)
+        let details = try orderDetails(ops: arrivedOps)
+        let nav = UINavigationController(rootViewController: list)
+        nav.pushViewController(details, animated: false)
+        details.btnDeliveryImageVideoUploadClicked(UIButton())
+        let upload = try XCTUnwrap(nav.topViewController as? ImageUploadViewController)
+        upload.operationsSnapshot = { self.arrivedOps + engine.snapshot() }
+        upload.cachedAssemblyReview = { _ in nil }
+        upload.loadViewIfNeeded()
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { ctx in
+            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let item = ImageVideoModel(type: "img", image: image, strVideo: URL(fileURLWithPath: ""), strUrl: "",
+                                   productId: productId, recentSelect: true)
+        upload.arrImageVideoLisr = [item]
+        upload.arrImageVideoList = [productId: [item]]
+
+        upload.btnSubmitClicked(UIButton())
+        XCTAssertTrue(nav.topViewController === upload, "nothing moves while the file is being saved")
+        upload.btnSubmitClicked(UIButton())                              // a second tap while saving
+
+        let deadline = Date().addingTimeInterval(15)
+        while nav.topViewController === upload, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertTrue(nav.topViewController is CheckListViewController, "saved on the phone → the incomplete checklist")
+
+        let saved = engine.snapshot().filter { $0.type == EffectiveFieldState.deliveryMediaType && $0.identity.orderProductUniqueId == productId }
+        XCTAssertEqual(saved.count, 1, "one durable record — the second tap queued nothing")
+        XCTAssertEqual(saved.first?.identity.equipmentUniqueId, try context().equipment.equipmentUniqueId, "the filmed unit is recorded")
+        XCTAssertFalse(item.recentSelect, "a saved item is no longer new: a retry never queues it again")
+        XCTAssertEqual(upload.capturedMediaNotice(section: 0)?.stage, .savedOnPhone, "the screen says it is saved, not missing")
+    }
+
+    /// The upload screen opened from Main Order with one selected photo, its saves recorded in the real engine.
+    private func uploadWithSelection() throws -> (UINavigationController, ImageUploadViewController, ImageVideoModel, SyncEngine) {
+        let engine = try XCTUnwrap(KabbaSync.engine, "the hosted app bootstraps the Sync Engine")
+        let list = try XCTUnwrap(UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+            .instantiateViewController(withIdentifier: "OrderListViewController") as? OrderListViewController)
+        let details = try orderDetails(ops: arrivedOps)
+        let nav = UINavigationController(rootViewController: list)
+        nav.pushViewController(details, animated: false)
+        details.btnDeliveryImageVideoUploadClicked(UIButton())
+        let upload = try XCTUnwrap(nav.topViewController as? ImageUploadViewController)
+        upload.operationsSnapshot = { self.arrivedOps + engine.snapshot() }
+        upload.cachedAssemblyReview = { _ in nil }
+        upload.loadViewIfNeeded()
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { ctx in
+            UIColor.orange.setFill(); ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let item = ImageVideoModel(type: "img", image: image, strVideo: URL(fileURLWithPath: ""), strUrl: "",
+                                   productId: productId, recentSelect: true)
+        upload.arrImageVideoLisr = [item]
+        upload.arrImageVideoList = [productId: [item]]
+        return (nav, upload, item, engine)
+    }
+
+    private func savedMedia(_ engine: SyncEngine) -> [SyncOperation] {
+        engine.snapshot().filter { $0.type == EffectiveFieldState.deliveryMediaType && $0.identity.orderProductUniqueId == productId }
+    }
+
+    /// Scenario: a slow video export. Nothing moves — not even after the checklist-style HUD
+    /// dismissal that used to free the screen — until the file is on the phone.
+    func testASlowExportKeepsTheUploadScreenUntilTheFileIsSaved() throws {
+        let (nav, upload, item, engine) = try uploadWithSelection()
+        upload.writeMedia = { item, folder, name in
+            Thread.sleep(forTimeInterval: 2.0)                          // a long clip being re-encoded
+            return upload.saveImage(dataPath: folder, image: item.image, orderID: self.orderUid, imageName: name)
+        }
+        upload.btnSubmitClicked(UIButton())
+        indicatorHide()                                                 // what the checklist's own load used to do
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        XCTAssertTrue(nav.topViewController === upload, "still exporting: no checklist yet, whatever happened to the spinner")
+        XCTAssertTrue(savedMedia(engine).isEmpty)
+
+        let deadline = Date().addingTimeInterval(15)
+        while nav.topViewController === upload, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertTrue(nav.topViewController is CheckListViewController, "saved → the checklist")
+        XCTAssertEqual(savedMedia(engine).count, 1)
+        XCTAssertFalse(item.recentSelect)
+    }
+
+    /// Scenario D: the save fails. The screen stays, nothing is marked done, and Submit simply works
+    /// again — queuing the file once.
+    func testAFailedSaveStaysOnTheScreenAndARetrySavesOnce() throws {
+        let (nav, upload, item, engine) = try uploadWithSelection()
+        upload.writeMedia = { _, _, _ in false }                        // compression / storage failed
+        upload.btnSubmitClicked(UIButton())
+        RunLoop.current.run(until: Date().addingTimeInterval(1.5))
+        XCTAssertTrue(nav.topViewController === upload, "a failed save never navigates")
+        XCTAssertTrue(savedMedia(engine).isEmpty, "nothing was recorded as saved")
+        XCTAssertTrue(item.recentSelect, "the selection is kept for the retry")
+        XCTAssertNil(upload.capturedMediaNotice(section: 0), "nothing claims to be saved")
+        UIApplication.shared.windows.first?.rootViewController?.presentedViewController?.dismiss(animated: false)
+
+        upload.writeMedia = nil                                         // the real write this time
+        upload.btnSubmitClicked(UIButton())
+        let deadline = Date().addingTimeInterval(15)
+        while nav.topViewController === upload, Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.05)) }
+        XCTAssertTrue(nav.topViewController is CheckListViewController, "the retry saves and moves on")
+        XCTAssertEqual(savedMedia(engine).count, 1, "queued once")
+    }
+
     // MARK: - Task 13 — the Return band (§13): same screens, its own rules, never the review
 
     private func returnRow(pickupMedia: [[String: Any]] = []) throws -> SchedulesModel { try row(evidence: false, pickup: true) }

@@ -44,6 +44,17 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        // 1.0.29 (1016) — the Supplier Directory and the customer-site video / checklist fix
+        // (mobile PR #6 + its follow-up), on top of 1.0.28 (1015) as released.
+        AppRelease(version: "1.0.29", notes: [
+            "Suppliers on the Home screen: find a supplier, a contact or a phone number, and add a new supplier to Kabba from your phone",
+            "Tap a supplier's phone number, email, website or address to call, write, open the website or get directions in Apple Maps",
+            "Search by part name or part number to see who supplies a part",
+            "Suppliers you have opened stay readable without a connection",
+            "At the customer site the video and the equipment checklist are each done once: after you save the video and submit the checklist, the app returns to the order instead of asking for the video again",
+            "The photo and video screen shows when a video is saved on your phone and waiting to upload, so it never looks missing",
+            "Various fixes and refinements",
+        ]),
         // 1.0.28 (1015) — ONE combined release (owner decision 2026-10-21): the route events
         // first uploaded as 1014 plus every MOBILE-QUALITY-01 improvement (prepared as 1.0.29,
         // never shipped). Build 1014 is superseded and is not to be submitted.

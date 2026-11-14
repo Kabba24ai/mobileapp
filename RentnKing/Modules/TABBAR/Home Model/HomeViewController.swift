@@ -68,6 +68,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.view.accessibilityIdentifier = "home.root"
         self.con_viewSize.constant = manageWidth(size: 150)
         self.installEquipmentAuditTile()
+        self.installSupplierDirectoryTile()
         
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .notificationCount, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
