@@ -195,9 +195,10 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
     private func addVideoAndSubmit(_ app: XCUIApplication, n: Int) {
         XCTAssertTrue(app.staticTexts["Video Sync Alpha"].waitForExistence(timeout: 15), "the upload screen has no Video Sync Alpha section")
         let header = app.staticTexts["Video Sync Alpha"].firstMatch
+        // The add tile is the LAST tile of the line's grid (media already saved come first).
         let tile = app.buttons.allElementsBoundByIndex
             .filter { ($0.value as? String ?? "").hasPrefix("ORD-") && $0.frame.minY > header.frame.maxY - 2 }
-            .min { $0.frame.minY < $1.frame.minY }
+            .max { ($0.frame.minY, $0.frame.minX) < ($1.frame.minY, $1.frame.minX) }
         if tile == nil { dump(app, "V0-\(n)-upload-screen") }
         guard let tile else { XCTFail("no media tile under Video Sync Alpha"); return }
         tile.tap()
@@ -240,8 +241,9 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
         submit.tap()
     }
 
+    /// One query each (no element-by-element walk): the screen may be mid-transition.
     private func onUploadScreen(_ app: XCUIApplication) -> Bool {
-        app.buttons.allElementsBoundByIndex.contains { ($0.value as? String ?? "").hasPrefix("ORD-SCH") }
+        app.buttons.matching(NSPredicate(format: "value BEGINSWITH 'ORD-SCH'")).count > 0
             && app.staticTexts["Submit"].firstMatch.exists
             && !app.staticTexts["Preview"].firstMatch.exists
     }
