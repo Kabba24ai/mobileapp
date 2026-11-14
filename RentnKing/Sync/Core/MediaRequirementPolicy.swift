@@ -14,7 +14,9 @@
 //  evidence (a video item on any line of the order) counts only when no cycle
 //  is known for the product. This phone's own cycle-less video for THIS
 //  product (captured before it knew the cycle) stands for the active cycle
-//  unless it films another unit or predates a local discard (2026-11-13).
+//  unless it films another unit or predates a local discard (2026-11-13) —
+//  until Kabba acknowledges the upload with its own cycle decision, which
+//  then rules on every phone (2026-11-14, `checklist_execution_resolved`).
 //
 
 import Foundation

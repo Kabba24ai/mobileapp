@@ -249,7 +249,18 @@ enum EffectiveFieldState {
                   op.identity.orderProductUniqueId == orderProductUniqueId,
                   op.assets.contains(where: { $0.mimeType.hasPrefix("video/") }) else { return false }
 
-            let opExecution = op.identity.checklistExecutionId ?? ""
+            // Kabba's decision, once it has one (2026-11-14): Laravel anchors a file the
+            // phone could not name to the item's live cycle, or to none, and says so in
+            // the upload acknowledgment. From then on that anchor is the file's cycle,
+            // exactly as if the phone had named it, so this phone, every other phone and
+            // the server's `delivery_video_present` agree. The estimate further down only
+            // covers a file Kabba has not decided yet: still queued, or acknowledged by an
+            // older Kabba that does not decide.
+            var opExecution = op.identity.checklistExecutionId ?? ""
+            if opExecution.isEmpty, let decided = serverCycleAnchor(of: op) {
+                guard let anchored = decided else { return false } // Kabba: it counts toward no cycle
+                opExecution = anchored
+            }
 
             if !opExecution.isEmpty {
                 if !activeExecutionId.isEmpty { return opExecution == activeExecutionId }
@@ -264,9 +275,9 @@ enum EffectiveFieldState {
             // Cycle-less video (2026-11-13, customer-site bounce): captured where
             // this phone knew no cycle yet — Main Order on a phone that never
             // loaded this line's checklist (another employee prepared the unit in
-            // the yard), or the legacy queue. Laravel files it with no cycle, so
-            // the server's per-cycle flag never reports it; this durable record is
-            // the only evidence the driver filmed. It stands for the active cycle
+            // the yard), or the legacy queue. Until Kabba decides its cycle (above;
+            // an older Kabba never does, and files it outside every cycle), this
+            // durable record is the only evidence the driver filmed. It stands for the active cycle
             // — the same rule the Return leg applies — unless it is provably about
             // something else: captured before this phone discarded the product's
             // preparation, or filming a different physical unit than the one the
@@ -276,6 +287,17 @@ enum EffectiveFieldState {
             if !filmedUnit.isEmpty, !activeEquipmentUniqueId.isEmpty, filmedUnit != activeEquipmentUniqueId { return false }
             return true
         }
+    }
+
+    /// Kabba's cycle decision for an acknowledged media upload (2026-11-14):
+    /// `nil` = not decided (not acknowledged yet, or an older Kabba without
+    /// `checklist_execution_resolved`); `.some(nil)` = the file belongs to no cycle;
+    /// `.some(id)` = the cycle Kabba anchored it to.
+    static func serverCycleAnchor(of op: SyncOperation) -> String?? {
+        guard let data = op.acknowledgment?.data,
+              data["checklist_execution_resolved"]?.boolValue == true else { return nil }
+        let anchored = data["checklist_execution_id"]?.stringValue ?? ""
+        return .some(anchored.isEmpty ? nil : anchored)
     }
 
     /// Leg completion satisfied? server truth ∨ durable local completion op.

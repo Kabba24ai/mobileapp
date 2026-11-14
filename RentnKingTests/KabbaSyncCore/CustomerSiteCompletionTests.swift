@@ -17,6 +17,12 @@ import XCTest
 ///      files cycle-less media outside every cycle, so `delivery_video_present` never
 ///      reported it either.
 /// These tests pin the evidence rule (2) and the full routing sequence on top of it.
+///
+/// 2026-11-14: Kabba now anchors such a file to the item's live cycle itself (Laravel
+/// CycleLessMediaAnchor) and says so in the upload acknowledgment
+/// (`checklist_execution_resolved`). Once acknowledged, Kabba's anchor is the file's
+/// cycle on this phone too, so every phone and `delivery_video_present` agree after
+/// this phone's upload record is long gone.
 final class CustomerSiteCompletionTests: XCTestCase {
 
     private let product = "OP-1"
@@ -177,5 +183,82 @@ final class CustomerSiteCompletionTests: XCTestCase {
         var retired = video()
         retired.state = .superseded
         XCTAssertNil(notice([retired]))
+    }
+
+    // MARK: - Kabba decides the cycle of a cycle-less file (2026-11-14)
+
+    /// The upload acknowledged by Laravel. `resolved: nil` = an older Kabba that does not decide.
+    private func acknowledged(_ op: SyncOperation, resolved: Bool?, anchor: String?) -> SyncOperation {
+        var data: [String: JSONValue] = ["checklist_execution_id": anchor.map { .string($0) } ?? .null]
+        if let resolved { data["checklist_execution_resolved"] = .bool(resolved) }
+        var acked = op
+        acked.state = .synced
+        acked.acknowledgment = SyncAcknowledgment(acknowledgedAt: Date(), statusCode: 200, requestId: nil, replayed: false,
+                                                  serverReceivedAt: nil, data: .object(data))
+        return acked
+    }
+
+    private func capture(_ kind: MediaKind, unit: String?) -> MediaCapture {
+        MediaCapture(kind: kind, orderUniqueId: "O1", orderProductUniqueId: kind == .license ? nil : product,
+                     equipmentUniqueId: unit, side: kind == .license ? "front" : nil,
+                     asset: SyncAsset(clientMediaId: "cm-1", relativePath: "m", mimeType: "video/quicktime", fieldName: "media"))
+    }
+
+    func testTheUploadNamesTheFilmedUnitSoKabbaCanRefuseAnotherMachine() {
+        XCTAssertEqual(MediaOperationBuilder.payload(capture(.delivery, unit: unit))["equipment_unique_id"], .string(unit))
+        XCTAssertEqual(MediaOperationBuilder.payload(capture(.pickup, unit: unit))["equipment_unique_id"], .string(unit))
+        XCTAssertNil(MediaOperationBuilder.payload(capture(.delivery, unit: nil))["equipment_unique_id"], "unknown unit: say nothing")
+        XCTAssertNil(MediaOperationBuilder.payload(capture(.delivery, unit: ""))["equipment_unique_id"])
+        XCTAssertNil(MediaOperationBuilder.payload(capture(.license, unit: unit))["equipment_unique_id"], "a license shows no machine")
+        XCTAssertNil(MediaOperationBuilder.payload(capture(.delivery, unit: unit))["checklist_execution_id"], "still cycle-less")
+    }
+
+    func testOnceKabbaDecidesTheCycleThePhoneFollowsIt() {
+        let filmed = video(execution: nil, unit: unit)
+        XCTAssertTrue(met([acknowledged(filmed, resolved: true, anchor: cycle)]), "Kabba put it in the active cycle")
+        XCTAssertFalse(met([acknowledged(filmed, resolved: true, anchor: "CX-OLD")]),
+                       "Kabba put it in an earlier cycle (filmed before a restart): this cycle still needs its own")
+        XCTAssertFalse(met([acknowledged(filmed, resolved: true, anchor: nil)]),
+                       "Kabba anchored it to no cycle (another unit, a delivered leg): the phone agrees")
+        XCTAssertTrue(met([acknowledged(filmed, resolved: nil, anchor: nil)]),
+                      "an older Kabba decides nothing: the phone's own estimate stands, as before")
+        XCTAssertTrue(met([acknowledged(filmed, resolved: false, anchor: nil)]),
+                      "Kabba failed to decide: the phone's own estimate stands")
+        XCTAssertTrue(met([acknowledged(filmed, resolved: true, anchor: cycle)], activeCycle: nil),
+                      "no cycle cached on this phone: Kabba's anchor still counts")
+        XCTAssertFalse(met([acknowledged(video(execution: nil, unit: unit, mime: "image/jpeg"), resolved: true, anchor: cycle)]),
+                       "an anchored photo is still not the video")
+    }
+
+    /// The reported case end to end: Employee A prepared the unit; Employee B, who never
+    /// opened that checklist, films first, the upload syncs, and the video must keep counting
+    /// after B's record is pruned, after a restart, on another phone and after a refresh.
+    func testAVideoFilmedBeforeOpeningAColleaguesChecklistKeepsCountingEverywhere() throws {
+        let filmed = video(execution: nil, unit: unit, state: .pending)
+        XCTAssertTrue(met([filmed]), "B, offline: the saved video counts at once")
+
+        let synced = acknowledged(filmed, resolved: true, anchor: cycle)
+        XCTAssertTrue(met([synced], server: true), "B, online: Kabba anchored it and reports it for the cycle")
+
+        // Restart: the record is reloaded from disk with Kabba's decision intact.
+        let reloaded = try JSONDecoder().decode(SyncOperation.self, from: JSONEncoder().encode(synced))
+        XCTAssertEqual(EffectiveFieldState.serverCycleAnchor(of: reloaded), .some(cycle))
+        XCTAssertTrue(met([reloaded]), "after a restart, even before a fresh context arrives")
+
+        // B's record pruned after the retention window, a refreshed context, or another phone
+        // (Employee C) that never had the record: Kabba's flag is the evidence.
+        XCTAssertTrue(met([], server: true), "no local record: delivery_video_present says yes")
+        XCTAssertEqual(CustomerSiteRouter.afterStep(.checklistCompleted, stage: .arrived, isDeliveryLeg: true,
+                                                    videoRequirementMet: met([], server: true), checklistComplete: true), .mainOrder,
+                       "Submit lands on Main Order on any phone, never back on Video")
+    }
+
+    func testMainOrdersTileFollowsKabbasDecisionToo() {
+        let inputs = LegCompletionInputs(orderUniqueId: "O1", orderProductUniqueId: product, orderProductUniqueIds: [product],
+                                         activeDeliveryExecutionId: cycle, activeDeliveryEquipmentUniqueId: unit)
+        let anchored = acknowledged(video(execution: nil, unit: unit), resolved: true, anchor: cycle)
+        XCTAssertEqual(LegCompletionEvaluator.evaluate(leg: .delivery, inputs: inputs, operations: [anchored]).status(.deliveryMedia), .satisfied)
+        let refused = acknowledged(video(execution: nil, unit: unit), resolved: true, anchor: nil)
+        XCTAssertEqual(LegCompletionEvaluator.evaluate(leg: .delivery, inputs: inputs, operations: [refused]).status(.deliveryMedia), .incomplete)
     }
 }
