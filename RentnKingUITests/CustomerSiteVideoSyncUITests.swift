@@ -20,7 +20,7 @@
 //  Env (forwarded by xcodebuild as TEST_RUNNER_*):
 //    KABBA_BASE_URL / KABBA_EMAIL / KABBA_PASSWORD   staging harness login
 //    KABBA_VIDEO_BASE                                the seed's base (default 9600)
-//    KABBA_VIDEO_CARDS                               the three orders' Dispatch card numbers,
+//    KABBA_VIDEO_CARDS                               the orders' Dispatch card numbers (BASE+1…),
 //                                                    comma-separated (cards show "#<order id>")
 //    KABBA_VIDEO_CAPTURE=camera                      film with the camera (a physical phone)
 //                                                    instead of the simulator's library
@@ -98,6 +98,64 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
         submitExpectingMainOrder(app, n: 3, tag: "V3")
     }
 
+
+    /// PR #6 scenario A at the customer site: Video first → Checklist → Main Order, never Video again.
+    func testW1_videoFirstThenChecklistLandsOnMainOrder() {
+        let app = launchForWorkflow()
+        openMainOrderFromDispatch(app, card: card(4))
+        openUploadFromMainOrder(app)
+        addVideoAndSubmit(app, n: 4)
+        XCTAssertTrue(app.staticTexts["Preview"].firstMatch.waitForExistence(timeout: 40), "W1: video first must move on to the checklist")
+        XCTAssertFalse(onUploadScreen(app), "W1: sent back to the video screen")
+        shoot("W1-checklist-after-video")
+        completeOpenChecklist(app, tag: "W1")
+        expectMainOrder(app, tag: "W1")
+    }
+
+    /// PR #6 scenario B at the customer site: Checklist first → Video → Main Order.
+    func testW2_checklistFirstThenVideoLandsOnMainOrder() {
+        let app = launchForWorkflow()
+        openMainOrderFromDispatch(app, card: card(5))
+        openChecklistFromMainOrder(app, order: order(5))
+        completeOpenChecklist(app, tag: "W2")
+        // The checklist is done and no video yet: the upload screen, once.
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline, !onUploadScreen(app) { usleep(500_000) }
+        if !onUploadScreen(app) { dump(app, "W2-after-checklist") }
+        XCTAssertTrue(onUploadScreen(app), "W2: checklist first must move on to Video")
+        shoot("W2-video-after-checklist")
+        addVideoAndSubmit(app, n: 5)
+        expectMainOrder(app, tag: "W2")
+    }
+
+    /// B signed in: the existing session when the previous test left one, else the harness login.
+    private func launchForWorkflow() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launch()
+        dismissSaveSheets(app)
+        if text(app, "Dispatch").waitForExistence(timeout: 25), !app.buttons["login.button"].exists { return app }
+        app.terminate()
+        return signedIn()
+    }
+
+    private func completeOpenChecklist(_ app: XCUIApplication, tag: String) {
+        answer(app, line: 0, question: "Any body damage at delivery?", value: "No damage")
+        answer(app, line: 0, question: "Keys handed over?", value: "Yes")
+        chooseEmployee(app, line: 0)
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "\(tag): Preview did not open")
+        sign(app)
+        submit(app)
+    }
+
+    private func expectMainOrder(_ app: XCUIApplication, tag: String) {
+        let mainOrder = element(app, "orderDetails.checklist.delivery")
+        if !mainOrder.waitForExistence(timeout: 40) { dump(app, "\(tag)-end") }
+        XCTAssertFalse(onUploadScreen(app), "\(tag): sent back to Video")
+        XCTAssertTrue(mainOrder.exists, "\(tag): did not land on Main Order")
+        shoot("\(tag)-landed-on-main-order")
+    }
+
     // MARK: - Steps
 
     private func submitExpectingMainOrder(_ app: XCUIApplication, n: Int, tag: String) {
@@ -122,12 +180,20 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
 
     /// Photo/Video Deliv → the line's tile → Select Video → Choose (library) or Take (camera) → Submit.
     private func filmDeliveryVideo(_ app: XCUIApplication, n: Int) {
+        openUploadFromMainOrder(app)
+        addVideoAndSubmit(app, n: n)
+    }
+
+    private func openUploadFromMainOrder(_ app: XCUIApplication) {
         let tileLabel = text(app, "Photo/Video Deliv")
         XCTAssertTrue(tileLabel.waitForExistence(timeout: 15), "no Photo/Video Deliv tile")
         for _ in 0..<8 where tileLabel.frame.maxY > 780 { drag(app, by: -250); usleep(400_000) }
         tileLabel.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()   // an untitled button covers the label
         XCTAssertTrue(app.staticTexts["Video Sync Alpha"].waitForExistence(timeout: 15), "the upload screen has no Video Sync Alpha section")
+    }
 
+    private func addVideoAndSubmit(_ app: XCUIApplication, n: Int) {
+        XCTAssertTrue(app.staticTexts["Video Sync Alpha"].waitForExistence(timeout: 15), "the upload screen has no Video Sync Alpha section")
         let header = app.staticTexts["Video Sync Alpha"].firstMatch
         let tile = app.buttons.allElementsBoundByIndex
             .filter { ($0.value as? String ?? "").hasPrefix("ORD-") && $0.frame.minY > header.frame.maxY - 2 }

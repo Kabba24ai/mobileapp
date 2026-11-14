@@ -42,7 +42,7 @@ use Laravel\Sanctum\TransientToken;
 if (app()->environment('production')) { echo "REFUSED: production\n"; return; }
 
 $base = (int) (getenv('VIDEO_BASE') ?: 9600);
-$numbers = range($base + 1, $base + 3);
+$numbers = range($base + 1, $base + 5);
 if (Order::whereIn('order_number', array_map('strval', $numbers))->exists()) { echo "ALREADY SEEDED for base {$base}\n"; return; }
 
 $person = function (string $email, string $first, string $last): User {
@@ -83,6 +83,7 @@ $ids = DB::transaction(function () use ($numbers, $base, $a, $b) {
             'price' => 100, 'quantity' => 1, 'total' => 100, 'delivery_date' => now()->format('Y-m-d'),
             'delivery_status' => 'Pending', 'pickup_status' => 'Pending', 'delivery_transport_mode' => 'Truck', 'pickup_transport_mode' => 'Truck',
             'delivery_store_id' => $store->id, 'pickup_store_id' => $store->id, 'hour_tracking' => 'No',
+            'delivery_by' => $number >= $base + 4 ? $b->id : null,
             'product_data' => ['product_type' => 'Rental', 'product_variant' => 'daily', 'product_rental_items_prices' => [], 'product_option_items' => []]]);
         $unit = Equipment::create(['equipment_name' => 'Alpha Unit', 'equipment_id' => "VS{$number}-A", 'brand' => 'Bobcat',
             'current_status' => 'available', 'checklist_master_id' => $master->id, 'power_source_type' => null,
