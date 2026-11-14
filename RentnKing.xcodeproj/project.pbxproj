@@ -576,6 +576,7 @@
 		5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */; };
 		5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000020 /* SupplierDirectoryUITests.swift */; };
 		5A8200000000000000000002 /* CustomerSiteVideoSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */; };
+		5A8200000000000000000004 /* SupplierDirectoryDeviceAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1099,6 +1100,7 @@
 		5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryHostedTests.swift; sourceTree = "<group>"; };
 		5A8100000000000000000020 /* SupplierDirectoryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryUITests.swift; sourceTree = "<group>"; };
 		5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteVideoSyncUITests.swift; sourceTree = "<group>"; };
+		5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryDeviceAcceptanceUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2333,6 +2335,7 @@
 				5A5CFADE0000000000000090 /* ReleaseSmokeUITests.swift */,
 				5A8100000000000000000020 /* SupplierDirectoryUITests.swift */,
 				5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */,
+				5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -3383,6 +3386,7 @@
 				5A5CFADE0000000000000091 /* ReleaseSmokeUITests.swift in Sources */,
 				5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */,
 				5A8200000000000000000002 /* CustomerSiteVideoSyncUITests.swift in Sources */,
+				5A8200000000000000000004 /* SupplierDirectoryDeviceAcceptanceUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
