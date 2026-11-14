@@ -216,24 +216,30 @@ enum EffectiveFieldState {
     static func deliveryVideoSatisfied(serverHasVideo: Bool,
                                               operations: [SyncOperation],
                                               orderProductUniqueId: String,
-                                              activeExecutionId: String = "") -> Bool {
+                                              activeExecutionId: String = "",
+                                              activeEquipmentUniqueId: String = "") -> Bool {
         if serverHasVideo { return true }
         return !deliveryVideoEvidence(in: operations, orderProductUniqueId: orderProductUniqueId,
-                                      activeExecutionId: activeExecutionId).isEmpty
+                                      activeExecutionId: activeExecutionId,
+                                      activeEquipmentUniqueId: activeEquipmentUniqueId).isEmpty
     }
 
     /// The durable delivery-media operations that carry a VIDEO for this
     /// product and count for the active cycle (the ONE evidence rule behind
     /// `deliveryVideoSatisfied` and `MediaRequirementPolicy`, 2026-09-27).
+    ///
+    /// - `activeExecutionId`: the cycle the caller knows is active ("" = unknown).
+    /// - `activeEquipmentUniqueId`: the physical unit that cycle inspects ("" = unknown).
     static func deliveryVideoEvidence(in operations: [SyncOperation],
                                       orderProductUniqueId: String,
-                                      activeExecutionId: String = "") -> [SyncOperation] {
+                                      activeExecutionId: String = "",
+                                      activeEquipmentUniqueId: String = "") -> [SyncOperation] {
         guard !orderProductUniqueId.isEmpty else { return [] }
 
         // Preparation-cycle identity (2026-09): a walk-around video is evidence
-        // about ONE physical machine. When the caller knows which cycle is
-        // active, only that cycle's video counts — so a video shot for the unit
-        // a substitution replaced can never let the replacement skip its own.
+        // about ONE physical machine. A video that NAMES a cycle counts only for
+        // that cycle — so a video shot for the unit a substitution replaced can
+        // never let the replacement skip its own.
         let superseded = supersededExecutionIds(in: operations)
         let discardedAt = lastDiscardAt(in: operations, orderProductUniqueId: orderProductUniqueId)
 
@@ -243,19 +249,55 @@ enum EffectiveFieldState {
                   op.identity.orderProductUniqueId == orderProductUniqueId,
                   op.assets.contains(where: { $0.mimeType.hasPrefix("video/") }) else { return false }
 
-            let opExecution = op.identity.checklistExecutionId ?? ""
-
-            if !activeExecutionId.isEmpty {
-                return opExecution == activeExecutionId
+            // Kabba's decision, once it has one (2026-11-14): Laravel anchors a file the
+            // phone could not name to the item's live cycle, or to none, and says so in
+            // the upload acknowledgment. From then on that anchor is the file's cycle,
+            // exactly as if the phone had named it, so this phone, every other phone and
+            // the server's `delivery_video_present` agree. The estimate further down only
+            // covers a file Kabba has not decided yet: still queued, or acknowledged by an
+            // older Kabba that does not decide.
+            var opExecution = op.identity.checklistExecutionId ?? ""
+            if opExecution.isEmpty, let decided = serverCycleAnchor(of: op) {
+                guard let anchored = decided else { return false } // Kabba: it counts toward no cycle
+                opExecution = anchored
             }
 
-            // No active cycle known (legacy/offline first open): the evidence
-            // still stands unless this phone discarded its cycle, or captured
-            // it before a discard it cannot attribute.
-            if !opExecution.isEmpty, superseded.contains(opExecution) { return false }
+            if !opExecution.isEmpty {
+                if !activeExecutionId.isEmpty { return opExecution == activeExecutionId }
+                // No active cycle known (legacy/offline first open): the evidence
+                // still stands unless this phone discarded its cycle, or captured
+                // it before a discard it cannot attribute.
+                if superseded.contains(opExecution) { return false }
+                if let discardedAt, op.queuedAt < discardedAt { return false }
+                return true
+            }
+
+            // Cycle-less video (2026-11-13, customer-site bounce): captured where
+            // this phone knew no cycle yet — Main Order on a phone that never
+            // loaded this line's checklist (another employee prepared the unit in
+            // the yard), or the legacy queue. Until Kabba decides its cycle (above;
+            // an older Kabba never does, and files it outside every cycle), this
+            // durable record is the only evidence the driver filmed. It stands for the active cycle
+            // — the same rule the Return leg applies — unless it is provably about
+            // something else: captured before this phone discarded the product's
+            // preparation, or filming a different physical unit than the one the
+            // active cycle inspects (a substitution made on another phone).
             if let discardedAt, op.queuedAt < discardedAt { return false }
+            let filmedUnit = op.identity.equipmentUniqueId ?? ""
+            if !filmedUnit.isEmpty, !activeEquipmentUniqueId.isEmpty, filmedUnit != activeEquipmentUniqueId { return false }
             return true
         }
+    }
+
+    /// Kabba's cycle decision for an acknowledged media upload (2026-11-14):
+    /// `nil` = not decided (not acknowledged yet, or an older Kabba without
+    /// `checklist_execution_resolved`); `.some(nil)` = the file belongs to no cycle;
+    /// `.some(id)` = the cycle Kabba anchored it to.
+    static func serverCycleAnchor(of op: SyncOperation) -> String?? {
+        guard let data = op.acknowledgment?.data,
+              data["checklist_execution_resolved"]?.boolValue == true else { return nil }
+        let anchored = data["checklist_execution_id"]?.stringValue ?? ""
+        return .some(anchored.isEmpty ? nil : anchored)
     }
 
     /// Leg completion satisfied? server truth ∨ durable local completion op.
