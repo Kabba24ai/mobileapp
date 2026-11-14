@@ -61,6 +61,8 @@ enum DispatchOfflineTenantStorage {
     static let prefixes: [String] = [
         "kOrderDetailData_", "kOrderDetailsData_", "kQueueLineAssembly_",
         "kDispatchJobList_", "kDispatchManualList_", "kReferenceWarmedAt_",
+        // Supplier Directory (2026-11-13): the read-only copy of suppliers this phone opened.
+        "kSupplierDirectory",
     ]
 
     static func isTenantScoped(_ key: String) -> Bool {

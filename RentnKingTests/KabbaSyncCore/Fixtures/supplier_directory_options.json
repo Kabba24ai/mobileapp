@@ -1,0 +1,30 @@
+{
+    "success": true,
+    "data": {
+        "categories": [
+            {
+                "id": 1,
+                "name": "Hydraulics"
+            }
+        ],
+        "tags": [
+            {
+                "id": 1,
+                "name": "Same-day delivery"
+            }
+        ],
+        "states": [
+            {
+                "id": 1,
+                "name": "Tennessee",
+                "abbreviation": "TN"
+            }
+        ],
+        "can": {
+            "view": true,
+            "create": true,
+            "view_payment_terms": false
+        }
+    },
+    "request_id": "b6644140-2ff2-43d3-83a5-b424671a8715"
+}
