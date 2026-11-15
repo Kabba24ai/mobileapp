@@ -218,7 +218,7 @@ final class OrderNotificationRouter {
         return window.subviews.contains { view in
             guard view !== root, !view.isHidden, view.alpha > 0.01 else { return false }
             let name = NSStringFromClass(type(of: view))
-            guard !name.hasPrefix("UI"), !name.hasPrefix("_") else { return false }
+            guard !name.hasPrefix("UI"), !name.hasPrefix("_UI") else { return false }   // UIKit's own views
             return view.frame.width >= bounds.width * 0.9 && view.frame.height >= bounds.height * 0.9
         }
     }
