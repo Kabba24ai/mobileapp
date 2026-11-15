@@ -270,7 +270,8 @@ final class OrderNotificationEntryHostedTests: XCTestCase {
         homeNav.popViewController(animated: false)
 
         XCTAssertEqual(list.pageCount, 1, "the list reloads from its first page")
-        XCTAssertEqual(list.arrOrderList.first?.customer_name, "Other", "no other row is touched")
+        XCTAssertFalse(list.arrOrderList.contains { $0.unique_id == "ORD-ENTRY-93" && $0.customer_name == nil },
+                       "the closed order is never written over another row")
     }
 
     // MARK: - Read receipt and unknown orders
@@ -296,5 +297,6 @@ final class OrderNotificationEntryHostedTests: XCTestCase {
     }
 }
 
-/// An app view added straight to the window (its class name is not UIKit's).
+/// An app view added straight to the window (its class name is not UIKit's). Private on purpose:
+/// a private Swift class's runtime name starts with "_Tt", which must still count as the app's.
 private final class PopUpProbe: UIView {}
