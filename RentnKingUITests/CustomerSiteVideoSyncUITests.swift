@@ -129,7 +129,10 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
     }
 
     /// B signed in: the existing session when the previous test left one, else the harness login.
+    /// KABBA_FORCE_SIGNIN=1 always signs in through the harness — required on a physical phone,
+    /// whose existing session may be the employee's real company (never reuse it for a test).
     private func launchForWorkflow() -> XCUIApplication {
+        if ProcessInfo.processInfo.environment["KABBA_FORCE_SIGNIN"] == "1" { return signedIn() }
         let app = XCUIApplication()
         app.launch()
         dismissSaveSheets(app)
