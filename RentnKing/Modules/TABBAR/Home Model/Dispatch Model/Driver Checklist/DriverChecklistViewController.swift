@@ -533,71 +533,17 @@ class DriverChecklistViewController: UIViewController, UIGestureRecognizerDelega
 
 // MARK: - Button Actions
 
-extension DriverChecklistViewController : MFMessageComposeViewControllerDelegate {
+extension DriverChecklistViewController {
 
-    
+    /// The customer's number: the shared Call / Send Message sheet (Call Customer → Delivery
+    /// Address opens the same one, mobile issue #10).
     @IBAction func btnCallClicked(_ sender : UIButton) {
         if self.objDispatch == nil{
             return
         }
-    
-        var getNumber = self.objDispatch?.order?.customer_phone ?? ""
-        getNumber = getNumber.replacingOccurrences(of: "+1", with: "")
-        
-        let pickerAlert = UIAlertController.init(title: nil, message: nil, preferredStyle: .actionSheet)
-        
-      
-        let cancel = UIAlertAction.init(title: "Cancel", style: UIAlertAction.Style.cancel, handler: { (action) in
-            
-            pickerAlert.dismiss(animated: true, completion: nil)
-        })
-        
-        let call = UIAlertAction.init(title: "Call \(getNumber)", style: UIAlertAction.Style.default, handler: { (action) in
-            
-               guard let number = URL(string: "tel://+1\(getNumber)") else { return }
-               UIApplication.shared.open(number)
-
-        })
-        
-        let sendMessage = UIAlertAction.init(title: "Send Message", style: UIAlertAction.Style.default, handler: { (action) in
-          
-            if (MFMessageComposeViewController.canSendText()) {
-                let controller = MFMessageComposeViewController()
-                controller.body = ""
-                controller.recipients = ["+1\(getNumber)"]
-                controller.messageComposeDelegate = self
-                self.present(controller, animated: true, completion: nil)
-            }
-        })
-        
-        
-        
-        pickerAlert.addAction(call)
-        pickerAlert.addAction(sendMessage)
-        pickerAlert.addAction(cancel)
-        
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            if let presenter = pickerAlert.popoverPresentationController {
-                presenter.sourceView = self.view
-                presenter.sourceRect = CGRect(x: self.view.bounds.midX, y: self.view.bounds.midY, width: 1, height: 1)
-                presenter.permittedArrowDirections = []
-
-            }
-        }
-
-        self.present(pickerAlert, animated: true, completion: nil)
-        
-
-        
-    }
-    
-    func messageComposeViewController(_ controller: MFMessageComposeViewController, didFinishWith result: MessageComposeResult) {
-        //... handle sms screen actions
-        self.dismiss(animated: true, completion: nil)
+        CustomerPhoneAction.present(phone: self.objDispatch?.order?.customer_phone, from: self)
     }
 
-    
-    
     @IBAction func btnMapClicked(_ sender : UIButton) {
         self.strOpenMap()
     }

@@ -67,16 +67,16 @@ final class SupplierDirectoryHostedTests: XCTestCase {
 
     // MARK: Home
 
-    func testHomeOffersSuppliersInTheFreeSlotBesideEquipmentAudit() throws {
+    func testHomeOffersSuppliersInRowFourBesideCRM() throws {
         let home = try XCTUnwrap(UIStoryboard(name: "Home", bundle: nil).instantiateViewController(withIdentifier: "HomeViewController") as? HomeViewController)
         let nav = UINavigationController(rootViewController: home)
         home.loadViewIfNeeded()
         let tile = try XCTUnwrap(find("home.suppliers.tile", in: home.view))
         let row = try XCTUnwrap(tile.superview as? UIStackView)
         XCTAssertEqual(row.arrangedSubviews.count, 2)
-        XCTAssertTrue(row.arrangedSubviews.first === home.viewInventory, "beside Equipment Audit; every storyboard tile keeps its place")
+        XCTAssertTrue(row.arrangedSubviews.first === home.viewCRM, "row 4: CRM | Suppliers (mobile issue #10)")
         XCTAssertTrue(labels(in: tile).contains("Suppliers"))
-        home.installSupplierDirectoryTile()
+        home.installHomeTiles()
         XCTAssertEqual(row.arrangedSubviews.count, 2, "installing twice changes nothing")
 
         let button = try XCTUnwrap(find("home.suppliers", in: tile, as: UIButton.self))

@@ -583,6 +583,15 @@
 		5A8300000000000000000007 /* OrderOpeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000006 /* OrderOpeningTests.swift */; };
 		5A8300000000000000000009 /* OrderNotificationEntryHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */; };
 		5A8300000000000000000011 /* OrderNotificationEntryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */; };
+		5A8400000000000000000002 /* CustomerPhoneNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000001 /* CustomerPhoneNumber.swift */; };
+		5A8400000000000000000003 /* CustomerPhoneNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000001 /* CustomerPhoneNumber.swift */; };
+		5A8400000000000000000005 /* CustomerPhoneAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000004 /* CustomerPhoneAction.swift */; };
+		5A8400000000000000000007 /* HomeTileGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000006 /* HomeTileGrid.swift */; };
+		5A8400000000000000000009 /* CustomerPhoneNumberTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000008 /* CustomerPhoneNumberTests.swift */; };
+		5A840000000000000000000B /* HomeTileGridHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000A /* HomeTileGridHostedTests.swift */; };
+		5A840000000000000000000D /* CustomerPhoneActionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000C /* CustomerPhoneActionHostedTests.swift */; };
+		5A840000000000000000000F /* HomeTilesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000E /* HomeTilesUITests.swift */; };
+		5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1112,6 +1121,14 @@
 		5A8300000000000000000006 /* OrderOpeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderOpeningTests.swift; sourceTree = "<group>"; };
 		5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderNotificationEntryHostedTests.swift; sourceTree = "<group>"; };
 		5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderNotificationEntryUITests.swift; sourceTree = "<group>"; };
+		5A8400000000000000000001 /* CustomerPhoneNumber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPhoneNumber.swift; sourceTree = "<group>"; };
+		5A8400000000000000000004 /* CustomerPhoneAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPhoneAction.swift; sourceTree = "<group>"; };
+		5A8400000000000000000006 /* HomeTileGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTileGrid.swift; sourceTree = "<group>"; };
+		5A8400000000000000000008 /* CustomerPhoneNumberTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPhoneNumberTests.swift; sourceTree = "<group>"; };
+		5A840000000000000000000A /* HomeTileGridHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTileGridHostedTests.swift; sourceTree = "<group>"; };
+		5A840000000000000000000C /* CustomerPhoneActionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPhoneActionHostedTests.swift; sourceTree = "<group>"; };
+		5A840000000000000000000E /* HomeTilesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTilesUITests.swift; sourceTree = "<group>"; };
+		5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallPhoneUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1370,6 +1387,7 @@
 				B598A3CCA77F4F8CBDCAB495 /* Queue Line Model */,
 				5A6000000000000000000026 /* Equipment Audit Model */,
 				5A81000000000000000000F0 /* Supplier Directory Model */,
+				5A8400000000000000000006 /* HomeTileGrid.swift */,
 			);
 			path = "Home Model";
 			sourceTree = "<group>";
@@ -1904,6 +1922,7 @@
 			children = (
 				C53C13132FE41DDC0076E2D1 /* DriverChecklistViewController.swift */,
 				5A5CFADE0000000000000092 /* CustomerCallWizardViewController.swift */,
+				5A8400000000000000000004 /* CustomerPhoneAction.swift */,
 			);
 			path = "Driver Checklist";
 			sourceTree = "<group>";
@@ -2322,6 +2341,7 @@
 				5A5E000000000000000000FA /* TermsSignatureImage.swift */,
 				5A8100000000000000000001 /* SupplierDirectory.swift */,
 				5A8300000000000000000001 /* OrderOpening.swift */,
+				5A8400000000000000000001 /* CustomerPhoneNumber.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2349,6 +2369,8 @@
 				5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */,
 				5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */,
 				5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */,
+				5A840000000000000000000E /* HomeTilesUITests.swift */,
+				5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -2426,6 +2448,8 @@
 				5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */,
 				5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */,
 				5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */,
+				5A840000000000000000000A /* HomeTileGridHostedTests.swift */,
+				5A840000000000000000000C /* CustomerPhoneActionHostedTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2520,6 +2544,7 @@
 				5A5E000000000000000000FD /* TermsSignatureImageTests.swift */,
 				5A810000000000000000000E /* SupplierDirectoryTests.swift */,
 				5A8300000000000000000006 /* OrderOpeningTests.swift */,
+				5A8400000000000000000008 /* CustomerPhoneNumberTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -3192,6 +3217,9 @@
 				5A810000000000000000000D /* HomeSupplierDirectoryTile.swift in Sources */,
 				5A8300000000000000000002 /* OrderOpening.swift in Sources */,
 				5A8300000000000000000005 /* OrderDetailsEntry.swift in Sources */,
+				5A8400000000000000000002 /* CustomerPhoneNumber.swift in Sources */,
+				5A8400000000000000000005 /* CustomerPhoneAction.swift in Sources */,
+				5A8400000000000000000007 /* HomeTileGrid.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3361,6 +3389,8 @@
 				5A810000000000000000000F /* SupplierDirectoryTests.swift in Sources */,
 				5A8300000000000000000003 /* OrderOpening.swift in Sources */,
 				5A8300000000000000000007 /* OrderOpeningTests.swift in Sources */,
+				5A8400000000000000000003 /* CustomerPhoneNumber.swift in Sources */,
+				5A8400000000000000000009 /* CustomerPhoneNumberTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3389,6 +3419,8 @@
 				5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */,
 				5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */,
 				5A8300000000000000000009 /* OrderNotificationEntryHostedTests.swift in Sources */,
+				5A840000000000000000000B /* HomeTileGridHostedTests.swift in Sources */,
+				5A840000000000000000000D /* CustomerPhoneActionHostedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3409,6 +3441,8 @@
 				5A8200000000000000000002 /* CustomerSiteVideoSyncUITests.swift in Sources */,
 				5A8200000000000000000004 /* SupplierDirectoryDeviceAcceptanceUITests.swift in Sources */,
 				5A8300000000000000000011 /* OrderNotificationEntryUITests.swift in Sources */,
+				5A840000000000000000000F /* HomeTilesUITests.swift in Sources */,
+				5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
