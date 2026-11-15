@@ -19,6 +19,11 @@
 //
 //  Built in code (no storyboard scene): the Driver Checklist pushes it.
 //
+//  Delivery Address shows the customer's number the way the Driver Checklist
+//  does — phone icon and number — and tapping it opens the same Call / Send
+//  Message sheet (CustomerPhoneAction, mobile issue #10). Only Verify Address
+//  verifies the step; the number never does.
+//
 
 import UIKit
 
@@ -60,6 +65,11 @@ final class CustomerCallWizardViewController: UIViewController {
     let hintLabel = UILabel()
     let addressLabel = UILabel()
     let customerLabel = UILabel()
+    /// The customer's number on Delivery Address: tappable (icon + number) when there is a number to dial.
+    let phoneButton = UIButton(type: .custom)
+    let phoneLabel = UILabel()
+    private let phoneIcon = UIImageView()
+    private let phoneRow = UIView()
     let productLabel = UILabel()
     let optionsLabel = UILabel()
     let noteField = UITextView()
@@ -78,6 +88,7 @@ final class CustomerCallWizardViewController: UIViewController {
     static let saveChoiceTitle = "Save"
     static let doneTitle = "Done"
     static let noOptionsText = "No Product Options on this order."
+    static let noPhoneText = "No phone number on this order."
 
     init(context: CustomerCallWizardContext, verification: CustomerCallVerification, mode: Mode) {
         self.context = context
@@ -170,6 +181,7 @@ final class CustomerCallWizardViewController: UIViewController {
         addressLabel.accessibilityIdentifier = "callWizard.address"
         style(customerLabel, font: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 16, color: .primary)
         customerLabel.accessibilityIdentifier = "callWizard.customer"
+        buildPhoneRow()
         style(productLabel, font: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 22, color: .primary)
         productLabel.accessibilityIdentifier = "callWizard.product"
         style(optionsLabel, font: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 17, color: .primary)
@@ -196,6 +208,58 @@ final class CustomerCallWizardViewController: UIViewController {
         primaryButton.heightAnchor.constraint(equalToConstant: 52).isActive = true
         primaryButton.accessibilityIdentifier = "callWizard.primary"
         primaryButton.addTarget(self, action: #selector(primaryTapped), for: .touchUpInside)
+    }
+
+    /// The Driver Checklist's phone, in the address card: the cyan call icon and the number in
+    /// bold, one button over both (at least 44 pt tall) — not the whole width of the card.
+    private func buildPhoneRow() {
+        phoneIcon.image = UIImage(named: "icon_call")?.withRenderingMode(.alwaysTemplate)
+        phoneIcon.tintColor = .secondary
+        phoneIcon.contentMode = .scaleAspectFit
+        style(phoneLabel, font: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16, color: .primary)
+        phoneLabel.accessibilityIdentifier = "callWizard.phoneNumber"
+
+        let line = UIStackView(arrangedSubviews: [phoneIcon, phoneLabel])
+        line.axis = .horizontal
+        line.alignment = .center
+        line.spacing = 8
+        line.isUserInteractionEnabled = false
+        line.translatesAutoresizingMaskIntoConstraints = false
+        phoneButton.translatesAutoresizingMaskIntoConstraints = false
+        phoneButton.accessibilityIdentifier = "callWizard.phone"
+        phoneButton.accessibilityHint = "Offers Call and Send Message."
+        phoneButton.addTarget(self, action: #selector(phoneTapped), for: .touchUpInside)
+        phoneRow.addSubview(line)
+        phoneRow.addSubview(phoneButton)
+        let snug = phoneRow.heightAnchor.constraint(equalToConstant: 44)   // no taller than the number needs
+        snug.priority = .defaultLow
+        NSLayoutConstraint.activate([
+            snug,
+            phoneIcon.widthAnchor.constraint(equalToConstant: 18),
+            phoneIcon.heightAnchor.constraint(equalToConstant: 18),
+            phoneRow.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            line.leadingAnchor.constraint(equalTo: phoneRow.leadingAnchor),
+            line.trailingAnchor.constraint(lessThanOrEqualTo: phoneRow.trailingAnchor),
+            line.centerYAnchor.constraint(equalTo: phoneRow.centerYAnchor),
+            line.topAnchor.constraint(greaterThanOrEqualTo: phoneRow.topAnchor),
+            line.bottomAnchor.constraint(lessThanOrEqualTo: phoneRow.bottomAnchor),
+            phoneButton.leadingAnchor.constraint(equalTo: line.leadingAnchor),
+            phoneButton.trailingAnchor.constraint(equalTo: line.trailingAnchor),
+            phoneButton.topAnchor.constraint(equalTo: phoneRow.topAnchor),
+            phoneButton.bottomAnchor.constraint(equalTo: phoneRow.bottomAnchor),
+        ])
+    }
+
+    /// Fills the phone row: a number to dial is the tappable icon + number; anything else is plain text.
+    private func renderPhone() {
+        let text = context.customerPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        let number = CustomerPhoneNumber(text)
+        phoneLabel.text = text.isEmpty ? Self.noPhoneText : text
+        phoneLabel.textColor = text.isEmpty ? .secondaryText : .primary
+        phoneIcon.isHidden = number == nil
+        phoneButton.isHidden = number == nil
+        phoneButton.accessibilityLabel = number.map { "Call or text \($0.spoken)" }
+        phoneLabel.isAccessibilityElement = number == nil     // the button speaks for the number when there is one
     }
 
     private func style(_ label: UILabel, font: String, size: CGFloat, color: UIColor) {
@@ -232,9 +296,11 @@ final class CustomerCallWizardViewController: UIViewController {
         case .address:
             hintLabel.text = "Read the delivery address to the customer and confirm it is where the equipment goes."
             addressLabel.text = context.deliveryAddress.isEmpty ? "No delivery address on this order." : context.deliveryAddress
-            customerLabel.text = [context.customerName, context.customerPhone].filter { !$0.isEmpty }.joined(separator: " · ")
+            customerLabel.text = context.customerName
+            customerLabel.isHidden = context.customerName.isEmpty
+            renderPhone()
             content.addArrangedSubview(hintLabel)
-            content.addArrangedSubview(card([addressLabel, customerLabel]))
+            content.addArrangedSubview(card([addressLabel, customerLabel, phoneRow]))
             primaryButton.setTitle(isReview ? Self.doneTitle : Self.verifyAddressTitle, for: .normal)
             primaryButton.isEnabled = true
 
@@ -314,6 +380,12 @@ final class CustomerCallWizardViewController: UIViewController {
         refreshChoices()
         refreshPrimary()
         if selectedChoice == UnloadingSituation.otherCode { noteField.becomeFirstResponder() } else { noteField.resignFirstResponder() }
+    }
+
+    /// The customer's number: the Driver Checklist's Call / Send Message sheet. It verifies nothing,
+    /// saves nothing and keeps the wizard on this page.
+    @objc func phoneTapped() {
+        CustomerPhoneAction.present(phone: context.customerPhone, from: self)
     }
 
     @objc func primaryTapped() {

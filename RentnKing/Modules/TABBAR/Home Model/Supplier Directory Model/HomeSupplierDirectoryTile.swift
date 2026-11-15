@@ -2,10 +2,9 @@
 //  HomeSupplierDirectoryTile.swift
 //  RentnKing
 //
-//  The Home entry for the Supplier Directory (2026-11-13). Home's fourth row
-//  (Equipment Audit) had an empty slot beside it; Suppliers takes it, built in
-//  code to match the storyboard tiles (icon over label, cyan border, rounded),
-//  so every existing tile keeps its place.
+//  The Home entry for the Supplier Directory (2026-11-13), built in code to
+//  match the storyboard tiles (icon over label, cyan border, rounded). Where it
+//  sits is HomeTileGrid's table (mobile issue #10): row 4, beside CRM.
 //
 //  Like Equipment Audit, the tile is shown to everyone signed in: the login
 //  carries no permissions, so Kabba decides — an account outside the employee
@@ -18,14 +17,12 @@ extension HomeViewController {
 
     private static let supplierTileTag = 70_106
 
-    /// viewDidLoad, after installEquipmentAuditTile(): the empty slot in the audit row becomes Suppliers.
-    func installSupplierDirectoryTile() {
-        guard let row = viewInventory.superview as? UIStackView,
-              row.arrangedSubviews.count == 2,
-              let spacer = row.arrangedSubviews.last,
-              spacer !== viewInventory,
-              row.viewWithTag(Self.supplierTileTag) == nil else { return }
+    /// The Suppliers tile once installHomeTiles() has built it.
+    var supplierDirectoryTile: UIView? { view.viewWithTag(Self.supplierTileTag) }
 
+    /// installHomeTiles(): the Suppliers tile (the grid places it).
+    func makeSupplierDirectoryTile() -> UIView {
+        if let existing = supplierDirectoryTile { return existing }
         let tile = UIView()
         tile.tag = Self.supplierTileTag
         tile.backgroundColor = .clear
@@ -73,9 +70,7 @@ extension HomeViewController {
             button.trailingAnchor.constraint(equalTo: tile.trailingAnchor),
         ])
 
-        row.removeArrangedSubview(spacer)
-        spacer.removeFromSuperview()
-        row.addArrangedSubview(tile)
+        return tile
     }
 
     @objc func btnSuppliersClicked() {

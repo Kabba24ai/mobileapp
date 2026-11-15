@@ -1094,6 +1094,37 @@ final class DriverDeliveryFlowHostedTests: XCTestCase {
         XCTAssertTrue(wizard.primaryButton.isUserInteractionEnabled)
     }
 
+    func testTheChecklistPhoneAndTheAddressPagePhoneOfferTheSameSheetAndVerifyNothing() throws {
+        // Mobile issue #10: the number on Call Customer → Delivery Address does what the
+        // Driver Checklist's number does — one shared sheet — and only Verify Address verifies.
+        var mission = try self.row(evidence: false)
+        mission.order?.customer_phone = "(865) 555-0142"
+        let vc = try screen2(mission, review: try review(go: true))
+        let nav = UINavigationController(rootViewController: vc)
+        var sheets: [UIAlertController] = []
+        CustomerPhoneAction.presentOverride = { controller, _ in if let sheet = controller as? UIAlertController { sheets.append(sheet) } }
+        defer { CustomerPhoneAction.presentOverride = nil }
+
+        vc.btnCallClicked(UIButton())                          // the Driver Checklist's number
+        vc.callCustomerCheckboxButtons[0].sendActions(for: .touchUpInside)
+        let wizard = try wizard(nav)
+        XCTAssertEqual(wizard.phoneLabel.text, "(865) 555-0142")
+        wizard.phoneButton.sendActions(for: .touchUpInside)     // the same number on Delivery Address
+
+        XCTAssertEqual(sheets.count, 2)
+        XCTAssertEqual(sheets[0].actions.map(\.title), ["Call (865) 555-0142", "Send Message", "Cancel"])
+        XCTAssertEqual(sheets[1].actions.map(\.title), sheets[0].actions.map(\.title), "one sheet for both entry points")
+        XCTAssertEqual(sheets[1].preferredStyle, sheets[0].preferredStyle)
+        XCTAssertEqual(vc.callVerification, .notStarted, "tapping a number verifies nothing")
+        XCTAssertNotEqual(localRecord?.addressVerified, true, "and saves nothing")
+        XCTAssertEqual(wizard.step, .address)
+        XCTAssertTrue(nav.topViewController === wizard)
+
+        wizard.primaryTapped()                                 // Verify Address
+        XCTAssertEqual(vc.callVerification, CustomerCallVerification(addressVerified: true))
+        XCTAssertEqual(localRecord?.addressVerified, true)
+    }
+
     func testOnlyARealExitSyncsWhileTheWizardIsUpAndBack() throws {
         // A window, so UIKit drives the appearance callbacks for real.
         let engine = try XCTUnwrap(KabbaSync.engine)
