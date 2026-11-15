@@ -17,8 +17,6 @@ var pastPickupCount : Int = 0
 var strUUID : String = ""
 
 //NOTIFICATIN DIC
-var dicNotificationData : NSDictionary = [:]
-var isHomeScreen : Bool = false
 var arrNotifications : [NotificationsModel] = []
 
 let defaultsToExtension = UserDefaults(suiteName: "group.com.RentnKingNew.shared")
@@ -99,6 +97,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         
         //SET FIREBASE AND NOTIFICATION
         self.setFireBase_Notificaiton(application: application)
+        #if DEBUG
+        StagingTestHarness.scheduleOrderNotificationIfRequested(trigger: .launch)
+        #endif
       
         //SAVE TOKEN
         

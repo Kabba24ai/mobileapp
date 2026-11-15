@@ -1951,7 +1951,7 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {}
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?) {}
     
     func getStoreAddress(arr : [ProductModel]) -> String{
         for objDetails in arr{

@@ -107,7 +107,7 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
     }
     
     func termsSucess(selectIndex: Int) {
-        if self.arrOrderList.count == 0{
+        guard self.arrOrderList.indices.contains(selectIndex) else {
             return
         }
         var objData = self.arrOrderList[selectIndex]

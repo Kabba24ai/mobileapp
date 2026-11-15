@@ -77,6 +77,13 @@ extension OrderDetailsViewController {
         ]
     }
     
+    /// Kabba itself answered no (the order isn't there for this company) — not a lost connection.
+    static func kabbaDeclined(answer: NSDictionary?, error: Error?) -> Bool {
+        if answer != nil { return true }
+        guard let apiError = error as? APIError, apiError.kind == .http, let status = apiError.statusCode else { return false }
+        return status == 403 || status == 404 || status == 422 || (200..<300).contains(status)
+    }
+
     func CallAPIforGetUsers(CatrgoryParameater : CatrgoryParameater){
         // The request + company-scoped save live in callAPIforUsersList (shared with the
         // Dispatch offline reference warm-up, Phase 4 P4-D6).
@@ -144,8 +151,16 @@ extension OrderDetailsViewController {
             else {
                 indicatorHide()
 //                showAlertMessage(strMessage: "OrderDetails \(str.somethingWentWrong)")
-                // Offline (or failed) with no copy on this phone: "isn't downloaded", never an endless skeleton.
-                if self.objOrderData == nil { self.showOrderNotDownloaded() }
+                // No copy on this phone: Kabba saying the order isn't there (deleted, another
+                // company) reads "isn't available"; offline or failed reads "isn't downloaded" —
+                // never an endless skeleton.
+                if self.objOrderData == nil {
+                    if OrderDetailsViewController.kabbaDeclined(answer: dic, error: err) {
+                        self.showOrderUnavailable()
+                    } else {
+                        self.showOrderNotDownloaded()
+                    }
+                }
             }
         }
     }

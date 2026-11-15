@@ -577,6 +577,12 @@
 		5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8100000000000000000020 /* SupplierDirectoryUITests.swift */; };
 		5A8200000000000000000002 /* CustomerSiteVideoSyncUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */; };
 		5A8200000000000000000004 /* SupplierDirectoryDeviceAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */; };
+		5A8300000000000000000002 /* OrderOpening.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000001 /* OrderOpening.swift */; };
+		5A8300000000000000000003 /* OrderOpening.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000001 /* OrderOpening.swift */; };
+		5A8300000000000000000005 /* OrderDetailsEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000004 /* OrderDetailsEntry.swift */; };
+		5A8300000000000000000007 /* OrderOpeningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000006 /* OrderOpeningTests.swift */; };
+		5A8300000000000000000009 /* OrderNotificationEntryHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */; };
+		5A8300000000000000000011 /* OrderNotificationEntryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1101,6 +1107,11 @@
 		5A8100000000000000000020 /* SupplierDirectoryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryUITests.swift; sourceTree = "<group>"; };
 		5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerSiteVideoSyncUITests.swift; sourceTree = "<group>"; };
 		5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupplierDirectoryDeviceAcceptanceUITests.swift; sourceTree = "<group>"; };
+		5A8300000000000000000001 /* OrderOpening.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderOpening.swift; sourceTree = "<group>"; };
+		5A8300000000000000000004 /* OrderDetailsEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderDetailsEntry.swift; sourceTree = "<group>"; };
+		5A8300000000000000000006 /* OrderOpeningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderOpeningTests.swift; sourceTree = "<group>"; };
+		5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderNotificationEntryHostedTests.swift; sourceTree = "<group>"; };
+		5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderNotificationEntryUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2310,6 +2321,7 @@
 				5A5E000000000000000000E0 /* TermsScreenPresentation.swift */,
 				5A5E000000000000000000FA /* TermsSignatureImage.swift */,
 				5A8100000000000000000001 /* SupplierDirectory.swift */,
+				5A8300000000000000000001 /* OrderOpening.swift */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -2336,6 +2348,7 @@
 				5A8100000000000000000020 /* SupplierDirectoryUITests.swift */,
 				5A8200000000000000000001 /* CustomerSiteVideoSyncUITests.swift */,
 				5A8200000000000000000003 /* SupplierDirectoryDeviceAcceptanceUITests.swift */,
+				5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -2375,6 +2388,7 @@
 				5A5E000000000000000000E5 /* TermsSigningShell.swift */,
 				5A5E000000000000000000E7 /* TermsAgreementClient.swift */,
 				5A5E000000000000000000E9 /* TermsSigning */,
+				5A8300000000000000000004 /* OrderDetailsEntry.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -2411,6 +2425,7 @@
 				5A5E000000000000000000F8 /* TermsRenderingParityHostedTests.swift */,
 				5A5E000000000000000000FF /* TermsSignatureMeasurementHostedTests.swift */,
 				5A8100000000000000000010 /* SupplierDirectoryHostedTests.swift */,
+				5A8300000000000000000008 /* OrderNotificationEntryHostedTests.swift */,
 			);
 			path = Hosted;
 			sourceTree = "<group>";
@@ -2504,6 +2519,7 @@
 				5A5E000000000000000000E3 /* TermsScreenPresentationTests.swift */,
 				5A5E000000000000000000FD /* TermsSignatureImageTests.swift */,
 				5A810000000000000000000E /* SupplierDirectoryTests.swift */,
+				5A8300000000000000000006 /* OrderOpeningTests.swift */,
 			);
 			path = KabbaSyncCore;
 			sourceTree = "<group>";
@@ -3174,6 +3190,8 @@
 				5A8100000000000000000009 /* SupplierDetailViewController.swift in Sources */,
 				5A810000000000000000000B /* SupplierAddViewController.swift in Sources */,
 				5A810000000000000000000D /* HomeSupplierDirectoryTile.swift in Sources */,
+				5A8300000000000000000002 /* OrderOpening.swift in Sources */,
+				5A8300000000000000000005 /* OrderDetailsEntry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3341,6 +3359,8 @@
 				5A5E000000000000000000FE /* TermsSignatureImageTests.swift in Sources */,
 				5A8100000000000000000003 /* SupplierDirectory.swift in Sources */,
 				5A810000000000000000000F /* SupplierDirectoryTests.swift in Sources */,
+				5A8300000000000000000003 /* OrderOpening.swift in Sources */,
+				5A8300000000000000000007 /* OrderOpeningTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3368,6 +3388,7 @@
 				5A5E000000000000000000F9 /* TermsRenderingParityHostedTests.swift in Sources */,
 				5A5E00000000000000000100 /* TermsSignatureMeasurementHostedTests.swift in Sources */,
 				5A8100000000000000000011 /* SupplierDirectoryHostedTests.swift in Sources */,
+				5A8300000000000000000009 /* OrderNotificationEntryHostedTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3387,6 +3408,7 @@
 				5A8100000000000000000021 /* SupplierDirectoryUITests.swift in Sources */,
 				5A8200000000000000000002 /* CustomerSiteVideoSyncUITests.swift in Sources */,
 				5A8200000000000000000004 /* SupplierDirectoryDeviceAcceptanceUITests.swift in Sources */,
+				5A8300000000000000000011 /* OrderNotificationEntryUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
