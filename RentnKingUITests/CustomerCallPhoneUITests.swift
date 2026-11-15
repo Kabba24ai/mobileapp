@@ -197,6 +197,10 @@ final class CustomerCallPhoneUITests: XCTestCase {
         let address = element(app, "driverChecklist.call.step.address")
         if !address.waitForExistence(timeout: 30) { dump(app, "no-checklist-\(customer)") }
         XCTAssertTrue(address.exists, "the Driver Checklist for \(customer)")
+        // A fresh install's first context / review fetch reloads the screen a moment after it
+        // opens; a touch in flight during that reload is cancelled (seen once on the SE). No retry:
+        // a tap that does nothing on a settled screen still fails.
+        sleep(3)
     }
 
     private func openWizard(_ app: XCUIApplication) {
