@@ -142,6 +142,11 @@ final class CustomerSiteVideoSyncUITests: XCTestCase {
     }
 
     private func completeOpenChecklist(_ app: XCUIApplication, tag: String) {
+        // Right after a video is saved the "Saved on this phone…" notice sits over the first
+        // answer for a few seconds (a phone, 2026-11-15): a tap then lands on the notice.
+        let notice = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Saved on this phone'")).firstMatch
+        let deadline = Date().addingTimeInterval(12)
+        while Date() < deadline, notice.exists { usleep(400_000) }
         answer(app, line: 0, question: "Any body damage at delivery?", value: "No damage")
         answer(app, line: 0, question: "Keys handed over?", value: "Yes")
         chooseEmployee(app, line: 0)
