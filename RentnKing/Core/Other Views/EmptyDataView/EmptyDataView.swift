@@ -90,6 +90,11 @@ extension EmptyDataView{
         configure(imageName: "", title: "This order isn't downloaded to this phone yet", subtitle: "Connect to the internet once to open it.", tintColor: UIColor.primary)
     }
 
+    /// Mobile issue #9: Kabba answered that the order isn't there for this company.
+    func orderUnavailable(){
+        configure(imageName: "", title: "This order isn't available", subtitle: "It may have been deleted, or it belongs to another company.", tintColor: UIColor.primary)
+    }
+
     /// Dispatch offline (Phase 4): Terms & Conditions are signed on the server's page.
     func termsNeedConnection(){
         configure(imageName: "", title: "Signing Terms & Conditions needs a connection", subtitle: "Connect to the internet to sign. The rest of the order keeps working offline.", tintColor: UIColor.primary)

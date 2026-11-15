@@ -320,6 +320,8 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        // A notification tap that waited (another workflow was open) may open now.
+        OrderNotificationRouter.shared.resume()
         if self.syncRedrawWhenVisible {
             self.syncRedrawWhenVisible = false
             self.redrawVisibleRows()
@@ -1007,30 +1009,34 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             return
         }
         
-        //GET DATA
-        let objData = self.arrOrderList[indexPath.row]
-        
-     
-        //ORDER DETAILS SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-            newViewController.delegate = self
-            newViewController.selectIndex = indexPath.row
-            newViewController.strOrderUniqueId = objData.unique_id ?? ""
-            newViewController.strOrderID = "\(objData.order_number ?? "")"
-            newViewController.OrderID = "\(objData.id ?? 0)"
-            self.navigationController?.pushViewController(newViewController, animated: true)
-        }
+        guard self.arrOrderList.indices.contains(indexPath.row) else { return }
+
+        //ORDER DETAILS SCREEN — the one entry a notification tap uses too (mobile issue #9)
+        OrderDetailsEntry.openFromOrdersList(self, order: self.arrOrderList[indexPath.row], row: indexPath.row)
     }
-    
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {
-        
-        //UPDATE DATA
-        self.arrOrderList.remove(at: selectIndex)
-        self.arrOrderList.insert(objOrderData, at: selectIndex)
+
+    /// Order Details closed with its copy of `order`: replace that order's row, found by its
+    /// stable unique_id. An order this list doesn't hold (opened from a notification, newer than
+    /// the loaded page) refreshes the list instead, so it appears when the filters include it.
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?) {
+        guard self.isViewLoaded else { return }   // not shown yet: it loads its first page when it appears
+        guard let uid = order.unique_id, !uid.isEmpty else { self.refreshList(); return }
+        if let index = self.arrMainOrderList.firstIndex(where: { $0.unique_id == uid }) {
+            self.arrMainOrderList[index] = order
+        }
+        guard let row = self.arrOrderList.firstIndex(where: { $0.unique_id == uid }) else {
+            self.refreshList()
+            return
+        }
+        self.arrOrderList[row] = order
+        if let asOf = asOf { self.orderCopyAsOf[uid] = asOf }
 
         //RELOAD TABLE
-        self.tblView.reloadRows(at: [IndexPath(row: selectIndex, section: 0)], with: .automatic)
+        if self.tblView.numberOfSections > 0, self.tblView.numberOfRows(inSection: 0) == self.arrOrderList.count {
+            self.tblView.reloadRows(at: [IndexPath(row: row, section: 0)], with: .automatic)
+        } else {
+            self.tblView.reloadData()
+        }
     }
     
 //    
@@ -1208,7 +1214,11 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
     }
     
     func linceUploadSucess(selectIndex: Int, arrImage: [String]) {
-        if self.arrOrderList.count == 0{
+        // The row comes from whoever opened the license screen; Order Details opened from a
+        // notification has none (-1) — then just redraw what is visible.
+        guard self.arrOrderList.indices.contains(selectIndex),
+              self.tblView.numberOfSections > 0, self.tblView.numberOfRows(inSection: 0) > selectIndex else {
+            self.redrawVisibleRows()
             return
         }
 

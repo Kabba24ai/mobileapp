@@ -17,6 +17,7 @@
 
 #if DEBUG
 import UIKit
+import UserNotifications
 
 enum StagingTestHarness {
 
@@ -57,6 +58,55 @@ enum StagingTestHarness {
         UserDefaults.standard.accessToken = nil   // clears the shared Keychain item too
         UserDefaults.standard.baseURL = ""
         print("[test-harness] prior session cleared for a clean staging login")
+    }
+
+    // MARK: - Order notification taps (mobile issue #9)
+
+    enum NotificationTrigger: String { case launch, home }
+
+    /// The value after `-Key` exactly as passed: the arguments domain parses a value that starts
+    /// with `{` as a property list, which a JSON payload is not.
+    static func rawArgument(_ key: String) -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-" + key), index + 1 < args.count, !args[index + 1].isEmpty else { return nil }
+        return args[index + 1]
+    }
+    private static var scheduledOrderNotification = false
+
+    /// UI tests only: `-KabbaTestOrderNotification '<json>'` schedules a LOCAL notification that
+    /// carries exactly a Kabba new-order push's data (`order_unique_id`, `order_id`,
+    /// `order_number`). Tapping it reaches the same `userNotificationCenter(_:didReceive:)` a real
+    /// push reaches, so the tests drive the real tap path with the app open, in the background or
+    /// closed — on a simulator or an iPhone, with no APNs credentials. Options:
+    /// `-KabbaTestNotificationAt launch|home` (default home: after sign-in),
+    /// `-KabbaTestNotificationDelay <s>` (default 5), `-KabbaTestNotificationCount <n>` (default 1;
+    /// several = the same order's notification arriving more than once),
+    /// `-KabbaTestNotificationSpacing <s>` between them (default 2). Once per process.
+    static func scheduleOrderNotificationIfRequested(trigger: NotificationTrigger) {
+        guard !scheduledOrderNotification,
+              let json = rawArgument("KabbaTestOrderNotification"),
+              (argument("KabbaTestNotificationAt") ?? NotificationTrigger.home.rawValue) == trigger.rawValue,
+              let data = json.data(using: .utf8),
+              let payload = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+        scheduledOrderNotification = true
+        let delay = max(1, Double(argument("KabbaTestNotificationDelay") ?? "") ?? 5)
+        let count = max(1, min(5, Int(argument("KabbaTestNotificationCount") ?? "") ?? 1))
+        let spacing = max(1, Double(argument("KabbaTestNotificationSpacing") ?? "") ?? 2)
+        var userInfo: [String: String] = [:]
+        for (key, value) in payload { userInfo[key] = "\(value)" }
+        for index in 0..<count {
+            let content = UNMutableNotificationContent()
+            content.title = "New Order Placed \(userInfo["order_number"] ?? "")"
+            content.body = userInfo["body"] ?? "Kabba UI test notification"
+            content.userInfo = userInfo
+            content.sound = .default
+            let request = UNNotificationRequest(identifier: "kabba-test-order-\(index)-\(UUID().uuidString)",
+                                                content: content,
+                                                trigger: UNTimeIntervalNotificationTrigger(timeInterval: delay + Double(index) * spacing, repeats: false))
+            UNUserNotificationCenter.current().add(request) { error in
+                print("[test-harness] order notification \(index + 1)/\(count) in \(delay)s: \(error.map { "\($0)" } ?? "scheduled")")
+            }
+        }
     }
 }
 #endif

@@ -11,7 +11,10 @@ import CoreLocation
 import MapKit
 import Alamofire
 protocol OrderDetailsDelegate : NSObject {
-    func updateOrderDetails(selectIndex : Int, objOrderData : OrdersListModel)
+    /// Order Details is leaving the stack (Back, a swipe, or a flow that pops past it) with its
+    /// copy of the order. The receiver finds the order by its stable id — never by a row
+    /// position, which a refreshed or filtered list no longer matches (mobile issue #9).
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?)
 }
 
 class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate {
@@ -124,6 +127,9 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var OrderID : String = ""
     var strOrderUniqueId : String = ""
     var isPresent : Bool = false
+    /// The order id whose notifications this screen marked read (once per screen, never "").
+    private(set) var acknowledgedOrderId: String?
+    private var reportedClose = false
     
     var buttonColour : UIColor = .secondaryText
 
@@ -176,9 +182,38 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         NotificationCenter.default.addObserver(self, selector: #selector(syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(syncOperationDidChange(_:)), name: .kabbaSyncOperationChanged, object: nil)
 
-        //UPDATE NOTIFICTION
-        GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: self.OrderID))
+        //UPDATE NOTIFICTION (once the order's id is known — from the opener, else when it loads)
+        self.acknowledgeNotifications()
 
+    }
+
+    /// Leaving the stack by any path: hand the Orders list the order by its stable id.
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        guard parent == nil, !self.reportedClose, self.objOrderData != nil else { return }
+        self.reportedClose = true
+        self.delegate?.orderDetailsDidClose(with: self.objOrderData, asOf: self.orderCopyAsOf)
+    }
+
+    /// Marks this order's notifications read — one order, once. An empty order_id would mark
+    /// EVERY notification read on Kabba (that is the Orders list's Clear All), so nothing is sent
+    /// until the id is known.
+    func acknowledgeNotifications() {
+        guard self.acknowledgedOrderId == nil,
+              let orderId = OrderNotificationAcknowledgement.orderId(known: self.OrderID, loaded: self.objOrderData?.id) else { return }
+        self.acknowledgedOrderId = orderId
+        GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: orderId))
+    }
+
+    /// The same order was tapped again while on screen: show it fresh, push nothing.
+    func reloadForNotification(_ request: OrderOpenRequest) {
+        if self.OrderID.isEmpty, let id = request.orderId { self.OrderID = id }
+        // The new notification is read too: acknowledge this order again.
+        self.acknowledgedOrderId = nil
+        self.acknowledgeNotifications()
+        guard self.isViewLoaded else { return }
+        self.isLoading = false
+        self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -211,11 +246,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         //SET NAVIGATION BAR
         setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "+View Billing", isDetailsScree: true) {
             
-            if self.selectIndex != -1{
-                if self.objOrderData != nil{
-                    self.delegate?.updateOrderDetails(selectIndex: self.selectIndex, objOrderData: self.objOrderData)
-                }
-            }
+            // The Orders list hears about the order in didMove(toParent:), whichever way this
+            // screen leaves (Back here, a swipe, or a flow popping past it).
             
             //BACK SCREE
             if self.isPresent == true{
@@ -300,6 +332,11 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             return
         }
         self.hideOrderNotDownloaded()
+        // The loaded order names itself: its number is the heading (and what the checklist
+        // screens show) however this screen was opened, and its id keys the read receipt.
+        if let number = self.objOrderData.order_number, !number.isEmpty { self.strOrderID = number }
+        if self.OrderID.isEmpty, let id = self.objOrderData.id, id > 0 { self.OrderID = String(id) }
+        self.acknowledgeNotifications()
         self.setFooter()
         self.updateNavigationbar()
         self.setupMissionBar()
@@ -683,6 +720,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     func hideOrderNotDownloaded() {
         self.notDownloadedView?.removeFromSuperview()
         self.notDownloadedView = nil
+    }
+
+    /// Kabba answered that this order does not exist for the signed-in company (deleted, or a
+    /// tap meant for another company): say so, instead of "not downloaded yet".
+    func showOrderUnavailable() {
+        self.showOrderNotDownloaded()
+        self.notDownloadedView?.orderUnavailable()
+        self.notDownloadedView?.accessibilityIdentifier = "orderDetails.unavailable"
     }
 
     func stopLoading(){

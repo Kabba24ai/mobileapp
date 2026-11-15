@@ -259,6 +259,9 @@ extension SettingViewController{
         // Sync Engine: stop sending; stored operations stay on the phone for the next session.
         KabbaSync.sessionDidEnd()
 
+        // A tapped order notification still waiting is forgotten: the next sign-in never inherits it.
+        OrderNotificationRouter.shared.sessionEnded()
+
         //REMOVE ALL DATA
         UserDefaults.standard.user = nil
         UserDefaults.standard.accessToken = nil          // clears the shared Keychain item (extension included)
