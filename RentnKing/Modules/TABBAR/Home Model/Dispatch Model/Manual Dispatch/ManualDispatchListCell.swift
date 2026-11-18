@@ -35,6 +35,9 @@ final class ManualDispatchListCell: UITableViewCell {
     private let accent = UIView()
     private let chipManual = PaddingLabelManual()
     private let chipTransfer = PaddingLabelManual()
+    private let chipCombined = PaddingLabelManual()
+    private let lblRoute = UILabel()
+    private let lblItems = UILabel()
     private let pillStatus = PaddingLabelManual()
     private let lblType = UILabel()
     private let lblDescription = UILabel()
@@ -83,6 +86,24 @@ final class ManualDispatchListCell: UITableViewCell {
         chipTransfer.layer.masksToBounds = true
         chipTransfer.isHidden = true
 
+        // Combined dispatch (2026-11): several tasks travelling as ONE assignment.
+        chipCombined.font = .systemFont(ofSize: 10, weight: .bold)
+        chipCombined.textColor = Palette.green
+        chipCombined.backgroundColor = Palette.green.withAlphaComponent(0.18)
+        chipCombined.layer.cornerRadius = 5
+        chipCombined.layer.masksToBounds = true
+        chipCombined.isHidden = true
+
+        lblRoute.font = .systemFont(ofSize: 13, weight: .semibold)
+        lblRoute.textColor = Palette.ink
+        lblRoute.numberOfLines = 0
+        lblRoute.isHidden = true
+
+        lblItems.font = .systemFont(ofSize: 13)
+        lblItems.textColor = Palette.subtle
+        lblItems.numberOfLines = 3
+        lblItems.isHidden = true
+
         pillStatus.font = .systemFont(ofSize: 10, weight: .bold)
         pillStatus.layer.cornerRadius = 5
         pillStatus.layer.masksToBounds = true
@@ -103,12 +124,12 @@ final class ManualDispatchListCell: UITableViewCell {
         lblDateTime.textColor = Palette.indigo
         lblDateTime.numberOfLines = 1
 
-        let chipRow = UIStackView(arrangedSubviews: [chipManual, chipTransfer, UIView(), pillStatus])
+        let chipRow = UIStackView(arrangedSubviews: [chipManual, chipTransfer, chipCombined, UIView(), pillStatus])
         chipRow.axis = .horizontal
         chipRow.spacing = 6
         chipRow.alignment = .center
 
-        let stack = UIStackView(arrangedSubviews: [chipRow, lblType, lblDescription, lblLocation, lblDateTime])
+        let stack = UIStackView(arrangedSubviews: [chipRow, lblRoute, lblType, lblDescription, lblItems, lblLocation, lblDateTime])
         stack.axis = .vertical
         stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -132,9 +153,43 @@ final class ManualDispatchListCell: UITableViewCell {
         ])
     }
 
-    func configure(with job: DispatchManualJob) {
+    /// `placement` is non-nil when the task is part of a combined dispatch
+    /// the list is rendering: the group's FIRST card states the one pickup and
+    /// the one destination; the cards after it say they share that stop
+    /// instead of repeating it. `items` are the task's effective items
+    /// (server ∨ durable local confirmations).
+    func configure(with job: DispatchManualJob,
+                   placement: DispatchCombinedPlacement? = nil,
+                   items: [DispatchManualJob.ItemRef]? = nil) {
         let isTransfer = job.dispatch_subtype == "inventory_transfer"
         chipTransfer.isHidden = !isTransfer
+
+        if let placement = placement {
+            chipCombined.text = "COMBINED \(placement.position)/\(placement.total)"
+            chipCombined.isHidden = false
+            if placement.isFirst {
+                let pickup = job.combined_dispatch?.pickup ?? job.pickup_location ?? "—"
+                let destination = job.combined_dispatch?.destination ?? job.destination_location ?? "—"
+                lblRoute.text = "One trip · \(placement.total) tasks\nPickup: \(pickup)\nDestination: \(destination)"
+            } else {
+                lblRoute.text = "Same pickup and destination as the task above"
+            }
+            lblRoute.isHidden = false
+        } else {
+            chipCombined.isHidden = true
+            lblRoute.isHidden = true
+        }
+
+        let shownItems = items ?? job.items ?? []
+        if shownItems.isEmpty {
+            lblItems.isHidden = true
+        } else {
+            let names = shownItems.prefix(3).compactMap { $0.label }.joined(separator: ", ")
+            let more = shownItems.count > 3 ? " +\(shownItems.count - 3) more" : ""
+            let summary = DispatchManualItemProgress.summary(shownItems) ?? ""
+            lblItems.text = "\(summary)\n\(names)\(more)"
+            lblItems.isHidden = false
+        }
 
         if isTransfer {
             let movement = [job.origin_store?.name, job.destination_store?.name]
@@ -162,6 +217,8 @@ final class ManualDispatchListCell: UITableViewCell {
 
         let location = (job.location_name?.isEmpty == false ? job.location_name : job.address) ?? "—"
         lblLocation.text = location
+        // Inside a combined dispatch the route line above already states where.
+        lblLocation.isHidden = placement != nil
 
         let dateTime = [job.date, job.time]
             .compactMap { ($0?.isEmpty == false) ? $0 : nil }

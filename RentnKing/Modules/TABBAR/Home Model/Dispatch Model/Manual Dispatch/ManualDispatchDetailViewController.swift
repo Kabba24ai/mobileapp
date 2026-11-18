@@ -109,6 +109,14 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
                                                     manualTaskUniqueId: item?.unique_id)
     }
 
+    /// The task's items with durable local confirmations applied — a tap
+    /// shows on the row the moment it is saved on this phone.
+    private func currentEffectiveItems() -> [DispatchManualJob.ItemRef] {
+        return DispatchManualItemProgress.effectiveItems(serverItems: item?.items ?? [],
+                                                         operations: KabbaSync.engine?.snapshot() ?? [],
+                                                         manualTaskUniqueId: item?.unique_id)
+    }
+
     private func rebuild() {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         guard let item = item else { return }
@@ -139,7 +147,9 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             ("Description", item.description),
             ("Instructions", item.instructions),
         ]
-        if let equipment = item.equipment?.name, !equipment.isEmpty {
+        // With an item list (2026-11) the Items card names every unit; the
+        // single Equipment row is for tasks that carry no item list.
+        if (item.items ?? []).isEmpty, let equipment = item.equipment?.name, !equipment.isEmpty {
             taskRows.append(("Equipment", equipment))
         }
         if item.dispatch_subtype == "inventory_transfer" {
@@ -149,6 +159,25 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             if !movement.isEmpty { taskRows.append(("Movement", movement)) }
         }
         stack.addArrangedSubview(section("Task", rows: taskRows))
+
+        // Combined dispatch (2026-11): this task travels with others as ONE
+        // assignment — one pickup, one destination. Each task is still
+        // progressed on its own screen.
+        if let combined = item.combined_dispatch, (combined.task_count ?? 0) > 1 {
+            stack.addArrangedSubview(section("Combined Dispatch", rows: [
+                ("Travels With", "\(combined.task_count ?? 0) tasks on one trip"),
+                ("Pickup", combined.pickup ?? item.pickup_location),
+                ("Destination", combined.destination ?? item.destination_location),
+            ]))
+        }
+
+        // Items: every piece of equipment / inventory on this task, confirmed
+        // one at a time. Confirming one never marks another, and completing
+        // the task never marks an item nobody confirmed.
+        let items = currentEffectiveItems()
+        if !items.isEmpty {
+            stack.addArrangedSubview(itemsSection(items, taskIsTerminal: DispatchManualStatus.isTerminal(effective)))
+        }
 
         // Destination — one compact action below the card: pre-trip it both
         // records On My Way AND opens navigation in a single tap; once the
@@ -229,6 +258,30 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             openAddressInMap(address: item.address)
         } catch {
             // Durable local save failed — no false status, no navigation.
+            showAlertMessage(strMessage: str.somethingWentWrong)
+        }
+    }
+
+    /// One item picked up / delivered: a durable, idempotent Sync Engine
+    /// operation of its own. The driver stays on this screen.
+    @objc private func itemStepTapped(_ sender: UIButton) {
+        let items = currentEffectiveItems()
+        guard sender.tag >= 0, sender.tag < items.count else { return }
+        let target = items[sender.tag]
+        guard let itemId = target.id,
+              let step = DispatchManualItemProgress.nextStep(for: target),
+              let uid = item?.unique_id, let engine = KabbaSync.engine else { return }
+        do {
+            let operation = try ManualDispatchItemProgressSyncHandler.enqueue(into: engine,
+                                                                              taskUniqueId: uid,
+                                                                              itemId: itemId,
+                                                                              itemLabel: target.label ?? "Item",
+                                                                              step: step)
+            KabbaSync.showStatusToast(for: operation.id)
+            onChanged?()
+            rebuild()
+        } catch {
+            // Durable local save failed — claim nothing.
             showAlertMessage(strMessage: str.somethingWentWrong)
         }
     }
@@ -330,6 +383,84 @@ final class ManualDispatchDetailViewController: UIViewController, UIGestureRecog
             val.text = v
             let row = UIStackView(arrangedSubviews: [l, val])
             row.axis = .vertical; row.spacing = 2
+            inner.addArrangedSubview(row)
+        }
+
+        let cardWrap = UIView()
+        cardWrap.backgroundColor = Palette.card
+        cardWrap.layer.cornerRadius = 12
+        cardWrap.layer.borderWidth = 1
+        cardWrap.layer.borderColor = Palette.border.cgColor
+        inner.translatesAutoresizingMaskIntoConstraints = false
+        cardWrap.addSubview(inner)
+        NSLayoutConstraint.activate([
+            inner.topAnchor.constraint(equalTo: cardWrap.topAnchor),
+            inner.leadingAnchor.constraint(equalTo: cardWrap.leadingAnchor),
+            inner.trailingAnchor.constraint(equalTo: cardWrap.trailingAnchor),
+            inner.bottomAnchor.constraint(equalTo: cardWrap.bottomAnchor),
+        ])
+
+        let outer = UIStackView(arrangedSubviews: [head, cardWrap])
+        outer.axis = .vertical; outer.spacing = 8
+        return outer
+    }
+
+    /// The Items card: one row per item — label, its own instructions, its
+    /// own state — with the single next confirmation for that item.
+    private func itemsSection(_ items: [DispatchManualJob.ItemRef], taskIsTerminal: Bool) -> UIStackView {
+        let head = UILabel()
+        head.text = (DispatchManualItemProgress.summary(items) ?? "Items").uppercased()
+        head.font = .systemFont(ofSize: 12, weight: .bold)
+        head.textColor = Palette.subtle
+
+        let inner = UIStackView()
+        inner.axis = .vertical; inner.spacing = 14
+        inner.isLayoutMarginsRelativeArrangement = true
+        inner.layoutMargins = UIEdgeInsets(top: 14, left: 14, bottom: 14, right: 14)
+
+        for (index, entry) in items.enumerated() {
+            let name = UILabel()
+            name.font = .systemFont(ofSize: 15, weight: .semibold)
+            name.textColor = Palette.ink
+            name.numberOfLines = 0
+            name.text = entry.label ?? "Item"
+
+            let state = UILabel()
+            state.font = .systemFont(ofSize: 12, weight: .bold)
+            if entry.delivered == true {
+                state.text = "DELIVERED"; state.textColor = Palette.green
+            } else if entry.picked_up == true {
+                state.text = "PICKED UP — NOT DELIVERED YET"; state.textColor = Palette.blue
+            } else {
+                state.text = "NOT PICKED UP YET"; state.textColor = Palette.subtle
+            }
+
+            let row = UIStackView(arrangedSubviews: [name])
+            row.axis = .vertical; row.spacing = 4
+            if let note = entry.instructions, !note.isEmpty {
+                let instructions = UILabel()
+                instructions.font = .systemFont(ofSize: 13)
+                instructions.textColor = Palette.subtle
+                instructions.numberOfLines = 0
+                instructions.text = note
+                row.addArrangedSubview(instructions)
+            }
+            row.addArrangedSubview(state)
+
+            if !taskIsTerminal, let step = DispatchManualItemProgress.nextStep(for: entry) {
+                let b = UIButton(type: .system)
+                b.setTitle(step == .deliver ? "Mark Delivered" : "Mark Picked Up", for: .normal)
+                b.setTitleColor(.white, for: .normal)
+                b.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
+                b.backgroundColor = step == .deliver ? Palette.green : Palette.indigo
+                b.layer.cornerRadius = 8
+                b.heightAnchor.constraint(equalToConstant: 44).isActive = true
+                b.tag = index
+                b.accessibilityIdentifier = "manual-item-step-\(entry.id ?? 0)"
+                b.addTarget(self, action: #selector(itemStepTapped(_:)), for: .touchUpInside)
+                row.setCustomSpacing(8, after: state)
+                row.addArrangedSubview(b)
+            }
             inner.addArrangedSubview(row)
         }
 

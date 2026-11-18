@@ -185,8 +185,44 @@ public struct DispatchManualJob: Codable, Equatable {
     // Mixed-feed identity (additive contract keys)
     public var dispatch_source: String?    // "manual"
     public var dispatch_item_id: String?   // "manual:MDT-…"
-    public var sort_key: String?           // "YYYY-MM-DD|NNNNN"
+    public var sort_key: String?           // "YYYY-MM-DD|NNNNN" (+ "|L…|…" inside a combined dispatch)
     public var driver: DriverRef?
+
+    // Multiple items + combined dispatch (2026-11, additive contract keys).
+    /// One equipment / inventory item carried on the task. Each has its own
+    /// picked-up / delivered state — never inferred from another item or
+    /// from the task's status. `id == nil` is a task that predates item rows:
+    /// shown, but there is nothing to confirm against.
+    public struct ItemRef: Codable, Equatable {
+        public var id: Int?
+        public var is_primary: Bool?
+        public var kind: String?            // "equipment" | "other"
+        public var equipment_id: Int?
+        public var label: String?
+        public var instructions: String?
+        public var picked_up: Bool?
+        public var delivered: Bool?
+
+        public init() {}
+    }
+
+    /// Present when the task travels with others as ONE assignment. Every
+    /// member carries the same id, pickup and destination — the server only
+    /// forms a combined dispatch from tasks that share one pickup location
+    /// and one destination.
+    public struct CombinedRef: Codable, Equatable {
+        public var id: String?
+        public var task_count: Int?
+        public var pickup: String?
+        public var destination: String?
+
+        public init() {}
+    }
+
+    public var pickup_location: String?       // the movement's two ends, as the web board prints them
+    public var destination_location: String?
+    public var items: [ItemRef]?
+    public var combined_dispatch: CombinedRef?
 
     public init() {}
 
@@ -200,10 +236,97 @@ public struct DispatchManualJob: Codable, Equatable {
     public static func decodeList(fromJSONArray array: [[String: Any]]) -> [DispatchManualJob] {
         let decoder = JSONDecoder()
         return array.compactMap { dict in
-            guard JSONSerialization.isValidJSONObject(dict),
-                  let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
-            return try? decoder.decode(DispatchManualJob.self, from: data)
+            if let job = decode(dict, with: decoder) { return job }
+            // The 2026-11 additive keys are optional extras: a shape this build
+            // does not understand there must never cost the driver the task
+            // itself. Retry on the task's long-standing fields alone.
+            var core = dict
+            for key in ["items", "combined_dispatch", "pickup_location", "destination_location"] {
+                core.removeValue(forKey: key)
+            }
+            return decode(core, with: decoder)
         }
+    }
+
+    private static func decode(_ dict: [String: Any], with decoder: JSONDecoder) -> DispatchManualJob? {
+        guard JSONSerialization.isValidJSONObject(dict),
+              let data = try? JSONSerialization.data(withJSONObject: dict) else { return nil }
+        return try? decoder.decode(DispatchManualJob.self, from: data)
+    }
+}
+
+// MARK: - Combined dispatch (several tasks, ONE assignment)
+
+/// Where a task sits inside its combined dispatch, among the tasks the list
+/// is actually rendering.
+public struct DispatchCombinedPlacement: Equatable {
+    /// 1-based position among the group's rendered tasks.
+    public let position: Int
+    /// How many of the group's tasks are rendered (open, in this filter).
+    public let total: Int
+
+    public var isFirst: Bool { return position == 1 }
+    public var isLast: Bool { return position == total }
+}
+
+// MARK: - Item progress (picked up / delivered, one item at a time)
+
+public enum DispatchManualItemProgress {
+
+    /// The Sync Engine operation type of an item confirmation
+    /// (ManualDispatchItemProgressSyncHandler submits it).
+    public static let operationType = "manual_dispatch.item_progress"
+
+    /// Server items ∨ durable local Sync Engine evidence — the same rule as
+    /// DispatchManualStatus.effectiveStatus: the moment a confirmation is
+    /// durably saved on this phone the row shows it, without waiting for
+    /// Laravel. Operations apply in the order they were queued, so the
+    /// driver's latest tap on an item wins. Identity is strict: another
+    /// task's (or another item's) operation never leaks in.
+    static func effectiveItems(serverItems: [DispatchManualJob.ItemRef],
+                               operations: [SyncOperation],
+                               manualTaskUniqueId: String?) -> [DispatchManualJob.ItemRef] {
+        guard let uid = manualTaskUniqueId, !uid.isEmpty else { return serverItems }
+        var items = serverItems
+
+        for op in operations {
+            guard op.type == operationType,
+                  EffectiveFieldState.countsAsDurableEvidence(op.state),
+                  op.identity.manualTaskUniqueId == uid,
+                  let body = op.payload.objectValue,
+                  case .number(let rawId)? = body["item_id"],
+                  let index = items.firstIndex(where: { $0.id == Int(rawId) }) else { continue }
+
+            if case .bool(let pickedUp)? = body["picked_up"] {
+                items[index].picked_up = pickedUp
+            }
+            if case .bool(let delivered)? = body["delivered"] {
+                items[index].delivered = delivered
+                if delivered { items[index].picked_up = true } // delivered implies picked up (server rule)
+            }
+        }
+        return items
+    }
+
+    /// "3 items · 1 picked up · 1 delivered" for a card; nil with no items.
+    public static func summary(_ items: [DispatchManualJob.ItemRef]) -> String? {
+        guard !items.isEmpty else { return nil }
+        let delivered = items.filter { $0.delivered == true }.count
+        let pickedUp = items.filter { $0.picked_up == true && $0.delivered != true }.count
+        var parts = ["\(items.count) item\(items.count == 1 ? "" : "s")"]
+        if pickedUp > 0 { parts.append("\(pickedUp) picked up") }
+        if delivered > 0 { parts.append("\(delivered) delivered") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The single next confirmation offered for an item: pick it up, then
+    /// deliver it; nothing once delivered. nil for an item with no id.
+    public enum NextStep: Equatable { case pickUp, deliver }
+
+    public static func nextStep(for item: DispatchManualJob.ItemRef) -> NextStep? {
+        guard item.id != nil else { return nil }
+        if item.delivered == true { return nil }
+        return item.picked_up == true ? .deliver : .pickUp
     }
 }
 
@@ -280,6 +403,23 @@ public enum DispatchWorkload {
 
     public static func manualBelongs(inScheduleType scheduleType: String) -> Bool {
         return scheduleType != "Return"
+    }
+
+    /// Where manuals[index] sits inside its combined dispatch, or nil when it
+    /// is an ordinary single task. Counted over the tasks this list renders,
+    /// so a group with one open task left reads as a single task again
+    /// (total == 1 → nil) — the same rule the web board draws by.
+    public static func combinedPlacement(at index: Int, in manuals: [DispatchManualJob]) -> DispatchCombinedPlacement? {
+        guard index >= 0, index < manuals.count,
+              let groupId = manuals[index].combined_dispatch?.id, !groupId.isEmpty else { return nil }
+
+        var position = 0
+        var total = 0
+        for (i, job) in manuals.enumerated() where job.combined_dispatch?.id == groupId {
+            total += 1
+            if i <= index { position += 1 }
+        }
+        return total > 1 ? DispatchCombinedPlacement(position: position, total: total) : nil
     }
 
     /// Server-refresh reconciliation for the manual list: the fresh server

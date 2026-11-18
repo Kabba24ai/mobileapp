@@ -990,7 +990,17 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         // own programmatic cell; never forced through the order-shaped cell.
         if !isLoading, let manualJob = self.manualJobForRow(indexPath.row),
            let manualCell = tableView.dequeueReusableCell(withIdentifier: ManualDispatchListCell.reuseId) as? ManualDispatchListCell {
-            manualCell.configure(with: manualJob)
+            // Combined dispatch: where this task sits in its group among the
+            // rendered manual tasks, and its items with any durable local
+            // confirmation applied.
+            var placement: DispatchCombinedPlacement? = nil
+            if indexPath.row < self.arrRows.count, case let .manual(manualIndex) = self.arrRows[indexPath.row] {
+                placement = DispatchWorkload.combinedPlacement(at: manualIndex, in: self.arrRenderedManuals)
+            }
+            let items = DispatchManualItemProgress.effectiveItems(serverItems: manualJob.items ?? [],
+                                                                  operations: KabbaSync.engine?.snapshot() ?? [],
+                                                                  manualTaskUniqueId: manualJob.unique_id)
+            manualCell.configure(with: manualJob, placement: placement, items: items)
             return manualCell
         }
 
