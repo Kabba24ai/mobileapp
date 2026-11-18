@@ -13,8 +13,11 @@ One row per build uploaded to App Store Connect. `Scripts/release-preflight.sh` 
 | 1.0.27 | 1013 | 44927ea635b8 | fix/fuel-def-readings-1.0.26 | 2026-10-18 | Released (approved; on every company phone, per Gary 2026-10-21) |
 | 1.0.28 | 1014 | 375115102806 | release/1.0.28-1014 | 2026-10-21 | Uploaded; superseded by 1015, not to be submitted |
 | 1.0.28 | 1015 | f2516522db0a | release/1.0.28-combined | 2026-10-21 | Uploaded 20:36 CDT (combined release); submit for review in App Store Connect |
+| 1.0.29 | 1016 | not recorded (branch tip 2805f6e on the upload date) | release/1.0.29-1016 | 2026-11-15 | Released (uploaded and submitted by Gary; live on the App Store 2026-11-16 per Apple's lookup API) |
 
 **1.0.28 is ONE combined release** (owner decision 2026-10-21): build 1015 from `release/1.0.28-combined` carries the route events of 1014 plus every MOBILE-QUALITY-01 improvement (prepared as 1.0.29, which was never uploaded). When Apple approves 1.0.28, change its status to Approved (the preflight then treats 1.0.28 as closed); the next build is then **1016 or higher** under a higher version.
+
+**1.0.29 is closed.** The App Store has served 1.0.29 since 2026-11-16, so the next release is **1.0.30 with build 1017 or higher**. The source commit of build 1016 was not recorded here at upload; on a phone running it, Settings → About → Version shows it. The 1.0.28 (1015) row above was never updated after its upload either; 1.0.29 superseded it on the App Store.
 
 ## Notes
 - **Copies installed from a computer.** A copy installed with Xcode shows the in-app release notes of the code it was built from. Before 1.0.28, those notes could differ from the shorter text pasted into App Store Connect. From 1.0.28, both come from one draft (see `RELEASE_PROCESS.md`).
