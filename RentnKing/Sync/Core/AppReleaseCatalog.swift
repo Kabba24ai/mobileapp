@@ -53,6 +53,8 @@ enum AppReleaseCatalog {
             "Suppliers you have opened stay readable without a connection",
             "At the customer site the video and the equipment checklist are each done once: after you save the video and submit the checklist, the app returns to the order instead of asking for the video again",
             "The photo and video screen shows when a video is saved on your phone and waiting to upload, so it never looks missing",
+            "Assembly Review shows the order's delivery instructions right under the order number, before you check the equipment",
+            "Manual dispatches the office combined show as one trip with one pickup and one destination, and each item is marked picked up and delivered on its own",
             "Various fixes and refinements",
         ]),
         // 1.0.28 (1015) — ONE combined release (owner decision 2026-10-21): the route events

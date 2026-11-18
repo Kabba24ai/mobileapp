@@ -249,8 +249,10 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         scrollToFocusOnce()
     }
 
-    /// The header is the order identity only — instructions the technician
-    /// would learn to ignore are not repeated on every open.
+    /// The header is the order identity, then what the office (or the customer) asked for
+    /// on THIS order: its Order / Delivery Instructions, before any equipment check — so a
+    /// blocked assembly (wrong location, nothing available) still shows them. How-to text
+    /// the technician would learn to ignore is not repeated here.
     private func renderHeader() {
         headerStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let number = UILabel()
@@ -258,6 +260,78 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
         number.accessibilityIdentifier = "assemblyReview.order"
         headerStack.addArrangedSubview(number)
         headerStack.addArrangedSubview(freshnessLabel)
+        if let order = review?.order { headerStack.addArrangedSubview(makeDeliveryInstructions(order)) }
+    }
+
+    // MARK: - Order / Delivery Instructions (the order's own notes, from Order Details)
+
+    /// Instructions: a prominent card, every line of every note (never clipped, never
+    /// collapsed; the page scrolls). None: one compact line. Not in the saved review: said
+    /// so, never shown as "none".
+    private func makeDeliveryInstructions(_ order: AssemblyReview.OrderHeader) -> UIView {
+        let medium = GlobalMainConstants.APP_FONT_Roboto_Medium
+        switch AssemblyPolicy.deliveryInstructions(order) {
+        case .notLoaded:
+            let label = makeNote(AssemblyPolicy.deliveryInstructionsNotLoaded, color: Palette.amber)
+            label.accessibilityIdentifier = "assemblyReview.instructions.notLoaded"
+            return label
+        case .none:
+            let label = makeNote(AssemblyPolicy.noDeliveryInstructions, color: Palette.subtle)
+            label.accessibilityIdentifier = "assemblyReview.instructions.none"
+            return label
+        case .instructions(let lines):
+            let card = UIView()
+            card.backgroundColor = Palette.card
+            card.layer.cornerRadius = 12
+            card.layer.borderWidth = 1.5
+            card.layer.borderColor = Palette.amber.cgColor
+            card.accessibilityIdentifier = "assemblyReview.instructions"
+
+            let stack = UIStackView()
+            stack.axis = .vertical
+            stack.spacing = 8
+            stack.isLayoutMarginsRelativeArrangement = true
+            stack.layoutMargins = UIEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            card.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.topAnchor.constraint(equalTo: card.topAnchor), stack.bottomAnchor.constraint(equalTo: card.bottomAnchor),
+                stack.leadingAnchor.constraint(equalTo: card.leadingAnchor), stack.trailingAnchor.constraint(equalTo: card.trailingAnchor),
+            ])
+
+            let heading = UILabel()
+            heading.numberOfLines = 0
+            heading.attributedText = attr(AssemblyPolicy.deliveryInstructionsHeading, Palette.amber, rFont(GlobalMainConstants.APP_FONT_Roboto_Bold, 15))
+            heading.accessibilityIdentifier = "assemblyReview.instructions.heading"
+            heading.accessibilityTraits = .header
+            stack.addArrangedSubview(heading)
+
+            for (index, line) in lines.enumerated() {
+                if index > 0 { stack.addArrangedSubview(makeDivider()) }
+                let text = UILabel()
+                text.numberOfLines = 0
+                text.lineBreakMode = .byWordWrapping
+                text.attributedText = attr(line.text, Palette.ink, rFont(medium, 16))
+                text.accessibilityIdentifier = "assemblyReview.instructions.\(index).text"
+                stack.addArrangedSubview(text)
+                if !line.byline.isEmpty {
+                    let by = UILabel()
+                    by.numberOfLines = 0
+                    by.attributedText = attr(line.byline, Palette.subtle, rFont(medium, 12))
+                    by.accessibilityIdentifier = "assemblyReview.instructions.\(index).byline"
+                    stack.addArrangedSubview(by)
+                    stack.setCustomSpacing(4, after: text)
+                }
+            }
+            return card
+        }
+    }
+
+    /// True while the order's instructions are on screen: they are the first thing to
+    /// read, so the open does not scroll past them to the focused card.
+    private var isShowingDeliveryInstructions: Bool {
+        guard let order = review?.order, case .instructions = AssemblyPolicy.deliveryInstructions(order) else { return false }
+        return true
     }
 
     /// Exceptional conditions only: offline, or confirmations still on their way.
@@ -275,6 +349,7 @@ final class AssemblyReviewViewController: UIViewController, UIGestureRecognizerD
     private func scrollToFocusOnce() {
         guard !didScrollToFocus, let focus = focusOrderProductUniqueId, let card = memberCards[focus] else { return }
         didScrollToFocus = true
+        guard !isShowingDeliveryInstructions else { return }   // the instructions stay on top
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             self.view.layoutIfNeeded()

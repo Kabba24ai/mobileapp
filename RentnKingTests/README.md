@@ -247,3 +247,11 @@ and that the `oldAPI` URL family is gone from the client), `Phase5ContractTests`
   Foundation-only test once the handler's payload shaping is asserted end-to-end).
 - Migration of `SyncDeliveryPickupInputs` and the customer checklist queue onto the
   Sync Engine (Phase 3+), with the same offline/relaunch/replay/rejection scenarios.
+
+## Order / Delivery Instructions on the Assembly Review (2026-11-18)
+
+The order's own notes (Order Details → "Order / Delivery Instructions" on the desktop) arrive in the Assembly Review payload as `data.order.delivery_instructions` (Laravel: `OrderDeliveryInstructions`), so they are cached and packaged for offline with the review itself.
+
+- **Core** (`AssemblyReviewTests`): the shared `queue_line_assembly` fixture carries a two-line instruction; an empty list ("none") is never confused with a missing key ("not loaded"); order and bylines; the saved copy and the offline package keep them.
+- **Hosted** (`AssemblyReviewPresentationTests`): the section sits directly under the order number and above every equipment check, stays on screen at STOP, shows a long note in full at 320 pt wide, collapses to one line when there is none, follows a refresh, and never shows another order's notes.
+- **UI** (`RentnKingUITests/AssemblyDeliveryInstructionsUITests.swift`) against a local Laravel on `:8124`: seed `RentnKingUITests/AssemblyDeliveryInstructionsStagingSeed.php` (instructions in its header), serve with `VITE_ORIGIN_PROTOCOL=http` and the MySQL `DB_*` variables, then `TEST_RUNNER_KABBA_BASE_URL=http://localhost:8124/api/admin/v1/ [TEST_RUNNER_KABBA_SHOT_DIR=<dir>] xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingUITests -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:RentnKingUITests/AssemblyDeliveryInstructionsUITests`. V4 (an edit shows on reopen; the saved copy shows offline) also needs `TEST_RUNNER_KABBA_SIGNAL_DIR` and `TEST_RUNNER_KABBA_EDITED_TEXT` plus a script on the Mac that answers `edit.request` / `offline.request` in that folder with `edit.done` / `offline.done`.

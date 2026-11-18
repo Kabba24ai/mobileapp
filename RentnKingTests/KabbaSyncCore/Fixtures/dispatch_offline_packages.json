@@ -818,7 +818,8 @@
                             "order_number": "1650",
                             "customer_name": "Cody Cash",
                             "payment_label": "No Payment Recorded",
-                            "financially_active": true
+                            "financially_active": true,
+                            "delivery_instructions": []
                         },
                         "assemblies": [
                             {
