@@ -84,12 +84,12 @@ final class LegacyChecklistMigrationTests: XCTestCase {
         ]
         let context = try ChecklistContext.decode(envelopeData: Fixtures.json(["success": true, "data": json]))
 
-        let store = try ChecklistContextStore(rootDirectory: dir)
+        let store = try ChecklistContextStore(rootDirectory: dir, tenantKey: { "aaaaaaaaaaaaaaaa" })
         try store.save(context)
         XCTAssertEqual(store.load(orderProductUniqueId: "ORD-SCH-C", leg: .delivery)?.executionId, "ORD-CHK-CACHE")
         XCTAssertNil(store.load(orderProductUniqueId: "ORD-SCH-C", leg: .return), "legs are cached independently")
 
-        let relaunched = try ChecklistContextStore(rootDirectory: dir)
+        let relaunched = try ChecklistContextStore(rootDirectory: dir, tenantKey: { "aaaaaaaaaaaaaaaa" })
         let cached = relaunched.load(orderProductUniqueId: "ORD-SCH-C", leg: .delivery)
         XCTAssertEqual(cached?.executionId, "ORD-CHK-CACHE")
         XCTAssertNotNil(cached?.cachedAt)

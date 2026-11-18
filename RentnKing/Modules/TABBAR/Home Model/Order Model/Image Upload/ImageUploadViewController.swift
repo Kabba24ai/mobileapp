@@ -29,6 +29,15 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     var isLoading : Bool = false
     var strOrderID : String = ""
     var isQueueLine : Bool = false
+    /// Set when Submit already returned to the Assembly Review beneath — the
+    /// upload's success handler must not pop a second time.
+    private var returnedToReview = false
+    /// A Submit is saving media on this phone (export + durable enqueue). A second Submit
+    /// while it runs would queue the same files twice.
+    private var isSavingMedia = false
+    /// Seam for tests: compress + write one selected item into the upload folder (called off the
+    /// main thread; true = written). nil = the real image / video export below.
+    var writeMedia: ((_ item: ImageVideoModel, _ folder: URL, _ fileName: String) -> Bool)?
     
     //OTHER
     var selectIndex : Int = -1
@@ -43,6 +52,12 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
     /// Phase 4 — order product unique_id → Phase 3 checklist execution id, so each photo/video
     /// is anchored to the exact checklist it documents (set by CheckListViewController).
     var checklistExecutionIds: [String: String] = [:]
+    // Driver Delivery Process Flow (2026-09-27): the mission line and the stage the opener
+    // handed down; nil / "" for yard entries (today's review sequencing).
+    var focusOrderProductUniqueId: String = ""
+    var driverStageFloor: DeliveryWorkflowStage?
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
     private var playerVC: AVPlayerViewController?
     /// Token for the block-based AVPlayerItem observer, so it can be removed (it isn't auto-removed).
     private var videoFailObserver: NSObjectProtocol?
@@ -96,6 +111,9 @@ class ImageUploadViewController: UIViewController, UIGestureRecognizerDelegate {
 //            self.getLocalData()
             loadAllMediaData()
             indicatorHide()
+        } else {
+            // Returning to this screen: refresh each line's saved / received notice.
+            self.tblView.reloadData()
         }
     }
     
@@ -372,24 +390,16 @@ extension ImageUploadViewController {
             showAlertMessage(strMessage: "Please select a new image or video.")
         }
         else{
+            guard !self.isSavingMedia else { return }
+            self.isSavingMedia = true
             indicatorShow()
             
-            //SAVE IN TABLE
-            self.saveTheVideoandImageLocal()
-
-            if self.isQueueLine {
-                // Checklist-driven staging (2026-09): the Queue Line flow
-                // returns to the Queue Line board, which reflects the staged
-                // state immediately from the durable local operations.
-                if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
-                    self.navigationController?.popToViewController(board, animated: true)
-                }
-                else if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                    self.navigationController?.popToViewController(targetViewController, animated: true)
-                }
-                else {
-                    self.navigationController?.popViewController(animated: true)
-                }
+            // Video export and local enqueue run asynchronously. Wait until ALL selected
+            // media is durably saved on this phone before navigating: otherwise the driver
+            // can submit the checklist while the video still appears missing.
+            self.saveTheVideoandImageLocal { [weak self] in
+                guard let self = self, self.navigationController?.topViewController === self else { return }
+                self.returnedToReview = self.routeAfterUpload()
             }
 
         }
@@ -412,26 +422,31 @@ extension ImageUploadViewController {
         return false
     }
     
-    func saveTheVideoandImageLocal(){
+    func saveTheVideoandImageLocal(onSaved: @escaping () -> Void) {
         createOrderFolder(strOrderID: self.strOrderID)
         
         let dataPath = ImageVideoUploadDirectory.appendingPathComponent(strOrderID)
         if FileManager.default.fileExists(atPath: dataPath.path) == true {
             //self.checkFileExists(orderID: self.strOrderID, dataPath: dataPath)
             
-            let arrRecentSelectedImageVideo = self.arrImageVideoLisr.filter { $0.recentSelect == true }
-            
-            if arrRecentSelectedImageVideo.count != 0 {
-                self.updateFileLocal(arr: arrRecentSelectedImageVideo, uploadPath: dataPath)
+            let newlySelectedMedia = self.arrImageVideoLisr.filter { $0.recentSelect }
+            guard !newlySelectedMedia.isEmpty else {
+                self.mediaSaveFailed("Please select a new photo or video.")
+                return
             }
+            self.updateFileLocal(arr: newlySelectedMedia, uploadPath: dataPath, onSaved: onSaved)
         }
         else{
             createImageVideoUploadFolder()
             if FileManager.default.fileExists(atPath: dataPath.path) {
-                self.updateFileLocal(arr: self.arrImageVideoLisr, uploadPath: dataPath)
+                let newlySelectedMedia = self.arrImageVideoLisr.filter { $0.recentSelect }
+                guard !newlySelectedMedia.isEmpty else {
+                    self.mediaSaveFailed("Please select a new photo or video.")
+                    return
+                }
+                self.updateFileLocal(arr: newlySelectedMedia, uploadPath: dataPath, onSaved: onSaved)
             } else {
-                indicatorHide()
-                showAlertMessage(strMessage: "Unable to create the upload folder.")
+                self.mediaSaveFailed("Unable to create the upload folder.")
             }
 //            self.saveTheVideoandImageLocal()
         }
@@ -439,7 +454,7 @@ extension ImageUploadViewController {
     }
     
     
-    func updateFileLocal(arr : [ImageVideoModel], uploadPath : URL){
+    func updateFileLocal(arr: [ImageVideoModel], uploadPath: URL, onSaved: @escaping () -> Void) {
         var arrData = arr
         if arrData.count != 0{
             let obj = arrData[0]
@@ -455,13 +470,15 @@ extension ImageUploadViewController {
                         ? "\(self.strOrderID)_\(Date().timeIntervalSince1970).jpg"
                         : "\(self.strOrderID)_\(Date().timeIntervalSince1970).mov"
 
-                    let saved = isImage
+                    let saved = self.writeMedia?(obj, uploadPath, fileName) ?? (isImage
                         ? self.saveImage(dataPath: uploadPath, image: obj.image, orderID: self.strOrderID, imageName: fileName)
-                        : self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: fileName)
+                        : self.saveVideo(dataPath: uploadPath, videoURL: obj.strVideo, orderID: self.strOrderID, videoName: fileName))
 
                     DispatchQueue.main.async {
                         guard saved else {
-                            self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                            // Nothing about THIS item was stored; items saved before it keep their
+                            // records (and are no longer "new"), so a retry repeats only what failed.
+                            self.mediaSaveFailed("Could not save the \(isImage ? "photo" : "video") on this phone. Nothing was lost — please tap Submit to try again.")
                             return
                         }
 
@@ -472,15 +489,17 @@ extension ImageUploadViewController {
                         if KabbaSync.isReady {
                             let productName = self.objOrderDetail?.arrProduct.first(where: { $0.unique_id == obj.productId })?.product_name ?? ""
                             do {
-                                _ = try KabbaMediaSync.enqueueFile(at: uploadPath.appendingPathComponent(fileName),
+                                let operation = try KabbaMediaSync.enqueueFile(at: uploadPath.appendingPathComponent(fileName),
                                                                    kind: self.strType == "pickup" ? .pickup : .delivery,
                                                                    orderUniqueId: self.strOrderID,
                                                                    orderProductUniqueId: obj.productId,
                                                                    checklistExecutionId: self.checklistExecutionIds[obj.productId],
+                                                                   equipmentUniqueId: self.filmedUnit(orderProductUniqueId: obj.productId),
                                                                    mimeType: isImage ? "image/jpeg" : "video/quicktime",
                                                                    label: productName)
+                                self.markDurablySaved(obj, isImage: isImage, savedFile: KabbaMediaSync.fileURL(for: operation))
                                 arrData.remove(at: 0)
-                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath, onSaved: onSaved)
                                 return
                             } catch {
                                 debugPrint("Media: could not enqueue into the Sync Engine (\(error)) — falling back to the legacy queue")
@@ -490,11 +509,13 @@ extension ImageUploadViewController {
                         let saveParams = SaveImageVideoParameater.init(orderID: self.strOrderID, type: uploadType.video_image.rawValue, isImage: isImage, name: fileName, videoType: self.strType, productID: obj.productId)
 
                         CoreDBManager.sharedDatabase.saveUploadDataList(objSaveData: saveParams) { isSave in
-                            if isSave{
-                                //REMOVE
+                            if isSave {
+                                self.markDurablySaved(obj, isImage: isImage, savedFile: uploadPath.appendingPathComponent(fileName))
+                                // REMOVE
                                 arrData.remove(at: 0)
-
-                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath)
+                                self.updateFileLocal(arr: arrData, uploadPath: uploadPath, onSaved: onSaved)
+                            } else {
+                                self.mediaSaveFailed("Could not queue the \(isImage ? "photo" : "video") on this phone. Nothing was lost — please tap Submit to try again.")
                             }
                         }
                     }
@@ -502,19 +523,24 @@ extension ImageUploadViewController {
             }
         }
         else{
-            //SUCCESS — saved durably on this phone; the Sync Engine uploads it (Pending Sync until Kabba confirms).
+            // SUCCESS — each selected file is now durably stored or queued on the phone.
+            // Only NOW may the upload screen advance to Checklist / Main Order.
+            self.isSavingMedia = false
             indicatorHide()
-            showAlertMessage(strMessage: KabbaSync.isReady ? "Saved on this phone · Pending Sync" : "Uploaded Successfully", isDismiss: true)
-           
+            self.tblView.reloadData()
+            onSaved()
+
             //UPLOAD LOCAL DATA
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0){
                 GlobalMainConstants.appDelegate?.uploadAllData()
             }
-            
-            
-            if self.isQueueLine == false {
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5){
+            // MOBILE-QUALITY-01 (item 06): a non-blocking confirmation instead of an alert that
+            // was presented while the screen was already leaving; the legacy single pop is at once.
+            let saved = KabbaSync.isReady ? "Saved on this phone. Will sync when available." : "Uploaded Successfully"
+            KabbaSync.confirmSavedOnPhone(saved) {
+                if self.isQueueLine == false, self.returnedToReview == false,
+                   self.navigationController?.topViewController === self {
                     self.navigationController?.popViewController(animated: true)
                 }
             }
@@ -523,6 +549,34 @@ extension ImageUploadViewController {
     }
 
     
+    /// A save that cannot finish: say why, stay on this screen, keep everything not yet
+    /// stored selected so Submit can simply be tapped again.
+    func mediaSaveFailed(_ message: String) {
+        self.isSavingMedia = false
+        indicatorHide()
+        showAlertMessage(strMessage: message)
+    }
+
+    /// One selected item is now durably on this phone: it is no longer "new" (a retry or a
+    /// second Submit never queues it again), and its preview points at the stored copy —
+    /// the picker's temporary original was deleted by the export.
+    func markDurablySaved(_ item: ImageVideoModel, isImage: Bool, savedFile: URL?) {
+        item.recentSelect = false
+        if !isImage, let savedFile { item.strVideo = savedFile }
+    }
+
+    /// The physical unit this line's media documents — the unit Main Order shows the driver
+    /// (the order copy's machine), else the cached checklist context's. Recorded on the
+    /// phone's upload record only, so a cycle-less video of one machine can never stand in
+    /// for another after a substitution made elsewhere (EffectiveFieldState).
+    func filmedUnit(orderProductUniqueId: String) -> String? {
+        let product = self.objOrderDetail?.arrProduct.first { $0.unique_id == orderProductUniqueId }
+        if let unit = product?.objMachine?.unique_id, !unit.isEmpty { return unit }
+        let leg: ChecklistLeg = self.strType == "pickup" ? .return : .delivery
+        let cached = KabbaSync.checklistContexts?.cached(orderProductUniqueId: orderProductUniqueId, leg: leg)
+        return cached?.equipment.equipmentUniqueId
+    }
+
     func saveImage(dataPath : URL, image: UIImage, orderID : String, imageName : String) -> Bool {
         // Compress before storing locally (was quality 1 / raw PNG — huge on disk).
         guard let data = image.jpegData(compressionQuality: 0.25) else {
@@ -618,6 +672,19 @@ extension ImageUploadViewController: UITableViewDelegate, UITableViewDataSource 
             viewHeader.addSubview(lbl)
         }
 
+        // Where this line's captured media stands (saved on the phone / received by Kabba) —
+        // so media awaiting sync never looks missing.
+        if let notice = self.capturedMediaNotice(section: section) {
+            let noticeLabel = UILabel(frame: CGRect(x: 20, y: 38, width: self.tblView.frame.size.width - 40, height: 20))
+            noticeLabel.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 13) ?? .systemFont(ofSize: 13, weight: .medium)
+            noticeLabel.textColor = notice.stage == .needsAttention ? .systemOrange : .systemGreen
+            noticeLabel.adjustsFontSizeToFitWidth = true
+            noticeLabel.minimumScaleFactor = 0.8
+            noticeLabel.text = (notice.stage == .needsAttention ? "⚠︎ " : "✓ ") + notice.text
+            noticeLabel.accessibilityIdentifier = "mediaUpload.notice.\(self.objOrderDetail.arrProduct[section].unique_id ?? "")"
+            viewHeader.addSubview(noticeLabel)
+        }
+
         return viewHeader
     }
     
@@ -625,7 +692,24 @@ extension ImageUploadViewController: UITableViewDelegate, UITableViewDataSource 
         if self.objOrderDetail.arrProduct[section].objProductData?.product_type == "Retail"{
             return 0
         }
-        return 45
+        return self.capturedMediaNotice(section: section) == nil ? 45 : 64
+    }
+
+    /// The notice under a line's heading (CapturedMediaNotice), from the durable operations and
+    /// what this screen's order copy already shows. nil for Retail lines and when there is
+    /// nothing to say.
+    func capturedMediaNotice(section: Int) -> CapturedMediaNotice? {
+        guard let product = self.objOrderDetail?.arrProduct[safe: section],
+              product.objProductData?.product_type != "Retail",
+              let uid = product.unique_id, !uid.isEmpty else { return nil }
+        let isPickup = self.strType == "pickup"
+        let copyMedia = isPickup ? product.arrPickupMedia : product.arrDeliveryMedia
+        return CapturedMediaNotice.notice(operations: self.operationsSnapshot(),
+                                          orderUniqueId: self.strOrderID,
+                                          orderProductUniqueId: uid,
+                                          kind: isPickup ? .pickup : .delivery,
+                                          serverCopyHasVideo: copyMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") },
+                                          serverCopyHasMedia: !copyMedia.isEmpty)
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -1409,3 +1493,55 @@ extension OrderProductTableCell : UICollectionViewDelegate,UICollectionViewDataS
     }
 
 }
+
+// MARK: - Driver Delivery Process Flow (2026-09-27): the exit after a saved upload
+extension ImageUploadViewController {
+
+    private var isDeliveryLeg: Bool { self.strType != "pickup" }
+
+    /// Where a saved upload goes (§10.2). At the customer site — from On My Way on, and on
+    /// Return — Checklist while THIS line's checklist is not complete (the one already on the
+    /// stack), else Main Order. In the yard, today's rule: the review beneath, else the Queue
+    /// Line board / the Orders list / one pop for legacy stacks. Returns true when it navigated.
+    @discardableResult
+    func routeAfterUpload() -> Bool {
+        let stage = CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                                 isDeliveryLeg: isDeliveryLeg,
+                                                 floor: self.driverStageFloor,
+                                                 review: self.cachedAssemblyReview(self.strOrderID)?.data,
+                                                 operations: self.operationsSnapshot())
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: isDeliveryLeg) {
+            let focus = self.objOrderDetail?.arrProduct.first { $0.unique_id == self.focusOrderProductUniqueId }
+            let complete = focus.map {
+                CustomerSiteNavigation.checklistComplete(product: $0, isDeliveryLeg: isDeliveryLeg, operations: self.operationsSnapshot())
+            } ?? true
+            switch CustomerSiteRouter.afterStep(.video, stage: stage, isDeliveryLeg: isDeliveryLeg,
+                                                videoRequirementMet: true, checklistComplete: complete) {
+            case .checklist:
+                CustomerSiteNavigation.goToChecklist(on: self.navigationController) {
+                    CustomerSiteNavigation.makeFocusedChecklist(orderUniqueId: self.strOrderID,
+                                                                orderNumber: self.objOrderDetail?.order_number ?? "",
+                                                                product: focus, selectIndex: self.selectIndex,
+                                                                floor: self.driverStageFloor, fromCheckListScreen: true,
+                                                                isDelivery: self.isDeliveryLeg)
+                }
+            case .mainOrder, .video, .assemblyReview:
+                CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return true
+        }
+        return ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
+            guard self.isQueueLine else { return }
+            if let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
+                self.navigationController?.popToViewController(board, animated: true)
+            }
+            else if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                self.navigationController?.popToViewController(targetViewController, animated: true)
+            }
+            else {
+                self.navigationController?.popViewController(animated: true)
+            }
+        }
+    }
+}
+

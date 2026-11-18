@@ -1,0 +1,76 @@
+{
+  "description": "Dispatch offline Phase 5 — kabba-order-terms v1 identity vectors. Computed independently of the PHP and Swift implementations; both must reproduce canonical_base64 and identity exactly (app/Services/Terms/TermsAgreement.php, RentnKing/Sync/Core/TermsAgreement.swift).",
+  "vectors": [
+    {
+      "name": "standard terms plus one addendum",
+      "order_unique_id": "ORD-VECTOR-0001",
+      "customer_name": "Jane Doe",
+      "entries": [
+        {
+          "is_global": true,
+          "content": "<p>Standard rental terms.</p>[product_terms][/product_terms]",
+          "signature_block": "<p>[customer_name][/customer_name] [customer_signature][/customer_signature]</p>"
+        },
+        {
+          "is_global": false,
+          "content": "<p>Excavator addendum.</p>[customer_approval][/customer_approval]",
+          "signature_block": ""
+        }
+      ],
+      "canonical_base64": "a2FiYmEtb3JkZXItdGVybXM6djEKb3JkZXI6MTU6T1JELVZFQ1RPUi0wMDAxCmN1c3RvbWVyX25hbWU6ODpKYW5lIERvZQplbnRyaWVzOjIKZW50cnk6MAppc19nbG9iYWw6MQpjb250ZW50OjYwOjxwPlN0YW5kYXJkIHJlbnRhbCB0ZXJtcy48L3A+W3Byb2R1Y3RfdGVybXNdWy9wcm9kdWN0X3Rlcm1zXQpzaWduYXR1cmVfYmxvY2s6ODA6PHA+W2N1c3RvbWVyX25hbWVdWy9jdXN0b21lcl9uYW1lXSBbY3VzdG9tZXJfc2lnbmF0dXJlXVsvY3VzdG9tZXJfc2lnbmF0dXJlXTwvcD4KZW50cnk6MQppc19nbG9iYWw6MApjb250ZW50OjY1OjxwPkV4Y2F2YXRvciBhZGRlbmR1bS48L3A+W2N1c3RvbWVyX2FwcHJvdmFsXVsvY3VzdG9tZXJfYXBwcm92YWxdCnNpZ25hdHVyZV9ibG9jazowOgo=",
+      "identity": "v1:82537ac6c78b8d161774c16565fcf74f97fcdcc2300ea9de4633c68394012a8b"
+    },
+    {
+      "name": "same text on another order",
+      "order_unique_id": "ORD-VECTOR-0002",
+      "customer_name": "Jane Doe",
+      "entries": [
+        {
+          "is_global": true,
+          "content": "<p>Standard rental terms.</p>[product_terms][/product_terms]",
+          "signature_block": "<p>[customer_name][/customer_name] [customer_signature][/customer_signature]</p>"
+        },
+        {
+          "is_global": false,
+          "content": "<p>Excavator addendum.</p>[customer_approval][/customer_approval]",
+          "signature_block": ""
+        }
+      ],
+      "canonical_base64": "a2FiYmEtb3JkZXItdGVybXM6djEKb3JkZXI6MTU6T1JELVZFQ1RPUi0wMDAyCmN1c3RvbWVyX25hbWU6ODpKYW5lIERvZQplbnRyaWVzOjIKZW50cnk6MAppc19nbG9iYWw6MQpjb250ZW50OjYwOjxwPlN0YW5kYXJkIHJlbnRhbCB0ZXJtcy48L3A+W3Byb2R1Y3RfdGVybXNdWy9wcm9kdWN0X3Rlcm1zXQpzaWduYXR1cmVfYmxvY2s6ODA6PHA+W2N1c3RvbWVyX25hbWVdWy9jdXN0b21lcl9uYW1lXSBbY3VzdG9tZXJfc2lnbmF0dXJlXVsvY3VzdG9tZXJfc2lnbmF0dXJlXTwvcD4KZW50cnk6MQppc19nbG9iYWw6MApjb250ZW50OjY1OjxwPkV4Y2F2YXRvciBhZGRlbmR1bS48L3A+W2N1c3RvbWVyX2FwcHJvdmFsXVsvY3VzdG9tZXJfYXBwcm92YWxdCnNpZ25hdHVyZV9ibG9jazowOgo=",
+      "identity": "v1:8c8072c6221256c1f61bd958c4119a5c396f192b6663416709432ec7504df690"
+    },
+    {
+      "name": "non-ASCII, CRLF, lone CR and empty values",
+      "order_unique_id": "ORD-VECTOR-0003",
+      "customer_name": "José Nuñez",
+      "entries": [
+        {
+          "is_global": false,
+          "content": "<p>Café terms — line one.</p>\r\n<p>Line two.</p>\r<p>Emoji 🚜 and decomposed é.</p>",
+          "signature_block": ""
+        },
+        {
+          "is_global": false,
+          "content": "",
+          "signature_block": ""
+        }
+      ],
+      "canonical_base64": "a2FiYmEtb3JkZXItdGVybXM6djEKb3JkZXI6MTU6T1JELVZFQ1RPUi0wMDAzCmN1c3RvbWVyX25hbWU6MTI6Sm9zw6kgTnXDsWV6CmVudHJpZXM6MgplbnRyeTowCmlzX2dsb2JhbDowCmNvbnRlbnQ6ODc6PHA+Q2Fmw6kgdGVybXMg4oCUIGxpbmUgb25lLjwvcD4KPHA+TGluZSB0d28uPC9wPgo8cD5FbW9qaSDwn5qcIGFuZCBkZWNvbXBvc2VkIGXMgS48L3A+CnNpZ25hdHVyZV9ibG9jazowOgplbnRyeToxCmlzX2dsb2JhbDowCmNvbnRlbnQ6MDoKc2lnbmF0dXJlX2Jsb2NrOjA6Cg==",
+      "identity": "v1:b959ae99d4459209a6bb5b465b302802fd544167db22f356d0248fec4419e0d5"
+    },
+    {
+      "name": "addenda only, no standard terms",
+      "order_unique_id": "ORD-VECTOR-0004",
+      "customer_name": "Customer",
+      "entries": [
+        {
+          "is_global": false,
+          "content": "<ul><li>One</li><li>Two</li></ul>",
+          "signature_block": "<p>ignored for product terms</p>"
+        }
+      ],
+      "canonical_base64": "a2FiYmEtb3JkZXItdGVybXM6djEKb3JkZXI6MTU6T1JELVZFQ1RPUi0wMDA0CmN1c3RvbWVyX25hbWU6ODpDdXN0b21lcgplbnRyaWVzOjEKZW50cnk6MAppc19nbG9iYWw6MApjb250ZW50OjMzOjx1bD48bGk+T25lPC9saT48bGk+VHdvPC9saT48L3VsPgpzaWduYXR1cmVfYmxvY2s6MzI6PHA+aWdub3JlZCBmb3IgcHJvZHVjdCB0ZXJtczwvcD4K",
+      "identity": "v1:3564d37695497c8a10af753e8ae7402656fbecad0ca2148d266af93ac26f78bb"
+    }
+  ]
+}

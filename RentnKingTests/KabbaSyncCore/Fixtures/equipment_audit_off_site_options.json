@@ -1,0 +1,51 @@
+{
+    "success": true,
+    "data": {
+        "equipment": {
+            "unique_id": "EQP-CGQB-EDRR",
+            "equipment_id": "TAK-SS-14",
+            "name": "Cab - Tak TL8"
+        },
+        "location": {
+            "state": "at_store",
+            "state_label": "On-Site",
+            "label": "Bon Aqua",
+            "place_name": "Bon Aqua",
+            "physical_store_id": 7,
+            "anchor_store_id": 7,
+            "anchor_store_name": "Bon Aqua",
+            "anchor_store_unique_id": "STO-ZM3T-NOWW",
+            "external_location": null,
+            "order_id": null,
+            "order_number": null,
+            "order_unique_id": null,
+            "customer_name": null,
+            "customer_unique_id": null
+        },
+        "actions": {
+            "move_to_store": true,
+            "move_off_site": true,
+            "assign_store": false
+        },
+        "reference": {
+            "suppliers": [
+                {
+                    "id": 1,
+                    "name": "Parman Tractor",
+                    "address": "11262 Moss Branch Road",
+                    "city": "Bon Aqua",
+                    "zip": "37025",
+                    "contact": "Joe Parman",
+                    "phone": "(615) 555-2000"
+                }
+            ],
+            "states": [
+                {
+                    "id": 1,
+                    "name": "Tennessee"
+                }
+            ]
+        }
+    },
+    "request_id": "45155db7-ebb6-48ea-b040-89e4141bbd5a"
+}

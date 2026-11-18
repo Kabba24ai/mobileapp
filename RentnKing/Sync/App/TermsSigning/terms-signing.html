@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<!-- Dispatch offline Phase 5: the order's frozen Terms & Conditions, rendered as INERT content.
+     Only the two nonce-tagged scripts below may run: no script from the agreement, no inline
+     event handlers, no javascript: URLs, no network, no frames, no embedded objects. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-{{NONCE}}'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; media-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Terms &amp; Conditions</title>
+<style>{{CSS}}</style>
+</head>
+<body>
+<main class="page">
+  <h3 class="order-line">Order ID {{ORDER_NUMBER}}</h3>
+  <p class="instruction">Almost done!<br><span>Please scroll to the bottom and tap the yellow button to sign.</span></p>
+  <form id="customer-order-sign-form" novalidate>
+    <div id="terms-dynamic-content" class="rich-content"></div>
+    <p id="form-message" class="form-message" role="alert" hidden></p>
+    <div class="submit-row"><button type="submit" id="submit-button" class="yellow">SUBMIT</button></div>
+  </form>
+</main>
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <div class="modal-header"><h2>Signature Pad</h2><button type="button" id="close-modal" class="close" aria-label="Close">&times;</button></div>
+    <div class="modal-body">
+      <canvas id="signature-pad" class="signature-pad"></canvas>
+      <div class="pad-actions"><button type="button" id="clear-signature" class="green">Clear</button><button type="button" id="undo-signature" class="green">Undo</button></div>
+      <p id="pad-message" class="form-message" role="alert" hidden></p>
+    </div>
+    <div class="modal-footer"><button type="button" id="save-signature" class="yellow">OK</button></div>
+  </div>
+</div>
+<script nonce="{{NONCE}}">{{SIGNATURE_PAD}}</script>
+<script nonce="{{NONCE}}">window.kabbaTermsPayload = {{PAYLOAD_JSON}};
+{{SHELL_JS}}</script>
+</body>
+</html>

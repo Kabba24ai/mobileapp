@@ -10,6 +10,10 @@
 //   • connectivity restored (AppDelegate)     • a new operation was enqueued
 //   • BGAppRefreshTask (opportunistic)        • login completed (sessionDidStart)
 //
+//  Dispatch offline (Phase 3): the same launch / app-active moments also ask the
+//  one Dispatch reconciliation coordinator (DispatchOfflineSync) to repair the
+//  durable Dispatch working set. It never polls.
+//
 
 import UIKit
 import BackgroundTasks
@@ -31,6 +35,12 @@ enum KabbaSync {
     private(set) static var installation: InstallationIdentity?
     private(set) static var contextStore: ChecklistContextStore?
     private(set) static var checklistContexts: ChecklistContextClient?
+    /// Dispatch offline Phase 5: the orders' frozen Terms agreements this phone holds (per company).
+    private(set) static var termsAgreements: TermsAgreementStore?
+    /// Next Stop (2026-10-18): the driver's shop stop — local workflow state, never a queued operation.
+    private(set) static var nextStop: NextStopStore?
+    /// MOBILE-QUALITY-01: a content-free trace of records a person removed from the queue (30 days).
+    private(set) static var removedRecords: SyncRemovedRecordLog?
 
     private static var observers: [NSObjectProtocol] = []
     private static var sessionExpiredHandler: (() -> Void)?
@@ -74,6 +84,8 @@ enum KabbaSync {
                                         FulfillmentInputsSyncHandler(hasSession: hasSession),
                                         // Local-first T&C — durable evidence of a signed Terms & Conditions
                                         TermsAcceptSyncHandler(hasSession: hasSession),
+                                        // Dispatch offline Phase 5 — a signature captured on this phone
+                                        TermsSignSyncHandler(hasSession: hasSession),
                                         // (queue_line.mark_staged retired 2026-09 — staging is the
                                         //  Delivery Checklist's Save: delivery_checklist.prepare + mark_staged)
                                         // Pre-departure preparation lifecycle (2026-09) — the yard
@@ -82,18 +94,40 @@ enum KabbaSync {
                                         EquipmentSubstitutionSyncHandler(hasSession: hasSession),
                                         ChecklistRestartSyncHandler(leg: .delivery, hasSession: hasSession),
                                         ChecklistRestartSyncHandler(leg: .return, hasSession: hasSession),
+                                        // Assembly Review (2026-09-14) — availability confirmations
+                                        // per order product (grouping is derived server-side).
+                                        AvailabilitySyncHandler(hasSession: hasSession),
                                         // Phase 6A — Manual Dispatch status transitions (Dispatch parity)
                                         ManualDispatchSyncHandler(hasSession: hasSession),
                                         // 2026-11 — one item of a manual task picked up / delivered
                                         ManualDispatchItemProgressSyncHandler(hasSession: hasSession),
+                                        // Next Stop route events (2026-10-20) — the driver's answers
+                                        // as route evidence for Driver Efficiency (record-only).
+                                        NextStopRouteEventSyncHandler(hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .delivery, hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .pickup, hasSession: hasSession),
                                         MediaUploadSyncHandler(kind: .license, hasSession: hasSession),
                                     ])
 
-            let contextStore = try ChecklistContextStore(rootDirectory: root)
+            // Per company (Dispatch offline Phase 4, Amendment B): the login api_url's tenant key.
+            let contextStore = try ChecklistContextStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
             KabbaSync.contextStore = contextStore
             KabbaSync.checklistContexts = ChecklistContextClient(client: client, store: contextStore)
+            KabbaSync.termsAgreements = try? TermsAgreementStore(rootDirectory: root, tenantKey: { KabbaTenantScope.currentKey })
+
+            // Next Stop (2026-10-18): where the driver said they are heading when
+            // the next stop is not a Dispatch mission — the shop. Beside the other
+            // tenant-scoped stores, but with NO Sync Engine handler: it is local
+            // workflow state the driver resumes, not work the server reconciles.
+            // Per company AND signed-in driver: on a shared phone a trip is never another driver's.
+            let nextStop = try? NextStopStore(rootDirectory: root, tenantKey: {
+                NextStopStore.scopeKey(tenant: KabbaTenantScope.currentKey, driverId: UserDefaults.standard.user?.id)
+            })
+            KabbaSync.nextStop = nextStop
+            if let nextStop = nextStop { NextStopCoordinator.configure(store: nextStop) }
+
+            // Dispatch offline (Phase 3): the company-wide durable Dispatch working set.
+            DispatchOfflineSync.configure(rootDirectory: root, client: client, baseURL: baseURL, accessToken: accessToken)
 
             engine.logger = { line in
                 #if DEBUG
@@ -107,6 +141,7 @@ enum KabbaSync {
             KabbaSync.engine = engine
             KabbaSync.client = client
             KabbaSync.installation = installation
+            KabbaSync.removedRecords = SyncRemovedRecordLog(directory: root)
             KabbaSync.sessionExpiredHandler = onSessionExpired
 
             // Phase 5 — session record, update-required gate, and the install id the share
@@ -122,6 +157,9 @@ enum KabbaSync {
             registerBackgroundRefresh()
             observeLifecycle()
             engine.pruneSynced()
+            // P10 (2026-09-29): a parked Available the office moved past is retired as soon as this
+            // phone holds the line's new unit — including records parked by an earlier build.
+            StaleAvailabilityReconciler.schedule(reason: "launch")
 
             // Phase 4 — background transfers. Results that arrive after a relaunch go straight to
             // the engine; operations whose upload task is STILL alive are held so the launch kick
@@ -136,6 +174,8 @@ enum KabbaSync {
                 inFlight.forEach { engine.holdForExternalTransfer(operationId: $0) }
                 engine.kick(reason: "launch")
             }
+
+            DispatchOfflineSync.trigger(.launch)
         } catch {
             // The engine stays nil; legacy code paths keep working exactly as before.
             #if DEBUG
@@ -150,9 +190,35 @@ enum KabbaSync {
         engine?.kick(reason: reason, ignoreBackoff: ignoreBackoff)
     }
 
+    /// Settings → Sync "Sync Now": one pass, then what it did (on main). nil = no engine.
+    static func syncNow(_ reason: String, completion: @escaping (SyncPassReport?) -> Void) {
+        guard let engine = engine else { completion(nil); return }
+        engine.syncNow(reason: reason) { report in
+            DispatchQueue.main.async { completion(report) }
+        }
+    }
+
+    /// A person removed ONE record from the queue after reviewing it (Settings → Sync).
+    /// Deletes the record and its own files; keeps a content-free trace of who removed what.
+    @discardableResult
+    static func removeRecord(_ operationId: String,
+                             engine: SyncEngine? = KabbaSync.engine,
+                             log: SyncRemovedRecordLog? = KabbaSync.removedRecords,
+                             reason: String? = nil) throws -> SyncRemovedRecord {
+        guard let engine = engine else { throw SyncEngineError.unknownOperation(operationId) }
+        let removed = try engine.remove(operationId: operationId)
+        let user = UserDefaults.standard.user
+        let trace = SyncRemovedRecord.of(removed, removedAt: Date(), byUserId: user?.id, byName: user?.full_name, reason: reason)
+        try? log?.append(trace)   // the trace never blocks the person's decision
+        NotificationCenter.default.post(name: .kabbaSyncQueueChanged, object: nil)
+        return trace
+    }
+
     /// Login succeeded: lift an authentication pause and drain what accumulated while signed out.
     static func sessionDidStart() {
         engine?.authenticationRestored()
+        // The tenant exists from here on: judge any Available parked before sign-in (P10).
+        StaleAvailabilityReconciler.schedule(reason: "login")
     }
 
     /// Explicit logout: stop sending (operations stay stored for the next session).
@@ -225,6 +291,7 @@ enum KabbaSync {
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
             kick("didBecomeActive")
+            DispatchOfflineSync.trigger(.foreground)
         })
         observers.append(center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             scheduleBackgroundRefresh()
@@ -253,6 +320,9 @@ enum KabbaSync {
             center.post(name: .kabbaSyncOperationChanged, object: nil,
                         userInfo: ["operationId": op.id, "state": op.state.rawValue])
             center.post(name: .kabbaSyncQueueChanged, object: nil)
+            // A QUEUE_ASSIGNMENT_CHANGED rejection just parked an Available: judge it now against
+            // the unit this phone already holds (the package usually refreshed first).
+            if StaleAvailabilityReconciler.concerns(op) { StaleAvailabilityReconciler.schedule(reason: "rejection \(op.id.prefix(8))") }
         case .pauseChanged(let pause):
             center.post(name: .kabbaSyncPauseChanged, object: nil, userInfo: ["pause": pause.rawValue])
             center.post(name: .kabbaSyncQueueChanged, object: nil)

@@ -1,0 +1,30 @@
+{
+    "success": true,
+    "data": {
+        "status": "Pending",
+        "page_url": "http://kabba.local/terms-and-conditions/ORD-OKDJ-UXHT/mobile",
+        "offline_content_available": true,
+        "agreement_status": "available",
+        "unavailable_reason": null,
+        "agreement": {
+            "identity": "v1:9cdc14b7aaae696985b3d5bfe0b4356b60cea9118bf23908d785473b65c98b1b",
+            "order_unique_id": "ORD-OKDJ-UXHT",
+            "order_number": "1650",
+            "customer_name": "Cody Cash",
+            "approvals_required": 1,
+            "entries": [
+                {
+                    "is_global": true,
+                    "content": "<p>Standard terms.</p>[product_terms][/product_terms]",
+                    "signature_block": "<p>[customer_name][/customer_name] [customer_signature][/customer_signature]</p>"
+                },
+                {
+                    "is_global": false,
+                    "content": "<p>Addendum.</p>[customer_approval][/customer_approval]",
+                    "signature_block": ""
+                }
+            ]
+        }
+    },
+    "request_id": "5596105a-9319-4c63-8d10-9143bb9d33da"
+}

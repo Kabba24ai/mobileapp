@@ -40,6 +40,7 @@ enum LegacyChecklistQueueMigration {
         "delivery_clean_option", "delivery_clean_id", "return_clean_option", "return_clean_id", "total_clean_charge",
         "start_hours", "end_hours", "user_id", "note", "total_charge", "store_id",
         "fuel_initial_reading", "fuel_final_reading", "fuel_total_charge", "type", "version",
+        "def_initial_reading", "def_final_reading",
     ]
 
     /// Converts one legacy queue dictionary (as persisted: signatures already base64 strings).

@@ -18,9 +18,7 @@ enum ChecklistCaptureFactory {
                      product: ProductModel,
                      other: NoteModel,
                      isDelivery: Bool,
-                     totalCharge: Float,
-                     fuelTotalCharge: Float,
-                     cleaningCharge: Float) -> ChecklistCapture {
+                     charges: ChecklistLineCharge) -> ChecklistCapture {
         var answers: [String: String] = [:]
         var amounts: [String: String] = [:]
         for question in product.arrQuestions where question.type != "text" && question.type != "fuel" && question.type != "cleaning" {
@@ -42,18 +40,25 @@ enum ChecklistCaptureFactory {
         if isDelivery {
             capture.startHours = other.startHours == 0 ? "" : "\(other.startHours)"
             capture.fuelInitialReading = other.selectFuleDelivery
+            capture.defInitialReading = defReading(product: product, value: other.selectDefDelivery)
             capture.deliveryCleanOption = getCleaning(strId: other.selectCleaningDelivery, isReturn: false)
             capture.deliveryCleanId = other.selectCleaningDelivery
         } else {
             capture.endHours = other.endHours == 0 ? "" : "\(other.endHours)"
             capture.fuelFinalReading = other.selectFuleReturn
-            capture.fuelTotalCharge = "\(fuelTotalCharge)"
-            capture.totalCharge = "\(totalCharge)"
+            capture.defFinalReading = defReading(product: product, value: other.selectDefReturn)
+            capture.fuelTotalCharge = charges.fuelString
+            capture.totalCharge = charges.totalString
             capture.returnCleanOption = getCleaning(strId: other.selectCleaningReturn, isReturn: true)
             capture.returnCleanId = other.selectCleaningReturn
-            capture.totalCleanCharge = "\(cleaningCharge)"
+            capture.totalCleanCharge = charges.cleaningString
         }
         return capture
+    }
+
+    /// A DEF reading is sent only for a product whose checklist shows the DEF row.
+    private static func defReading(product: ProductModel, value: String) -> String {
+        product.arrQuestions.contains(where: { $0.isDEFRow }) ? value : ""
     }
 
     /// The pre-Phase-3 form-field shape for ONE product with ITS OWN otherData (no cross product).
@@ -62,9 +67,7 @@ enum ChecklistCaptureFactory {
                            other: NoteModel,
                            isDelivery: Bool,
                            orderUniqueId: String,
-                           totalCharge: Float,
-                           fuelTotalCharge: Float,
-                           cleaningCharge: Float) -> [String: Any] {
+                           charges: ChecklistLineCharge) -> [String: Any] {
         var arrData: [[String: Any]] = []
         for question in product.arrQuestions where question.type != "text" && question.type != "fuel" && question.type != "cleaning" {
             arrData.append([
@@ -84,16 +87,18 @@ enum ChecklistCaptureFactory {
             "delivery_clean_id": isDelivery ? other.selectCleaningDelivery : "",
             "return_clean_option": isDelivery ? "" : getCleaning(strId: other.selectCleaningReturn, isReturn: true),
             "return_clean_id": isDelivery ? "" : other.selectCleaningReturn,
-            "total_clean_charge": isDelivery ? "" : "\(cleaningCharge)",
+            "total_clean_charge": isDelivery ? "" : charges.cleaningString,
             "start_hours": isDelivery ? "\(other.startHours)" : "",
             "end_hours": isDelivery ? "" : "\(other.endHours)",
             "user_id": isDelivery ? other.dEmplayessId : other.rEmplayessId,
             "note": isDelivery ? other.dNote : other.rNote,
-            "total_charge": isDelivery ? "" : "\(totalCharge)",
+            "total_charge": isDelivery ? "" : charges.totalString,
             "store_id": isDelivery ? "" : other.rStoreId,
             "fuel_initial_reading": other.selectFuleDelivery,
             "fuel_final_reading": other.selectFuleReturn,
-            "fuel_total_charge": isDelivery ? "" : "\(fuelTotalCharge)",
+            "fuel_total_charge": isDelivery ? "" : charges.fuelString,
+            "def_initial_reading": isDelivery ? defReading(product: product, value: other.selectDefDelivery) : "",
+            "def_final_reading": isDelivery ? "" : defReading(product: product, value: other.selectDefReturn),
             "dSignature": isDelivery ? signature : "",
             "rSignature": isDelivery ? "" : signature,
             "type": isDelivery ? "Delivery" : "Return",
@@ -235,10 +240,90 @@ extension ChecklistCaptureFactory {
             "total_charge": capture.totalCharge, "store_id": capture.storeId.map { "\($0)" } ?? "",
             "fuel_initial_reading": capture.fuelInitialReading, "fuel_final_reading": capture.fuelFinalReading,
             "fuel_total_charge": capture.fuelTotalCharge,
+            "def_initial_reading": capture.defInitialReading, "def_final_reading": capture.defFinalReading,
             "dSignature": isDelivery ? (signature?.base64EncodedString() ?? "") : "",
             "rSignature": isDelivery ? "" : (signature?.base64EncodedString() ?? ""),
             "type": isDelivery ? "Delivery" : "Return",
             "version": AppReleaseInfo.versionDisplay,
         ]
+    }
+}
+
+/// Each order product's OWN Return charges, from the preview's question rows.
+///
+/// The rules are the checklist's existing ones — hours overage (ChecklistHoursMath × the
+/// unit's overage rate), cleaning (price × the line's prepaid-cleaning units, prepaid cleaning
+/// covers all but Extreme), damage/answer amounts (return − delivery when positive) — plus
+/// fuel from FuelChargeCalculator (primary fuel + DEF). What changed in 1.0.26 is the SCOPE:
+/// every amount belongs to the product whose rows produced it; nothing is shared across lines.
+enum ChecklistLineCharges {
+
+    struct Result {
+        /// The products with their hours rows' display totals filled in.
+        var products: [ProductModel]
+        /// order product unique_id → that line's charges.
+        var charges: [String: ChecklistLineCharge]
+    }
+
+    /// - Parameters:
+    ///   - completedReport: both legs are already complete — the server's own per-line
+    ///     `total_charge` is shown instead of recomputing.
+    ///   - cleaningPrice: the System Configuration cleaning price for a return cleaning id.
+    static func compute(products: [ProductModel], completedReport: Bool, fuelPrices: FuelPrices,
+                        cleaningPrice: (Int) -> Float) -> Result {
+        var result = Result(products: products, charges: [:])
+        for i in result.products.indices {
+            var objProduct = result.products[i]
+            var line = ChecklistLineCharge()
+
+            if completedReport {
+                line.total = Float(objProduct.total_charge)
+            } else {
+                for index in objProduct.arrQuestions.indices {
+                    var objQuestion = objProduct.arrQuestions[index]
+                    if objQuestion.type == "text" {
+                        // Total math (ChecklistHoursMath): never traps on ±inf/NaN meter values.
+                        var totalHours = ChecklistHoursMath.overageHours(start: Float(objQuestion.startHours),
+                                                                         end: Float(objQuestion.endHours))
+                        if objQuestion.startHours == 0.0 { totalHours = 0 }
+                        objQuestion.total = 0
+                        if totalHours > 0 { objQuestion.total = Float(totalHours) }
+
+                        var additionalHours = Float(ChecklistHoursMath.additionalHours(total: totalHours,
+                                                                                       allocated: objProduct.allocated_hours ?? 0))
+                        objQuestion.additinal = 0
+                        if additionalHours > 0 { objQuestion.additinal = Int(additionalHours) } else { additionalHours = 0 }
+
+                        line.total = line.total + additionalHours * Float(objQuestion.hour_rate)
+                        objQuestion.total_cost = additionalHours * Float(objQuestion.hour_rate)
+                        objProduct.arrQuestions[index] = objQuestion
+                    } else if objQuestion.type == "cleaning" {
+                        let selected = Int(objQuestion.selectCleaningReturn ?? "") ?? 0
+                        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0 && selected != 0 {
+                            var price = cleaningPrice(selected)
+                            let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
+                            if selectedOptions.contains("rental_prepaid_cleaning") && selected != 5 { price = 0 }
+                            let cleaningCharge = (objProduct.rental_prepaid_cleaning ?? 0) * price
+                            line.cleaning = line.cleaning + cleaningCharge
+                            line.total = line.total + cleaningCharge
+                        }
+                    } else if objQuestion.type == "fuel" {
+                        // Each fuel row prices ITS fluid — primary fuel and DEF are summed, never
+                        // one replacing the other.
+                        if let fuel = FuelChecklistRows.line(for: objQuestion, product: objProduct, prices: fuelPrices) {
+                            line.fuel = line.fuel + fuel.amount
+                            line.total = line.total + Float(FuelChargeCalculator.double(fuel.amount))
+                        }
+                    } else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil {
+                        let amount = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
+                        if amount > 0 { line.total = line.total + amount }
+                    }
+                }
+            }
+
+            result.products[i] = objProduct
+            if let uid = objProduct.unique_id, !uid.isEmpty { result.charges[uid] = line }
+        }
+        return result
     }
 }

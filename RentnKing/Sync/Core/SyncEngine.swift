@@ -35,6 +35,9 @@ enum SyncEngineError: Error, Equatable {
     case unknownOperation(String)
     case payloadMustBeObject
     case calledOnEngineQueue
+    /// remove(): only a record that has NOT reached Kabba and is not being sent right now
+    /// (Needs Attention or Pending) may be removed by a person.
+    case notRemovable(String, SyncState)
 }
 
 final class SyncEngine {
@@ -53,6 +56,10 @@ final class SyncEngine {
     private var _pause: SyncPause = .none
     private var draining = false
     private var retryTimer: DispatchWorkItem?
+    /// The last queue time handed out (see nextQueuedAt).
+    private var lastQueuedAt = Date.distantPast
+    /// Sync Now callers waiting for the current pass to end (see syncNow).
+    private var passWaiters: [(before: [String: SyncState], completion: (SyncPassReport) -> Void)] = []
 
     private let clock: () -> Date
     private let queue: DispatchQueue
@@ -97,18 +104,18 @@ final class SyncEngine {
         guard case .object = payload else { throw SyncEngineError.payloadMustBeObject }
         guard !isOnQueue else { throw SyncEngineError.calledOnEngineQueue }
 
-        let operation = SyncOperation(id: operationId,
-                                      type: type,
-                                      capturedAt: capturedAt,
-                                      queuedAt: clock(),
-                                      identity: identity,
-                                      payload: payload,
-                                      assets: assets,
-                                      displayTitle: displayTitle)
-
-        try queue.sync {
+        let operation: SyncOperation = try queue.sync {
+            let operation = SyncOperation(id: operationId,
+                                          type: type,
+                                          capturedAt: capturedAt,
+                                          queuedAt: nextQueuedAt(),
+                                          identity: identity,
+                                          payload: payload,
+                                          assets: assets,
+                                          displayTitle: displayTitle)
             try store.save(operation)              // durable BEFORE we return
             operations[operation.id] = operation
+            return operation
         }
         log("queued \(operation.type) \(short(operation.id))")
         emit(.operationChanged(operation))
@@ -133,6 +140,24 @@ final class SyncEngine {
         }
     }
 
+    /// Retires a parked operation the world moved past (StaleAvailabilityRetirement decides
+    /// when). Only a Needs Attention record can be superseded — never a pending one (it may
+    /// still land) nor a synced one (history of something Laravel accepted). The record stays
+    /// on disk with its payload, attempts and the server's verdict; it is never sent again.
+    func supersede(operationId: String, with supersession: SyncSupersession) {
+        queue.async { [weak self] in
+            guard let self = self, var op = self.operations[operationId], op.state == .needsAttention else { return }
+            op.state = .superseded
+            op.supersession = supersession
+            op.attentionReason = nil
+            op.attempts.nextAttemptAt = nil
+            self.operations[operationId] = op
+            self.persistQuietly(op)
+            self.emit(.operationChanged(op))
+            self.log("superseded \(op.type) \(self.short(operationId)) — \(supersession.reason), now \(supersession.supersededByEquipmentUniqueId)")
+        }
+    }
+
     /// A person chose to retry a Needs Attention operation (or force a pending one).
     func retryNow(operationId: String) {
         queue.async { [weak self] in
@@ -140,6 +165,7 @@ final class SyncEngine {
             guard op.state == .needsAttention || op.state == .pending else { return }
             op.state = .pending
             op.attentionReason = nil
+            op.assignmentChange = nil          // the next answer speaks for itself
             op.attempts.nextAttemptAt = nil
             self.operations[operationId] = op
             self.persistQuietly(op)
@@ -149,15 +175,66 @@ final class SyncEngine {
         }
     }
 
+    /// Sync Now (MOBILE-QUALITY-01, item 02): clears retry gates like a real-world trigger,
+    /// drains, and reports what THIS pass did once it ends — sent, refused, still waiting
+    /// (and why), and what needs a person. Parked (Needs Attention) records are never
+    /// resent here: a permanent rejection is retried only by a person's Try Again.
+    /// `completion` runs on the engine queue; callers hop to main themselves.
+    func syncNow(reason: String, completion: @escaping (SyncPassReport) -> Void) {
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            let before = self.operations.mapValues(\.state)
+            for (id, var op) in self.operations where op.state == .pending && op.attempts.nextAttemptAt != nil {
+                op.attempts.nextAttemptAt = nil
+                self.operations[id] = op
+                self.persistQuietly(op)
+            }
+            self.passWaiters.append((before: before, completion: completion))
+            self.log("sync now (\(reason))")
+            // A pass already running answers this caller when it ends; otherwise start one.
+            self.drain()
+        }
+    }
+
+    /// Explicit, person-initiated removal of ONE record from the active queue (Settings → Sync
+    /// review). Only a record Kabba never accepted and that is not in flight — Needs Attention
+    /// or Pending — qualifies; synced and superseded records are history, and a record being
+    /// sent right now could still land. Deletes the record and the files only it carried, and
+    /// returns what was removed so the caller can keep a content-free trace of it.
+    @discardableResult
+    func remove(operationId: String) throws -> SyncOperation {
+        let removed: SyncOperation = try onQueueSync {
+            guard let op = operations[operationId] else { throw SyncEngineError.unknownOperation(operationId) }
+            guard op.state == .needsAttention || op.state == .pending else {
+                throw SyncEngineError.notRemovable(operationId, op.state)
+            }
+            try deleteRecord(op)
+            log("removed by a person \(op.type) \(short(operationId)) (was \(op.state.rawValue))")
+            return op
+        }
+        return removed
+    }
+
     /// Explicit, person-initiated removal. The ONLY path that deletes an un-synced operation —
     /// and, with it, the files it carried (a discarded photo is not evidence anyone wants kept).
     func discard(operationId: String) throws {
         try onQueueSync {
             guard let op = operations[operationId] else { throw SyncEngineError.unknownOperation(operationId) }
-            for asset in op.assets { SyncAssetWriter.remove(asset, in: store.assetsDirectory) }
-            try store.delete(id: operationId)
-            operations[operationId] = nil
+            try deleteRecord(op)
             log("discarded \(short(operationId))")
+        }
+    }
+
+    /// Deletes one record and the files ONLY it references: a file another retained record
+    /// still points at stays (removing one record never damages another). Engine queue only.
+    private func deleteRecord(_ op: SyncOperation) throws {
+        let referencedElsewhere = Set(operations.values
+            .filter { $0.id != op.id }
+            .flatMap { $0.assets.map(\.relativePath) })
+        try store.delete(id: op.id)
+        operations[op.id] = nil
+        for asset in op.assets where !referencedElsewhere.contains(asset.relativePath) {
+            SyncAssetWriter.remove(asset, in: store.assetsDirectory)
         }
     }
 
@@ -244,7 +321,29 @@ final class SyncEngine {
     var pause: SyncPause { onQueueSync { _pause } }
 
     func snapshot() -> [SyncOperation] {
-        onQueueSync { operations.values.sorted { $0.queuedAt < $1.queuedAt } }
+        onQueueSync { operations.values.sorted(by: Self.queueOrder) }
+    }
+
+    /// Queue times are strictly increasing, at least two milliseconds apart (MOBILE-QUALITY-01):
+    /// records are stored with millisecond times, and several enqueues can land in the same
+    /// millisecond — after a relaunch they tied and could be sent out of capture order. The
+    /// nudge is never more than the enqueues in one burst; capturedAt (the real moment the
+    /// work was done) is never touched. Engine queue only.
+    private func nextQueuedAt() -> Date {
+        let now = clock()
+        // 2 ms, not 1: stored with millisecond precision, two values must never format alike.
+        let next = max(now, lastQueuedAt.addingTimeInterval(0.002))
+        lastQueuedAt = next
+        return next
+    }
+
+    /// Capture order: when it was queued, then — for records stored before queue times kept
+    /// milliseconds — when it was captured, then its id, so the order never depends on how a
+    /// dictionary happens to iterate after a relaunch.
+    static func queueOrder(_ a: SyncOperation, _ b: SyncOperation) -> Bool {
+        if a.queuedAt != b.queuedAt { return a.queuedAt < b.queuedAt }
+        if a.capturedAt != b.capturedAt { return a.capturedAt < b.capturedAt }
+        return a.id < b.id
     }
 
     func operation(id: String) -> SyncOperation? {
@@ -259,16 +358,25 @@ final class SyncEngine {
         onQueueSync { SyncDiagnostics.entries(Array(operations.values)) }
     }
 
-    /// Removes acknowledged operations older than the retention window. Never touches
-    /// pending / needs-attention records.
+    /// Removes acknowledged operations older than the retention window — and retired
+    /// (superseded) ones by the same window from their retirement, so history on the
+    /// phone has one lifetime. Never touches pending / needs-attention records. A pruned
+    /// record's leftover files (e.g. the signature of a synced checklist, which the media
+    /// cleanup never covered) go with it unless another retained record still uses them —
+    /// nothing can reach a file once its record is gone.
     func pruneSynced(now: Date? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }
             let cutoff = (now ?? self.clock()).addingTimeInterval(-self.policy.syncedRetention)
-            for (id, op) in self.operations where op.state == .synced {
-                if let acked = op.acknowledgment?.acknowledgedAt, acked < cutoff {
-                    try? self.store.delete(id: id)
-                    self.operations[id] = nil
+            for (_, op) in self.operations {
+                let settledAt: Date?
+                switch op.state {
+                case .synced:     settledAt = op.acknowledgment?.acknowledgedAt
+                case .superseded: settledAt = op.supersession?.resolvedAt
+                case .pending, .syncing, .needsAttention: continue
+                }
+                if let settledAt, settledAt < cutoff {
+                    try? self.deleteRecord(op)
                 }
             }
         }
@@ -365,12 +473,9 @@ final class SyncEngine {
     /// `fromDrain` = this result belongs to the request the drain loop is waiting on; an
     /// external (background-session) completion must never clear the drain flag.
     private func handle(_ result: SyncHTTPResult, operationId: String, handler: SyncOperationHandler, fromDrain: Bool) {
-        defer {
-            if fromDrain { draining = false }
-        }
-
         guard var op = operations[operationId] else {
             // Discarded while in flight — nothing to record.
+            if fromDrain { draining = false }
             queue.async { [weak self] in self?.drain() }
             return
         }
@@ -412,6 +517,10 @@ final class SyncEngine {
         persistQuietly(op)
         emit(.operationChanged(op))
 
+        // The pass this result belongs to is over BEFORE .drainFinished, so Sync Now callers are
+        // answered only when a pass really ends — never by a background upload completing while
+        // a pass is still sending (that result leaves `draining` as it is).
+        if fromDrain { draining = false }
         if continueDraining {
             queue.async { [weak self] in self?.drain() }
         } else {
@@ -461,6 +570,10 @@ final class SyncEngine {
             op.state = .needsAttention
             op.attempts.nextAttemptAt = nil
             op.attentionReason = attentionReason(for: error)
+            // QUEUE_ASSIGNMENT_CHANGED names the machine the line has now: keep that verdict on the
+            // record so the decision can be retired once this phone holds the same machine
+            // (StaleAvailabilityRetirement, P10 2026-09-29). Any other rejection records nothing.
+            op.assignmentChange = SyncAssignmentChange(error: error, now: now)
             log("needs attention \(op.type) \(short(op.id)) — \(error.code ?? "HTTP \(error.statusCode ?? 0)")")
             return true
         }
@@ -482,7 +595,7 @@ final class SyncEngine {
     private func nextEligible(now: Date) -> SyncOperation? {
         let pending = operations.values
             .filter { $0.state == .pending }
-            .sorted { $0.queuedAt < $1.queuedAt }
+            .sorted(by: Self.queueOrder)
 
         var seenKeys = Set<String>()
         for op in pending {
@@ -537,6 +650,7 @@ final class SyncEngine {
                     persistQuietly(op)
                 }
                 operations[op.id] = op
+                lastQueuedAt = max(lastQueuedAt, op.queuedAt)
             }
             log("loaded \(operations.count) operation(s) from store")
         }
@@ -567,6 +681,18 @@ final class SyncEngine {
 
     private func emit(_ event: SyncEngineEvent) {
         eventHandler?(event)
+        if event == .drainFinished, isOnQueue, !draining { answerPassWaiters() }
+    }
+
+    /// A pass ended: every Sync Now caller learns what it did.
+    private func answerPassWaiters() {
+        guard !passWaiters.isEmpty else { return }
+        let waiters = passWaiters
+        passWaiters = []
+        let after = Array(operations.values)
+        for waiter in waiters {
+            waiter.completion(SyncPassReport.make(before: waiter.before, after: after, pause: _pause))
+        }
     }
 
     private func log(_ line: String) {

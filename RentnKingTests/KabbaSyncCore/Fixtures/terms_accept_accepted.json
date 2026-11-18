@@ -1,0 +1,10 @@
+{
+    "success": true,
+    "message": "Terms and conditions accepted.",
+    "data": {
+        "outcome": "accepted",
+        "terms_status": "Accepted",
+        "terms_identity": "v1:9cdc14b7aaae696985b3d5bfe0b4356b60cea9118bf23908d785473b65c98b1b"
+    },
+    "request_id": "78d0fd1c-2308-4b1b-a8d2-871d905dcaa7"
+}

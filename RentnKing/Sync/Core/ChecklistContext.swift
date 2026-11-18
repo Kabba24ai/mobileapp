@@ -167,6 +167,13 @@ struct ChecklistContext: Codable, Equatable {
         let deliveryBy: JSONValue?
         let pickupBy: JSONValue?
         let pickupStoreId: JSONValue?
+        /// DEF readings (1.0.26 backend). nil = this server does not carry DEF readings at all
+        /// (the key is absent) — the phone then shows no DEF row; "" = carried, not recorded.
+        var defInitialReading: String? = nil
+        var defFinalReading: String? = nil
+
+        /// Laravel stores independent DEF readings for this line.
+        var carriesDEFReadings: Bool { defInitialReading != nil }
 
         enum CodingKeys: String, CodingKey {
             case hourTracking = "hour_tracking", isProductClean = "is_product_clean"
@@ -175,6 +182,7 @@ struct ChecklistContext: Codable, Equatable {
             case deliveryCleanId = "delivery_clean_id", returnCleanId = "return_clean_id"
             case deliveryNotes = "delivery_notes", pickupNotes = "pickup_notes"
             case deliveryBy = "delivery_by", pickupBy = "pickup_by", pickupStoreId = "pickup_store_id"
+            case defInitialReading = "def_initial_reading", defFinalReading = "def_final_reading"
         }
     }
 
@@ -205,6 +213,12 @@ struct ChecklistContext: Codable, Equatable {
         /// its own. Optional so cached pre-upgrade contexts still decode.
         let deliveryVideoPresent: Bool?
         let deliveryMediaPresent: Bool?
+        /// Assembly Review (2026-09-13): what the availability gate in the
+        /// staging Save refuses on — the assigned unit or an ordered Product
+        /// Option acknowledged Not Available (server-provided labels). The
+        /// phone blocks the obvious invalid Save inline from these; the
+        /// server stays canonical. Optional so cached contexts still decode.
+        let stageBlockers: [AssemblyStageBlocker]?
 
         enum CodingKeys: String, CodingKey {
             case isDelivered = "is_delivered", isReturned = "is_returned"
@@ -212,6 +226,7 @@ struct ChecklistContext: Codable, Equatable {
             case deliverySignaturePresent = "delivery_signature_present", returnSignaturePresent = "return_signature_present"
             case executionStatus = "execution_status", preparedAt = "prepared_at", completedAt = "completed_at", capturedAt = "captured_at"
             case canComplete = "can_complete", blockedReason = "blocked_reason"
+            case stageBlockers = "stage_blockers"
             case queueStaged = "queue_staged", inTransit = "in_transit"
             case deliveryVideoPresent = "delivery_video_present", deliveryMediaPresent = "delivery_media_present"
         }
@@ -234,7 +249,7 @@ struct ChecklistContext: Codable, Equatable {
     let questions: [Question]
     let operational: Operational
     var serverState: ServerState
-    let employee: Employee?
+    private(set) var employee: Employee?
     let serverTime: String
 
     /// When THIS phone cached the snapshot (not part of the wire format).
@@ -243,6 +258,15 @@ struct ChecklistContext: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case identity, equipment, template, requirements, questions, operational
         case serverState = "server_state", employee, serverTime = "server_time", cachedAt = "cached_at"
+    }
+
+    /// The context as served to the user signed in NOW — what the online endpoint returns for this
+    /// phone's user (Dispatch offline P4-D5). nil (no local profile) keeps the stored employee.
+    func servedTo(_ signedIn: Employee?) -> ChecklistContext {
+        guard let signedIn = signedIn else { return self }
+        var copy = self
+        copy.employee = signedIn
+        return copy
     }
 
     // MARK: Decoding from the canonical envelope

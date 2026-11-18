@@ -18,6 +18,9 @@ enum NSUDKey {
     static let profile = "profile"
     static let accessToken = "access_token"
     static let baseURL = "base_url"
+    // Queue Line — the remembered Delivery Store filter (unique id; "" = All) and its display name.
+    static let queueLineStoreFilter = "queue_line_store_filter"
+    static let queueLineStoreFilterName = "queue_line_store_filter_name"
 
 }
 
@@ -75,6 +78,29 @@ extension UserDefaults{
         }
     }
     
+    /// Sticky Queue Line Delivery Store: the store's unique id, "" when the employee
+    /// chose All explicitly, nil when never chosen. Yard employees work one location
+    /// repeatedly, so this survives leaving the screen and relaunching the app.
+    var queueLineStoreFilter: String? {
+        get { string(forKey: NSUDKey.queueLineStoreFilter) }
+        set {
+            if let value = newValue { set(value, forKey: NSUDKey.queueLineStoreFilter) }
+            else { removeObject(forKey: NSUDKey.queueLineStoreFilter) }
+            synchronize()
+        }
+    }
+
+    /// Display name that goes with `queueLineStoreFilter`, so the board can name the
+    /// remembered store before the store list has loaded (or offline).
+    var queueLineStoreFilterName: String? {
+        get { string(forKey: NSUDKey.queueLineStoreFilterName) }
+        set {
+            if let value = newValue { set(value, forKey: NSUDKey.queueLineStoreFilterName) }
+            else { removeObject(forKey: NSUDKey.queueLineStoreFilterName) }
+            synchronize()
+        }
+    }
+
     var baseURL: String?{
         get {
             return string(forKey: NSUDKey.baseURL)

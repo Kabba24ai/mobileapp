@@ -20,6 +20,16 @@ enum KabbaISO8601 {
         return f
     }()
 
+    /// Stored records keep milliseconds (MOBILE-QUALITY-01): whole seconds made records queued
+    /// in the same second tie after a relaunch, and the queue could then send them out of
+    /// capture order. Only what is STORED on the phone uses it; the wire format is unchanged.
+    private static let persistedWriter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        f.timeZone = TimeZone.current
+        return f
+    }()
+
     private static let readerWithFraction: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -42,12 +52,13 @@ enum KabbaISO8601 {
         readerWithFraction.date(from: string) ?? readerPlain.date(from: string)
     }
 
-    /// Encoder/decoder pair used for every persisted Sync Engine record.
+    /// Encoder/decoder pair used for every persisted Sync Engine record. Dates are written
+    /// with milliseconds; the decoder reads both forms, so older records load unchanged.
     static func makeEncoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .custom { date, encoder in
             var c = encoder.singleValueContainer()
-            try c.encode(KabbaISO8601.string(from: date))
+            try c.encode(persistedWriter.string(from: date))
         }
         e.outputFormatting = [.sortedKeys]
         return e

@@ -71,6 +71,9 @@ import UIKit
 
 // MARK: - NoteModel
 final class NoteModel: NSObject {
+    // Local draft scope only; shared employee/store selections never set these.
+    var deliveryInputEntered = false
+    var returnInputEntered = false
     
     var orderProductId: String = ""
     var equipmentId: String = ""
@@ -104,6 +107,10 @@ final class NoteModel: NSObject {
     
     var selectFuleDelivery: String = ""
     var selectFuleReturn: String = ""
+
+    /// DEF levels (machines with a DEF tank only) — independent of the fuel readings above.
+    var selectDefDelivery: String = ""
+    var selectDefReturn: String = ""
     
     var selectCleaningDelivery: String = ""
     var selectCleaningReturn: String = ""
@@ -161,8 +168,18 @@ final class NoteModel: NSObject {
     }
     
     // MARK: - JSON Safe Dict
+    func batchCopy() -> NoteModel {
+        let copy = NoteModel.fromDict(toDict())
+        // Keep the original images; serializing a draft must not recompress a captured signature.
+        copy.dSignature = dSignature
+        copy.rSignature = rSignature
+        return copy
+    }
+
     func toDict(imageQuality: CGFloat = 0.8) -> [String: Any] {
         var dict: [String: Any] = [
+            "deliveryInputEntered": deliveryInputEntered,
+            "returnInputEntered": returnInputEntered,
             "orderProductId": orderProductId,
             "equipmentId": equipmentId,
             "checklistData": checklistData,
@@ -184,6 +201,8 @@ final class NoteModel: NSObject {
             "machine_id": machine_id,
             "selectFuleDelivery": selectFuleDelivery,
             "selectFuleReturn": selectFuleReturn,
+            "selectDefDelivery": selectDefDelivery,
+            "selectDefReturn": selectDefReturn,
             "selectCleaningDelivery": selectCleaningDelivery,
             "selectCleaningReturn": selectCleaningReturn
 
@@ -202,6 +221,8 @@ final class NoteModel: NSObject {
     
     static func fromDict(_ dict: [String: Any]) -> NoteModel {
         let note = NoteModel()
+        note.deliveryInputEntered = dict["deliveryInputEntered"] as? Bool ?? false
+        note.returnInputEntered = dict["returnInputEntered"] as? Bool ?? false
         
         note.orderProductId = dict["orderProductId"] as? String ?? ""
         note.equipmentId = dict["equipmentId"] as? String ?? ""
@@ -237,6 +258,10 @@ final class NoteModel: NSObject {
         
         note.selectFuleDelivery = dict["selectFuleDelivery"] as? String ?? ""
         note.selectFuleReturn = dict["selectFuleReturn"] as? String ?? ""
+
+        // Drafts written before 1.0.26 have no DEF keys: no DEF reading yet.
+        note.selectDefDelivery = dict["selectDefDelivery"] as? String ?? ""
+        note.selectDefReturn = dict["selectDefReturn"] as? String ?? ""
         
         note.selectCleaningDelivery = dict["selectCleaningDelivery"] as? String ?? ""
         note.selectCleaningReturn = dict["selectCleaningReturn"] as? String ?? ""
@@ -326,7 +351,15 @@ struct CustomerCheckListModel: Mappable{
     internal var type: String?
 
     internal var fuleType: String?
+    /// The equipment's has_def flag, kept for display only. It never decides pricing:
+    /// `fuelFluid` says which fluid THIS row reads (FuelCharge.swift).
     internal var isDEF: String?
+    /// "def" for the DEF row; nil/"" for the machine's primary fuel row (rows saved by
+    /// builds before 1.0.26 have no value and are the primary fuel row).
+    internal var fuelFluid: String?
+
+    /// This fuel row reads the DEF tank.
+    var isDEFRow: Bool { type == "fuel" && fuelFluid == FuelFluid.def.rawValue }
 
     internal var selectFuleDelivery: String?
     internal var selectFuleReturn: String?
@@ -366,6 +399,7 @@ struct CustomerCheckListModel: Mappable{
         
         fuleType <- map["fuleType"]
         isDEF <- map["isDEF"]
+        fuelFluid <- map["fuelFluid"]
         
         selectFuleDelivery <- map["selectFuleDelivery"]
         selectFuleReturn <- map["selectFuleReturn"]
@@ -571,25 +605,10 @@ extension CheckListViewController :WebServiceHelperDelegate {
                             cleaningItem = objCheckList
                         }
                         
-                        //FUEL — only when the equipment has a power source
-                        var fuelItem: CustomerCheckListModel?
-                        if objEquipment != nil, objEquipment?.powerSourceType != ""{
-                            let map = Map(mappingType: .fromJSON, JSON: [:])
-                            var objCheckListFule = CustomerCheckListModel(map: map)
-                            objCheckListFule?.type = "fuel"
-                            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-                            objCheckListFule?.fuleType = objEquipment?.powerSourceType
-                            objCheckListFule?.isDEF = objEquipment?.hasDEF
-                            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-                            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-                            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-
-                            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-                            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-                            fuelItem = objCheckListFule
-
-                        }
+                        //FUEL — the primary fuel row, plus an independent DEF row for a machine with a
+                        //DEF tank when Laravel carries DEF readings (FuelChecklistRows).
+                        let fuelItems = FuelChecklistRows.rows(machine: objEquipment, product: objProduct,
+                                                               defSupported: FuelChecklistRows.carriesDEFReadings(product: objProduct, context: self.checklistContexts[objProduct.unique_id ?? ""]))
                         
 //                        if objEquipment?.hour_tracking == "Yes"{
 //                            //ADD START HOUR
@@ -651,11 +670,8 @@ extension CheckListViewController :WebServiceHelperDelegate {
 //                        }
                         
 
-                        for item in [fuelItem, cleaningItem, textItem] {
-                            if let item = item {
-                                objProduct.arrQuestions.insert(item, at: 0)
-                            }
-                        }
+                        // Final order: text, cleaning, fuel row(s), then the base questions.
+                        objProduct.arrQuestions.insert(contentsOf: [textItem, cleaningItem].compactMap { $0 } + fuelItems, at: 0)
                         
                         self.objOrderData.arrProduct.remove(at: index)
                         self.objOrderData.arrProduct.insert(objProduct, at: index)
@@ -717,4 +733,3 @@ extension CheckListViewController :WebServiceHelperDelegate {
         showAlertMessage(strMessage: "\(strRequest) \(str.somethingWentWrong)")
     }
 }
-

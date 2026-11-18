@@ -1,0 +1,15 @@
+{
+    "success": false,
+    "message": "Location Discrepancy — System Location: Bon Aqua, Observed Location: Waverly. Confirm how to record it.",
+    "error": {
+        "code": "DISCREPANCY_CONFIRMATION_REQUIRED",
+        "message": "Location Discrepancy — System Location: Bon Aqua, Observed Location: Waverly. Confirm how to record it.",
+        "retryable": false,
+        "context": {
+            "system_location": "Bon Aqua",
+            "observed_location": "Waverly"
+        }
+    },
+    "errors": [],
+    "request_id": "7432e96f-d0d4-49bd-bc35-42766b5558d8"
+}

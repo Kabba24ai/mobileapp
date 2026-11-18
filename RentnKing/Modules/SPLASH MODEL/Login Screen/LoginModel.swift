@@ -79,12 +79,7 @@ extension LoginViewController : WebServiceHelperDelegate{
                 if let userData = data["user"] as? NSDictionary{
                     
                     //SAVE USER DATA
-                    let userObj = User()
-                    userObj.id = userData.getStringForID(key: "id")
-                    userObj.email = userData.getStringForID(key: "email")
-                    userObj.full_name = userData.getStringForID(key: "full_name")
-                    
-                    
+                    let userObj = User.fromLoginResponse(userData)
                     
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj
@@ -117,6 +112,10 @@ extension LoginViewController : WebServiceHelperDelegate{
                     if UserDefaults.standard.user != nil{
                         GlobalMainConstants.appDelegate?.updateToken(DeviceTokenParameater: AppDelegate.DeviceTokenParameater(device_token: strUUID, fcm_token: UserDefaults.standard.deviceToken ?? ""))
                     }
+                    // Dispatch offline (Phase 2): (re)register this installation for silent Dispatch wakes.
+                    GlobalMainConstants.appDelegate?.registerDispatchInstallation(trigger: .loginCompleted)
+                    // Dispatch offline (Phase 3): a new session repairs the durable Dispatch working set.
+                    DispatchOfflineSync.trigger(.loginCompleted)
                     
                     
                     //MOVE TO TABBAR

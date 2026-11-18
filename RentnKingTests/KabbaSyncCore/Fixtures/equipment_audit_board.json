@@ -1,0 +1,472 @@
+{
+    "success": true,
+    "data": {
+        "audit": {
+            "unique_id": "EAU-RKUD-ZBYH",
+            "reference": "EA-00002",
+            "title": "Skid Steer Audit",
+            "category": {
+                "id": 2,
+                "title": "Skid Steer"
+            },
+            "status": "active",
+            "started_at": "2026-10-05T11:17:53+00:00",
+            "lead": {
+                "id": 5,
+                "name": "Yard Walker"
+            },
+            "summary": {
+                "total": 7,
+                "verified": 1,
+                "needs_verification": 5,
+                "unresolved": 1
+            },
+            "completion": {
+                "ready": false,
+                "needs_verification": 5,
+                "unresolved": 1,
+                "complete_on": "web"
+            }
+        },
+        "me": {
+            "id": 6,
+            "unique_id": "PER-BJXC-ZSJN",
+            "name": "John Yard",
+            "is_employee": true
+        },
+        "can": {
+            "view": true,
+            "start": true,
+            "verify": true,
+            "correct_location": true,
+            "complete": true,
+            "history": true,
+            "assign_lead": true,
+            "assign_work": true
+        },
+        "my_section_keys": [
+            "store:3",
+            "unresolved"
+        ],
+        "sections": [
+            {
+                "key": "store:3",
+                "label": "Bon Aqua",
+                "kind": "store",
+                "store_id": 3,
+                "auditor": {
+                    "id": 6,
+                    "name": "John Yard"
+                },
+                "assigned_to_me": true,
+                "counts": {
+                    "total": 4,
+                    "verified": 1,
+                    "needs_verification": 3,
+                    "unresolved": 0
+                },
+                "unresolved_elsewhere": 0,
+                "rows": [
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-1ZCX-JRQ2",
+                            "equipment_id": "SS-1",
+                            "name": "Bobcat S70",
+                            "status": {
+                                "value": "available",
+                                "label": "Available"
+                            }
+                        },
+                        "expected_key": "store:3",
+                        "section_key": "store:3",
+                        "system": {
+                            "kind": "store",
+                            "label": "Bon Aqua",
+                            "store_id": 3,
+                            "section_key": "store:3"
+                        },
+                        "state": "verified",
+                        "state_label": "Verified — Bon Aqua",
+                        "verification": {
+                            "type": "physical",
+                            "observed_label": "Bon Aqua",
+                            "by": {
+                                "id": 6,
+                                "name": "John Yard"
+                            },
+                            "entered_by": {
+                                "id": 4,
+                                "name": "Terminal Account"
+                            },
+                            "at": "2026-10-05T11:17:53+00:00",
+                            "location_corrected": false,
+                            "notes": null
+                        },
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": {
+                            "id": 6,
+                            "name": "John Yard"
+                        },
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": false,
+                            "verify_type": "physical",
+                            "found_at_store": false,
+                            "correct_location": false,
+                            "move_off_site": false,
+                            "mark_unresolved": false,
+                            "change_verifier": false
+                        }
+                    },
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-3ZFB-NYJD",
+                            "equipment_id": "TAK-SS-14",
+                            "name": "Cab - Tak TL8",
+                            "status": {
+                                "value": "available",
+                                "label": "Available"
+                            }
+                        },
+                        "expected_key": "store:3",
+                        "section_key": "store:3",
+                        "system": {
+                            "kind": "store",
+                            "label": "Bon Aqua",
+                            "store_id": 3,
+                            "section_key": "store:3"
+                        },
+                        "state": "needs_verification",
+                        "state_label": "Needs Verification",
+                        "verification": null,
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": {
+                            "id": 6,
+                            "name": "John Yard"
+                        },
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "physical",
+                            "found_at_store": true,
+                            "correct_location": true,
+                            "move_off_site": true,
+                            "mark_unresolved": true,
+                            "change_verifier": true
+                        }
+                    },
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-ROPF-BRIF",
+                            "equipment_id": "TAK-SS-16",
+                            "name": "Cab - Tak TL8",
+                            "status": {
+                                "value": "available",
+                                "label": "Available"
+                            }
+                        },
+                        "expected_key": "store:3",
+                        "section_key": "store:3",
+                        "system": {
+                            "kind": "store",
+                            "label": "Bon Aqua",
+                            "store_id": 3,
+                            "section_key": "store:3"
+                        },
+                        "state": "needs_verification",
+                        "state_label": "Needs Verification",
+                        "verification": null,
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": {
+                            "id": 6,
+                            "name": "John Yard"
+                        },
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "physical",
+                            "found_at_store": true,
+                            "correct_location": true,
+                            "move_off_site": true,
+                            "mark_unresolved": true,
+                            "change_verifier": true
+                        }
+                    },
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-L4VU-PQ9E",
+                            "equipment_id": "SS-9",
+                            "name": "Kubota SVL75",
+                            "status": {
+                                "value": "available",
+                                "label": "Available"
+                            }
+                        },
+                        "expected_key": "store:3",
+                        "section_key": "store:3",
+                        "system": {
+                            "kind": "store",
+                            "label": "Bon Aqua",
+                            "store_id": 3,
+                            "section_key": "store:3"
+                        },
+                        "state": "needs_verification",
+                        "state_label": "Needs Verification",
+                        "verification": null,
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": {
+                            "id": 6,
+                            "name": "John Yard"
+                        },
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "physical",
+                            "found_at_store": true,
+                            "correct_location": true,
+                            "move_off_site": true,
+                            "mark_unresolved": true,
+                            "change_verifier": true
+                        }
+                    }
+                ]
+            },
+            {
+                "key": "store:4",
+                "label": "Waverly",
+                "kind": "store",
+                "store_id": 4,
+                "auditor": null,
+                "assigned_to_me": false,
+                "counts": {
+                    "total": 0,
+                    "verified": 0,
+                    "needs_verification": 0,
+                    "unresolved": 0
+                },
+                "unresolved_elsewhere": 1,
+                "rows": []
+            },
+            {
+                "key": "customer_rentals",
+                "label": "Customer Rentals",
+                "kind": "customer_rentals",
+                "store_id": null,
+                "auditor": null,
+                "assigned_to_me": false,
+                "counts": {
+                    "total": 1,
+                    "verified": 0,
+                    "needs_verification": 1,
+                    "unresolved": 0
+                },
+                "unresolved_elsewhere": 0,
+                "rows": [
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-THUZ-ZEVG",
+                            "equipment_id": "SS-110",
+                            "name": "Cat 259D3",
+                            "status": {
+                                "value": "rented",
+                                "label": "Rented"
+                            }
+                        },
+                        "expected_key": "rental:op:2",
+                        "section_key": "customer_rentals",
+                        "system": {
+                            "kind": "customer_rentals",
+                            "label": "With Customer — Jane Renter",
+                            "store_id": null,
+                            "section_key": "customer_rentals"
+                        },
+                        "state": "needs_verification",
+                        "state_label": "Needs Verification",
+                        "verification": null,
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": null,
+                        "verifier_override": false,
+                        "rental": {
+                            "order_number": "77002",
+                            "customer_name": "Jane Renter",
+                            "due_back": "2026-10-08",
+                            "overdue": false
+                        },
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "customer_rental",
+                            "found_at_store": false,
+                            "correct_location": false,
+                            "move_off_site": false,
+                            "mark_unresolved": true,
+                            "change_verifier": true
+                        }
+                    }
+                ]
+            },
+            {
+                "key": "off_site",
+                "label": "Off-Site",
+                "kind": "off_site",
+                "store_id": null,
+                "auditor": null,
+                "assigned_to_me": false,
+                "counts": {
+                    "total": 1,
+                    "verified": 0,
+                    "needs_verification": 1,
+                    "unresolved": 0
+                },
+                "unresolved_elsewhere": 0,
+                "rows": [
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-QB8C-V1WK",
+                            "equipment_id": "SS-4",
+                            "name": "Bobcat T66",
+                            "status": {
+                                "value": "damaged",
+                                "label": "Damaged"
+                            }
+                        },
+                        "expected_key": "off_site:2",
+                        "section_key": "off_site",
+                        "system": {
+                            "kind": "off_site",
+                            "label": "Off-Site — Humphreys County Fair",
+                            "store_id": null,
+                            "section_key": "off_site"
+                        },
+                        "state": "needs_verification",
+                        "state_label": "Needs Verification",
+                        "verification": null,
+                        "unresolved": null,
+                        "path": null,
+                        "discrepancy": null,
+                        "verified_by_default": null,
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "off_site",
+                            "found_at_store": true,
+                            "correct_location": true,
+                            "move_off_site": false,
+                            "mark_unresolved": true,
+                            "change_verifier": true
+                        }
+                    }
+                ]
+            },
+            {
+                "key": "unresolved",
+                "label": "Unresolved",
+                "kind": "unresolved",
+                "store_id": null,
+                "auditor": {
+                    "id": 6,
+                    "name": "John Yard"
+                },
+                "assigned_to_me": true,
+                "counts": {
+                    "total": 1,
+                    "verified": 0,
+                    "needs_verification": 0,
+                    "unresolved": 1
+                },
+                "unresolved_elsewhere": 0,
+                "rows": [
+                    {
+                        "equipment": {
+                            "unique_id": "EQP-W3XA-6HSC",
+                            "equipment_id": "SS-8",
+                            "name": "Bobcat E35",
+                            "status": {
+                                "value": "available",
+                                "label": "Available"
+                            }
+                        },
+                        "expected_key": "store:4",
+                        "section_key": "unresolved",
+                        "system": {
+                            "kind": "store",
+                            "label": "Waverly",
+                            "store_id": 4,
+                            "section_key": "store:4"
+                        },
+                        "state": "unresolved",
+                        "state_label": "Unresolved",
+                        "verification": null,
+                        "unresolved": {
+                            "note": "Unable to establish actual location.",
+                            "by": {
+                                "id": 6,
+                                "name": "John Yard"
+                            },
+                            "at": "2026-10-05T11:17:53+00:00",
+                            "system_then": "Waverly",
+                            "seen_at": "Bon Aqua"
+                        },
+                        "path": "Waverly → Unresolved",
+                        "discrepancy": "System: Waverly · Observed: Bon Aqua",
+                        "verified_by_default": {
+                            "id": 6,
+                            "name": "John Yard"
+                        },
+                        "verifier_override": false,
+                        "rental": null,
+                        "actions": {
+                            "verify": true,
+                            "verify_type": "physical",
+                            "found_at_store": true,
+                            "correct_location": true,
+                            "move_off_site": true,
+                            "mark_unresolved": false,
+                            "change_verifier": true
+                        }
+                    }
+                ]
+            }
+        ],
+        "stores": [
+            {
+                "id": 3,
+                "name": "Bon Aqua"
+            },
+            {
+                "id": 4,
+                "name": "Waverly"
+            }
+        ],
+        "employees": [
+            {
+                "id": 6,
+                "name": "John Yard"
+            },
+            {
+                "id": 4,
+                "name": "Terminal Account"
+            },
+            {
+                "id": 5,
+                "name": "Yard Walker"
+            }
+        ],
+        "generated_at": "2026-10-05T11:17:53+00:00"
+    },
+    "request_id": "53ffd66b-c592-4bf3-b4c2-7dfafc7af42e"
+}

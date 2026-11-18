@@ -16,6 +16,29 @@
 
 import Foundation
 
+/// One order product's own Return charges. Each product's completion carries ITS charges only:
+/// until 1.0.26 every product in a multi-line Return was sent the batch's total and the LAST
+/// fuel row's charge, so a trailer or an attachment returned with a machine was billed the
+/// machine's fuel again (Laravel creates one fuel charge per order product it is sent).
+struct ChecklistLineCharge: Equatable {
+    /// Everything this line owes (hours overage, cleaning, fuel, answer amounts).
+    var total: Float = 0
+    /// Primary fuel + DEF for this line's machine (FuelChargeCalculator, cents).
+    var fuel: Decimal = 0
+    var cleaning: Float = 0
+
+    init(total: Float = 0, fuel: Decimal = 0, cleaning: Float = 0) {
+        self.total = total
+        self.fuel = fuel
+        self.cleaning = cleaning
+    }
+
+    /// Wire forms: two decimals, "." separator.
+    var totalString: String { FuelChargeCalculator.amountString(Decimal(Double(total))) }
+    var fuelString: String { FuelChargeCalculator.amountString(fuel) }
+    var cleaningString: String { FuelChargeCalculator.amountString(Decimal(Double(cleaning))) }
+}
+
 /// What the employee captured for one order product's checklist.
 struct ChecklistCapture: Equatable {
     var context: ChecklistContext
@@ -30,11 +53,16 @@ struct ChecklistCapture: Equatable {
     // Delivery leg
     var startHours: String = ""
     var fuelInitialReading: String = ""
+    /// DEF level at delivery (eighths, same ids as fuel). Sent only for a machine with a DEF
+    /// tank, and only when Laravel's contract carries DEF readings (1.0.26+ backend).
+    var defInitialReading: String = ""
     var deliveryCleanOption: String = ""
     var deliveryCleanId: String = ""
     // Return leg
     var endHours: String = ""
     var fuelFinalReading: String = ""
+    var defFinalReading: String = ""
+    /// THIS product's fuel charge (primary fuel + DEF), never another line's.
     var fuelTotalCharge: String = ""
     var totalCharge: String = ""
     var returnCleanOption: String = ""
@@ -52,6 +80,12 @@ struct ChecklistCapture: Equatable {
     /// validates before requesting Pending → Staged (Laravel re-enforces).
     var isChecklistComplete: Bool { context.missingRequiredQuestionIds(answered: answers).isEmpty }
 
+    /// Selections that are not on THIS line's own checklist ("question:answer"): a question
+    /// of another machine's checklist, or an answer that no longer exists. Such a capture is
+    /// never queued (ChecklistOperationBuilder) — Laravel would refuse it with
+    /// CHECKLIST_QUESTION_MISMATCH and the driver's work would sit in Needs Attention.
+    var answersNotInThisChecklist: [String] { context.unknownSelections(answered: answers).sorted() }
+
     /// Local usability validation. Laravel re-validates the same rules on sync.
     func localValidationProblems() -> [String] {
         var problems: [String] = []
@@ -66,7 +100,32 @@ struct ChecklistCapture: Equatable {
     }
 }
 
+/// A capture the phone refuses to queue (MOBILE-QUALITY-01, item 03).
+enum ChecklistCaptureError: Error, Equatable {
+    /// Some answers are not on this line's own checklist — reopen it so its questions reload.
+    case answersNotInThisChecklist(productName: String, count: Int)
+
+    var employeeMessage: String {
+        switch self {
+        case .answersNotInThisChecklist(let product, let count):
+            return "\(product): \(count) answer\(count == 1 ? " is" : "s are") not on this equipment's checklist. Nothing was saved for it. Go back and open its checklist again — the questions reload for the equipment on this line."
+        }
+    }
+}
+
 enum ChecklistOperationBuilder {
+
+    /// Every checklist operation goes through here: a line is only ever submitted with ITS OWN
+    /// questions and answers. Laravel re-validates; this keeps a bad copy off the queue.
+    static func assertOwnChecklist(_ capture: ChecklistCapture) throws {
+        let foreign = capture.answersNotInThisChecklist
+        guard foreign.isEmpty else {
+            let identity = capture.context.identity
+            throw ChecklistCaptureError.answersNotInThisChecklist(
+                productName: identity.productName.isEmpty ? identity.orderProductUniqueId : identity.productName,
+                count: foreign.count)
+        }
+    }
 
     static func completeType(_ leg: ChecklistLeg) -> String { leg.operationPrefix + ".complete" }
     static func prepareType(_ leg: ChecklistLeg) -> String { leg.operationPrefix + ".prepare" }
@@ -90,11 +149,13 @@ enum ChecklistOperationBuilder {
         case .delivery:
             put(&body, "start_hours", capture.startHours)
             put(&body, "fuel_initial_reading", capture.fuelInitialReading)
+            put(&body, "def_initial_reading", capture.defInitialReading)
             put(&body, "delivery_clean_option", capture.deliveryCleanOption)
             put(&body, "delivery_clean_id", capture.deliveryCleanId)
         case .return:
             put(&body, "end_hours", capture.endHours)
             put(&body, "fuel_final_reading", capture.fuelFinalReading)
+            put(&body, "def_final_reading", capture.defFinalReading)
             put(&body, "fuel_total_charge", capture.fuelTotalCharge)
             put(&body, "total_charge", capture.totalCharge)
             put(&body, "return_clean_option", capture.returnCleanOption)
@@ -141,6 +202,7 @@ enum ChecklistOperationBuilder {
                                   signatureJPEG: Data?,
                                   into engine: SyncEngine,
                                   operationId: String = UUID().uuidString) throws -> SyncOperation {
+        try assertOwnChecklist(capture)   // before the signature is written anywhere
         var assets: [SyncAsset] = []
         var signatureId: String?
         if let jpeg = signatureJPEG, !jpeg.isEmpty {
@@ -167,7 +229,8 @@ enum ChecklistOperationBuilder {
     static func enqueuePrepare(_ capture: ChecklistCapture,
                                into engine: SyncEngine,
                                operationId: String = UUID().uuidString) throws -> SyncOperation {
-        try engine.enqueue(type: prepareType(capture.leg),
+        try assertOwnChecklist(capture)
+        return try engine.enqueue(type: prepareType(capture.leg),
                            payload: preparePayload(capture),
                            identity: identity(capture),
                            capturedAt: capture.capturedAt,

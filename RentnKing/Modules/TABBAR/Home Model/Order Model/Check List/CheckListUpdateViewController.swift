@@ -39,6 +39,7 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var arrProductList : [ProductModel] = []
     var arrEmployesList : [EmployeesModel] = []
     var arrOtherData : [NoteModel] = []
+    var isCombineChecklist = false
     var objCheckListPrice : CheckListPriceModel!
     var arrPriceList : [PriceListModel] = []
     var arrProductSettingList : [PriceListModel] = []
@@ -48,9 +49,12 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
     var strOrderUniqueId : String = ""
     var strProductID : String = ""
 
+    /// Batch totals for the screen. A submission never carries these — see `lineCharges`.
     var strTotalCharge : Float = 0.0
     var strFuleTotalCharge : Float = 0.0
     var strCleaningCharge : Float = 0.0
+    /// Each order product's OWN charges (by order product unique_id), what its submission sends.
+    var lineCharges: [String: ChecklistLineCharge] = [:]
     var isDeliveryType : Bool = false
     var selectEmployessID : String = ""
     var deliveryIndex : Int = 0
@@ -60,6 +64,71 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
 
     /// Phase 3 — canonical contexts handed over by CheckListViewController (order_product_unique_id → context).
     var checklistContexts: [String: ChecklistContext] = [:]
+    // Driver Delivery Process Flow (2026-09-27): the mission line and the stage the checklist
+    // handed down; nil / "" for yard entries (today's review sequencing).
+    var focusOrderProductUniqueId: String = ""
+    var driverStageFloor: DeliveryWorkflowStage?
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+
+    /// After Submit (§10.2): at the customer site — from On My Way on, and on Return — Video
+    /// while the delivery video is still missing, else Main Order; never the Assembly Review.
+    /// In the yard, today's rule: the review beneath, else Order Details / the Orders list.
+    func routeAfterSubmit() {
+        let stage = CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                                 isDeliveryLeg: self.isDeliveryType,
+                                                 floor: self.driverStageFloor,
+                                                 review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                                 operations: self.operationsSnapshot())
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
+            let operations = self.operationsSnapshot()
+            let focus = self.objOrderData?.arrProduct.first { $0.unique_id == self.focusOrderProductUniqueId }
+            // The leg's own media rule (§13): Delivery needs its video, Return any pickup media.
+            let videoMet = focus.map {
+                CustomerSiteNavigation.mediaRequirementMet(product: $0, isDeliveryLeg: self.isDeliveryType,
+                                                           context: self.checklistContexts[$0.unique_id ?? ""],
+                                                           orderUniqueId: self.strOrderUniqueId, operations: operations)
+            } ?? true
+            switch CustomerSiteRouter.afterStep(.checklistCompleted, stage: stage, isDeliveryLeg: self.isDeliveryType,
+                                                videoRequirementMet: videoMet, checklistComplete: true) {
+            case .video:
+                CustomerSiteNavigation.goToVideo(on: self.navigationController) {
+                    CustomerSiteNavigation.makeMediaUpload(orderUniqueId: self.strOrderUniqueId, order: self.objOrderData,
+                                                           isDelivery: self.isDeliveryType, selectIndex: self.selectIndex,
+                                                           focusOrderProductUniqueId: self.focusOrderProductUniqueId,
+                                                           executionIds: self.checklistContexts.mapValues { $0.executionId },
+                                                           floor: self.driverStageFloor, isQueueLine: false)
+                }
+            case .mainOrder, .checklist, .assemblyReview:
+                CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return
+        }
+        ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
+            if self.isOrderDetailsView{
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+            else{
+                if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
+                    self.navigationController?.popToViewController(targetViewController, animated: true)
+                }
+            }
+        }
+    }
+
+    // MARK: Finalization footer (signature → Submit row + Total Charge panel)
+    //
+    // Built once from the storyboard's footer pieces (viewSubmit / lblSubmit /
+    // lblTotalChargeTitle / lblTotalCharge) and rendered ONLY by
+    // renderFinalizationState() from ChecklistFinalizationPresentation.
+    private var finalizationFooter: UIView?
+    private let finalizationRow = UIStackView()
+    private let btnCustomerSignature = UIButton(type: .custom)
+    private let viewTotalCharge = UIView()
+    /// The storyboard's Submit control inside viewSubmit (wired to btnSubmitClicked).
+    private var btnSubmit: UIButton? { viewSubmit.subviews.compactMap { $0 as? UIButton }.first }
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,14 +136,17 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         // Do any additional setup after loading the view.
         setupKeyboard(false)
 
-        //GET PRICE LIST
+        //GET PRICE LIST — the total re-prices when the lists arrive (an empty cache used to
+        //leave fuel and cleaning at $0 on this screen, and Submit could send $0).
         getPriceList { arr_data in
             self.arrPriceList = arr_data
+            if self.objOrderData != nil { self.CalculatTotalCharge(); self.tblView?.reloadData() }
         }
         
         
         getProductSettingList(completion: { arr_data in
             self.arrProductSettingList = arr_data
+            if self.objOrderData != nil { self.CalculatTotalCharge(); self.tblView?.reloadData() }
         })
 
         
@@ -191,11 +263,13 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
         indicatorHide()
         self.stopLoading()
 
-        //SET SUBMIT
+        //SET SUBMIT — the signature → Submit row and the Total Charge panel are
+        //ONE footer rendered from ChecklistFinalizationPresentation (never from
+        //whichever button was tapped last).
+        self.installFinalizationFooterIfNeeded()
         self.viewSubmit.isHidden = false
         self.con_Submit.constant = manageWidth(size: 45.0)
-        self.viewSubmit.backgroundColor = self.isDeleteChecklist ? .redText : .secondaryTextView
-        self.lblSubmit.configureLable(textColor: self.isDeleteChecklist ? .primary : .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.isDeleteChecklist ? str.strRemoveChecklist : str.strSubmit)
+        self.lblSubmit.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: self.isDeleteChecklist ? str.strRemoveChecklist : str.strSubmit)
         
         if self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false){
             self.viewSubmit.isHidden = true
@@ -209,17 +283,11 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
             self.lblTotalCharge.isHidden = self.checkCheckListStatus(isDelivery: true) ? false : true
         }
         
-        //UPDATE DATA
-//        self.setCheckListData()
-        
-     
-        //SET HEADER
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            //SET TABLE HEADER
-            let vw_Table = self.tblView.tableFooterView
-            vw_Table?.frame = CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: self.viewSubmit.frame.origin.y + self.viewSubmit.frame.size.height)
+        self.renderFinalizationState()
 
-            self.tblView.tableFooterView = vw_Table
+        //SET FOOTER
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.layoutFinalizationFooter()
 
             //RELOAD TABLE
             DispatchQueue.main.asyncAfter(deadline: .now()) {
@@ -227,6 +295,239 @@ class CheckListUpdateViewController: UIViewController, UIGestureRecognizerDelega
             }
 
         }
+    }
+
+    // MARK: - Finalization footer
+
+    /// Moves the storyboard footer pieces into the approved layout once:
+    ///
+    ///     [ Customer Signature ]   [ Submit ]
+    ///     ┌────────────────────────────────┐
+    ///     │ Total Charge            $0.00  │
+    ///     └────────────────────────────────┘
+    ///
+    /// Auto Layout throughout (equal-width buttons, 16pt margins); the footer's
+    /// height is measured, never hard-coded per screen size.
+    private func installFinalizationFooterIfNeeded() {
+        guard finalizationFooter == nil, let viewSubmit = self.viewSubmit,
+              let lblTitle = self.lblTotalChargeTitle, let lblAmount = self.lblTotalCharge else { return }
+
+        let footer = UIView()
+        footer.backgroundColor = .clear
+
+        // Signature action — the same pad the signature cell opens.
+        btnCustomerSignature.translatesAutoresizingMaskIntoConstraints = false
+        btnCustomerSignature.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 16.0)
+        btnCustomerSignature.titleLabel?.adjustsFontSizeToFitWidth = true
+        btnCustomerSignature.titleLabel?.minimumScaleFactor = 0.8
+        btnCustomerSignature.layer.cornerRadius = 10
+        btnCustomerSignature.layer.masksToBounds = true
+        btnCustomerSignature.accessibilityIdentifier = "checklist.customerSignature"
+        btnCustomerSignature.addTarget(self, action: #selector(btnCustomerSignatureTapped), for: .touchUpInside)
+
+        // Submit — reuse the storyboard control; drop its old 40:9 aspect so it
+        // can share the row equally with the signature button.
+        viewSubmit.removeFromSuperview()
+        viewSubmit.translatesAutoresizingMaskIntoConstraints = false
+        viewSubmit.constraints
+            .filter { $0.firstItem === viewSubmit && $0.firstAttribute == .width && $0.secondAttribute == .height }
+            .forEach { $0.isActive = false }
+        viewSubmit.layer.cornerRadius = 10
+        viewSubmit.layer.masksToBounds = true
+        btnSubmit?.accessibilityIdentifier = "checklist.submit"
+
+        finalizationRow.axis = .horizontal
+        finalizationRow.distribution = .fillEqually
+        finalizationRow.alignment = .fill
+        finalizationRow.spacing = 12
+        finalizationRow.translatesAutoresizingMaskIntoConstraints = false
+        finalizationRow.addArrangedSubview(btnCustomerSignature)
+        finalizationRow.addArrangedSubview(viewSubmit)
+        btnCustomerSignature.heightAnchor.constraint(equalTo: viewSubmit.heightAnchor).isActive = true
+
+        // Total Charge panel — one bordered unit spanning the content width.
+        lblTitle.removeFromSuperview()
+        lblAmount.removeFromSuperview()
+        lblTitle.translatesAutoresizingMaskIntoConstraints = false
+        lblAmount.translatesAutoresizingMaskIntoConstraints = false
+        lblAmount.textAlignment = .right
+        lblAmount.setContentCompressionResistancePriority(.required, for: .horizontal)
+        viewTotalCharge.translatesAutoresizingMaskIntoConstraints = false
+        viewTotalCharge.layer.cornerRadius = 10
+        viewTotalCharge.layer.borderWidth = 1.5
+        viewTotalCharge.backgroundColor = .clear
+        viewTotalCharge.accessibilityIdentifier = "checklist.totalCharge"
+        viewTotalCharge.addSubview(lblTitle)
+        viewTotalCharge.addSubview(lblAmount)
+
+        let column = UIStackView(arrangedSubviews: [finalizationRow, viewTotalCharge])
+        column.axis = .vertical
+        column.spacing = 14
+        column.translatesAutoresizingMaskIntoConstraints = false
+        footer.addSubview(column)
+
+        NSLayoutConstraint.activate([
+            column.topAnchor.constraint(equalTo: footer.topAnchor, constant: 16),
+            column.leadingAnchor.constraint(equalTo: footer.leadingAnchor, constant: 16),
+            column.trailingAnchor.constraint(equalTo: footer.trailingAnchor, constant: -16),
+            column.bottomAnchor.constraint(equalTo: footer.bottomAnchor, constant: -16),
+
+            viewTotalCharge.heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
+            lblTitle.leadingAnchor.constraint(equalTo: viewTotalCharge.leadingAnchor, constant: 16),
+            lblTitle.centerYAnchor.constraint(equalTo: viewTotalCharge.centerYAnchor),
+            lblTitle.topAnchor.constraint(greaterThanOrEqualTo: viewTotalCharge.topAnchor, constant: 12),
+            lblAmount.trailingAnchor.constraint(equalTo: viewTotalCharge.trailingAnchor, constant: -16),
+            lblAmount.centerYAnchor.constraint(equalTo: viewTotalCharge.centerYAnchor),
+            lblAmount.leadingAnchor.constraint(greaterThanOrEqualTo: lblTitle.trailingAnchor, constant: 12),
+        ])
+
+        finalizationFooter = footer
+        layoutFinalizationFooter()
+    }
+
+    /// Sizes the footer with Auto Layout and installs it as the table footer.
+    private func layoutFinalizationFooter() {
+        guard let footer = finalizationFooter else { return }
+        let width = tblView.bounds.width > 0 ? tblView.bounds.width : GlobalMainConstants.windowWidth
+        let height = footer.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+                                                    withHorizontalFittingPriority: .required,
+                                                    verticalFittingPriority: .fittingSizeLevel).height
+        footer.frame = CGRect(x: 0, y: 0, width: width, height: ceil(height))
+        tblView.tableFooterView = footer
+    }
+
+    /// ONE definition of "this product carries a customer signature for the
+    /// current leg": an image drawn on this phone, or a signature already stored
+    /// on the server (a nil image is never a signature). The submit guard, the
+    /// signature preview and the section-footer height all read this — none
+    /// keeps a second answer.
+    func hasSignature(_ obj: NoteModel) -> Bool {
+        let image = self.isDeliveryType ? obj.dSignature : obj.rSignature
+        let url = self.isDeliveryType ? obj.dSignatureUrl : obj.rSignatureUrl
+        return !url.isEmpty || (image?.hasValidData ?? false)
+    }
+
+    /// The canonical "a customer signature exists" fact — the same test the
+    /// submit guard uses (drawn on this phone, or already stored on the server).
+    func hasCustomerSignature() -> Bool {
+        return !self.arrOtherData.isEmpty && self.arrOtherData.allSatisfy { hasSignature($0) }
+    }
+
+    /// Merge by product identity, preserving previously completed siblings.
+    func cacheCompletedBatch() {
+        guard let batch = self.objOrderData else { return }
+        let type = self.isDeliveryType ? "Delivery" : "Return"
+        let key = "\(type)_\(self.strOrderUniqueId)"
+        var cached: OrdersModel = getChecklistOrderDetailData(strOrderUniqeID: key) ?? batch
+        var notes = getChecklistOtherData(strOrderUniqeID: key) ?? self.arrOtherData
+        for (index, product) in batch.arrProduct.enumerated() {
+            if let position = cached.arrProduct.firstIndex(where: { $0.unique_id == product.unique_id }) {
+                cached.arrProduct[position] = product
+            } else {
+                cached.arrProduct.append(product)
+            }
+            let note = self.arrOtherData[index]
+            if let position = notes.firstIndex(where: { $0.productID == note.productID }) { notes[position] = note }
+            else { notes.append(note) }
+        }
+        let aligned = cached.arrProduct.map { product in
+            notes.first { $0.productID == product.id } ?? NoteModel()
+        }
+        SDKUserDefault.saveMappableObject(cached, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(key)")
+        SDKUserDefault.saveNSObjectArray(aligned, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(key)")
+    }
+
+    func preserveUnsubmittedDraft() {
+        guard let draft = getPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) else { return }
+        let submitted = Set(self.objOrderData.arrProduct.compactMap(\.unique_id))
+        let remaining = CheckListViewController.excludingProductsNeedingConnection(draft.order, other: draft.other,
+                                                                                  needingConnection: submitted)
+        if remaining.order?.arrProduct.isEmpty ?? true {
+            clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
+        } else {
+            savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                 objOrderData: remaining.order, arrOtherData: remaining.other)
+        }
+    }
+
+    /// ONE renderer: signature button, Submit and the Total Charge panel all
+    /// derive from ChecklistFinalizationPresentation.
+    func renderFinalizationState() {
+        let state = ChecklistFinalizationPresentation(hasSignature: hasCustomerSignature(),
+                                                      totalCharge: Double(self.strTotalCharge),
+                                                      isDeleteMode: self.isDeleteChecklist)
+
+        // Signature action (delete mode has no signature step).
+        btnCustomerSignature.setTitle(state.signatureTitle, for: .normal)
+        apply(state.signatureTone, background: btnCustomerSignature, title: btnCustomerSignature)
+        btnCustomerSignature.isHidden = self.isDeleteChecklist
+        btnCustomerSignature.accessibilityLabel = state.signatureTitle
+
+        // Submit — genuinely non-interactive until signed.
+        if let viewSubmit = self.viewSubmit {
+            apply(state.submitTone, background: viewSubmit, title: lblSubmit)
+            viewSubmit.isUserInteractionEnabled = state.submitIsEnabled
+            viewSubmit.alpha = state.submitIsEnabled ? 1.0 : 0.85
+        }
+        btnSubmit?.isEnabled = state.submitIsEnabled
+        btnSubmit?.accessibilityLabel = self.isDeleteChecklist ? "Delete" : "Submit"
+        btnSubmit?.accessibilityHint = state.submitIsEnabled ? nil : "Capture the customer signature first"
+        finalizationRow.isHidden = self.viewSubmit?.isHidden ?? true
+
+        // Total Charge panel.
+        let accent: UIColor
+        switch state.chargeAccent {
+        case .green:   accent = hexStringToUIColor(hex: "3DDC6E")
+        case .red:     accent = .redText
+        case .neutral: accent = .primary.withAlphaComponent(0.4)
+        }
+        viewTotalCharge.layer.borderColor = accent.cgColor
+        lblTotalChargeTitle?.textColor = .primary
+        lblTotalCharge?.textColor = state.chargeAccent == .neutral ? .primary : accent
+        viewTotalCharge.isHidden = lblTotalCharge?.isHidden ?? true
+        viewTotalCharge.accessibilityLabel = "\(str.strTotalCheckList) \(lblTotalCharge?.text ?? "")"
+    }
+
+    private func apply(_ tone: ChecklistFinalizationPresentation.ButtonTone, background: UIView, title: UIView?) {
+        let bg: UIColor
+        let fg: UIColor
+        switch tone {
+        case .activeYellow:   bg = .secondaryTextView ?? .systemYellow; fg = .backgroundView ?? .black
+        case .completedGray:  bg = .darkGray; fg = .primary
+        case .disabledGray:   bg = .darkGray; fg = .primary.withAlphaComponent(0.7)
+        case .destructiveRed: bg = .redText; fg = .primary
+        }
+        background.backgroundColor = bg
+        if let button = title as? UIButton {
+            button.setTitleColor(fg, for: .normal)
+            button.setTitleColor(fg, for: .disabled)
+        } else if let label = title as? UILabel {
+            label.textColor = fg
+        }
+    }
+
+    /// Opens the same signature pad the signature cell opens (last product's index).
+    @objc private func btnCustomerSignatureTapped() {
+        if self.isCombineChecklist || self.arrOtherData.count == 1 {
+            btnCustomerSignature.tag = 0
+            self.btnSignatureClicked(btnCustomerSignature)
+            return
+        }
+        // Individual mode also allows an existing signature to be reviewed/replaced.
+        let picker = UIAlertController(title: "Choose Equipment Checklist", message: nil, preferredStyle: .actionSheet)
+        for (index, product) in (self.objOrderData?.arrProduct ?? []).enumerated() {
+            let name = product.product_name ?? "Equipment \(index + 1)"
+            let equipment = product.objMachine?.equipment_id ?? ""
+            let signed = self.arrOtherData[safe: index].map { self.hasSignature($0) } ?? false
+            picker.addAction(UIAlertAction(title: "\(signed ? "✓ " : "")\(name)\(equipment.isEmpty ? "" : " — \(equipment)")", style: .default) { _ in
+                self.btnCustomerSignature.tag = index
+                self.btnSignatureClicked(self.btnCustomerSignature)
+            })
+        }
+        picker.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        picker.popoverPresentationController?.sourceView = btnCustomerSignature
+        picker.popoverPresentationController?.sourceRect = btnCustomerSignature.bounds
+        self.present(picker, animated: true)
     }
     
     func stopLoading(){
@@ -276,8 +577,10 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
 
         print(signatureImage)
         
-        //UPDATE SIGNATURE ARRAY — apply the same signature to every product
-        for obj in self.arrOtherData {
+        // Combine shares only within the already scoped batch. Individual capture changes one row.
+        guard self.arrOtherData.indices.contains(strIndex) else { return }
+        let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[strIndex]]
+        for obj in targets {
             if self.isDeliveryType{
                 obj.dSignature = signatureImage
             }
@@ -286,7 +589,8 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
             }
         }
 
-        //RELOAD
+        //RELOAD — the footer flips to "✓ Customer Signed" / Submit active from state.
+        self.renderFinalizationState()
         self.tblView.reloadData()
     }
 
@@ -335,6 +639,9 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 return
             }
 
+            // Each line's charges from its rows and the current prices, right before they are sent.
+            self.CalculatTotalCharge()
+
             var submissions: [ChecklistSubmissionPlan] = []
             for (index, obj) in self.objOrderData.arrProduct.enumerated() {
                 let objOther = self.arrOtherData[index]
@@ -342,11 +649,11 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
 
                 if let context = self.checklistContexts[productUid] {
                     // Canonical: template ids, execution identity, signature as a durable asset.
+                    // THIS product's charges only (a trailer never carries the machine's fuel).
+                    let charges = self.lineCharges[productUid] ?? ChecklistLineCharge()
                     let capture = ChecklistCaptureFactory.make(context: context, product: obj, other: objOther,
                                                                isDelivery: self.isDeliveryType,
-                                                               totalCharge: self.strTotalCharge,
-                                                               fuelTotalCharge: self.strFuleTotalCharge,
-                                                               cleaningCharge: self.strCleaningCharge)
+                                                               charges: charges)
                     let signature = (self.isDeliveryType ? objOther.dSignature : objOther.rSignature)?.jpegData(compressionQuality: 0.7)
                     submissions.append(.canonical(capture, signature: signature))
                 } else {
@@ -355,10 +662,27 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                     submissions.append(.legacy(ChecklistCaptureFactory.legacyItem(product: obj, other: objOther,
                                                                                   isDelivery: self.isDeliveryType,
                                                                                   orderUniqueId: self.strOrderUniqueId,
-                                                                                  totalCharge: self.strTotalCharge,
-                                                                                  fuelTotalCharge: self.strFuleTotalCharge,
-                                                                                  cleaningCharge: self.strCleaningCharge)))
+                                                                                  charges: self.lineCharges[productUid] ?? ChecklistLineCharge())))
                 }
+            }
+
+            // MOBILE-QUALITY-01 (item 03): a line is only ever submitted with ITS OWN checklist's
+            // questions and answers. Refuse before anything is queued — Laravel would refuse the
+            // copy (CHECKLIST_QUESTION_MISMATCH) and the driver's work would sit in Needs Attention.
+            let notOwnChecklist: [String] = submissions.compactMap { plan in
+                guard case .canonical(let capture, _) = plan else { return nil }
+                do {
+                    try ChecklistOperationBuilder.assertOwnChecklist(capture)
+                    return nil
+                } catch let refusal as ChecklistCaptureError {
+                    return refusal.employeeMessage
+                } catch {
+                    return nil
+                }
+            }
+            guard notOwnChecklist.isEmpty else {
+                showAlertMessage(strMessage: notOwnChecklist.joined(separator: "\n\n"))
+                return
             }
 
             //CALL API
@@ -377,35 +701,30 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
                 KabbaSync.showStatusToast(for: queued.firstOperationId)
                 
                 //SET DATA IN LOCAL
-                let checklistType = self.isDeliveryType ? "Delivery" : "Return"
-                SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kCheckListOrderDetailsData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
-                SDKUserDefault.saveNSObjectArray(self.arrOtherData, key: "\(kFileStorageName.kCheckListOtherData.rawValue)_\(checklistType)_\(self.strOrderUniqueId)")
+                self.cacheCompletedBatch()
 
-                // This checklist is now finalized — clear any PENDING (prepared) draft so it is
-                // never reloaded as pending after completion. (No-op if none / for Return.)
-                clearPendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType)
+                // Only submitted products leave the pending draft. Siblings retain their work.
+                self.preserveUnsubmittedDraft()
               
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: {
                     
                     NotificationCenter.default.post(name: .updateCheckList, object: nil, userInfo: ["checklist_data": self.arrOtherData, "index" : self.selectIndex, "type" : self.isDeliveryType] )
 
-                    if self.isOrderDetailsView{
-                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderDetailsViewController  }) {
-                            self.navigationController?.popToViewController(targetViewController, animated: true)
-                        }
-                    }
-                    else{
-                        if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is OrderListViewController }) {
-                            self.navigationController?.popToViewController(targetViewController, animated: true)
-                        }
-                    }
+                    // One exit rule (routeAfterSubmit): the review in the yard, the
+                    // customer-site matrix after departure.
+                    self.routeAfterSubmit()
                     
                     
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1){
                         indicatorHide()
                         // Honest wording: the work is safely on the phone; Kabba confirms it on sync.
-                        showAlertMessage(strMessage: queued.usedEngine ? "Checklist saved on this phone · Pending Sync" : "Checklist updated successfully.", isDismiss: true)
+                        // With the Sync Engine the live status toast already says so (Pending Sync →
+                        // Synced / Needs Attention) — a second, blocking alert on the next screen
+                        // only cost a tap (MOBILE-QUALITY-01, item 06).
+                        if !queued.usedEngine {
+                            showAlertMessage(strMessage: "Checklist updated successfully.", isDismiss: true)
+                        }
                     }
                 })
                                 
@@ -460,24 +779,11 @@ extension CheckListUpdateViewController : EPSignatureDelegate{
     }
     
     func checkCustomerSignature() -> Bool{
-        if self.arrOtherData.count != 0{
-            let obj = self.arrOtherData.last
-            
-            if self.isDeliveryType{
-                if (obj?.dSignature == UIImage() && obj?.dSignatureUrl == "") || obj?.dSignature == nil{
-                    showAlertMessage(strMessage: "Customer signature is required")
-                    return false
-                }
-            }
-            else{
-                if (obj?.rSignature == UIImage() && obj?.rSignatureUrl == "") || obj?.rSignature == nil{
-                    showAlertMessage(strMessage: "Customer signature is required")
-                    return false
-                }
-            }
+        // Defence in depth behind the disabled Submit: the same canonical fact.
+        if self.arrOtherData.count != 0 && !self.hasCustomerSignature() {
+            showAlertMessage(strMessage: "Customer signature is required")
+            return false
         }
-       
-
         return true
     }
 }
@@ -529,153 +835,36 @@ extension CheckListUpdateViewController : UITextFieldDelegate{
     
     func CalculatTotalCharge(){
         self.strTotalCharge = 0.0
+        self.strFuleTotalCharge = 0.0
+        self.strCleaningCharge = 0.0
+        self.lineCharges = [:]
         if self.objOrderData == nil { return }
-        
-        for i in 0..<self.objOrderData.arrProduct.count{
-            var objProduct = self.objOrderData.arrProduct[i]
-            
-            if self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false){
-                self.strTotalCharge = self.strTotalCharge + Float(objProduct.total_charge)
-            }
-            else{
-                for (index,obj) in objProduct.arrQuestions.enumerated(){
-                    var objQuestion = obj
-                    if objQuestion.type == "text"{
-                        // Total math (ChecklistHoursMath): never traps on ±inf/NaN meter values.
-                        var totalHours = ChecklistHoursMath.overageHours(start: Float(objQuestion.startHours),
-                                                                         end: Float(objQuestion.endHours))
-                        if objQuestion.startHours == 0.0{
-                            totalHours = 0
-                        }
-                        objQuestion.total = 0
-                        if totalHours > 0{
-                            //SET TOTAL HOURS
-                            objQuestion.total = Float(totalHours)
-                        }
 
-
-                        //SET ADDITION HOURS
-                        var additionslHours = Float(ChecklistHoursMath.additionalHours(total: totalHours,
-                                                                                       allocated: objProduct.allocated_hours ?? 0))
-                        objQuestion.additinal = 0
-                        if additionslHours > 0{
-                            //SET TOTAL HOURS
-                            objQuestion.additinal = Int(additionslHours)
-                        }
-                        else{
-                            additionslHours = 0
-                        }
-                        
-                        //SET TOTAL CHARGE
-                        self.strTotalCharge =  self.strTotalCharge + Float(additionslHours) * Float(objQuestion.hour_rate)
-                        objQuestion.total_cost = Float(additionslHours) * Float(objQuestion.hour_rate)
-                        
-                        
-                        //UPDATE
-                        objProduct.arrQuestions.remove(at: index)
-                        objProduct.arrQuestions.insert(objQuestion, at: index)
-                        
-                        //UPDATE ARRAY
-                        self.objOrderData.arrProduct.remove(at: i)
-                        self.objOrderData.arrProduct.insert(objProduct, at: i)
-                    }
-                    else if objQuestion.type == "cleaning"{
-                        //JIGAR
-                        if objProduct.is_product_clean == true && objProduct.rental_prepaid_cleaning != 0 && Int(objQuestion.selectCleaningReturn ?? "") ?? 0 != 0{
-                            
-                            var price = self.getCleanigPrice(selectID: Int(objQuestion.selectCleaningReturn ?? "") ?? 0)
-                        
-                            let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
-                            if selectedOptions.contains("rental_prepaid_cleaning") {
-                                if Int(objQuestion.selectCleaningReturn ?? "") != 5{
-                                    price = 0
-                                }
-                            }
-
-                            self.strCleaningCharge = (objProduct.rental_prepaid_cleaning ?? 0) * price
-                            self.strTotalCharge = self.strTotalCharge + self.strCleaningCharge
-
-                        }
-                    }
-                    else if objQuestion.type == "fuel"{
-                        
-                        let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
-                        var totalPrice  : Float = 0.0
-                        if objQuestion.isDEF == "Yes"{
-                            totalPrice = price * (Float(objQuestion.def_tank_capacity ?? "") ?? 0)
-                        }
-                        else if objQuestion.fuleType == "diesel"{
-                            totalPrice = price * (Float(objQuestion.diesel_tank_capacity ?? "") ?? 0)
-                        }
-                        else if objQuestion.fuleType == "gas"{
-                            totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
-                        }
-                        
-                        //SET FULE IS ADMIN OVERRIDE
-                        var strDeliveredFule : String = getFlueName(strId: objQuestion.selectFuleDelivery ?? "")
-                        if objProduct.is_delivered == true{
-                            strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
-                        }
-                        
-
-                        self.strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
-                                                
-                        //CHECK PREPAID FULE
-                        let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
-                        if selectedOptions.contains("rental_prepaid_fuel") {
-                            // Option exists
-                            self.strFuleTotalCharge = 0
-                        }
-                        
-                        self.strTotalCharge = self.strTotalCharge + self.strFuleTotalCharge
-                        
-                    }
-                    
-                    else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
-                        let strPrice = Float(objQuestion.returnAnswer.return_amt) - Float(objQuestion.deliverAnswer.delivery_amt)
-                        if strPrice > 0{
-                            self.strTotalCharge = self.strTotalCharge + strPrice
-                        }
-                    }
-                }
-            }
+        // Each product's OWN charges (ChecklistLineCharges) — what its submission carries.
+        let priced = ChecklistLineCharges.compute(products: self.objOrderData.arrProduct,
+                                                  completedReport: self.checkCheckListStatus(isDelivery: true) && self.checkCheckListStatus(isDelivery: false),
+                                                  fuelPrices: self.fuelPrices,
+                                                  cleaningPrice: { self.getCleanigPrice(selectID: $0) })
+        self.objOrderData.arrProduct = priced.products
+        self.lineCharges = priced.charges
+        // The screen shows the batch total; each submission carries only its own line.
+        for line in priced.charges.values {
+            self.strTotalCharge = self.strTotalCharge + line.total
+            self.strFuleTotalCharge = self.strFuleTotalCharge + Float(FuelChargeCalculator.double(line.fuel))
+            self.strCleaningCharge = self.strCleaningCharge + line.cleaning
         }
         
         
-        //RELOAD TABLE
-        print("\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
-        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0, text: "\(Application.currency)\(String(format: "%.2f", self.strTotalCharge))")
-        print(self.lblTotalCharge.text ?? "")
+        //RELOAD TABLE — same "$%.2f" presentation; the panel's colour comes from state.
+        self.lblTotalCharge.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 20.0,
+                                           text: ChecklistFinalizationPresentation.formattedCharge(Double(self.strTotalCharge), currency: Application.currency))
+        self.renderFinalizationState()
 
     }
     
-    func getPrice(strFuleType : String, isDef : String) -> Float{
-        if isDef == "Yes"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "def_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "gas"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "gas_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "diesel"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "diesel_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        
-        return 0
+    /// System Configuration fuel prices from the cached "Price Settings" list.
+    var fuelPrices: FuelPrices {
+        FuelChecklistRows.prices(from: self.arrPriceList.map { ($0.setting_name, $0.setting_value) })
     }
     
     func getCleanigPrice(selectID : Int) -> Float{
@@ -932,7 +1121,12 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 cell.viewReturnEmployee.isHidden = true
             }
             
-            cell.con_Bottom.constant = manageWidth(size: 45.0)
+            // The legacy signature button under the preview is retired: the ONE
+            // signature action is the Customer Signature button in the
+            // finalization footer (renderFinalizationState). con_Bottom is that
+            // button's height.
+            cell.con_Bottom.constant = 0
+            cell.viewSignature.isHidden = true
             
             cell.lblNote.text = ""
             cell.lblNoteDetails.text = ""
@@ -945,37 +1139,21 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             }
             
             
-            //SET SIGNATURE
+            //SET SIGNATURE PREVIEW (the captured signature, same fact as the submit guard)
             cell.con_imgSignature.constant = 0
-            cell.viewSignature.backgroundColor = .secondaryTextView?.withAlphaComponent(0.7)
-            cell.lblSignature.configureLable(textColor: .backgroundView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Customer Signature")
             
-            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != nil && ((self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""){
-                if self.isUpdateData{
-                    cell.con_Bottom.constant = manageWidth(size: 0)
-                }
-
+            if self.hasSignature(objDetails) {
                 cell.con_imgSignature.constant = manageWidth(size: 200.0)
                 cell.imgSignature.backgroundColor = .white
                 cell.imgSignature.viewCorneRadius(radius: 10, isRound: false)
-                if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage(){
-                    cell.imgSignature.image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature)
+                if let image = (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature), image.hasValidData {
+                    cell.imgSignature.image = image
                 }
                 else if (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
                     cell.imgSignature.setImage(strImg: (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl))
                 }
             }
             
-            //SET VIEW
-            cell.viewSignature.isHidden = true
-            if  self.objOrderData.arrProduct.count - 1 <= section{
-                cell.viewSignature.isHidden = false
-            }
-
-            // BUTTON ACTION
-            cell.btnSignature.tag = section
-            cell.btnSignature.addTarget(self, action: #selector(self.btnSignatureClicked(_:)), for: .touchUpInside)
-
             return cell
         }
         
@@ -1002,11 +1180,14 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
                 noteHeight = lblTitle.frame.height + 60
             }
             
-            if (self.isDeliveryType ? objDetails.dSignature : objDetails.rSignature) != UIImage() || (self.isDeliveryType ? objDetails.dSignatureUrl : objDetails.rSignatureUrl) != ""{
-                return manageWidth(size: 350 + noteHeight)
+            // Employees block, then the 200pt signature preview when one exists.
+            // (The old "!= UIImage()" test counted a nil image as signed, which
+            // reserved the tall layout for every unsigned checklist.)
+            if self.hasSignature(objDetails) {
+                return manageWidth(size: 315 + noteHeight)
             }
             else{
-                return manageWidth(size: 150 + noteHeight)
+                return manageWidth(size: 115 + noteHeight)
             }
             
         }
@@ -1184,37 +1365,18 @@ extension CheckListUpdateViewController : UITableViewDelegate, UITableViewDataSo
             }
             
             else if objDetails.type == "fuel" {
-                let price = self.getPrice(strFuleType: objDetails.fuleType ?? "", isDef: objDetails.isDEF ?? "")
-                var totalPrice  : Float = 0.0
-                if objDetails.isDEF == "Yes"{
-                    totalPrice = price * (Float(objDetails.def_tank_capacity ?? "") ?? 0)
-                }
-                else if objDetails.fuleType == "diesel"{
-                    totalPrice = price * (Float(objDetails.diesel_tank_capacity ?? "") ?? 0)
-                }
-                else if objDetails.fuleType == "gas"{
-                    totalPrice = price * (Float(objDetails.gas_tank_capacity ?? "") ?? 0)
-                }
-                
-                
-                //SET FULE IS ADMIN OVERRIDE
-                var strDeliveredFule : String = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
-                if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
-                    strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
-                }
-                
-                let totalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ? 9 : Float(objDetails.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objDetails.selectFuleReturn ?? "") ?? 0)
+                let objProductRow = self.objOrderData.arrProduct[indexPath.section]
+                let fuelLine = FuelChecklistRows.line(for: objDetails, product: objProductRow, prices: self.fuelPrices)
+                let totalCharge = Float(FuelChargeCalculator.double(fuelLine?.amount ?? 0))
 
-                //SET DATA
-                let strFule = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
-                cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strFule == "Select" ? "Admin Override" : strFule)
+                //SET DATA — a missing primary fuel level reads "Admin Override" (counted Full);
+                //a missing DEF level reads "Not Recorded" (never assumed).
+                let missing = objDetails.isDEFRow ? "Not Recorded" : "Admin Override"
+                let strFule = FuelLevel.name(objDetails.selectFuleDelivery) ?? missing
+                cell.lblDeliverySelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strFule)
                 
-                let strFuleReturn = getFlueName(strId: objDetails.selectFuleReturn ?? "")
-                cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strFuleReturn == "Select" ? "Admin Override" : strFuleReturn)
-                if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
-                    let strReturnFule = getFlueName(strId: objDetails.selectFuleReturn ?? "")
-                    cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strReturnFule == "Select" ? "Admin Override" : strReturnFule)
-                }
+                let strFuleReturn = FuelLevel.name(objDetails.selectFuleReturn) ?? missing
+                cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: strFuleReturn)
 
 
                 if totalCharge != 0{
@@ -1337,6 +1499,8 @@ extension CheckListUpdateViewController{
             for i in 0..<self.objOrderData.arrProduct.count{
                 let  obj = self.objOrderData.arrProduct[i]
                 self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "\(obj.startCleaning ?? 0)", selectCleaningReturn:  "\(obj.endCleaning ?? 0)"))
+                self.arrOtherData.last?.selectDefDelivery = obj.def_initial_reading ?? ""
+                self.arrOtherData.last?.selectDefReturn = obj.def_final_reading ?? ""
                 
                 
                 //CHECK EQUMPEMT
@@ -1409,31 +1573,13 @@ extension CheckListUpdateViewController{
             cleaningItem = objCheckList
         }
 
-        //FUEL — only when the equipment has a power source
-        var fuelItem: CustomerCheckListModel?
-        if objEquipment != nil, objEquipment?.powerSourceType != ""{
-            let map = Map(mappingType: .fromJSON, JSON: [:])
-            var objCheckListFule = CustomerCheckListModel(map: map)
-            objCheckListFule?.type = "fuel"
-            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.fuleType = objEquipment?.powerSourceType
-            objCheckListFule?.isDEF = objEquipment?.hasDEF
-            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-            fuelItem = objCheckListFule
-        }
+        //FUEL — the primary fuel row, plus an independent DEF row for a machine with a DEF
+        //tank when Laravel carries DEF readings (FuelChecklistRows).
+        let fuelItems = FuelChecklistRows.rows(machine: objEquipment, product: objProduct,
+                                               defSupported: FuelChecklistRows.carriesDEFReadings(product: objProduct, context: self.checklistContexts[objProduct.unique_id ?? ""]))
 
-        
-        // Insert at index 0 in REVERSE priority so the final order is text, cleaning, fuel.
-        for item in [fuelItem, cleaningItem, textItem] {
-            if let item = item {
-                objProduct.arrQuestions.insert(item, at: 0)
-            }
-        }
+        // Final order: text, cleaning, fuel row(s), then the base questions.
+        objProduct.arrQuestions.insert(contentsOf: [textItem, cleaningItem].compactMap { $0 } + fuelItems, at: 0)
         
         self.objOrderData.arrProduct.remove(at: index)
         self.objOrderData.arrProduct.insert(objProduct, at: index)

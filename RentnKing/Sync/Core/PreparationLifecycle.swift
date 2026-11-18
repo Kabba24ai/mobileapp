@@ -78,6 +78,19 @@ enum PreparationPolicy {
         return nil
     }
 
+    /// The same cutoff, read from the phone's EFFECTIVE trip stage first
+    /// (Driver Delivery Process Flow, 2026-09-27, spec §10.2 / D9): once this
+    /// phone is On My Way or Arrived the assignment is locked, whatever a
+    /// cached context's `in_transit` says (it may be stale offline). A
+    /// delivered leg still outranks everything; Return has no cutoff.
+    static func block(for context: ChecklistContext, tripStage: DriverTripStage) -> PreparationLifecycle.Block? {
+        guard context.leg.isDelivery else { return nil }
+
+        if context.isCompleted || context.serverState.isDelivered { return .delivered }
+        if tripStage >= .onMyWay { return .inTransit }
+        return block(for: context)
+    }
+
     /// May the operator open the equipment picker for this product? An
     /// office-assigned unit is the PRESELECTED default, never a lock —
     /// substituting before departure is routine yard work.
@@ -90,6 +103,12 @@ enum PreparationPolicy {
     /// nothing to restart.
     static func mayRestartChecklist(_ context: ChecklistContext, hasLocalAnswers: Bool) -> Bool {
         guard block(for: context) == nil else { return false }
+        return hasPreparationToDiscard(context, hasLocalAnswers: hasLocalAnswers)
+    }
+
+    /// Trip-stage-aware restart rule: never after departure (spec §10.2).
+    static func mayRestartChecklist(_ context: ChecklistContext, hasLocalAnswers: Bool, tripStage: DriverTripStage) -> Bool {
+        guard block(for: context, tripStage: tripStage) == nil else { return false }
         return hasPreparationToDiscard(context, hasLocalAnswers: hasLocalAnswers)
     }
 
@@ -137,10 +156,165 @@ enum PreparationPolicy {
         }
     }
 
+    // MARK: Switch reason + attribution (mirrors EquipmentReassignmentService on Laravel)
+
+    /// The canonical picklist (EquipmentReassignmentService::STANDARD_REASONS); the
+    /// screen offers "Other" (free text) in addition — same as the web board.
+    static let standardSwitchReasons = [
+        "Reserved unit unavailable",
+        "Original unit down for maintenance or damage",
+        "Better-suited unit available",
+        "Correcting a mis-assignment",
+        "Customer request",
+    ]
+
+    /// Laravel refuses a switch without a reason unless the replacement is a DIRECT
+    /// match — its assigned product IS the ordered product. An unknown assigned
+    /// product is non-direct there too, so only a proven match skips the prompt.
+    static func switchReasonRequired(replacementAssignedProductId: Int?, orderedProductId: Int?) -> Bool {
+        guard let replacement = replacementAssignedProductId, replacement > 0,
+              let ordered = orderedProductId, ordered > 0 else { return true }
+        return replacement != ordered
+    }
+
+    static func switchReasonTitle() -> String { "Why this unit?" }
+
+    static func switchReasonMessage(replacementCode: String) -> String {
+        "Equipment \(replacementCode) is not a direct match for the ordered product, so a short reason is recorded with the change."
+    }
+
+    /// Who the canonical switch is attributed to: the employee this checklist already
+    /// names for the product (the same person its Save / Complete payloads carry),
+    /// else the signed-in account. Never a separate picker.
+    static func performedBy(selectedEmployeeUniqueId: String?, contextEmployeeUniqueId: String?) -> String? {
+        if let chosen = selectedEmployeeUniqueId, !chosen.isEmpty { return chosen }
+        if let login = contextEmployeeUniqueId, !login.isEmpty { return login }
+        return nil
+    }
+
     static func restartTitle() -> String { "Start this checklist over?" }
 
     static func restartMessage(currentCode: String) -> String {
         "This will discard the saved preparation for Equipment \(currentCode) and return this item to Pending. The equipment assignment will remain."
+    }
+}
+
+// MARK: - Equipment identity + the ONE picker vocabulary (2026-09-14)
+
+/// A unit as the yard identifies it — the human-readable equipment name AND the
+/// physical tag — plus what the canonical reassignment needs to know about it.
+/// Both surfaces that let an employee pick a unit (the Delivery Checklist and
+/// Assembly Review) speak this type, so there is exactly one selector.
+struct EquipmentCandidate: Equatable {
+    var uniqueId: String
+    var displayId: String
+    var name: String
+    /// The unit's status label ("Available", "Rented", "Maint. Hold", "Damaged" …).
+    var statusLabel: String
+    /// Laravel's rule surfaced per unit: a reason is required unless the unit is
+    /// a DIRECT match for the ordered product (candidates endpoint
+    /// `requires_reason`, or PreparationPolicy.switchReasonRequired for the
+    /// fleet list — the same rule).
+    var requiresReason: Bool
+
+    /// "Name · #TAG" — how a unit is written wherever it is displayed.
+    var identityLine: String { EquipmentIdentity.line(name: name, displayId: displayId) }
+    /// The picker wheel row, exactly as the checklist has always written it.
+    var pickerRow: String { EquipmentIdentity.pickerRow(name: name, displayId: displayId) }
+}
+
+enum EquipmentIdentity {
+    /// Display: the equipment name the office gave the unit, then its physical tag.
+    static func line(name: String?, displayId: String?) -> String {
+        let n = (name ?? "").trimmingCharacters(in: .whitespaces)
+        let d = (displayId ?? "").trimmingCharacters(in: .whitespaces)
+        switch (n.isEmpty, d.isEmpty) {
+        case (false, false): return "\(n) · #\(d)"
+        case (false, true): return n
+        case (true, false): return "#\(d)"
+        default: return ""
+        }
+    }
+
+    /// The checklist's picker/header row: "<name>    ||    <code>" (four spaces each side).
+    static func pickerRow(name: String?, displayId: String?) -> String {
+        "\(name ?? "")    ||    \(displayId ?? "")"
+    }
+
+    /// The tag back out of a picker row.
+    static func displayId(fromPickerRow row: String) -> String? {
+        row.components(separatedBy: "||").last?.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+/// What tapping Select on a unit does BEFORE any canonical change — the same
+/// triage the checklist has always applied to the unit's status.
+enum EquipmentPickTriage: Equatable {
+    /// An Available unit: proceed.
+    case proceed
+    /// A unit marked damaged / on maintenance hold: ask first (the yard may still take it).
+    case askAboutStatus(String)
+    /// A rented unit can never be assigned.
+    case refuseRented
+    /// Any other status: the pick is dropped (legacy behaviour, kept as is).
+    case drop
+
+    static func forStatus(_ statusLabel: String?) -> EquipmentPickTriage {
+        let label = (statusLabel ?? "").trimmingCharacters(in: .whitespaces)
+        let lower = label.lowercased()
+        if lower == "available" { return .proceed }
+        if lower == "rented" { return .refuseRented }
+        if lower.contains("damage") || lower.contains("maint") { return .askAboutStatus(label) }
+        return .drop
+    }
+
+    static func statusQuestion(_ label: String) -> String {
+        "This equipment is currently marked as \(label). Do you want to automatically change its status to Available and assign it to this order?"
+    }
+
+    static let rentedRefusal = "This equipment is currently rented and is not available to be assigned to this order."
+}
+
+/// A canonical Product Category as the picker names it — Laravel's `unique_id` and title
+/// (the `product_categories` row the fleet files a unit under). Never a phone-side taxonomy,
+/// never derived from an equipment or product name.
+struct EquipmentCategoryOption: Equatable {
+    var uniqueId: String
+    var title: String
+    /// The Category pill when the wheel is not scoped to one category.
+    static let allTitle = "All categories"
+}
+
+extension EquipmentCategoryOption {
+    /// The candidates read's `meta.category` (`{unique_id, title, source}`); nil when the list is not scoped.
+    /// (An extension, so the memberwise initializer stays available.)
+    init?(metaJSON dict: [String: Any]?) {
+        guard let dict = dict, let uid = dict["unique_id"] as? String, !uid.isEmpty else { return nil }
+        self.init(uniqueId: uid, title: (dict["title"] as? String ?? "").trimmingCharacters(in: .whitespaces))
+    }
+}
+
+/// The operational order of the picker's status sections (2026-09-18): what can be staged
+/// now first, then what is on hold, what is damaged, and what is out with a customer. Rented
+/// units are VISIBLE in that last section; whether one may be assigned stays the server's
+/// rule (and EquipmentPickTriage refuses it at Select). Any other label — none exists in the
+/// canonical status set — follows, alphabetically.
+enum EquipmentStatusOrder {
+    static func rank(_ statusLabel: String) -> Int {
+        let lower = statusLabel.trimmingCharacters(in: .whitespaces).lowercased()
+        if lower == "available" { return 0 }
+        if lower.contains("maint") { return 1 }
+        if lower.contains("damage") { return 2 }
+        if lower == "rented" { return 3 }
+        return 4
+    }
+
+    /// The distinct section labels in operational order.
+    static func sections(_ labels: [String]) -> [String] {
+        Array(Set(labels)).sorted { a, b in
+            let (ra, rb) = (rank(a), rank(b))
+            return ra == rb ? a < b : ra < rb
+        }
     }
 }
 
@@ -159,6 +333,11 @@ struct EquipmentSubstitutionCapture: Equatable {
     var performedByUniqueId: String
     /// Required by the server for a non-direct product match.
     var reason: String?
+    /// The replacement's identity as the picker showed it — informational
+    /// fields on the payload (Laravel ignores them) so every local reader can
+    /// show "Name · #TAG" for a switch that has not synced yet.
+    var replacementName: String? = nil
+    var replacementDisplayId: String? = nil
     var capturedAt: Date = Date()
 }
 
@@ -191,6 +370,8 @@ enum PreparationOperationBuilder {
             "performed_by": .string(capture.performedByUniqueId),
         ]
         if let reason = capture.reason, !reason.isEmpty { body["reason"] = .string(reason) }
+        if let name = capture.replacementName, !name.isEmpty { body["equipment_name"] = .string(name) }
+        if let tag = capture.replacementDisplayId, !tag.isEmpty { body["equipment_display_id"] = .string(tag) }
         return .object(body)
     }
 

@@ -383,21 +383,31 @@ public enum DispatchWorkload {
     ///   the card belongs to the selected driver iff the active leg's
     ///   current employee IS that driver.
     ///
-    /// The server applies the same rule (DispatchController's driver filter);
-    /// this predicate is defense-in-depth so an in-place row update (feed
-    /// replace, checklist reconciliation) can never leave a reassigned card
-    /// in the previous driver's rendered workload. Rules:
-    ///   • no selected driver (All Drivers) → always belongs;
-    ///   • an active leg with NO serialized employee id is never hidden
-    ///     (the server scoped it in; hiding on missing data would drop
-    ///     legitimate work).
+    /// The server applies the same rule for a named driver (DispatchController's
+    /// driver filter); this predicate is defense-in-depth so an in-place row
+    /// update (feed replace, checklist reconciliation) can never leave a
+    /// reassigned card in the previous driver's rendered workload.
+    ///
+    /// Only ASSIGNED work is shown (Phase 6 locked rule, Gary 2026-09-27):
+    ///   • a named driver → the rows whose active leg is assigned to them;
+    ///   • no selected driver (All Drivers) → every row whose active leg is
+    ///     assigned to someone;
+    ///   • an active leg with NO driver is hidden from every normal Dispatch
+    ///     view. Neither server source sends one (the feed and the offline
+    ///     selector both require the active leg's driver); it is reached by a
+    ///     driver cleared on this phone, or a legacy row whose delivered flag
+    ///     disagreed with its status. The server now PRESENTS such a row as
+    ///     its Return (DispatchRowFields::isDelivered); the stored flag itself
+    ///     is not repaired. Display-time only: the row may stay in caches for
+    ///     a later assignment. An explicit Unassigned view is a separate,
+    ///     future enhancement.
     public static func orderRowBelongs(selectedDriverId: Int?,
                                        isDelivered: Bool,
                                        deliveryEmployeeId: Int?,
                                        pickupEmployeeId: Int?) -> Bool {
-        guard let selected = selectedDriverId else { return true }
         let activeLegDriverId = isDelivered ? pickupEmployeeId : deliveryEmployeeId
-        guard let active = activeLegDriverId else { return true }
+        guard let active = activeLegDriverId else { return false }
+        guard let selected = selectedDriverId else { return true }
         return active == selected
     }
 

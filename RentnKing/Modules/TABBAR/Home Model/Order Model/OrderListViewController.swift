@@ -39,6 +39,11 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     let orderPlaceholderMarker = Placeholder()
     var arrMainOrderList : [OrdersListModel] = []
     var arrOrderList : [OrdersListModel] = []
+    /// When Laravel was asked for each listed order's copy (by order unique_id; absent when
+    /// unknown, e.g. the cached list shown before the refresh answers). See ChecklistLegCompletion.
+    var orderCopyAsOf: [String: Date] = [:]
+    /// Seam (hosted tests inject; production reads the Sync Engine).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
     var arrCategoryList : [CategoryModel] = []
     
     //OTHER
@@ -55,6 +60,9 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     var selectStatus : String = "All"
     var selectPaymentType : String = "All"
     var selectNotificationType :  String = "All"
+    /// Phase 5: one redraw per burst of sync-queue events, and one on return if they came while hidden.
+    private var syncRedrawPending = false
+    private var syncRedrawWhenVisible = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -65,6 +73,8 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
 //
         NotificationCenter.default.addObserver(self, selector: #selector(UpdateCheckListsProduct), name: .updateCheckList, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(self.reloadTable), name: .notificationCount, object: nil)
+        // Phase 5: a phone signature's T&C tile follows its sync state (refused → no longer signed).
+        NotificationCenter.default.addObserver(self, selector: #selector(self.syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
 
         // Do any additional setup after loading the view.
         //SET REFRSH CONTROLGm
@@ -227,6 +237,7 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
         let localData = self.getOrderData()
         if !localData.isEmpty {
             self.arrOrderList = localData
+            self.orderCopyAsOf = [:]
             self.setTheView()
         }
 
@@ -280,6 +291,41 @@ class OrderListViewController: UIViewController, UIGestureRecognizerDelegate  {
     @objc func reloadTable(){
         //RELOAD DATA
         self.tblView.reloadData()
+    }
+
+    /// The sync queue changed (the engine's own notification — no timer, no request): redraw the
+    /// visible rows once for a burst of events (a drain changes many operations), or on return when
+    /// the list is covered, so a refused signature never keeps showing as signed.
+    @objc func syncQueueDidChange() {
+        guard self.isViewLoaded else { return }
+        guard self.view.window != nil else { self.syncRedrawWhenVisible = true; return }
+        guard !self.syncRedrawPending else { return }
+        self.syncRedrawPending = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self = self else { return }
+            self.syncRedrawPending = false
+            self.redrawVisibleRows()
+        }
+    }
+
+    func redrawVisibleRows() {
+        guard self.view.window != nil, let visible = self.tblView.indexPathsForVisibleRows, !visible.isEmpty else { return }
+        // A page load or a search changes the row count (isLoading, a replaced list) and reloads
+        // the table itself when it settles (setTheView); reloading rows against a count the table
+        // has not seen yet throws (release review 2026-09-30). Only a count that still matches is
+        // redrawn row by row; otherwise the reload already on its way redraws everything.
+        guard self.tblView.numberOfRows(inSection: 0) == self.tableView(self.tblView, numberOfRowsInSection: 0) else { return }
+        self.tblView.reloadRows(at: visible, with: .none)
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // A notification tap that waited (another workflow was open) may open now.
+        OrderNotificationRouter.shared.resume()
+        if self.syncRedrawWhenVisible {
+            self.syncRedrawWhenVisible = false
+            self.redrawVisibleRows()
+        }
     }
     func updateCategoryLabel(){
         if selectCategoryID != "" && !selectCategoryName.isEmpty {
@@ -437,6 +483,7 @@ extension OrderListViewController{
         
         let params = OrdersParameater// OrdersParameater(page: "\(page)", search: txtSearch.text ?? "", category_id: selectCategoryID, status: selectStatus)
         
+        let askedAt = Date()
         callAPIforGetOrderList(OrdersParameater: params) { [weak self] isSaved in
             guard let self = self else { return }
             
@@ -450,6 +497,8 @@ extension OrderListViewController{
                 if overrideLocal {
                     // Replace all old data
                     self.arrOrderList = localData
+                    self.orderCopyAsOf = [:]
+                    localData.forEach { if let uid = $0.unique_id { self.orderCopyAsOf[uid] = askedAt } }
                     self.setTheView()
 
                 } else {
@@ -458,6 +507,7 @@ extension OrderListViewController{
                         !self.arrOrderList.contains(where: { $0.id == newItem.id })
                     }
                     self.arrOrderList.append(contentsOf: newItems)
+                    newItems.forEach { if let uid = $0.unique_id { self.orderCopyAsOf[uid] = askedAt } }
                 }
                 
                 self.arrMainOrderList = self.arrOrderList
@@ -830,7 +880,10 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.viewTermsAndCondition.backgroundColor = .clear
             cell.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             cell.lblTermsAndCondition.textColor = .secondary
-            if objData.terms_status == "Accepted"{
+            // Phase 5: the server's Accepted, or a HEALTHY signature on this phone — never a refused one.
+            let termsOrder = objData.unique_id ?? ""
+            if EffectiveFieldState.termsShownAsSigned(serverStatus: objData.terms_status, operations: syncOps, orderUniqueId: termsOrder,
+                                                      termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: termsOrder) ?? ""){
                 cell.lblTermsAndCondition.textColor = .background
                 cell.viewTermsAndCondition.backgroundColor = .secondary
             }
@@ -855,7 +908,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 
             
             //CHECK DELIVERY CHECKLIST
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: true){
+            if self.checkListOpensReport(selectIndex: indexPath.row, isDelivery: true){
                 cell.lblCheckListDeliv.textColor = .background
                 imgColor(imgColor: cell.imgCheckListDeliv, colorHex: .background)
                 cell.viewCheckListDeliv.backgroundColor = .secondary
@@ -868,7 +921,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
       
             //CHECK RETURN CHECKLIST
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: false){
+            if self.checkListOpensReport(selectIndex: indexPath.row, isDelivery: false){
                 cell.lblCheckListRet.textColor = .background
                 imgColor(imgColor: cell.imgCheckListRet, colorHex: .background)
                 cell.viewCheckListRet.backgroundColor = .secondary
@@ -880,7 +933,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
 
             
-            if self.checkCheckListStatus(selectIndex: indexPath.row, isDelivery: true) == false{
+            if self.returnCheckListAvailable(selectIndex: indexPath.row) == false{
                 cell.lblCheckListRet.textColor = .lightGray
                 imgColor(imgColor: cell.imgCheckListRet, colorHex: .lightGray)
                 cell.viewCheckListRet.backgroundColor = .clear
@@ -904,9 +957,11 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             cell.btnPhotVideoRet.addTarget(self, action: #selector(self.btnReturnImageVideoUploadClicked(_:)), for: .touchUpInside)
 
             cell.btnCheckListDeliv.tag = indexPath.row
+            cell.btnCheckListDeliv.accessibilityIdentifier = "orderList.checklist.delivery"
             cell.btnCheckListDeliv.addTarget(self, action: #selector(self.btnCheckListDelivClicked(_:)), for: .touchUpInside)
 
             cell.btnCheckListRet.tag = indexPath.row
+            cell.btnCheckListRet.accessibilityIdentifier = "orderList.checklist.return"
             cell.btnCheckListRet.addTarget(self, action: #selector(self.btnCheckListRetClicked(_:)), for: .touchUpInside)
 
             //CEHCK PRODUCT TYPE
@@ -954,30 +1009,34 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             return
         }
         
-        //GET DATA
-        let objData = self.arrOrderList[indexPath.row]
-        
-     
-        //ORDER DETAILS SCREEN
-        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-            newViewController.delegate = self
-            newViewController.selectIndex = indexPath.row
-            newViewController.strOrderUniqueId = objData.unique_id ?? ""
-            newViewController.strOrderID = "\(objData.order_number ?? "")"
-            newViewController.OrderID = "\(objData.id ?? 0)"
-            self.navigationController?.pushViewController(newViewController, animated: true)
-        }
+        guard self.arrOrderList.indices.contains(indexPath.row) else { return }
+
+        //ORDER DETAILS SCREEN — the one entry a notification tap uses too (mobile issue #9)
+        OrderDetailsEntry.openFromOrdersList(self, order: self.arrOrderList[indexPath.row], row: indexPath.row)
     }
-    
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {
-        
-        //UPDATE DATA
-        self.arrOrderList.remove(at: selectIndex)
-        self.arrOrderList.insert(objOrderData, at: selectIndex)
+
+    /// Order Details closed with its copy of `order`: replace that order's row, found by its
+    /// stable unique_id. An order this list doesn't hold (opened from a notification, newer than
+    /// the loaded page) refreshes the list instead, so it appears when the filters include it.
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?) {
+        guard self.isViewLoaded else { return }   // not shown yet: it loads its first page when it appears
+        guard let uid = order.unique_id, !uid.isEmpty else { self.refreshList(); return }
+        if let index = self.arrMainOrderList.firstIndex(where: { $0.unique_id == uid }) {
+            self.arrMainOrderList[index] = order
+        }
+        guard let row = self.arrOrderList.firstIndex(where: { $0.unique_id == uid }) else {
+            self.refreshList()
+            return
+        }
+        self.arrOrderList[row] = order
+        if let asOf = asOf { self.orderCopyAsOf[uid] = asOf }
 
         //RELOAD TABLE
-        self.tblView.reloadRows(at: [IndexPath(row: selectIndex, section: 0)], with: .automatic)
+        if self.tblView.numberOfSections > 0, self.tblView.numberOfRows(inSection: 0) == self.arrOrderList.count {
+            self.tblView.reloadRows(at: [IndexPath(row: row, section: 0)], with: .automatic)
+        } else {
+            self.tblView.reloadData()
+        }
     }
     
 //    
@@ -1013,7 +1072,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 //        
         let objData = self.arrOrderList[sender.tag]
     
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: true){
+        if self.checkListOpensReport(selectIndex: sender.tag, isDelivery: true){
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isUpdateData = true
@@ -1026,23 +1085,18 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
             }
         }
         else{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
-                newViewController.isDeliveryType = true
-//                newViewController.delegate = self
-                newViewController.selectIndex = sender.tag
-                newViewController.strOrderUniqueId = objData.unique_id ?? ""
-                newViewController.strOrderID = "\(objData.order_number ?? "")"
-
-                self.navigationController?.pushViewController(newViewController, animated: true)
-            }
+            // Universal sequencing (2026-09-14): the outbound checklist opens
+            // through Assembly Review — every entity of the order, each with its
+            // own STOP / GO — and the review opens the focused checklist.
+            ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                              orderUniqueId: objData.unique_id ?? "",
+                                              orderNumber: objData.order_number ?? "",
+                                              origin: ChecklistEntry.Origin(kind: .orderList, selectIndex: sender.tag))
         }
-        
-   
     }
     
     @objc func btnCheckListRetClicked(_ sender : UIButton) {
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: true) == false{
+        if self.returnCheckListAvailable(selectIndex: sender.tag) == false{
             return
         }
 
@@ -1053,7 +1107,7 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
         
         let objData = self.arrOrderList[sender.tag]
         
-        if self.checkCheckListStatus(selectIndex: sender.tag, isDelivery: false){
+        if self.checkListOpensReport(selectIndex: sender.tag, isDelivery: false){
             
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
@@ -1160,7 +1214,11 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
     }
     
     func linceUploadSucess(selectIndex: Int, arrImage: [String]) {
-        if self.arrOrderList.count == 0{
+        // The row comes from whoever opened the license screen; Order Details opened from a
+        // notification has none (-1) — then just redraw what is visible.
+        guard self.arrOrderList.indices.contains(selectIndex),
+              self.tblView.numberOfSections > 0, self.tblView.numberOfRows(inSection: 0) > selectIndex else {
+            self.redrawVisibleRows()
             return
         }
 
@@ -1319,28 +1377,22 @@ extension OrderListViewController : UITableViewDelegate, UITableViewDataSource, 
 //        return false
 //    }
 //
-    func checkCheckListStatus(selectIndex: Int, isDelivery : Bool) -> Bool{
-        //GET DATA
-        if self.arrOrderList.count == 0{
-            return false
-        }
-        let objData = self.arrOrderList[selectIndex]
-        
-        let checklistType = isDelivery ? "Delivery" : "Return"
-        if getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(objData.unique_id ?? "")") != nil{
-            return true
-        }
-        
-        for obj in objData.arrProduct{
-            if isDelivery {
-                return obj.is_delivered ?? false
+    /// Same rule as Order Details (ChecklistLegCompletion): a leg opens — and shows as — the
+    /// completed report only when EVERY eligible line is complete for its current cycle;
+    /// with unfinished equipment the tile opens the checklist flow for it.
+    func checkListOpensReport(selectIndex: Int, isDelivery: Bool) -> Bool {
+        guard self.arrOrderList.indices.contains(selectIndex) else { return false }
+        let order = self.arrOrderList[selectIndex], uid = order.unique_id ?? ""
+        return ChecklistLegCompletion.opensCompletedReport(orderUniqueId: uid, products: order.arrProduct, isDelivery: isDelivery,
+                                                           serverStateAsOf: self.orderCopyAsOf[uid], operations: self.operationsSnapshot())
+    }
 
-            }
-            else{
-                return obj.is_returned ?? false
-            }
-        }
-        return false
+    /// Return opens once some eligible equipment of the order is out with the customer.
+    func returnCheckListAvailable(selectIndex: Int) -> Bool {
+        guard self.arrOrderList.indices.contains(selectIndex) else { return false }
+        let order = self.arrOrderList[selectIndex], uid = order.unique_id ?? ""
+        return ChecklistLegCompletion.returnAvailable(orderUniqueId: uid, products: order.arrProduct,
+                                                      serverStateAsOf: self.orderCopyAsOf[uid], operations: self.operationsSnapshot())
     }
 //
 //    func checkCheckListActive(selectIndex: Int) -> Bool{

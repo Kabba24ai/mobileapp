@@ -74,6 +74,88 @@ executed.
 ## What's covered by the app-host files
 - `QueueLineModelTests` — Queue Line item + nested product/equipment mapping,
   empty-payload safety, completed-item detection.
+- `QueueLinePresentationTests` (target **RentnKingHostedTests**, runs inside the app on a
+  Simulator/device) — Queue Line board presentation: Truck → `icon_delivery_pending` +
+  "Delivery", Store → `icon_store` + "In Store" from ONE rule (icon and label can never
+  disagree; both assets resolve in the app bundle), and the card's single Update button
+  (solid at rest → hollow + disabled the instant it is tapped; highlight never undoes
+  that; reset restores solid). The rapid double-tap → ONE checklist push is covered by
+  `PreparationLifecycleUITests/testQueueLineBoardPresentation`.
+- `QueueLineFilterTests` (target **RentnKingHostedTests**) — Queue Line filters: Type uses the
+  card-icon predicate, Store AND Type, the active-filter line and empty-scope wording, the
+  remembered Delivery Store resolving against the live store list (missing → All, forgotten;
+  unknown list → kept and named from the feed/memory), same-name stores told apart by id, and
+  the UserDefaults round trip where All is an explicit remembered choice. The sheet, the sticky
+  store across reopen/relaunch and the stale-store fallback are covered end to end by
+  `PreparationLifecycleUITests/testQueueLineFilters` and `…/testARememberedStoreThatNoLongerExistsFallsBackToAll`.
+- `AssemblyReviewPresentationTests` (target **RentnKingHostedTests**) — the Assembly Review
+  screen rendered from the shared `queue_line_assembly` fixture (dependent-assembly model,
+  2026-09-14): every frozen Product Option by its stored label (including "No Bucket"), the ONE
+  affirmative control (red X + hollow Available → green check + filled Available, no Not
+  Available button), the derived STOP/GO badge, Continue hollow-and-inactive at STOP and
+  filled at GO, the removed redundancies (no unit-status badge, item-availability summary,
+  checklist line, blocker paragraph, customer header, instructions, Unbundle), focus on the
+  tapped entity, and the board's one-card-per-entity grouping in the least-advanced lane
+  (`QueueLineBoardAssembly`; independent same-order lines stay separate). End to end on
+  staging: `PreparationLifecycleUITests/testDependentAssemblyIsStopUntilEveryRequirementIsConfirmedThenGo`,
+  `…/testIndependentLineProceedsAndItsFocusedSaveStagesOnlyItself`,
+  `…/testNoBucketIsConfirmedLikeAnyOptionAndAnUnassignedDependentMemberHoldsStop` and
+  `…/testBundleFocusedSaveThenReversalUnstagesAndConfirmingNeverRestages`
+  (seed: scratchpad `seed_assembly.php` with persisted related/bundle edges, line ids via
+  `TEST_RUNNER_KABBA_QLA_*`). `openCard` now passes through the review (confirm all → Continue).
+  **Universal entry (2026-09-14)** — the same file also pins `ChecklistEntry`, the ONE helper every
+  entry point uses: Queue Line card, Orders list and Order Details all open Assembly Review first
+  (a second tap for the same order pushes nothing), the review builds the focused Delivery
+  Checklist for every origin (only the origin flags differ), Save / finalization Submit / media
+  upload return to the review FIRST and the origin stays beneath it, and an In Transit member
+  still offers Continue (the driver completes the same checklist at the customer) while delivered
+  equipment does not. End to end on staging:
+  `PreparationLifecycleUITests/testOrderDetailsEntersTheDeliveryChecklistThroughAssemblyReviewAndReturnsToOrderDetails`
+  (order 9305, one line, no options: STOP → GO → checklist → Save → review → Order Details) and
+  `…/testTheOrdersListEntersThroughAssemblyReviewShowingEachEntityOfTheOrderAndReturnsToTheList`
+  (order 9301 unfocused: two entities, two gates, back to the list). The Return leg is inbound and
+  keeps its direct path; a completed checklist's record view (`CheckListUpdateViewController`,
+  `isUpdateData`) is not a checklist entry and is untouched.
+  **Assignment from the review (2026-09-14)** — the machine reads "Name · #TAG" (never the tag alone)
+  and the identity is the affordance for changing it; an unassigned member shows "No equipment
+  selected" + **Assign** and no Available control; In Transit / delivered members are not
+  reassignable. Both Assign and the identity tap run `EquipmentAssignmentFlow` — the checklist's
+  own picker (status sections, "Select Equipment ID", Cancel / Select), status triage, "start over"
+  confirmation and Laravel's reason picklist, ending in the ONE canonical `queue_line.switch_equipment`
+  operation — so there is exactly one selector and one service (`EquipmentReassignmentService`, first
+  assignment and reassignment alike). `AssemblyReviewTests` (KabbaSyncCore) pins the local rules: a
+  switch recorded on this phone shows the replacement by name and tag before the feed catches up
+  (`QueueLineLocalOverlay.pendingEquipment`), a unit decision is keyed by the unit it named so the old
+  machine's Available never carries onto the replacement, assignment alone leaves STOP, a rejected
+  switch changes nothing. `PreparationLifecycleTests` pins `EquipmentIdentity`, `EquipmentPickTriage`
+  and the informational identity on the switch payload. On staging:
+  `PreparationLifecycleUITests/testUnassignedMemberIsAssignedFromTheReviewThenReassignedAndEachNewUnitStartsUnconfirmed`
+  (9303: Assign → direct spare, no reason; identity tap → non-direct spare, reason sheet; option
+  confirmations stand; board reads the new unit) and
+  `…/testVReassigningInsideTheChecklistReturnsTheReviewToStopWithTheNewUnit` (9302: GO → checklist →
+  the checklist's substitution → the review shows the new unit unconfirmed, STOP · 1 of 2).
+  **Known automation-only limitation (not a product defect, 2026-09-15)** — in the OLDER
+  checklist-driven-staging suite, `testB_partialThenSubstitute` fails identically on the simulator
+  and on the physical phone: after the answer picker / hours keyboard has been used, the checklist
+  product header cell is exposed to the XCUITest harness as ONE opaque element (identifier
+  "Mini Excavator * 1"), so the harness cannot read the "<name>    ||    <code>" Equipment ID row
+  even though the screen renders and works correctly. C, D, E, F1–F3 cascade from B (they assume
+  B's substitution happened). `testR2_outOfBandReassignment` fails at its board-card precondition
+  ("#EXC-A under Staged") in every environment although the server state after the raw swap is
+  verified correct via tinker; the cause is not isolated. Checklist accessibility was deliberately
+  NOT redesigned to satisfy the harness. Passing in the same suite: 02, A, G, H1–H3, board
+  presentation, filters, remembered-store fallback, substitution reason.
+- `AssemblyReviewTests` (KabbaSyncCore) — the Assembly Review contract decode (a dependent
+  assembly derived from a persisted related-product edge, the gate, the dependency block), the
+  ONE durable operation `queue_line.availability` (payload / identity / request / FIFO with the
+  line's own checklist ops; a reversal is the same operation with `not_available`), the local
+  overlay (latest confirmation wins, a reversal demotes a Staged member until a later Save,
+  Delivered / In Transit never demoted), and the pure policy: least-advanced aggregation,
+  effective availability, the derived STOP/GO gate over every member, refusal wording.
+- `PreparationLifecycleTests` (KabbaSyncCore) also covers the switch **reason** policy — required
+  unless the replacement's assigned product IS the ordered product, Laravel's picklist — and the
+  attribution rule (the checklist's employee before the login account); the on-device reason
+  sheet is exercised by `…/testASubstitutionAsksForAReasonWhenTheUnitIsNotADirectMatch`.
 - `OfflineQueueModelTests` — the LEGACY driver-checklist & delivery/pickup queue
   models, including the `attempts` counter and the `kMaxSyncAttempts` cap that now
   applies only to the delivery/pickup-inputs fallback queue (the driver checklist
@@ -135,6 +217,30 @@ and that the `oldAPI` URL family is gone from the client), `Phase5ContractTests`
 `auth_login_success`, `auth_unauthenticated_expired`, `app_update_required`, `route_retired`,
 `app_release_no_policy`). The Keychain access group is exercised on device by `RentnKingHostedTests`
 (above); the share extension's request headers are exercised on device, not here.
+
+## Equipment Audit (mobile yard workflow, 2026-10-05)
+
+- **Core** (`KabbaSyncCore/EquipmentAuditTests.swift`, `swift test --filter EquipmentAuditTests`): decodes the shared Laravel fixtures (`equipment_audit_*.json`, generated by `EquipmentAuditContractFixturesTest`) and pins the phone's presentation and routing — default filter / working store from the Section Auditor assignment, two-line rows, section progress, search across every section, one-tap vs mismatch vs deliberate menu, Verified By defaults, request bodies.
+- **UI** (`RentnKingUITests/EquipmentAuditUITests.swift`) against a local Laravel on `:8124`:
+  1. Seed: `RentnKingUITests/EquipmentAuditStagingSeed.php` (instructions in its header).
+  2. Serve the Laravel checkout: `cd public && DB_DATABASE=kabba_audit_mobile API_DOMAIN=localhost API_DOMAIN_URL=http://localhost:8124 CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync MAIL_MAILER=log php -S 127.0.0.1:8124 ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php`
+  3. `TEST_RUNNER_KABBA_BASE_URL=http://localhost:8124/api/admin/v1/ TEST_RUNNER_KABBA_PASSWORD=audit-pass-123 [TEST_RUNNER_KABBA_SHOT_DIR=<dir>] xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingUITests -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:RentnKingUITests/EquipmentAuditUITests`
+  Scenarios: John (Section Auditor) one-tap verify → Location Mismatch → Verify & Move → Mark Unresolved → rental found in the yard → Move Off-Site (Equipment's validation) → Return On-Site → Verified By override; Vera (Verify only) — a mismatch can only be recorded as Unresolved; Billy (no permission) — told plainly. Action sheets on iOS 26 are popovers anchored to the row (no Cancel button): the tests pick items with `choose(_:_:)`, which waits for the menu to settle.
+
+## Supplier Directory (2026-11-13)
+
+- **Core** (`KabbaSyncCore/SupplierDirectoryTests.swift`, `swift test --filter SupplierDirectoryTests`): decodes Laravel's own responses (`supplier_directory_*.json`, captured from the API's feature-test world — `tests/Feature/Api/Mobile/Suppliers` on the Laravel side) and pins request paths, the Add Supplier form's rules and body (never a financial field), the call / email / website / Apple Maps links (built only from real values), the wording, offline filtering and the bounded, company-scoped read-only copy.
+- **UI** (`RentnKingUITests/SupplierDirectoryUITests.swift`) against a local Laravel on `:8124`: seed `RentnKingUITests/SupplierDirectoryStagingSeed.php` (instructions in its header), then `TEST_RUNNER_KABBA_BASE_URL=http://localhost:8124/api/admin/v1/ [TEST_RUNNER_KABBA_SHOT_DIR=<dir>] xcodebuild test -project RentnKing.xcodeproj -scheme RentnKingUITests -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:RentnKingUITests/SupplierDirectoryUITests`. Look-up → paging past 25 → contact search → detail → Website opens Safari, Address opens Apple Maps; Add Supplier → Saved → record opens → searchable → adding it again offers the existing record; a contract driver is refused. The app-wide keyboard toolbar covers controls below the focused field: dismiss the keyboard before tapping them.
+- **Hosted** (`Hosted/SupplierDirectoryHostedTests.swift`): the real screens over a stubbed URLSession behind `KabbaAPIClient` — the Home tile in row 4 beside CRM, directory search / Inactive filter / Add Supplier, the offline list from the phone's copy, the forbidden message, the detail's links and payment-terms rule, and Add Supplier: required name, duplicate sheet (Open existing / Add as a Different Supplier / Keep Editing), the server's 409, create → the new record opens, offline = nothing saved.
+
+## Customer-site video sync (2026-11-14)
+- **Core** (`KabbaSyncCore/CustomerSiteCompletionTests.swift`): the upload names the filmed unit; once Kabba acknowledges a cycle-less upload with `checklist_execution_resolved`, its anchor is the file's cycle (the active one, an earlier one, none); an older Kabba or a failed decision keeps the phone's estimate; the reported case after a restart, a pruned record and on another phone.
+- **UI** (`RentnKingUITests/CustomerSiteVideoSyncUITests.swift`) against a local Laravel on `:8124` with the Kabba `fix/cycle-less-media-anchor-2026-11-14` change: seed `RentnKingUITests/CustomerSiteVideoSyncStagingSeed.php` (header: three orders prepared by Employee A, Arrived, unassigned). V0 as B (fresh install) films each order from Main Order before opening its checklist; the runner assigns BASE+1/+2 to B and BASE+3 to C; V2 (relaunch), V1 (after deleting B's sync record for BASE+1 from the app container's `Library/Application Support/KabbaSync/operations`) and V3 (fresh install as C) open the stop from Dispatch and Submit must land on Main Order. Env: `TEST_RUNNER_KABBA_BASE_URL/EMAIL/PASSWORD`, `TEST_RUNNER_KABBA_VIDEO_BASE`, `TEST_RUNNER_KABBA_VIDEO_CARDS` (the orders' internal ids — Dispatch cards show "#<id>"), `TEST_RUNNER_KABBA_VIDEO_CAPTURE=camera` on a physical phone. 2026-11-14 on the iPhone 17 simulator: all four pass with the change; against `main` without it, V3 is sent back to Video (the reported discrepancy).
+
+## Call Customer phone + Home tiles (mobile issue #10, 2026-11-15)
+- **Core** (`KabbaSyncCore/CustomerPhoneNumberTests.swift`): the number the Call / Send Message sheet dials and texts — Kabba's "(865) 555-0142" → `+18655550142`, a number's own country code kept (`+44 …` never becomes `+1+44 …`), +1 only for a bare ten-digit number, an extension read but not dialled, nothing to dial for "", "N/A" or too few digits.
+- **Hosted** (`Hosted/CustomerPhoneActionHostedTests.swift`, `Hosted/HomeTileGridHostedTests.swift`, plus `DriverDeliveryFlowHostedTests.testTheChecklistPhoneAndTheAddressPagePhoneOfferTheSameSheetAndVerifyNothing`): Delivery Address shows the name and the number (icon + number, one ≥44 pt button inside the address card); tapping it opens the Driver Checklist's sheet (same actions), verifies and saves nothing and keeps the wizard on its page; only Verify Address verifies; no number → "No phone number on this order." with nothing to tap. Home at iPhone SE / 13 mini / 17 / 17 Pro Max: the owner's four rows (`HomeTile.rows`), equal tiles between the bars, each tile's own button under the finger (hit-tested) and opening its feature, the look kept, stable ids, installing twice changes nothing.
+- **UI** against a local Laravel on `:8124`: seed `RentnKingUITests/CustomerCallPhoneStagingSeed.php` (header; `APP_TIMEZONE` = the shop's), then `-only-testing:RentnKingUITests/HomeTilesUITests` (H1 order and fit, H2 every tile opens its feature — run on each supported size) and `-only-testing:RentnKingUITests/CustomerCallPhoneUITests` (P1 the checklist's and the address page's numbers open the same sheet; Call reaches iOS's own prompt on a physical phone and is always cancelled, Send Message opens Messages and is cancelled; the status is unchanged until Verify Address; P2 no number). Env: `TEST_RUNNER_KABBA_BASE_URL`, `TEST_RUNNER_KABBA_EMAIL=driver@callphone.local`, `TEST_RUNNER_KABBA_PASSWORD=callphone-pass-123`.
 
 ## Next tests to add
 - `DriverChecklistSyncHandler` request building (needs the app host or a small

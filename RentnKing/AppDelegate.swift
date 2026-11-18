@@ -17,8 +17,6 @@ var pastPickupCount : Int = 0
 var strUUID : String = ""
 
 //NOTIFICATIN DIC
-var dicNotificationData : NSDictionary = [:]
-var isHomeScreen : Bool = false
 var arrNotifications : [NotificationsModel] = []
 
 let defaultsToExtension = UserDefaults(suiteName: "group.com.RentnKingNew.shared")
@@ -99,6 +97,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         
         //SET FIREBASE AND NOTIFICATION
         self.setFireBase_Notificaiton(application: application)
+        #if DEBUG
+        StagingTestHarness.scheduleOrderNotificationIfRequested(trigger: .launch)
+        #endif
       
         //SAVE TOKEN
         
@@ -209,6 +210,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 syncDeliveryPickupInputsWithAPI()
                 self.uploadAllData()          // retry pending media when connectivity returns
                 KabbaSync.kick("network restored", ignoreBackoff: true)
+                DispatchOfflineSync.trigger(.networkRestored)   // Dispatch offline (Phase 3): repair the working set
             }
         }
     }
@@ -662,12 +664,7 @@ extension AppDelegate :WebServiceHelperDelegate {
                 if let userData = data["user"] as? NSDictionary{
                     
                     //SAVE USER DATA
-                    let userObj = User()
-                    userObj.id = userData.getStringForID(key: "id")
-                    userObj.email = userData.getStringForID(key: "email")
-                    userObj.full_name = userData.getStringForID(key: "full_name")
-                    
-                    
+                    let userObj = User.fromLoginResponse(userData)
                     
                     //SAVE OBJECT
                     UserDefaults.standard.user = userObj

@@ -80,6 +80,65 @@ extension EmptyDataView{
         configure(imageName: "", title: "No results found.", subtitle:"", tintColor: UIColor.primary)
     }
     
+    /// Dispatch offline (Phase 3): this phone has never downloaded Dispatch and is offline.
+    func dispatchNotDownloaded(){
+        configure(imageName: "", title: "Dispatch isn't downloaded to this phone yet", subtitle: "Connect to the internet once to download today's work.", tintColor: UIColor.primary)
+    }
+
+    /// Dispatch offline (Phase 4): this order has no copy on this phone and the phone is offline.
+    func orderNotDownloaded(){
+        configure(imageName: "", title: "This order isn't downloaded to this phone yet", subtitle: "Connect to the internet once to open it.", tintColor: UIColor.primary)
+    }
+
+    /// Mobile issue #9: Kabba answered that the order isn't there for this company.
+    func orderUnavailable(){
+        configure(imageName: "", title: "This order isn't available", subtitle: "It may have been deleted, or it belongs to another company.", tintColor: UIColor.primary)
+    }
+
+    /// Dispatch offline (Phase 4): Terms & Conditions are signed on the server's page.
+    func termsNeedConnection(){
+        configure(imageName: "", title: "Signing Terms & Conditions needs a connection", subtitle: "Connect to the internet to sign. The rest of the order keeps working offline.", tintColor: UIColor.primary)
+    }
+
+    /// The order has no usable signing link.
+    func termsUnavailable(){
+        configure(imageName: "", title: "Terms & Conditions aren't available for this order", subtitle: "", tintColor: UIColor.primary)
+    }
+
+    // Dispatch offline (Phase 5): the order's frozen agreement, signed locally.
+
+    func termsNotRequired(){
+        configure(imageName: "", title: "Terms & Conditions aren't required for this order", subtitle: "", tintColor: UIColor.primary)
+    }
+
+    func termsAlreadyAccepted(){
+        configure(imageName: "", title: "Terms & Conditions are already accepted for this order", subtitle: "", tintColor: UIColor.primary)
+    }
+
+    func termsSignedOnThisPhone(synced: Bool){
+        configure(imageName: "", title: "Signed on this phone",
+                  subtitle: synced ? "Synced with Kabba." : "It syncs automatically when the phone is online.", tintColor: UIColor.primary)
+    }
+
+    func termsUnableToVerify(){
+        configure(imageName: "", title: "Unable to Verify Order Terms — Refresh the Order Before Signing",
+                  subtitle: "Connect to the internet and reopen this order so its terms can be downloaded again.", tintColor: UIColor.primary)
+    }
+
+    /// The order has no trustworthy agreement to sign (the server's word, online or remembered offline).
+    func termsAgreementUnavailable(){
+        configure(imageName: "", title: "Terms are unavailable for this order.", subtitle: "Please contact the office.", tintColor: UIColor.primary)
+    }
+
+    func termsNotDownloaded(){
+        configure(imageName: "", title: "Terms & Conditions for this order aren't downloaded to this phone yet",
+                  subtitle: "Connect to the internet to load them.", tintColor: UIColor.primary)
+    }
+
+    func termsCouldNotLoad(){
+        configure(imageName: "", title: "Couldn't load the Terms & Conditions", subtitle: "Check the connection and try again.", tintColor: UIColor.primary)
+    }
+
     func noItemsFound(){
         configure(imageName: "", title: "No products in the cart.", subtitle:"", tintColor: UIColor.primary)
     }

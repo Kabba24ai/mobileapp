@@ -53,7 +53,9 @@ func saveDriverChecklistLocally(order_product_unique_id: String,
                                 equipment_key_location: String,
                                 equipment_driver_status: String,
                                 checklist_type: String,
-                                driver_checks: [Int]? = nil) -> String? {
+                                driver_checks: [Int]? = nil,
+                                equipment_unique_id: String = "",
+                                call_verification: CustomerCallVerification? = nil) -> String? {
     if let engine = KabbaSync.engine {
         do {
             let operation = try DriverChecklistSyncHandler.enqueue(
@@ -65,7 +67,9 @@ func saveDriverChecklistLocally(order_product_unique_id: String,
                 equipmentKeyLocation: equipment_key_location,
                 equipmentDriverStatus: equipment_driver_status,
                 checklistType: checklist_type,
-                driverChecks: driver_checks
+                driverChecks: driver_checks,
+                equipmentUniqueId: equipment_unique_id,
+                callVerification: call_verification
             )
             return operation.id
         } catch {

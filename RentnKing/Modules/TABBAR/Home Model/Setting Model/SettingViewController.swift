@@ -20,6 +20,9 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
 
     /// About / release-notes section (built once, below the email).
     private let aboutStack = UIStackView()
+    /// Build details for support — source revision, configuration, install channel and build
+    /// time. Hidden until the Version line is tapped, so normal Settings stays uncluttered.
+    private let buildDetailsLabel = UILabel()
 
     /// Release data now lives in the AppReleaseInfo model object.
     private var releases: [AppRelease] { AppReleaseInfo.all }
@@ -91,7 +94,9 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         self.setupAboutSection()
     }
 
-    /// Builds the About block: Version, Release Date, Release Notes list, Full Archive.
+    /// Builds the About block: Version, Build Date, Release Notes list, Full Archive.
+    /// Every value comes from AppReleaseInfo (bundle + build stamp + the entry
+    /// matching the installed version) — never from array position.
     func setupAboutSection() {
         guard aboutStack.superview == nil else { return }   // build once
 
@@ -111,9 +116,23 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
             return l
         }
 
-        let latest = AppReleaseInfo.latest
         let versionLabel = keyValue("Version:  ", AppReleaseInfo.versionDisplay)
-        let releaseDateLabel = keyValue("Release Date:  ", latest?.date ?? "")
+        let buildDateLabel = keyValue("Build Date:  ", AppReleaseInfo.buildDate)
+
+        // Tap the version → the build details (tap them to copy for support).
+        versionLabel.isUserInteractionEnabled = true
+        versionLabel.accessibilityIdentifier = "settings.version"
+        versionLabel.accessibilityTraits = .button
+        versionLabel.accessibilityHint = "Shows the build details for support"
+        versionLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(toggleBuildDetails)))
+        buildDetailsLabel.numberOfLines = 0
+        buildDetailsLabel.font = SetTheFont(fontName: regular, size: 13)
+        buildDetailsLabel.textColor = grayValue
+        buildDetailsLabel.text = AppReleaseInfo.buildIdentity.summary
+        buildDetailsLabel.isHidden = true
+        buildDetailsLabel.isUserInteractionEnabled = true
+        buildDetailsLabel.accessibilityIdentifier = "settings.buildDetails"
+        buildDetailsLabel.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(copyBuildDetails)))
 
         let notesHeader = UILabel()
         notesHeader.attributedText = NSAttributedString(string: "Release Notes",
@@ -123,7 +142,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         notesLabel.numberOfLines = 0
         let notesPara = NSMutableParagraphStyle(); notesPara.lineSpacing = 6
         notesLabel.attributedText = NSAttributedString(
-            string: (latest?.notes ?? []).map { "~ \($0)" }.joined(separator: "\n"),
+            string: AppReleaseInfo.currentNotes.map { "~ \($0)" }.joined(separator: "\n"),
             attributes: [.foregroundColor: grayValue, .font: SetTheFont(fontName: regular, size: 16),
                          .paragraphStyle: notesPara])
 
@@ -144,7 +163,8 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         view.addSubview(aboutStack)
 
         aboutStack.addArrangedSubview(versionLabel)
-        aboutStack.addArrangedSubview(releaseDateLabel)
+        aboutStack.addArrangedSubview(buildDetailsLabel)
+        aboutStack.addArrangedSubview(buildDateLabel)
 
         // Sync status (Phase 2): what is still on this phone waiting for Kabba, and the
         // diagnostics screen (Retry / Discard / Sync Now, ids for support).
@@ -157,7 +177,7 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         aboutStack.addArrangedSubview(notesHeader)
         aboutStack.addArrangedSubview(notesLabel)
 //        aboutStack.addArrangedSubview(fullArchive)
-        aboutStack.setCustomSpacing(24, after: releaseDateLabel)
+        aboutStack.setCustomSpacing(24, after: buildDateLabel)
         aboutStack.setCustomSpacing(10, after: notesHeader)
 
         NSLayoutConstraint.activate([
@@ -167,10 +187,19 @@ class SettingViewController: UIViewController, UIGestureRecognizerDelegate, Navi
         ])
     }
 
+    @objc func toggleBuildDetails() {
+        buildDetailsLabel.isHidden.toggle()
+    }
+
+    @objc func copyBuildDetails() {
+        UIPasteboard.general.string = AppReleaseInfo.buildIdentity.summary
+        KabbaSync.showConfirmationToast("Build details copied", duration: 1.0)
+    }
+
     @objc func btnFullArchiveClicked() {
         // Present every past release (version, date, notes) in a scrollable dark sheet.
         let archive = ReleaseArchiveViewController()
-        archive.entries = releases.map { ($0.version, $0.date, $0.notes) }
+        archive.entries = releases.map { ($0.version, AppReleaseInfo.displayDate(for: $0), $0.notes) }
         archive.modalPresentationStyle = .overFullScreen
         archive.modalTransitionStyle = .crossDissolve
         self.present(archive, animated: true)
@@ -229,6 +258,9 @@ extension SettingViewController{
 
         // Sync Engine: stop sending; stored operations stay on the phone for the next session.
         KabbaSync.sessionDidEnd()
+
+        // A tapped order notification still waiting is forgotten: the next sign-in never inherits it.
+        OrderNotificationRouter.shared.sessionEnded()
 
         //REMOVE ALL DATA
         UserDefaults.standard.user = nil

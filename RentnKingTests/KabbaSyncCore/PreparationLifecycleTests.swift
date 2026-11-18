@@ -14,6 +14,137 @@ import XCTest
 /// replacement machine out of the gate.
 final class PreparationLifecycleTests: XCTestCase {
 
+    // MARK: - Switch reason + attribution (2026-09-13)
+
+    /// Laravel's EquipmentReassignmentService refuses a switch without a reason
+    /// unless the replacement is a DIRECT match; unknown counts as non-direct.
+    func testAReasonIsRequiredUnlessTheReplacementIsAProvenDirectMatch() {
+        XCTAssertFalse(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 42, orderedProductId: 42), "direct match")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 43, orderedProductId: 42), "alternate")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: nil, orderedProductId: 42), "unknown assigned product")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 0, orderedProductId: 42), "zero is not an id")
+        XCTAssertTrue(PreparationPolicy.switchReasonRequired(replacementAssignedProductId: 42, orderedProductId: nil), "ordered product unknown")
+    }
+
+    func testTheStandardReasonsAreLaravelsPicklist() {
+        XCTAssertEqual(PreparationPolicy.standardSwitchReasons, [
+            "Reserved unit unavailable",
+            "Original unit down for maintenance or damage",
+            "Better-suited unit available",
+            "Correcting a mis-assignment",
+            "Customer request",
+        ])
+        XCTAssertEqual(PreparationPolicy.switchReasonTitle(), "Why this unit?")
+        XCTAssertTrue(PreparationPolicy.switchReasonMessage(replacementCode: "QL-X1").contains("QL-X1"))
+    }
+
+    /// The employee the checklist names for the product wins; the signed-in account
+    /// only fills in while nobody is selected; nothing → no attribution → no switch.
+    func testTheSwitchIsAttributedToTheChecklistsEmployeeBeforeTheLoginAccount() {
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: "PER-YARD", contextEmployeeUniqueId: "PER-LOGIN"), "PER-YARD")
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: "", contextEmployeeUniqueId: "PER-LOGIN"), "PER-LOGIN")
+        XCTAssertEqual(PreparationPolicy.performedBy(selectedEmployeeUniqueId: nil, contextEmployeeUniqueId: "PER-LOGIN"), "PER-LOGIN")
+        XCTAssertNil(PreparationPolicy.performedBy(selectedEmployeeUniqueId: nil, contextEmployeeUniqueId: ""))
+    }
+
+    func testTheSubstitutionPayloadCarriesTheReasonOnlyWhenOneWasGiven() {
+        var capture = EquipmentSubstitutionCapture(orderUniqueId: "ORD-1", orderProductUniqueId: "ORD-PRD-0001",
+                                                   supersededExecutionId: "EXE-1", previousEquipmentUniqueId: "EQP-A",
+                                                   replacementEquipmentUniqueId: "EQP-B", performedByUniqueId: "PER-YARD")
+        XCTAssertNil(PreparationOperationBuilder.substitutionPayload(capture)["reason"])
+        capture.reason = "Customer request"
+        let payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertEqual(payload["reason"]?.stringValue, "Customer request")
+        XCTAssertEqual(payload["performed_by"]?.stringValue, "PER-YARD")
+        XCTAssertEqual(payload["equipment_unique_id"]?.stringValue, "EQP-B")
+    }
+
+    // ── Equipment identity — the ONE picker vocabulary (2026-09-14) ───────
+
+    func testEquipmentIdentityReadsNameThenTagAndThePickerRowIsTheChecklistsFormat() {
+        XCTAssertEqual(EquipmentIdentity.line(name: "Kubota SVL75", displayId: "1234"), "Kubota SVL75 · #1234")
+        XCTAssertEqual(EquipmentIdentity.line(name: "Kubota SVL75", displayId: nil), "Kubota SVL75")
+        XCTAssertEqual(EquipmentIdentity.line(name: "", displayId: "1234"), "#1234")
+        XCTAssertEqual(EquipmentIdentity.line(name: nil, displayId: nil), "")
+        XCTAssertEqual(EquipmentIdentity.pickerRow(name: "Kubota SVL75", displayId: "1234"), "Kubota SVL75    ||    1234")
+        XCTAssertEqual(EquipmentIdentity.displayId(fromPickerRow: "Kubota SVL75    ||    1234"), "1234")
+        let unit = EquipmentCandidate(uniqueId: "EQP-1", displayId: "5678", name: "SANY SW405K", statusLabel: "Available", requiresReason: true)
+        XCTAssertEqual(unit.identityLine, "SANY SW405K · #5678")
+        XCTAssertEqual(unit.pickerRow, "SANY SW405K    ||    5678")
+    }
+
+    func testThePickTriageIsTheChecklistsStatusRule() {
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Available"), .proceed)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("available"), .proceed)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Rented"), .refuseRented)
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Maint. Hold"), .askAboutStatus("Maint. Hold"))
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Damaged"), .askAboutStatus("Damaged"))
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Off-Site"), .drop)
+        XCTAssertEqual(EquipmentPickTriage.forStatus(nil), .drop)
+    }
+
+    // ── Category + operational order (2026-09-18) ──────────────────────────
+
+    /// The picker's sections read the way the yard reads the fleet: what can be staged now,
+    /// then what is on hold, what is damaged, what is out with a customer. Rented is a SECTION
+    /// (visible), not a permission — the triage above still refuses it at Select.
+    func testThePickersStatusSectionsFollowTheOperationalOrderNotTheAlphabet() {
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Rented", "Damaged", "Available", "Maint. Hold", "Damaged"]),
+                       ["Available", "Maint. Hold", "Damaged", "Rented"])
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Damaged", "Available"]), ["Available", "Damaged"], "alphabetical would agree here")
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Maint. Hold", "Damaged"]), ["Maint. Hold", "Damaged"], "…and disagree here")
+        XCTAssertEqual([EquipmentStatusOrder.rank("available"), EquipmentStatusOrder.rank("Maint. Hold"), EquipmentStatusOrder.rank("Maintenance"),
+                        EquipmentStatusOrder.rank("Damaged"), EquipmentStatusOrder.rank("Rented")], [0, 1, 1, 2, 3])
+        // Nothing outside the four canonical statuses exists; were a label to appear, it follows, alphabetically.
+        XCTAssertEqual(EquipmentStatusOrder.sections(["Zeta", "Rented", "Alpha"]), ["Rented", "Alpha", "Zeta"])
+        XCTAssertEqual(EquipmentPickTriage.forStatus("Rented"), .refuseRented, "a visible rented unit is still not assignable")
+    }
+
+    func testTheCategoryOptionIsLaravelsCategoryNotAName() {
+        XCTAssertEqual(EquipmentCategoryOption(metaJSON: ["unique_id": "PCAT-QDSL-HWPL", "title": " Attachments - Skid Steer ", "source": "current_equipment"]),
+                       EquipmentCategoryOption(uniqueId: "PCAT-QDSL-HWPL", title: "Attachments - Skid Steer"))
+        XCTAssertNil(EquipmentCategoryOption(metaJSON: nil), "an unscoped list names no category")
+        XCTAssertNil(EquipmentCategoryOption(metaJSON: ["unique_id": "", "title": "Skid Steer"]))
+        XCTAssertEqual(EquipmentCategoryOption.allTitle, "All categories")
+    }
+
+    func testTheSubstitutionPayloadCarriesTheReplacementsIdentityForLocalReaders() {
+        var capture = EquipmentSubstitutionCapture(orderUniqueId: "ORD-1", orderProductUniqueId: "ORD-PRD-0001",
+                                                   supersededExecutionId: "EXE-1", previousEquipmentUniqueId: "EQP-A",
+                                                   replacementEquipmentUniqueId: "EQP-B", performedByUniqueId: "PER-YARD")
+        var payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertNil(payload["equipment_name"])
+        XCTAssertNil(payload["equipment_display_id"])
+        capture.replacementName = "SANY SW405K"
+        capture.replacementDisplayId = "5678"
+        payload = PreparationOperationBuilder.substitutionPayload(capture)
+        XCTAssertEqual(payload["equipment_name"]?.stringValue, "SANY SW405K")
+        XCTAssertEqual(payload["equipment_display_id"]?.stringValue, "5678")
+        XCTAssertEqual(payload["equipment_unique_id"]?.stringValue, "EQP-B", "the canonical field is unchanged")
+    }
+
+    func testAPendingSwitchNamesTheReplacementOnTheBoardOverlayAndARejectedOneDoesNot() {
+        let switchOp = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001",
+                          payload: .object(["order_product_unique_id": .string("ORD-PRD-0001"), "equipment_unique_id": .string("EQP-B"),
+                                            "equipment_name": .string("SANY SW405K"), "equipment_display_id": .string("5678")]))
+        let overlay = QueueLineLocalOverlay.from([switchOp])
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.uniqueId, "EQP-B")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.name, "SANY SW405K")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.displayId, "5678")
+        XCTAssertEqual(overlay.pendingEquipment(for: "ORD-PRD-0001")?.isPendingSync, true)
+        XCTAssertNil(overlay.pendingEquipment(for: "ORD-PRD-0002"))
+
+        let synced = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001", state: .synced,
+                        payload: .object(["equipment_unique_id": .string("EQP-B")]))
+        XCTAssertEqual(QueueLineLocalOverlay.from([synced]).pendingEquipment(for: "ORD-PRD-0001")?.isPendingSync, false,
+                       "a synced switch still names the unit until the feed catches up")
+
+        let rejected = op(PreparationOperationBuilder.substitutionType, product: "ORD-PRD-0001", state: .needsAttention,
+                          payload: .object(["equipment_unique_id": .string("EQP-B")]))
+        XCTAssertNil(QueueLineLocalOverlay.from([rejected]).pendingEquipment(for: "ORD-PRD-0001"),
+                     "Kabba refused the switch — the old unit is still the unit")
+    }
+
     // MARK: - Context builders (wire-shaped, so decoding is covered too)
 
     private func contextJSON(
@@ -308,6 +439,28 @@ final class PreparationLifecycleTests: XCTestCase {
     func testTheReturnLegHasNoPreDepartureCutoff() throws {
         let returnLeg = try ChecklistContext.decode(envelopeData: contextJSON(leg: "return"))
         XCTAssertNil(PreparationPolicy.block(for: returnLeg))
+    }
+
+    // ── 9b. The phone's own trip stage locks the checklist (spec §10.2, D9) ──
+
+    func testTheEffectiveTripStageBlocksBeforeTheCachedContextIsConsulted() throws {
+        // A cached context whose in_transit is stale (false) — the phone departed offline.
+        let stale = try ChecklistContext.decode(envelopeData: contextJSON(status: "prepared", queueStaged: true, inTransit: false))
+
+        XCTAssertEqual(PreparationPolicy.block(for: stale, tripStage: .onMyWay), .inTransit)
+        XCTAssertEqual(PreparationPolicy.block(for: stale, tripStage: .arrived), .inTransit, "Arrived is still on the road for the yard's purposes")
+        XCTAssertNil(PreparationPolicy.block(for: stale, tripStage: .notStarted), "not departed: the existing rule (the context) decides")
+        XCTAssertFalse(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .onMyWay))
+        XCTAssertFalse(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .arrived))
+        XCTAssertTrue(PreparationPolicy.mayRestartChecklist(stale, hasLocalAnswers: true, tripStage: .notStarted))
+    }
+
+    func testADeliveredLegOutranksTheTripStageAndReturnIgnoresIt() throws {
+        let delivered = try ChecklistContext.decode(envelopeData: contextJSON(status: "completed", isDelivered: true, executionStatus: "completed"))
+        XCTAssertEqual(PreparationPolicy.block(for: delivered, tripStage: .arrived), .delivered)
+
+        let returnLeg = try ChecklistContext.decode(envelopeData: contextJSON(leg: "return"))
+        XCTAssertNil(PreparationPolicy.block(for: returnLeg, tripStage: .arrived), "Return has no pre-departure phase to protect")
     }
 
     // ── 11. Multi-line isolation ─────────────────────────────────────────

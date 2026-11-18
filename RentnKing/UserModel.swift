@@ -19,6 +19,17 @@ class User : NSObject,NSCoding {
     override init() {
         super.init()
     }
+
+    /// The signed-in user from a login response's `user` (both login paths). Keeps `unique_id`:
+    /// offline work is attributed to whoever is signed in NOW (Dispatch offline P4-D5).
+    static func fromLoginResponse(_ userData: NSDictionary) -> User {
+        let user = User()
+        user.id = userData.getStringForID(key: "id")
+        user.unique_id = userData.getStringForID(key: "unique_id")
+        user.email = userData.getStringForID(key: "email")
+        user.full_name = userData.getStringForID(key: "full_name")
+        return user
+    }
     
     func encode(with coder: NSCoder) {
         coder.encode(id, forKey: "id")

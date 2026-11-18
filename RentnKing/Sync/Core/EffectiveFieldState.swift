@@ -36,6 +36,8 @@ enum EffectiveFieldState {
     static let returnMediaType = "return_media.upload"
     static let licenseMediaType = "license_media.upload"
     static let termsAcceptedType = "terms.accept"
+    /// Dispatch offline Phase 5: a signature captured on this phone, bound to the order's frozen agreement.
+    static let termsSignedType = "terms.sign"
     static let driverChecklistType = "driver_checklist.update"
     /// Pre-departure preparation lifecycle (2026-09): the two operations that
     /// DISCARD a preparation cycle. Both are the phone's local-first record of
@@ -51,11 +53,15 @@ enum EffectiveFieldState {
 
     /// Every retained operation counts as durable completion for WORKFLOW
     /// purposes — including needsAttention (work preserved) and synced
-    /// (record retained after ack, so there is no race with a stale feed).
+    /// (record retained after ack, so there is no race with a stale feed) —
+    /// except a superseded one: retired history that the world moved past.
     static func countsAsDurableEvidence(_ state: SyncState) -> Bool {
         switch state {
         case .pending, .syncing, .synced, .needsAttention:
             return true
+        case .superseded:
+            // Retired: the world moved past this decision (StaleAvailabilityRetirement). History only.
+            return false
         }
     }
 
@@ -157,15 +163,47 @@ enum EffectiveFieldState {
     }
 
     /// Terms & Conditions requirement satisfied? server truth (Accepted/Exempt)
-    /// ∨ durable local acceptance op. Terms are an ORDER-level fact — any
-    /// terms.accept evidence for the order satisfies, whichever product's
-    /// workflow surfaced the signing.
+    /// ∨ durable local evidence. Terms are an ORDER-level fact — one signature
+    /// covers every line of its order, whichever product's workflow surfaced it:
+    ///   • terms.accept (the hosted page already recorded acceptance server-side):
+    ///     any retained op for the order, as before;
+    ///   • terms.sign (signed on this phone, Phase 5): a HEALTHY op (pending /
+    ///     syncing / synced) for this order whose terms identity is the verified
+    ///     agreement this phone holds for it (`termsIdentity`; empty = the phone
+    ///     holds none, nothing contradicts the op). A parked (Needs Attention)
+    ///     terms.sign never satisfies: the server refused it (the wrong order's
+    ///     document, corrupted data) — it is kept, never relabelled.
     static func termsSatisfied(serverAccepted: Bool,
                                       operations: [SyncOperation],
-                                      orderUniqueId: String) -> Bool {
-        serverAccepted || hasDurableEvidence(in: operations,
-                                             types: [termsAcceptedType],
-                                             orderUniqueId: orderUniqueId)
+                                      orderUniqueId: String,
+                                      termsIdentity: String = "") -> Bool {
+        serverAccepted
+            || hasDurableEvidence(in: operations, types: [termsAcceptedType], orderUniqueId: orderUniqueId)
+            || !healthyTermsSignatures(in: operations, orderUniqueId: orderUniqueId, termsIdentity: termsIdentity).isEmpty
+    }
+
+    /// The Order List's T&C tile (display only, Phase 5 hardening): the server's Accepted, or a HEALTHY
+    /// terms.sign for this order at the verified identity. A signing is never turned into an in-memory
+    /// "Accepted" — so a signature the server refuses (Needs Attention) stops showing as signed.
+    static func termsShownAsSigned(serverStatus: String?,
+                                   operations: [SyncOperation],
+                                   orderUniqueId: String,
+                                   termsIdentity: String) -> Bool {
+        serverStatus == "Accepted"
+            || !healthyTermsSignatures(in: operations, orderUniqueId: orderUniqueId, termsIdentity: termsIdentity).isEmpty
+    }
+
+    /// The terms.sign operations that count for this order and verified identity.
+    static func healthyTermsSignatures(in operations: [SyncOperation],
+                                       orderUniqueId: String,
+                                       termsIdentity: String) -> [SyncOperation] {
+        guard !orderUniqueId.isEmpty else { return [] }
+        return operations.filter { op in
+            op.type == termsSignedType
+                && op.identity.orderUniqueId == orderUniqueId
+                && countsAsDurableEvidence(op.state) && op.state != .needsAttention
+                && (termsIdentity.isEmpty || TermsSignOperationBuilder.termsIdentity(of: op) == termsIdentity)
+        }
     }
 
     /// Delivery VIDEO requirement satisfied for ONE order product?
@@ -178,36 +216,88 @@ enum EffectiveFieldState {
     static func deliveryVideoSatisfied(serverHasVideo: Bool,
                                               operations: [SyncOperation],
                                               orderProductUniqueId: String,
-                                              activeExecutionId: String = "") -> Bool {
+                                              activeExecutionId: String = "",
+                                              activeEquipmentUniqueId: String = "") -> Bool {
         if serverHasVideo { return true }
-        guard !orderProductUniqueId.isEmpty else { return false }
+        return !deliveryVideoEvidence(in: operations, orderProductUniqueId: orderProductUniqueId,
+                                      activeExecutionId: activeExecutionId,
+                                      activeEquipmentUniqueId: activeEquipmentUniqueId).isEmpty
+    }
+
+    /// The durable delivery-media operations that carry a VIDEO for this
+    /// product and count for the active cycle (the ONE evidence rule behind
+    /// `deliveryVideoSatisfied` and `MediaRequirementPolicy`, 2026-09-27).
+    ///
+    /// - `activeExecutionId`: the cycle the caller knows is active ("" = unknown).
+    /// - `activeEquipmentUniqueId`: the physical unit that cycle inspects ("" = unknown).
+    static func deliveryVideoEvidence(in operations: [SyncOperation],
+                                      orderProductUniqueId: String,
+                                      activeExecutionId: String = "",
+                                      activeEquipmentUniqueId: String = "") -> [SyncOperation] {
+        guard !orderProductUniqueId.isEmpty else { return [] }
 
         // Preparation-cycle identity (2026-09): a walk-around video is evidence
-        // about ONE physical machine. When the caller knows which cycle is
-        // active, only that cycle's video counts — so a video shot for the unit
-        // a substitution replaced can never let the replacement skip its own.
+        // about ONE physical machine. A video that NAMES a cycle counts only for
+        // that cycle — so a video shot for the unit a substitution replaced can
+        // never let the replacement skip its own.
         let superseded = supersededExecutionIds(in: operations)
         let discardedAt = lastDiscardAt(in: operations, orderProductUniqueId: orderProductUniqueId)
 
-        return operations.contains { op in
+        return operations.filter { op in
             guard op.type == deliveryMediaType,
                   countsAsDurableEvidence(op.state),
                   op.identity.orderProductUniqueId == orderProductUniqueId,
                   op.assets.contains(where: { $0.mimeType.hasPrefix("video/") }) else { return false }
 
-            let opExecution = op.identity.checklistExecutionId ?? ""
-
-            if !activeExecutionId.isEmpty {
-                return opExecution == activeExecutionId
+            // Kabba's decision, once it has one (2026-11-14): Laravel anchors a file the
+            // phone could not name to the item's live cycle, or to none, and says so in
+            // the upload acknowledgment. From then on that anchor is the file's cycle,
+            // exactly as if the phone had named it, so this phone, every other phone and
+            // the server's `delivery_video_present` agree. The estimate further down only
+            // covers a file Kabba has not decided yet: still queued, or acknowledged by an
+            // older Kabba that does not decide.
+            var opExecution = op.identity.checklistExecutionId ?? ""
+            if opExecution.isEmpty, let decided = serverCycleAnchor(of: op) {
+                guard let anchored = decided else { return false } // Kabba: it counts toward no cycle
+                opExecution = anchored
             }
 
-            // No active cycle known (legacy/offline first open): the evidence
-            // still stands unless this phone discarded its cycle, or captured
-            // it before a discard it cannot attribute.
-            if !opExecution.isEmpty, superseded.contains(opExecution) { return false }
+            if !opExecution.isEmpty {
+                if !activeExecutionId.isEmpty { return opExecution == activeExecutionId }
+                // No active cycle known (legacy/offline first open): the evidence
+                // still stands unless this phone discarded its cycle, or captured
+                // it before a discard it cannot attribute.
+                if superseded.contains(opExecution) { return false }
+                if let discardedAt, op.queuedAt < discardedAt { return false }
+                return true
+            }
+
+            // Cycle-less video (2026-11-13, customer-site bounce): captured where
+            // this phone knew no cycle yet — Main Order on a phone that never
+            // loaded this line's checklist (another employee prepared the unit in
+            // the yard), or the legacy queue. Until Kabba decides its cycle (above;
+            // an older Kabba never does, and files it outside every cycle), this
+            // durable record is the only evidence the driver filmed. It stands for the active cycle
+            // — the same rule the Return leg applies — unless it is provably about
+            // something else: captured before this phone discarded the product's
+            // preparation, or filming a different physical unit than the one the
+            // active cycle inspects (a substitution made on another phone).
             if let discardedAt, op.queuedAt < discardedAt { return false }
+            let filmedUnit = op.identity.equipmentUniqueId ?? ""
+            if !filmedUnit.isEmpty, !activeEquipmentUniqueId.isEmpty, filmedUnit != activeEquipmentUniqueId { return false }
             return true
         }
+    }
+
+    /// Kabba's cycle decision for an acknowledged media upload (2026-11-14):
+    /// `nil` = not decided (not acknowledged yet, or an older Kabba without
+    /// `checklist_execution_resolved`); `.some(nil)` = the file belongs to no cycle;
+    /// `.some(id)` = the cycle Kabba anchored it to.
+    static func serverCycleAnchor(of op: SyncOperation) -> String?? {
+        guard let data = op.acknowledgment?.data,
+              data["checklist_execution_resolved"]?.boolValue == true else { return nil }
+        let anchored = data["checklist_execution_id"]?.stringValue ?? ""
+        return .some(anchored.isEmpty ? nil : anchored)
     }
 
     /// Leg completion satisfied? server truth ∨ durable local completion op.
@@ -221,4 +311,146 @@ enum EffectiveFieldState {
             orderProductUniqueId: orderProductUniqueId
         )
     }
+}
+
+// MARK: - Driver trip stage (Load Map & Go / On My Way / Arrived) — review F2
+//
+// The same local-first rule, for the driver's trip on one order product + leg:
+//
+//     durable local action → immediate effective state → later server confirmation
+//
+// Load Map & Go and Arrived are driver_checklist.update operations the Sync Engine
+// keeps on disk (pending → synced, retained). Screen 2 and the Dispatch card derive
+// the stage from them over the row's server copy, so leaving Dispatch, a force-quit
+// or a relaunch offline can never forget a departure or an arrival — and never
+// offers the step again. There is no second store for the stage.
+
+/// The driver's trip stage as Screen 2 shows it.
+enum DriverTripStage: Int, Comparable {
+    /// The Driver Checklist; Load Map & Go not yet tapped.
+    case notStarted = 0
+    /// Departed ("On My Way"): the server stamps ready_to_go_at.
+    case onMyWay = 1
+    case arrived = 2
+
+    static func < (a: DriverTripStage, b: DriverTripStage) -> Bool { a.rawValue < b.rawValue }
+}
+
+/// What the row's own checklist block says — server truth as last downloaded.
+struct DriverStageServerState: Equatable {
+    var readyToGoAt: String?
+    var arrivedAt: String?
+    var isArrived: Bool
+
+    init(readyToGoAt: String?, arrivedAt: String?, isArrived: Bool) {
+        self.readyToGoAt = readyToGoAt
+        self.arrivedAt = arrivedAt
+        self.isArrived = isArrived
+    }
+
+    /// From the row's checklist block (spec §3.3.2): the server's Arrived is
+    /// trusted only when it is WHOLE — the flag AND the stamp. A row written
+    /// before every recall cleared both (RC10) can carry a stale is_arrived
+    /// with no arrived_at; that is not an arrival, so it can never resume a
+    /// recalled delivery at Main Order.
+    init(isArrivedFlag: Bool, arrivedAt: String?, readyToGoAt: String?) {
+        let stamp = arrivedAt.flatMap { $0.isEmpty ? nil : $0 }
+        self.init(readyToGoAt: readyToGoAt, arrivedAt: stamp, isArrived: isArrivedFlag && stamp != nil)
+    }
+}
+
+struct DriverStageEffective: Equatable {
+    var stage: DriverTripStage
+    /// "yyyy-MM-dd HH:mm:ss" — the server's stamp, else when the driver did it on this phone.
+    var readyToGoAt: String?
+    var arrivedAt: String?
+
+    /// Load Map & Go records a departure only before the leg departed.
+    var recordsDeparture: Bool { stage == .notStarted }
+    /// Arrived records an arrival only once — afterwards the button only continues.
+    var recordsArrival: Bool { stage != .arrived }
+}
+
+/// Durable local evidence of every driver trip on this phone, from engine.snapshot().
+struct DriverStageOverlay: Equatable {
+
+    /// Statuses the server stamps ready_to_go_at for (On My Way back-fills it).
+    static let departureStatuses: Set<String> = ["On My Way", "Ready to Go"]
+    static let arrivalStatus = "Arrived"
+
+    struct Step: Equatable {
+        let isArrival: Bool
+        let capturedAt: Date
+        /// When the server confirmed it; nil while it is not confirmed (pending, syncing, needs attention).
+        let confirmedAt: Date?
+    }
+
+    /// "order product|leg" → its trip steps.
+    private let steps: [String: [Step]]
+
+    static func from(_ operations: [SyncOperation]) -> DriverStageOverlay {
+        var steps: [String: [Step]] = [:]
+        for op in operations where op.type == EffectiveFieldState.driverChecklistType
+            && EffectiveFieldState.countsAsDurableEvidence(op.state) {
+            guard let product = op.payload["order_product_unique_id"]?.stringValue, !product.isEmpty,
+                  let leg = op.payload["checklist_type"]?.stringValue, !leg.isEmpty,
+                  let status = op.payload["equipment_driver_status"]?.stringValue else { continue }
+            let isArrival = status == arrivalStatus
+            // A partial save carries answers only — it is no stage.
+            guard isArrival || departureStatuses.contains(status) else { continue }
+            steps[key(product, leg), default: []].append(
+                Step(isArrival: isArrival, capturedAt: op.capturedAt,
+                     confirmedAt: op.state == .synced ? op.acknowledgment?.acknowledgedAt : nil))
+        }
+        return DriverStageOverlay(steps: steps)
+    }
+
+    /// The stage for one order product + leg (`leg` = the driver checklist_type:
+    /// "delivery" | "pickup"). The furthest of server truth and every local step the server
+    /// has not yet been OBSERVED to supersede: a step stands while unconfirmed, and once
+    /// confirmed only until a copy of the row asked for after that confirmation is shown
+    /// (the office may have recalled the trip since). `serverObservedAt` = when the server
+    /// was asked for the row shown; nil = unknown, so every local step stands.
+    func effective(orderProductUniqueId: String, leg: String, server: DriverStageServerState,
+                   serverObservedAt: Date?) -> DriverStageEffective {
+        let serverReady = server.readyToGoAt.flatMap { $0.isEmpty ? nil : $0 }
+        let serverArrived = server.arrivedAt.flatMap { $0.isEmpty ? nil : $0 }
+        var stage: DriverTripStage = server.isArrived ? .arrived : (serverReady != nil ? .onMyWay : .notStarted)
+        var readyToGoAt = serverReady
+        var arrivedAt = server.isArrived ? serverArrived : nil
+
+        let standing = (steps[Self.key(orderProductUniqueId, leg)] ?? []).filter { step in
+            guard let confirmed = step.confirmedAt, let observed = serverObservedAt else { return true }
+            return observed < confirmed
+        }
+        // Like the server: the first departure stamps ready_to_go_at, the latest Arrived wins.
+        let departure = standing.filter { !$0.isArrival }.min { $0.capturedAt < $1.capturedAt }
+        let arrival = standing.filter(\.isArrival).max { $0.capturedAt < $1.capturedAt }
+        if arrival != nil {
+            stage = max(stage, .arrived)
+        } else if departure != nil {
+            stage = max(stage, .onMyWay)
+        }
+        if stage >= .onMyWay, readyToGoAt == nil {
+            readyToGoAt = (departure ?? arrival).map { Self.stamp($0.capturedAt) }
+        }
+        if stage == .arrived, arrivedAt == nil {
+            arrivedAt = arrival.map { Self.stamp($0.capturedAt) }
+        }
+        return DriverStageEffective(stage: stage, readyToGoAt: readyToGoAt, arrivedAt: arrivedAt)
+    }
+
+    /// The row format ("yyyy-MM-dd HH:mm:ss", phone time zone) Screen 2 already stamps and parses.
+    static func stamp(_ date: Date) -> String {
+        stampFormatter.string(from: date)
+    }
+
+    private static let stampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        return f
+    }()
+
+    private static func key(_ product: String, _ leg: String) -> String { "\(product)|\(leg)" }
 }

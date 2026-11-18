@@ -77,45 +77,20 @@ extension OrderDetailsViewController {
         ]
     }
     
-    func CallAPIforGetUsers(CatrgoryParameater : CatrgoryParameater){
-        
-        guard let parameater = try? CatrgoryParameater.asDictionary() else {
-            showAlertMessage(strMessage: str.invalidRequestParamater)
-            return
-        }
-        
-        //Declaration URL
-        let strURL = "\(Url.usersList.absoluteString!)"
-        
-        print("+++++++++++++++++++++++++++++++++==")
-        print(strURL)
-        print(parameater)
-        
-        //Create object for webservicehelper and start to call method
-        let webHelper = WebServiceHelper()
-        webHelper.methodType = "post"
-        webHelper.strURL = strURL
-        webHelper.dictType = parameater
-        webHelper.dictHeader = NSDictionary()
-        webHelper.showLogForCallingAPI = true
-        webHelper.serviceWithAlert = true
-        webHelper.indicatorShowOrHide = false
-        webHelper.callAPIwithCompletation { dic, arr, success, err in
-            indicatorHide()
+    /// Kabba itself answered no (the order isn't there for this company) — not a lost connection.
+    static func kabbaDeclined(answer: NSDictionary?, error: Error?) -> Bool {
+        if answer != nil { return true }
+        guard let apiError = error as? APIError, apiError.kind == .http, let status = apiError.statusCode else { return false }
+        return status == 403 || status == 404 || status == 422 || (200..<300).contains(status)
+    }
 
-            if dic?.getStringForID(key: "success") == "1" {
-                if let arrData = dic?["users"] as? NSArray {
-                    
-                    let arrData = Mapper<UserListModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                    self.arrUserList = arrData.sorted(by: { $0.full_name ?? "" < $1.full_name ?? "" })
-                    
-                    // Overwrite old data
-                    SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kOrderDetailUserData.rawValue)
-                }
-            }
-            else {
-                indicatorHide()
-//                showAlertMessage(strMessage: "GetUsers \(str.somethingWentWrong)")
+    func CallAPIforGetUsers(CatrgoryParameater : CatrgoryParameater){
+        // The request + company-scoped save live in callAPIforUsersList (shared with the
+        // Dispatch offline reference warm-up, Phase 4 P4-D6).
+        callAPIforUsersList(CatrgoryParameater: CatrgoryParameater) { isSaved in
+            indicatorHide()
+            if isSaved {
+                self.arrUserList = self.getUsersData().sorted(by: { $0.full_name ?? "" < $1.full_name ?? "" })
             }
         }
     }
@@ -134,6 +109,9 @@ extension OrderDetailsViewController {
             return
         }
         
+        // Dispatch offline Phase 4: when this was asked, and for which company (§4.3, Amendment B).
+        let askedAt = Date(), tenant = KabbaTenantScope.currentKey
+
         //Declaration URL
         let strURL = "\(Url.orderDetails.absoluteString!)"
         
@@ -155,9 +133,12 @@ extension OrderDetailsViewController {
                     //SET DATA
                     let map = Map(mappingType: .fromJSON, JSON: dicData as! [String : Any])
                     self.objOrderData = OrdersListModel(map: map)
+                    self.orderCopyAsOf = askedAt
                     
-                    // Overwrite old data
-                    SDKUserDefault.saveMappableObject(self.objOrderData, for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
+                    // Overwrite old data — unless a newer copy (a mission package asked later) is already here
+                    if let order = self.objOrderData {
+                        OrderDetailsCache.saveLive(order, orderUniqueId: self.strOrderUniqueId, askedAt: askedAt, tenantKey: tenant)
+                    }
                     
                     //SET THE VIEW
                     self.setTheView()
@@ -170,6 +151,16 @@ extension OrderDetailsViewController {
             else {
                 indicatorHide()
 //                showAlertMessage(strMessage: "OrderDetails \(str.somethingWentWrong)")
+                // No copy on this phone: Kabba saying the order isn't there (deleted, another
+                // company) reads "isn't available"; offline or failed reads "isn't downloaded" —
+                // never an endless skeleton.
+                if self.objOrderData == nil {
+                    if OrderDetailsViewController.kabbaDeclined(answer: dic, error: err) {
+                        self.showOrderUnavailable()
+                    } else {
+                        self.showOrderNotDownloaded()
+                    }
+                }
             }
         }
     }

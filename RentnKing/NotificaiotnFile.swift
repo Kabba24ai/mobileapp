@@ -97,6 +97,37 @@ extension AppDelegate : MessagingDelegate{
         if UserDefaults.standard.user != nil{
             self.updateToken(DeviceTokenParameater: DeviceTokenParameater(device_token: strUUID, fcm_token: fcmToken ?? ""))
         }
+
+        // Dispatch offline (Phase 2): this callback fires at every launch and on each FCM token
+        // rotation — (re)register the installation for silent Dispatch wakes.
+        registerDispatchInstallation(trigger: .tokenRefresh)
+    }
+
+    /// Registers THIS installation (X-Device-Id, added by the API client) with its FCM token for
+    /// silent Dispatch wakes. Installation-scoped: logout / user switching never unregister, and
+    /// there is no unregister call. Needs a signed-in session; a no-op otherwise.
+    func registerDispatchInstallation(trigger: DispatchInstallationRegistration.Trigger) {
+        let fcmToken = UserDefaults.standard.deviceToken
+        guard let client = KabbaAPIClient.shared,
+              DispatchInstallationRegistration.shouldRegister(fcmToken: fcmToken, hasSession: !(client.configuration.accessToken() ?? "").isEmpty),
+              let token = fcmToken else {
+            return
+        }
+
+        let request = DispatchInstallationRegistration.request(
+            fcmToken: token,
+            operationId: "op-install-" + UUID().uuidString.lowercased()
+        )
+        client.perform(request) { result in
+            #if DEBUG
+            switch result {
+            case .response(let response):
+                print("[DispatchWake] registration (\(trigger.rawValue)): \(DispatchInstallationRegistration.outcome(of: response))")
+            case .failure(let error):
+                print("[DispatchWake] registration (\(trigger.rawValue)) failed: \(error)")
+            }
+            #endif
+        }
     }
     
     func application(application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: NSError) {
@@ -109,6 +140,14 @@ extension AppDelegate : MessagingDelegate{
       // If you are receiving a notification message while your app is in the background,
       // this callback will not be fired till the user taps on the notification launching the application.
       // TODO: Handle data of notification
+
+      // Dispatch offline: a silent Dispatch wake is invisible — no badge, no UI. Phase 3 reconciles
+      // the durable working set and answers iOS exactly once (newData / noData / failed) within
+      // the background budget.
+        if let trigger = DispatchWake.trigger(fromPushUserInfo: userInfo) {
+            DispatchOfflineSync.handleWake(trigger, completionHandler: completionHandler)
+            return
+        }
 
       // With swizzling disabled you must let Messaging know about the message, for Analytics
       // Messaging.messaging().appDidReceiveMessage(userInfo)
@@ -132,53 +171,15 @@ extension AppDelegate : MessagingDelegate{
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
-        
-        //  let rootViewController = self.window!.rootViewController as! UINavigationController
-        dicNotificationData = response.notification.request.content.userInfo as NSDictionary
-        print(dicNotificationData)
-        switch response.actionIdentifier {
-        case UNNotificationDismissActionIdentifier:
-            print("Dismiss Action")
-        case UNNotificationDefaultActionIdentifier:
-            print("Select")
-            if isHomeScreen{
-                DispatchQueue.main.asyncAfter(deadline: .now()) {
-                    self.moveToNotificaitonScreen(dicData: dicNotificationData)
-                }
+        // Mobile issue #9: a tapped order notification opens through the ONE Order Details entry
+        // (OrderDetailsEntry / OrderNotificationRouter) — in the Home → Orders stack, after sign-in
+        // when needed, never over unsaved work — whether the app was open, in the background or closed.
+        if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+            let userInfo = response.notification.request.content.userInfo
+            DispatchQueue.main.async {
+                OrderNotificationRouter.shared.handleTap(userInfo: userInfo)
             }
-        default:
-            print("default")
         }
         completionHandler()
-    }
-    
-    
-    func moveToNotificaitonScreen(dicData  : NSDictionary){
-        if dicData.count == 0{
-            return
-        }
-       
-        //REDRIRECT TO SCREEN
-        let ViewController = UIApplication.getTopViewController()
-        if dicData.getStringForID(key: "order_unique_id") != ""{
-            if let orderID = dicData.getStringForID(key: "order_unique_id"){
-
-                //MOVE TO SHOW SCREEN
-                dicNotificationData = [:]
-                
-                //SHOW DETAILS SCREEN
-                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController{
-                    newViewController.strOrderUniqueId = orderID
-                    newViewController.OrderID = dicData.getStringForID(key: "order_id")
-                    newViewController.isPresent = true
-                    let vieweNavigationController = UINavigationController(rootViewController: newViewController)
-                    vieweNavigationController.modalPresentationStyle = .fullScreen
-                    ViewController?.present(vieweNavigationController, animated: true, completion: nil)
-                }
-
-            }
-        }
-
     }
 }

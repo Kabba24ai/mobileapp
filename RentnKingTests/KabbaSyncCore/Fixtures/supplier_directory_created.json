@@ -1,0 +1,46 @@
+{
+    "success": true,
+    "message": "Supplier added to Kabba.",
+    "data": {
+        "supplier": {
+            "unique_id": "SUP-A7AY-LUO0",
+            "name": "Cumberland Tool Rental",
+            "status": "Active",
+            "is_active": true,
+            "is_preferred": false,
+            "phone": "615-555-0123",
+            "email": null,
+            "website": null,
+            "address": {
+                "street": null,
+                "city": null,
+                "state": null,
+                "zip_code": null,
+                "country": null,
+                "one_line": null
+            },
+            "category": null,
+            "tags": [],
+            "contacts": [
+                {
+                    "role": "primary_contact",
+                    "label": "Primary Contact",
+                    "name": "Pat Quinn",
+                    "phone": null,
+                    "email": null
+                }
+            ],
+            "parts": {
+                "count": 0,
+                "items": []
+            },
+            "updated_at": "2026-11-13T21:33:59+00:00"
+        },
+        "can": {
+            "view": true,
+            "create": true,
+            "view_payment_terms": false
+        }
+    },
+    "request_id": "dcc71a47-d327-4a80-a038-58fb7b77fcb3"
+}

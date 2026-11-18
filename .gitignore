@@ -1,3 +1,9 @@
 # SwiftPM / test-runner build products (Scripts/test-sync-core.sh, swift test)
 .build/
 .swiftpm/
+
+# Signing and push credentials never live in this repository or the app bundle
+# (the app target's "Refuse Bundled Private Keys" build phase fails on them).
+*.p8
+*.p12
+*.pfx

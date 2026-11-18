@@ -1,14 +1,14 @@
 {
-    "order_product_unique_id": "ORD-SCH-P0WW-QMQA",
-    "order_unique_id": "ORD-MHUV-9OZX",
+    "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+    "order_unique_id": "ORD-2CL0-6OVD",
     "order_number": "7703",
     "customer_name": "Check Customer",
     "identity": {
-        "queue_line_item_id": "ORD-SCH-P0WW-QMQA",
-        "order_unique_id": "ORD-MHUV-9OZX",
-        "order_product_unique_id": "ORD-SCH-P0WW-QMQA",
-        "equipment_unique_id": "EQP-8IBL-Q4IJ",
-        "store_unique_id": "STO-KEML-VOGA",
+        "queue_line_item_id": "ORD-SCH-WPVW-I4YC",
+        "order_unique_id": "ORD-2CL0-6OVD",
+        "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+        "equipment_unique_id": "EQP-O48P-QRIZ",
+        "store_unique_id": "STO-HUSJ-IFNS",
         "fulfillment_leg": "delivery",
         "checklist_execution_id": null
     },
@@ -23,27 +23,27 @@
         }
     },
     "store": {
-        "unique_id": "STO-KEML-VOGA",
+        "unique_id": "STO-HUSJ-IFNS",
         "name": "Yard Store"
     },
     "product": {
-        "unique_id": "PRO-UUIA-OEFN",
+        "unique_id": "PRO-AZ95-AGOD",
         "name": "Skid Steer Rental",
         "image_url": "http://api.kabba.local/storage/admin/images/error/No_Image_Available.jpg"
     },
     "delivery": {
         "type_label": "Delivery Truck",
         "transport_mode": "Truck",
-        "date": "2026-09-02",
+        "date": "2026-09-27",
         "dispatch_date": null,
         "time": null
     },
     "urgency": "today",
     "assignment_state": "assignment_product_unknown",
     "equipment": {
-        "unique_id": "EQP-8IBL-Q4IJ",
-        "display_id": "EQP-P3-6A97D6F4218F5",
-        "name": "Skid Steer 6a97d6f4218f4",
+        "unique_id": "EQP-O48P-QRIZ",
+        "display_id": "EQP-P3-6AB9360249DEE",
+        "name": "Skid Steer 6ab9360249ded",
         "assigned_product_name": null,
         "status": "available",
         "status_label": "Available",
@@ -55,10 +55,11 @@
     },
     "equipment_collection": {
         "id": 4,
-        "unique_id": "EQP-8IBL-Q4IJ",
-        "equipment_name": "Skid Steer 6a97d6f4218f4",
+        "unique_id": "EQP-O48P-QRIZ",
+        "equipment_name": "Skid Steer 6ab9360249ded",
         "product_category_id": 0,
-        "equipment_id": "EQP-P3-6A97D6F4218F5",
+        "assigned_product_id": null,
+        "equipment_id": "EQP-P3-6AB9360249DEE",
         "equipment_hours": 0,
         "is_tracked": "",
         "overage_rate": 0,
@@ -80,6 +81,8 @@
         "key_starting_mechanism": "",
         "is_fuel": true,
         "is_key": false,
+        "requires_fuel_check": true,
+        "requires_key_check": false,
         "has_def": "No",
         "diesel_tank_capacity": 0,
         "def_tank_capacity": 0,
@@ -98,7 +101,7 @@
         "checklist_qas": [
             {
                 "id": 3,
-                "unique_id": "CAQST-UWKC-VUND",
+                "unique_id": "CAQST-IR7R-O0SM",
                 "question_name": "Body damage",
                 "category_id": 2,
                 "question_delivery_text": "Any body damage at delivery?",
@@ -106,14 +109,14 @@
                 "required_question": 1,
                 "category": {
                     "id": 2,
-                    "unique_id": "CACAT-4YSI-K8H8",
+                    "unique_id": "CACAT-FFGJ-MD2B",
                     "category_name": "Condition",
                     "description": ""
                 },
                 "answers": [
                     {
                         "id": 5,
-                        "unique_id": "CAANS-V2Q7-I1LT",
+                        "unique_id": "CAANS-CBF8-HJWY",
                         "answer_delivery_text": "No damage",
                         "answer_return_text": "No damage",
                         "delivery_amt": 0,
@@ -128,7 +131,7 @@
                     },
                     {
                         "id": 6,
-                        "unique_id": "CAANS-J235-TXQ1",
+                        "unique_id": "CAANS-1MJH-RGOL",
                         "answer_delivery_text": "Damaged",
                         "answer_return_text": "Damaged",
                         "delivery_amt": 0,
@@ -145,7 +148,7 @@
             },
             {
                 "id": 4,
-                "unique_id": "CAQST-YAZN-JS8F",
+                "unique_id": "CAQST-LWDY-AYCN",
                 "question_name": "Keys present",
                 "category_id": 2,
                 "question_delivery_text": "Keys handed over?",
@@ -153,14 +156,14 @@
                 "required_question": 0,
                 "category": {
                     "id": 2,
-                    "unique_id": "CACAT-4YSI-K8H8",
+                    "unique_id": "CACAT-FFGJ-MD2B",
                     "category_name": "Condition",
                     "description": ""
                 },
                 "answers": [
                     {
                         "id": 7,
-                        "unique_id": "CAANS-9HNN-EWJX",
+                        "unique_id": "CAANS-TILN-PGZ1",
                         "answer_delivery_text": "Yes",
                         "answer_return_text": "Yes",
                         "delivery_amt": 0,
@@ -175,7 +178,7 @@
                     },
                     {
                         "id": 8,
-                        "unique_id": "CAANS-8RUD-QYC6",
+                        "unique_id": "CAANS-32J7-YQVI",
                         "answer_delivery_text": "No",
                         "answer_return_text": "No",
                         "delivery_amt": 0,
@@ -211,8 +214,15 @@
         },
         "equipment_store": null
     },
-    "options_count": 0,
+    "options_count": 1,
     "payment_label": "No Payment Recorded",
+    "payment": {
+        "status": "pending",
+        "label": "Pending",
+        "basis": "unpaid",
+        "needs_review": false,
+        "review_reason": null
+    },
     "status": "pending",
     "staged": false,
     "staged_by": null,
@@ -228,5 +238,107 @@
         "switch_equipment": true,
         "open_delivery_checklist": true,
         "view_history": true
-    }
+    },
+    "lifecycle_stage": "pending",
+    "assembly": {
+        "key": "QLA-ORD-SCH-WPVW-I4YC",
+        "kind": "dependent",
+        "stage": "pending",
+        "lane": "pending",
+        "member_count": 2,
+        "stage_counts": {
+            "pending": 2,
+            "staged": 0,
+            "in_transit": 0,
+            "equipment_delivered": 0
+        },
+        "dependency": {
+            "role": "base",
+            "depends_on": null,
+            "depends_on_name": null
+        },
+        "gate": {
+            "ready": false,
+            "required_count": 3,
+            "confirmed_count": 0,
+            "blockers": [
+                {
+                    "code": "unit_unconfirmed",
+                    "subject_type": "unit",
+                    "subject_key": "EQP-O48P-QRIZ",
+                    "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+                    "product_name": "Skid Steer Rental",
+                    "label": "Skid Steer 6ab9360249ded has not been confirmed Available."
+                },
+                {
+                    "code": "option_unconfirmed",
+                    "subject_type": "option",
+                    "subject_key": "POPT-ITM-FIXT-0001",
+                    "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+                    "product_name": "Skid Steer Rental",
+                    "label": "Tooth Bucket has not been confirmed Available."
+                },
+                {
+                    "code": "unit_unconfirmed",
+                    "subject_type": "unit",
+                    "subject_key": "EQP-ESU8-8RE9",
+                    "order_product_unique_id": "ORD-SCH-KNU4-UXZO",
+                    "product_name": "Skid Steer - Brush Cutter",
+                    "label": "Skid Steer 6ab936024b967 has not been confirmed Available."
+                }
+            ]
+        }
+    },
+    "product_options": [
+        {
+            "unique_id": "POPT-ITM-FIXT-0001",
+            "name": "Tooth Bucket",
+            "included": false,
+            "availability": {
+                "state": null,
+                "acknowledged_by": null,
+                "acknowledged_at": null,
+                "note": null
+            }
+        }
+    ],
+    "availability": {
+        "unit": {
+            "equipment_unique_id": "EQP-O48P-QRIZ",
+            "state": null,
+            "acknowledged_by": null,
+            "acknowledged_at": null,
+            "note": null
+        },
+        "required_count": 2,
+        "acknowledged_count": 0,
+        "effective_state": null
+    },
+    "stage_blockers": [
+        {
+            "code": "unit_unconfirmed",
+            "subject_type": "unit",
+            "subject_key": "EQP-O48P-QRIZ",
+            "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+            "product_name": "Skid Steer Rental",
+            "label": "Skid Steer 6ab9360249ded has not been confirmed Available."
+        },
+        {
+            "code": "option_unconfirmed",
+            "subject_type": "option",
+            "subject_key": "POPT-ITM-FIXT-0001",
+            "order_product_unique_id": "ORD-SCH-WPVW-I4YC",
+            "product_name": "Skid Steer Rental",
+            "label": "Tooth Bucket has not been confirmed Available."
+        },
+        {
+            "code": "unit_unconfirmed",
+            "subject_type": "unit",
+            "subject_key": "EQP-ESU8-8RE9",
+            "order_product_unique_id": "ORD-SCH-KNU4-UXZO",
+            "product_name": "Skid Steer - Brush Cutter",
+            "label": "Skid Steer 6ab936024b967 has not been confirmed Available."
+        }
+    ],
+    "warnings": []
 }

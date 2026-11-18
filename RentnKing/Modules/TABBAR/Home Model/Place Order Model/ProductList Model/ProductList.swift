@@ -147,6 +147,11 @@ struct ProductModel: Mappable{
     internal var fuel_final_reading: String = ""
     internal var fuel_initial_reading: String = ""
 
+    /// DEF readings. nil = the server's order feed has no DEF readings (key absent: a backend
+    /// before 1.0.26 support) → no DEF row; "" = carried but not recorded yet.
+    internal var def_initial_reading: String?
+    internal var def_final_reading: String?
+
     internal var equipment_location: String?
 
     internal var arrDeliveryMedia: [LicenseModel] = []
@@ -239,6 +244,8 @@ struct ProductModel: Mappable{
 
         fuel_final_reading <- map["fuel_final_reading"]
         fuel_initial_reading <- map["fuel_initial_reading"]
+        def_initial_reading <- map["def_initial_reading"]
+        def_final_reading <- map["def_final_reading"]
         
         equipment_location <- map["equipment_location"]
 

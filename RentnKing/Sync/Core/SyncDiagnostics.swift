@@ -22,10 +22,12 @@ struct SyncSummary: Equatable {
     var syncing = 0
     var synced = 0
     var needsAttention = 0
+    /// Retired records (StaleAvailabilityRetirement) — history, not work.
+    var superseded = 0
     var pause: SyncPause = .none
 
     var outstanding: Int { pending + syncing }
-    var total: Int { pending + syncing + synced + needsAttention }
+    var total: Int { pending + syncing + synced + needsAttention + superseded }
 
     /// "2 pending · 1 needs attention" / "All synced"
     var line: String {
@@ -63,6 +65,7 @@ struct SyncDiagnosticEntry: Equatable, Identifiable {
         case .pending, .syncing: return "Pending Sync"
         case .synced:            return "Synced"
         case .needsAttention:    return "Needs Attention"
+        case .superseded:        return "Superseded"
         }
     }
 }
@@ -78,6 +81,7 @@ enum SyncDiagnostics {
             case .syncing:        s.syncing += 1
             case .synced:         s.synced += 1
             case .needsAttention: s.needsAttention += 1
+            case .superseded:     s.superseded += 1
             }
         }
         return s
@@ -91,13 +95,14 @@ enum SyncDiagnostics {
             case .syncing:        return 1
             case .pending:        return 2
             case .synced:         return 3
+            case .superseded:     return 4
             }
         }
         return operations
             .sorted {
                 let ra = rank($0.state), rb = rank($1.state)
                 if ra != rb { return ra < rb }
-                if $0.state == .synced { return $0.queuedAt > $1.queuedAt }
+                if $0.state == .synced || $0.state == .superseded { return $0.queuedAt > $1.queuedAt }
                 return $0.queuedAt < $1.queuedAt
             }
             .map(entry(for:))
@@ -115,7 +120,7 @@ enum SyncDiagnostics {
                             nextAttemptAt: op.attempts.nextAttemptAt,
                             lastStatusCode: op.attempts.lastStatusCode,
                             lastErrorCode: op.attempts.lastErrorCode,
-                            errorSummary: sanitize(op.attentionReason ?? op.attempts.lastErrorMessage),
+                            errorSummary: sanitize(op.attentionReason ?? op.supersession?.summary ?? op.attempts.lastErrorMessage),
                             lastRequestId: op.attempts.lastRequestId,
                             identitySummary: op.identity.summary,
                             acknowledgedAt: op.acknowledgment?.acknowledgedAt,

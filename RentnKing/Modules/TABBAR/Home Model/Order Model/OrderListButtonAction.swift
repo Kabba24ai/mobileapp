@@ -100,13 +100,14 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
                 newViewController.strProductUniqueId = objData.arrProduct.first?.unique_id ?? ""
                 newViewController.isReturnLeg = objData.arrProduct.contains(where: { $0.is_delivered ?? false })
                 newViewController.strOrderNumber = objData.order_number ?? ""
+                newViewController.strTermsStatus = objData.terms_status ?? ""
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
         }
     }
     
     func termsSucess(selectIndex: Int) {
-        if self.arrOrderList.count == 0{
+        guard self.arrOrderList.indices.contains(selectIndex) else {
             return
         }
         var objData = self.arrOrderList[selectIndex]
@@ -118,6 +119,13 @@ extension OrderListViewController : MFMessageComposeViewControllerDelegate, Term
         
         
         //RELOAD CELL
+        self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
+    }
+
+    /// Dispatch offline Phase 5: signed on this phone. The order keeps its server status; the cell
+    /// shows the engine's terms.sign while it is healthy (EffectiveFieldState.termsShownAsSigned).
+    func termsSignedOnThisPhone(selectIndex: Int) {
+        guard self.isViewLoaded, selectIndex >= 0, selectIndex < self.arrOrderList.count else { return }
         self.tblView.reloadRows(at: [IndexPath(row: selectIndex, column: 0)], with: .none)
     }
 }

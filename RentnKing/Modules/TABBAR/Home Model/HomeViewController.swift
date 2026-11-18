@@ -64,9 +64,9 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        isHomeScreen = true
         self.view.accessibilityIdentifier = "home.root"
         self.con_viewSize.constant = manageWidth(size: 150)
+        self.installHomeTiles()
         
         NotificationCenter.default.addObserver(self, selector: #selector(self.setcount), name: .notificationCount, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(startUploadData), name: .startUploadData, object: nil)
@@ -81,8 +81,7 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         // Observe progress & results (good for relaunch scenarios)
         NotificationCenter.default.addObserver(self, selector: #selector(onProgress(_:)), name: .bgUploadProgress, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(onFinished(_:)), name: .bgUploadFinished, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(onFailed(_:)),   name: .bgUploadFailed,   object: nil)        //CEHCK NOTIFICAITON
-        self.openDipLink()
+        NotificationCenter.default.addObserver(self, selector: #selector(onFailed(_:)),   name: .bgUploadFailed,   object: nil)
         
         //SET TIMER
 //        if timer == nil{
@@ -99,14 +98,14 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
 
     
     
-    func openDipLink() {
-        
-        //OPEN NOTIFICATION SCREEN
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if dicNotificationData.count != 0{
-                GlobalMainConstants.appDelegate?.moveToNotificaitonScreen(dicData: dicNotificationData)
-            }
-        }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // A tapped order notification waiting for sign-in (a cold launch, the Login screen) or for
+        // the employee to finish other work opens now (mobile issue #9).
+        OrderNotificationRouter.shared.resume()
+        #if DEBUG
+        StagingTestHarness.scheduleOrderNotificationIfRequested(trigger: .home)
+        #endif
     }
     
     
@@ -229,8 +228,15 @@ class HomeViewController: UIViewController, UIGestureRecognizerDelegate, Navigat
         self.viewInventory.viewBorderCorneRadius(borderColour: .secondary)
         self.viewInventory.viewCorneRadius(radius: 15, isRound: false)
 
+        self.styleEquipmentAuditTile()
+
         //SET COUNT
         self.setcount()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        self.fitHomeGridToFourRows()
     }
     
     

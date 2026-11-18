@@ -159,12 +159,40 @@ struct QueueLineLocalOverlay: Equatable {
     var completedLocally: Set<String> = []
     /// Durable local On My Way evidence for the delivery leg.
     var inTransitLocally: Set<String> = []
+    /// order product → the unit this phone assigned through the canonical switch
+    /// (pending, syncing or synced — never a rejected one), so every reader shows
+    /// the replacement's identity before the feed catches up.
+    var pendingEquipment: [String: PendingEquipment] = [:]
+
+    struct PendingEquipment: Equatable {
+        let uniqueId: String
+        let name: String?
+        let displayId: String?
+        let operationId: String
+        let syncState: SyncState
+        /// When the switch was captured on this phone — the start of the line's current assignment episode.
+        let capturedAt: Date
+        /// The server's receipt time of the switch, when its acknowledgement carried one (server clock).
+        let serverReceivedAt: Date?
+        var isPendingSync: Bool { syncState == .pending || syncState == .syncing }
+    }
 
     func isPendingStage(_ orderProductUniqueId: String) -> Bool { pendingStage[orderProductUniqueId] != nil }
+    func pendingEquipment(for orderProductUniqueId: String) -> PendingEquipment? { pendingEquipment[orderProductUniqueId] }
     func attentionReason(_ orderProductUniqueId: String) -> String? { attention[orderProductUniqueId] }
     func isStagedLocally(_ orderProductUniqueId: String) -> Bool { stagedLocally.contains(orderProductUniqueId) }
     func isCompletedLocally(_ orderProductUniqueId: String) -> Bool { completedLocally.contains(orderProductUniqueId) }
     func isInTransitLocally(_ orderProductUniqueId: String) -> Bool { inTransitLocally.contains(orderProductUniqueId) }
+
+    /// The overlay without this product's local In Transit promotion — for a driver screen
+    /// that knows (from the row's server copy) the office has since recalled that departure
+    /// (Driver Delivery Process Flow 2026-09-27, §3.4.4): the recalled step must neither lock
+    /// the review nor exclude the line from its own assembly gate.
+    func withoutLocalTransit(for orderProductUniqueId: String) -> QueueLineLocalOverlay {
+        var copy = self
+        copy.inTransitLocally.remove(orderProductUniqueId)
+        return copy
+    }
 
     static func from(_ operations: [SyncOperation]) -> QueueLineLocalOverlay {
         var overlay = QueueLineLocalOverlay()
@@ -183,6 +211,18 @@ struct QueueLineLocalOverlay: Equatable {
                 overlay.stagedLocally.remove(product)
                 overlay.pendingStage[product] = nil
                 overlay.attention[product] = nil
+                // A switch names the replacement unit; a rejected one changed nothing — including
+                // the accepted switch before it, which keeps naming the unit the server holds
+                // (2026-09-29).
+                if op.type == EffectiveFieldState.equipmentSubstitutionType, op.state != .needsAttention,
+                   let unit = op.payload["equipment_unique_id"]?.stringValue, !unit.isEmpty {
+                    overlay.pendingEquipment[product] = PendingEquipment(
+                        uniqueId: unit,
+                        name: op.payload["equipment_name"]?.stringValue,
+                        displayId: op.payload["equipment_display_id"]?.stringValue,
+                        operationId: op.id, syncState: op.state, capturedAt: op.capturedAt,
+                        serverReceivedAt: op.acknowledgment?.serverReceivedAt)
+                }
                 continue
             }
 
@@ -197,7 +237,7 @@ struct QueueLineLocalOverlay: Equatable {
                     overlay.pendingStage[product] = op.id
                 case .needsAttention:
                     overlay.attention[product] = op.attentionReason ?? "The staging Save was not accepted by Kabba."
-                case .synced:
+                case .synced, .superseded:
                     break
                 }
 

@@ -51,20 +51,6 @@ func getFlueName(strId : String) -> String{
     return "Select"
 }
 
-func FuelCalulateTotalCharge(total : Float, dSelect : Float , rSelect : Float) -> Float{
-    if dSelect != 10 && dSelect != 0 && rSelect != 0{
-        let value = (dSelect - rSelect)
-        if value > 0{
-            return (total/8) * value
-        }
-        else{
-            return 0
-        }
-    }
-    
-    return 0
-}
-
 func getCleaning(strId : String, isReturn : Bool) -> String{
     
     let arrData : [FuleTypes] = isReturn ? arrCleaningReturn : arrCleaningDelivery
@@ -76,7 +62,7 @@ func getCleaning(strId : String, isReturn : Bool) -> String{
 }
 
 
-class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UIPickerViewDataSource, UIPickerViewDelegate{
+class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     weak var delegate: CheckListDelegate?
     
     @IBOutlet weak var tblView: UITableView!
@@ -96,6 +82,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     @IBOutlet weak var con_table: NSLayoutConstraint!
     
     var isCombineChecklist: Bool = true
+    // Shared convenience values stay outside the per-equipment drafts until Preview.
+    var combinedOtherData = NoteModel()
     
     
     
@@ -138,31 +126,43 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     // product to focus, the unit the yard staged, and the delivery checklist execution if the
     // board already knew it. Empty when opened from Orders.
     var focusOrderProductUniqueId : String = ""
+    /// Queue Line Assembly Review entry (2026-09-14): the checklist was opened for
+    /// ONE member. Its Save carries staging intent for that member only — a
+    /// sibling on the same screen is never staged, restaged or refused because
+    /// of it; a changed sibling gets a progress-only prepare. Explicit context,
+    /// set by AssemblyReviewViewController — never inferred.
+    var queueLineFocusedStaging = false
+    /// Per product: the prepare fingerprint of the answers AS LOADED (server
+    /// context + restored draft), so an untouched sibling is never resent.
+    private var loadedFingerprint: [String: String] = [:]
     var queueLineEquipmentUniqueId : String = ""
     var queueLineChecklistExecutionId : String = ""
     var strSelectCategoty : String = ""
     var strSelectEquipment : String = ""
     var fromCheckListScreen: Bool = false
     
-    //PICKER VIEW
-    private let hiddenField = UITextField(frame: .zero)     // host for inputView/accessory
-    private let picker = UIPickerView()
-    private var selectedIndex: Int = 1
-    //    let data = [
-    //          ("Section: Cutting", ["Brush cutting"]),
-    //          ("Section: Boom", ["Boom - Skid", "Boom-2"])
-    //      ]
-    
-    
-    
-    
-    var pickerData: [String] = []
+    //EQUIPMENT PICKER — the ONE selector, shared with Assembly Review (2026-09-14)
+    private lazy var equipmentFlow = EquipmentAssignmentFlow(host: self)
     var selectProductIndex : Int = 0
+
+    // Driver Delivery Process Flow (2026-09-27): the mission's stage as the opener knew it
+    // (Main Order after departure hands it down); nil for yard entries. The screen floors
+    // its own derivation under it — see `missionStage`.
+    var driverStageFloor: DeliveryWorkflowStage?
+    /// Seams (hosted tests inject; production reads the engine and the cached review).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
 
     // Phase 3 — canonical checklist contexts (execution identity + questions in ONE id space),
     // keyed by order_product_unique_id. Loaded through KabbaSync.checklistContexts (server-first,
     // durable cache when offline). A product without a context falls back to the legacy shape.
     var checklistContexts: [String: ChecklistContext] = [:]
+    /// When Laravel was asked for the order copy this screen loaded (nil: unknown).
+    var orderCopyAsOf: Date?
+    /// Dispatch offline Phase 4 (P4-D4): products whose canonical checklist needs a connection —
+    /// the cached copy is the cycle a local substitution/restart replaced (or another unit), so it is
+    /// never shown and nothing is saved against it until the server's new cycle arrives.
+    var contextsNeedingConnection: Set<String> = []
     /// Compact destructive action offered when a non-final preparation exists
     /// ("Delete Checklist / Start Over"). Lives in the table footer so it never
     /// competes with the Save / Next bar.
@@ -214,7 +214,6 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
             self.arrAllMachineList = self.arrMachineList
             
             //SET DATA
-            self.setPickerData()
             self.getLocalOrderDetailData()
             
         }
@@ -254,13 +253,16 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         }
         
         //GET PRICE LIST
+        // The total re-prices when the lists arrive (an empty cache used to leave fuel and
+        // cleaning at $0 until something else recalculated).
         getPriceList { arr_data in
             self.arrPriceList = arr_data
+            if self.objOrderData != nil { self.CalculatTotalCharge() }
         }
         
         getProductSettingList(completion: { arr_data in
             self.arrProductSettingList = arr_data
-            
+            if self.objOrderData != nil { self.CalculatTotalCharge() }
         })
     }
     
@@ -289,6 +291,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                 if dicData != nil{
                     
                     self.objOrderData = dicData
+                    self.orderCopyAsOf = DispatchOfflineSync.observedAt(.checklistOrder, orderUniqueId: self.strOrderUniqueId)
                     self.isLoading = false
                     
                     var arrProduct : [ProductModel] = []
@@ -310,9 +313,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
                     
                     //UPDATE DATA
                     self.objOrderData.arrProduct = arrProduct
+                    self.dropLinesAlreadyComplete()            // another phone may have finished some
                     self.setupStaticData()
                     self.setTheView()
                     self.prefillPendingCheckListIfNeeded()
+                    self.dropLinesAlreadyComplete()            // ... after this phone saved its draft
                     self.focusQueueLineItemIfNeeded()
                     self.loadChecklistContexts()
                     self.checklistLoaded = true
@@ -341,8 +346,46 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         if pending == nil { return }
         self.objOrderData.arrProduct = pending?.order.arrProduct ?? []
         self.arrOtherData = pending?.other ?? []
+        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
+        if let convenience = getPendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType) {
+            self.combinedOtherData = convenience.other
+            self.isCombineChecklist = convenience.combine
+            self.objCombineSwitch.setOn(self.isCombineChecklist, animated: false)
+        }
+        self.objCombineSwitch.isHidden = self.arrOtherData.count < 2
+        self.lblCombine.isHidden = self.arrOtherData.count < 2
+        self.con_table.constant = self.arrOtherData.count < 2 ? 16 : 50
+        self.reconcileFuelRows()
         self.CalculatTotalCharge()
         self.tblView.reloadData()
+    }
+
+    /// Every product's fuel rows against its machine's tank facts (the checklist context's live
+    /// Equipment Management data when it is for the same unit, else the order line's machine),
+    /// adding an owed DEF row to a draft saved by an older build. Readings are never changed.
+    func reconcileFuelRows() {
+        guard let order = self.objOrderData else { return }
+        for index in order.arrProduct.indices {
+            var product = self.objOrderData.arrProduct[index]
+            let context = self.checklistContexts[product.unique_id ?? ""]
+            let facts: FuelChecklistRows.TankFacts?
+            if let context = context, context.equipment.hasUnit,
+               context.equipment.equipmentUniqueId == (product.objMachine?.unique_id ?? context.equipment.equipmentUniqueId) {
+                facts = FuelChecklistRows.TankFacts(equipment: context.equipment)
+            } else if let machine = product.objMachine {
+                facts = FuelChecklistRows.TankFacts(machine: machine)
+            } else {
+                facts = nil
+            }
+            guard let tank = facts else { continue }
+            var questions = product.arrQuestions
+            let other = index < self.arrOtherData.count ? self.arrOtherData[index] : nil
+            if FuelChecklistRows.reconcile(&questions, facts: tank, product: product, other: other,
+                                           defSupported: FuelChecklistRows.carriesDEFReadings(product: product, context: context)) {
+                product.arrQuestions = questions
+                self.objOrderData.arrProduct[index] = product
+            }
+        }
     }
     
     
@@ -353,10 +396,6 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         
         //SET PORTRAIT MODE
         AppUtility.PortraitMode()
-        
-        DispatchQueue.main.async {
-            self.setupPickerHost()
-        }
         
         //SET VIEW
         self.view.backgroundColor = .background
@@ -410,6 +449,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
         _ = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
                                  objOrderData: order, arrOtherData: self.arrOtherData)
+        savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                        combine: self.isCombineChecklist, other: self.combinedOtherData)
     }
 
     /// Background partial-progress sync (checklist-driven staging, 2026-09):
@@ -424,11 +465,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
             guard let uid = product.unique_id, let context = self.checklistContexts[uid],
                   product.objMachine != nil,
-                  !checkQuestionsIsBlank(objProduct: product) else { continue }
+                  hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
 
-            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+            let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                        isDelivery: self.isDeliveryType,
-                                                       totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                                                       charges: ChecklistLineCharge())
 
             // In Transit + incomplete → do not commit an invalid prepared
             // state (§ physical truth); the local draft still holds the edits.
@@ -446,7 +487,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     /// Stable digest of what a prepare would send for one product.
     private static func answersFingerprint(_ capture: ChecklistCapture) -> String {
         let answers = capture.answers.keys.sorted().map { "\($0)=\(capture.answers[$0] ?? "")" }.joined(separator: "|")
-        return answers + "|h:\(capture.startHours)|f:\(capture.fuelInitialReading)|c:\(capture.deliveryCleanId)|e:\(capture.employeeUserId)|s:\(capture.markStaged)"
+        return answers + "|h:\(capture.startHours)|f:\(capture.fuelInitialReading)|d:\(capture.defInitialReading)|c:\(capture.deliveryCleanId)|e:\(capture.employeeUserId)|s:\(capture.markStaged)"
     }
     
     
@@ -482,15 +523,18 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         self.objCombineSwitch.addTarget(self, action: #selector(combineSwitchChanged(_:)), for: .valueChanged)
         
         
-        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: "Combine Delivery Checklist")
+        self.lblCombine.configureLable(textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? "Combine Delivery Checklists" : "Combine Return Checklists")
         self.objCombineSwitch.isHidden = false
         self.con_table.constant = 50
         self.isCombineChecklist = true
+        self.combinedOtherData = self.arrOtherData.last?.batchCopy() ?? NoteModel()
+        self.objCombineSwitch.setOn(true, animated: false)
         if self.objOrderData.arrProduct.count == 1{
             self.lblCombine.text = ""
             self.objCombineSwitch.isHidden = true
             self.con_table.constant = 16
             self.isCombineChecklist = false
+            self.objCombineSwitch.setOn(false, animated: false)
         }
     }
     
@@ -510,169 +554,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
     }
     
     
-    private func setupPickerHost() {
-        picker.dataSource = self
-        picker.delegate = self
-        picker.backgroundColor = .white
-        
-        hiddenField.translatesAutoresizingMaskIntoConstraints = false
-        hiddenField.isHidden = true
-        // This field only hosts the equipment picker (inputView). It must NOT trigger
-        // IQKeyboardManager's keyboard-avoidance, otherwise the view slides up when the
-        // picker opens (most visible on the 2nd+ selection). Exclude it explicitly.
-        hiddenField.iq.enableMode = .disabled
-        view.addSubview(hiddenField)
-        
-        let pickerHeight: CGFloat = 260
-        let headerHeight: CGFloat = 56
-        
-        let host = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: headerHeight + pickerHeight))
-        host.backgroundColor = .black
-        host.isOpaque = true
-        
-        let header = buildPickerHeader(title: "Select Equipment ID")
-        header.frame.origin = .zero
-        
-        picker.frame = CGRect(x: 0, y: headerHeight, width: host.bounds.width, height: pickerHeight)
-        picker.autoresizingMask = [.flexibleWidth]
-        picker.backgroundColor = .white
-        picker.roundCornersView(onTopLeft: true, topRight: true, bottomLeft: false, bottomRight: false, radius: 15)
-        
-        host.addSubview(header)
-        host.addSubview(picker)
-        
-        hiddenField.inputAccessoryView = nil
-        hiddenField.inputView = host
-    }
-    
-    
-    private func buildPickerHeader(title: String) -> UIView {
-        let h: CGFloat = 56
-        let header = UIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: h))
-        header.backgroundColor = .clear
-        header.autoresizingMask = [.flexibleWidth]
-        
-        let pillH: CGFloat = 38
-        let y = (h - pillH) / 2
-        
-        // Left: Cancel pill
-        let cancel = UIButton(type: .system)
-        cancel.setTitle("Cancel", for: .normal)
-        cancel.setTitleColor(.white, for: .normal)
-        cancel.titleLabel?.font = .systemFont(ofSize: 16, weight: .medium)
-        cancel.backgroundColor = UIColor(white: 0.16, alpha: 1.0)
-        cancel.layer.cornerRadius = pillH / 2
-        cancel.contentEdgeInsets = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
-        cancel.frame = CGRect(x: 14, y: y, width: 88, height: pillH)
-        cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-        
-        // Right: Select pill
-        let select = UIButton(type: .system)
-        select.setTitle("Select", for: .normal)
-        select.setTitleColor(.white, for: .normal)
-        select.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
-        select.backgroundColor = UIColor.systemBlue
-        select.layer.cornerRadius = pillH / 2
-        select.contentEdgeInsets = UIEdgeInsets(top: 0, left: 18, bottom: 0, right: 18)
-        select.frame = CGRect(x: header.bounds.width - 14 - 92, y: y, width: 92, height: pillH)
-        select.autoresizingMask = [.flexibleLeftMargin]
-        select.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
-        
-        // Middle: Title pill (disabled look)
-        let titleBtn = UIButton(type: .system)
-        titleBtn.setTitle(title, for: .normal)
-        titleBtn.setTitleColor(UIColor(white: 0.65, alpha: 1.0), for: .normal)
-        titleBtn.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
-        titleBtn.backgroundColor = UIColor(white: 0.12, alpha: 1.0)
-        titleBtn.layer.cornerRadius = pillH / 2
-        titleBtn.isUserInteractionEnabled = false
-        
-        let leftMaxX = cancel.frame.maxX + 12
-        let rightMinX = select.frame.minX - 12
-        let midW = max(0, rightMinX - leftMaxX)
-        titleBtn.frame = CGRect(x: leftMaxX, y: y, width: midW, height: pillH)
-        titleBtn.autoresizingMask = [.flexibleWidth]
-        
-        header.addSubview(cancel)
-        header.addSubview(titleBtn)
-        header.addSubview(select)
-        
-        return header
-    }
-    
-    
-    
-    // MARK: - Actions
-    func openPicker() {
-        // Pre-departure preparation lifecycle (2026-09): the office-assigned
-        // unit is the PRESELECTED DEFAULT, not a lock — substituting a machine
-        // in the yard is routine, and this screen is the preparation workbench.
-        // The only refusals are physical: the unit already left, or it was
-        // delivered. (Laravel enforces the same two cutoffs.)
-        if let context = self.focusedChecklistContext, let block = PreparationPolicy.block(for: context) {
-            showAlertMessage(strMessage: block.message)
-            return
-        }
-        picker.reloadAllComponents()
-        // Preselect current value when reopening (clamp so it can never be out of range).
-        if !pickerData.isEmpty {
-            let safeIndex = min(max(selectedIndex, 0), pickerData.count - 1)
-            selectedIndex = safeIndex
-            picker.selectRow(safeIndex, inComponent: 0, animated: false)
-        }
-        hiddenField.becomeFirstResponder()  // shows picker + toolbar
-    }
-    
-    @objc private func cancelTapped() {
-        hiddenField.resignFirstResponder()  // dismiss without applying
-    }
-    
-    @objc private func doneTapped() {
-        selectedIndex = picker.selectedRow(inComponent: 0)
-        hiddenField.resignFirstResponder()  // apply & dismiss
-
-        if self.pickerData.indices.contains(selectedIndex){
-            let input = self.pickerData[selectedIndex]
-            // Ignore section headers ("Section: Available") — they aren't selectable equipment.
-            if input.hasPrefix("Section:") { return }
-            if let code = input.components(separatedBy: "||").last?.trimmingCharacters(in: .whitespaces) {
-                print(code) // ATMQ-1234
-                
-                let MenuID = self.arrMachineList.map{$0.equipment_id}
-                if let index = MenuID.firstIndex(of: code){
-                    
-                    let objMachineList = self.arrMachineList[index]
-                    if objMachineList.status == "Damaged" || objMachineList.status == "Maint. Hold"{
-                        //                        {Maint. Hold}
-                        let alert = UIAlertController(title: Application.appName, message: "This equipment is currently marked as \(objMachineList.status ?? ""). Do you want to automatically change its status to Available and assign it to this order?", preferredStyle: .alert)
-                        alert.addAction(UIAlertAction(title: str.yes, style: .default,handler: { (Action) in
-                            self.cancelTapped()
-                            self.requestEquipmentChange(index: index)
-                        }))
-                        alert.addAction(UIAlertAction(title: str.no, style: .default,handler: { (Action) in
-                            self.cancelTapped()
-                        }))
-                        self.present(alert, animated: true)
-                    }
-                    else if objMachineList.status == "Available"{
-                        self.requestEquipmentChange(index: index)
-                    }
-                    else if objMachineList.status == "Rented"{
-                        let alert = UIAlertController(title: Application.appName, message: "This equipment is currently rented and is not available to be assigned to this order.", preferredStyle: .alert)
-                        alert.addAction(UIAlertAction(title: str.ok, style: .default,handler: { (Action) in
-                            self.selectedIndex = 1
-                            self.cancelTapped()
-                        }))
-                        self.present(alert, animated: true)
-                    }
-                }
-            }
-        }
-    }
-    
     func callCheckListAPI(index : Int){
-        self.cancelTapped()
-
         // Applying a pick changes the rows below — remember the scroll position so the
         // follow-up reloads don't push the screen up.
         self.pickerSavedOffset = self.tblView.contentOffset
@@ -701,78 +583,6 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
         //        self.getCheckListPriceAPI(CheckListParameater: CheckListParameater(equipment_unique_id: self.arrMachineList[index].unique_id ?? "", type: self.isDeliveryType ? "delivery" : "return", order_product_unique_id: self.objOrderData.arrProduct[self.selectProductIndex].unique_id ?? ""), index: self.selectProductIndex)
     }
     
-    // MARK: - UIPickerViewDataSource/Delegate
-    func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
-    func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat { 44 }
-    
-    
-    func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-        return pickerData.count
-    }
-    
-    func pickerView(_ pickerView: UIPickerView, attributedTitleForRow row: Int, forComponent component: Int) -> NSAttributedString? {
-        guard row >= 0, row < pickerData.count else {
-            return nil
-        }
-        
-        let text = pickerData[row]
-        
-        // If it's a "section" row
-        if text.hasPrefix("Section:") {
-            return NSAttributedString(string: text.replacingOccurrences(of: "Section:", with: ""), attributes: [
-                .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Light, size: 8),
-                .foregroundColor:   UIColor.gray.withAlphaComponent(0.5)
-                
-            ])
-        }
-        
-        return NSAttributedString(string: text, attributes: [
-            .font: SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, size: 14),
-            .foregroundColor: UIColor.background
-        ])
-    }
-    
-    // Prevent selecting section rows
-    //    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-    //        
-    //        if pickerData[row].hasPrefix("Section:") {
-    //            // Jump to next selectable row
-    //            pickerView.selectRow(row + 1, inComponent: component, animated: true)
-    //        }
-    //    }
-    
-    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-        
-        guard pickerData.indices.contains(row) else { return }
-        
-        let selectedText = pickerData[row]
-        
-        // Prevent selecting section rows
-        guard selectedText.hasPrefix("Section:") else { return }
-        
-        // Find next non-section row
-        var nextRow = row + 1
-        while pickerData.indices.contains(nextRow),
-              pickerData[nextRow].hasPrefix("Section:") {
-            nextRow += 1
-        }
-        
-        // If found valid selectable row, move to it
-        if pickerData.indices.contains(nextRow) {
-            pickerView.selectRow(nextRow, inComponent: component, animated: true)
-        } else {
-            // Optional: move back to previous valid selectable row
-            var previousRow = row - 1
-            while pickerData.indices.contains(previousRow),
-                  pickerData[previousRow].hasPrefix("Section:") {
-                previousRow -= 1
-            }
-            
-            if pickerData.indices.contains(previousRow) {
-                pickerView.selectRow(previousRow, inComponent: component, animated: true)
-            }
-        }
-    }
 }
 
 
@@ -780,17 +590,11 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate, UI
 //MARK: - BUTTON ACTION
 extension CheckListViewController{
     
-    /// Removes products whose questions are all blank from both parallel arrays.
-    /// If EVERY product is blank, the first product is kept.
+    /// Removes untouched/completed products from both aligned arrays, in either mode.
     func removeBlankProducts(objOrderData: inout OrdersModel?, arrOtherData: inout [NoteModel]) {
         guard let products = objOrderData?.arrProduct, !products.isEmpty else { return }
-        
-        // Indexes of products whose questions are all blank
-        var blankIndexes = products.indices.filter { checkQuestionsIsBlank(objProduct: products[$0]) }
-        
-        // If every product is blank, keep the first one
-        if blankIndexes.count == products.count {
-            blankIndexes.removeAll { $0 == 0 }
+        let blankIndexes = products.indices.filter {
+            !hasChecklistWork(product: products[$0], other: arrOtherData[safe: $0])
         }
         
         // Remove from the highest index down so earlier indexes stay valid
@@ -800,6 +604,85 @@ extension CheckListViewController{
                 arrOtherData.remove(at: index)
             }
         }
+    }
+
+    /// Defaults loaded from the order (hours, fuel, cleaning) are not employee input.
+    /// Saved partial answers and explicit edits count, including edits back to a default.
+    func hasChecklistWork(product: ProductModel, other: NoteModel?) -> Bool {
+        if let uid = product.unique_id, self.checklistContexts[uid]?.isCompleted == true { return false }
+        if lineIsCompleteForThisLeg(product) { return false }
+        if let other = other {
+            if isDeliveryType ? other.deliveryInputEntered : other.returnInputEntered { return true }
+            let note = isDeliveryType ? other.dNote : other.rNote
+            if !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+        }
+        return product.arrQuestions.contains { question in
+            switch question.type {
+            case "text":
+                let value = isDeliveryType ? question.startHours : question.endHours
+                let initial = isDeliveryType ? product.start_hours : product.end_hours
+                return value != 0 && value != initial
+            case "fuel":
+                let value = (isDeliveryType ? question.selectFuleDelivery : question.selectFuleReturn) ?? ""
+                let initial = FuelChecklistRows.serverReading(row: question, product: product, isDelivery: isDeliveryType)
+                return !value.isEmpty && value != initial
+            case "cleaning":
+                let value = isDeliveryType ? question.startCleaning : question.endCleaning
+                let initial = "\((isDeliveryType ? product.startCleaning : product.endCleaning) ?? 0)"
+                return !value.isEmpty && value != initial
+            default:
+                return (isDeliveryType ? question.deliverAnswer : question.returnAnswer) != nil
+            }
+        }
+    }
+
+    /// This line's checklist for the screen's leg is already complete for its current cycle
+    /// (Laravel, or a durable completion op of that cycle — ChecklistLegCompletion): it is
+    /// never entered work again, whatever its loaded answers show.
+    func lineIsCompleteForThisLeg(_ product: ProductModel) -> Bool {
+        ChecklistLegCompletion.isComplete(ChecklistLegCompletion.line(for: product, serverStateAsOf: self.orderCopyAsOf),
+                                          leg: isDeliveryType ? .delivery : .return,
+                                          operations: KabbaSync.engine?.snapshot() ?? [])
+    }
+
+    /// The order-wide entry opens this screen for the equipment still OWED on this leg: lines
+    /// already complete (here or on another phone) are not shown again, so they can never be
+    /// re-enrolled. When nothing is owed the screen keeps what it was given.
+    func dropLinesAlreadyComplete() {
+        guard let products = self.objOrderData?.arrProduct, !products.isEmpty else { return }
+        let keep = products.indices.filter { !lineIsCompleteForThisLeg(products[$0]) }
+        guard !keep.isEmpty, keep.count < products.count else { return }
+        let aligned = self.arrOtherData.count == products.count
+        self.objOrderData.arrProduct = keep.map { products[$0] }
+        if aligned { self.arrOtherData = keep.map { self.arrOtherData[$0] } }
+        if self.objOrderData.arrProduct.count < 2, self.objCombineSwitch != nil {
+            self.objCombineSwitch.isHidden = true
+            self.lblCombine.isHidden = true
+            self.con_table.constant = 16
+        }
+    }
+
+    private func markChecklistInput(at index: Int) {
+        guard let other = arrOtherData[safe: index] else { return }
+        if isDeliveryType { other.deliveryInputEntered = true }
+        else { other.returnInputEntered = true }
+    }
+
+    func batchOtherData(_ rows: [NoteModel]) -> [NoteModel] {
+        let batch = rows.map { $0.batchCopy() }
+        guard self.isCombineChecklist else { return batch }
+        for other in batch {
+            if self.isDeliveryType {
+                other.dEmplayess = self.combinedOtherData.dEmplayess
+                other.dEmplayessId = self.combinedOtherData.dEmplayessId
+            } else {
+                other.rEmplayess = self.combinedOtherData.rEmplayess
+                other.rEmplayessId = self.combinedOtherData.rEmplayessId
+                other.rStore = self.combinedOtherData.rStore
+                other.rStoreId = self.combinedOtherData.rStoreId
+            }
+        }
+        return batch
     }
     
 
@@ -821,6 +704,9 @@ extension CheckListViewController{
     @IBAction private func btnSavePendingClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         guard checklistLoaded, let order = self.objOrderData, !order.arrProduct.isEmpty else { return }
+        // P4-D4, per product: a line whose checklist needs a connection is left out below (it has no
+        // usable context); every other line of the order still saves and stages.
+        let blocked = productsNeedingConnection()
 
         // 1) The durable draft — the FULL screen state, so reopening restores
         //    every product exactly as left (partial or complete).
@@ -834,21 +720,75 @@ extension CheckListViewController{
         var progressCount = 0
         var firstIncomplete: IndexPath?
         var inTransitProblems: [String] = []
+        var availabilityProblems: [String] = []
+        var notOwnChecklistProblems: [String] = []
 
         if let engine = KabbaSync.engine {
             for (index, product) in order.arrProduct.enumerated() where index < self.arrOtherData.count {
-                guard let uid = product.unique_id, let context = self.checklistContexts[uid],
+                guard let uid = product.unique_id, !self.contextsNeedingConnection.contains(uid),
+                      let context = self.checklistContexts[uid],
                       product.objMachine != nil,
-                      !checkQuestionsIsBlank(objProduct: product) else { continue }
+                      hasChecklistWork(product: product, other: self.arrOtherData[index]) else { continue }
 
-                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+                var capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.batchOtherData([self.arrOtherData[index]])[0],
                                                            isDelivery: self.isDeliveryType,
-                                                           totalCharge: self.strTotalCharge, fuelTotalCharge: 0, cleaningCharge: 0)
+                                                           charges: ChecklistLineCharge())
+                // MOBILE-QUALITY-01 (item 03): never queue a line with answers that are not on its
+                // own checklist (Laravel refuses them: CHECKLIST_QUESTION_MISMATCH). The draft above
+                // keeps the answers; the employee is told which line to reopen.
+                let notOwnChecklist: String? = {
+                    do { try ChecklistOperationBuilder.assertOwnChecklist(capture); return nil }
+                    catch let refusal as ChecklistCaptureError { return refusal.employeeMessage }
+                    catch { return error.localizedDescription }
+                }()
+
                 let problems = capture.localValidationProblems()
                 let complete = problems.isEmpty && !errorSections.contains(index)
                 let inTransit = context.serverState.inTransit == true
 
+                // Focused Save (Assembly Review entry, 2026-09-14): a SIBLING of
+                // the focused member never receives staging intent from this
+                // Save — it cannot become Staged, cannot silently restage after
+                // an unstage, and its blockers never refuse the focused member.
+                // Unchanged answers are not resent (fingerprint vs. as-loaded /
+                // last-synced); changed answers get a progress-only prepare,
+                // still under the In Transit physical rule.
+                if self.queueLineFocusedStaging, uid != self.focusOrderProductUniqueId {
+                    let fingerprint = Self.answersFingerprint(capture)
+                    if lastSyncedFingerprint[uid] == fingerprint || loadedFingerprint[uid] == fingerprint { continue }
+                    if let refusal = notOwnChecklist {
+                        notOwnChecklistProblems.append(refusal)
+                        continue
+                    }
+                    if inTransit, !complete {
+                        let productName = product.product_name ?? "This equipment"
+                        inTransitProblems.append("\(productName) is IN TRANSIT — its prepared checklist must stay complete. " + problems.joined(separator: ". "))
+                        continue
+                    }
+                    if (try? ChecklistOperationBuilder.enqueuePrepare(capture, into: engine)) != nil {
+                        lastSyncedFingerprint[uid] = fingerprint
+                    }
+                    continue
+                }
+
+                if let refusal = notOwnChecklist {
+                    notOwnChecklistProblems.append(refusal)
+                    continue
+                }
+
                 if complete {
+                    // Assembly Review gate (2026-09-13): a unit or an ordered
+                    // Product Option acknowledged Not Available means this line
+                    // cannot be staged as configured. Refuse the staging Save
+                    // BEFORE enqueueing it (the server would refuse it too —
+                    // QUEUE_AVAILABILITY_BLOCKED — and stays canonical). The
+                    // draft keeps the answers; siblings are unaffected.
+                    let blockers = self.isDeliveryType ? self.stagingBlockerLabels(for: product, context: context) : []
+                    if let refusal = AssemblyPolicy.stagingRefusalMessage(productName: product.product_name ?? "this equipment", blockerLabels: blockers) {
+                        availabilityProblems.append(refusal)
+                        continue
+                    }
+
                     // The explicit Save on a complete checklist = the staging
                     // transition (delivery leg only; the server enforces too).
                     capture.markStaged = self.isDeliveryType
@@ -882,10 +822,26 @@ extension CheckListViewController{
             }
         }
 
-        // 3) Outcome.
+        // 3) Outcome. A refused line never hides what happened to the others.
+        if !notOwnChecklistProblems.isEmpty {
+            var parts = notOwnChecklistProblems
+            if enqueueFailed { parts.append("Other equipment could not be saved on this phone. Please try again.") }
+            if stagedCount > 0 { parts.append("\(stagedCount) other line\(stagedCount == 1 ? " was" : "s were") saved on this phone and staged.") }
+            if progressCount > 0 { parts.append("Progress on \(progressCount) other line\(progressCount == 1 ? "" : "s") was saved on this phone.") }
+            showAlertMessage(strMessage: parts.joined(separator: "\n\n"))
+            return
+        }
+
         if !inTransitProblems.isEmpty {
             showAlertMessage(strMessage: inTransitProblems.joined(separator: "\n\n"))
             if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
+            return
+        }
+
+        if !availabilityProblems.isEmpty {
+            // The answers are saved in the draft; the line stays Pending until
+            // the missing item/option is confirmed Available on Assembly Review.
+            showAlertMessage(strMessage: availabilityProblems.joined(separator: "\n\n"))
             return
         }
 
@@ -906,21 +862,23 @@ extension CheckListViewController{
             didNavigateForward = true
             KabbaSync.showConfirmationToast("✓ Checklist successfully completed")
 
-            let needsVideo = stagedProducts.contains { !self.deliveryVideoPresent(for: $0) }
+            // The leg's own media rule (§13): Delivery needs its video, Return any pickup media.
+            let mediaUnmet = stagedProducts.contains { !self.mediaRequirementMet(for: $0) }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-                guard let self = self else { return }
-                if needsVideo {
-                    self.openDeliveryMediaUpload()
-                } else {
-                    self.popAfterSave()
-                }
+                self?.routeAfterSave(mediaUnmet: mediaUnmet)
             }
             return
         }
 
         if progressCount > 0 {
-            showAlertMessage(strMessage: "Progress saved. The equipment remains Pending until every required checklist item is complete and saved.")
+            let saved = "Progress saved. The equipment remains Pending until every required checklist item is complete and saved."
+            showAlertMessage(strMessage: [saved, blocked.map { needsConnectionMessage(for: $0) }].compactMap { $0 }.joined(separator: "\n\n"))
             if let indexPath = firstIncomplete { scrollToCell(indexPath: indexPath, isError: true) }
+            return
+        }
+
+        if let blocked = blocked {
+            showAlertMessage(strMessage: needsConnectionMessage(for: blocked))
             return
         }
 
@@ -934,20 +892,96 @@ extension CheckListViewController{
     private func persistDraftReporting() -> Bool {
         let saved = savePendingCheckList(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
                                          objOrderData: self.objOrderData, arrOtherData: self.arrOtherData)
+        if saved {
+            savePendingCheckListConvenience(orderUniqueId: self.strOrderUniqueId, isDelivery: self.isDeliveryType,
+                                            combine: self.isCombineChecklist, other: self.combinedOtherData)
+        }
         if !saved { showAlertMessage(strMessage: "Could not save the checklist. Please try again.") }
         return saved
     }
 
-    /// After a staging Save: Queue Line entry returns to the Queue Line board
-    /// (which reflects Staged immediately from the durable operation); other
-    /// entries pop back where they came from. Navigation only — never state.
-    private func popAfterSave() {
-        if self.isQueueLine,
-           let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
-            self.navigationController?.popToViewController(board, animated: true)
-        } else {
-            self.navigationController?.popViewController(animated: true)
+    /// After a Save (Driver Delivery Process Flow 2026-09-27, §10.2): at the customer site —
+    /// from On My Way on, and on Return — the router decides: Video while the delivery video
+    /// is missing, else Main Order. In the yard, today's rule: back to the Assembly Review
+    /// this checklist was entered from (it refreshes checklist, lifecycle, availability and
+    /// STOP / GO; Back returns to the origin), or the legacy targets. Navigation only.
+    func routeAfterSave(mediaUnmet: Bool) {
+        let stage = self.missionStage
+        if CustomerSiteNavigation.isCustomerSite(stage: stage, isDeliveryLeg: self.isDeliveryType) {
+            switch CustomerSiteRouter.afterStep(.checklistPrepared, stage: stage, isDeliveryLeg: self.isDeliveryType,
+                                                videoRequirementMet: !mediaUnmet, checklistComplete: false) {
+            case .video: self.openDeliveryMediaUpload()
+            case .mainOrder, .checklist, .assemblyReview: CustomerSiteNavigation.goToMainOrder(on: self.navigationController)
+            }
+            return
         }
+        if mediaUnmet {
+            self.openDeliveryMediaUpload()
+            return
+        }
+        ChecklistEntry.returnToReview(on: self.navigationController, animated: CustomerSiteNavigation.animated(self.navigationController)) {
+            if self.isQueueLine, let board = self.navigationController?.viewControllers.first(where: { $0 is QueueLineViewController }) {
+                self.navigationController?.popToViewController(board, animated: true)
+            } else {
+                self.navigationController?.popViewController(animated: true)
+            }
+        }
+    }
+
+    // MARK: - The mission's stage on this screen (Driver Delivery Process Flow 2026-09-27)
+
+    /// The focus line's stage: the opener's floor under the phone's own durable steps.
+    var missionStage: DeliveryWorkflowStage {
+        CustomerSiteNavigation.stage(orderProductUniqueId: self.focusOrderProductUniqueId,
+                                     isDeliveryLeg: self.isDeliveryType,
+                                     floor: self.driverStageFloor,
+                                     review: self.cachedAssemblyReview(self.strOrderUniqueId)?.data,
+                                     operations: self.operationsSnapshot())
+    }
+
+    /// The preparation rules read the phone's effective trip stage BEFORE the cached
+    /// context (whose `in_transit` may be stale offline): a departed line refuses a
+    /// unit change or a restart with the In Transit explanation. The one exception is a
+    /// departed line with no unit at all (§10.2): its "select a unit" path stays so
+    /// completion remains possible.
+    static func preparationBlock(for context: ChecklistContext, missionStage: DeliveryWorkflowStage) -> PreparationLifecycle.Block? {
+        if !context.equipment.hasUnit, PreparationPolicy.block(for: context) == nil { return nil }
+        return PreparationPolicy.block(for: context, tripStage: tripStage(for: missionStage))
+    }
+
+    static func tripStage(for stage: DeliveryWorkflowStage) -> DriverTripStage {
+        CustomerSiteNavigation.tripStage(for: stage)
+    }
+
+    static func restartAllowed(_ context: ChecklistContext, hasLocalAnswers: Bool, missionStage: DeliveryWorkflowStage) -> Bool {
+        PreparationPolicy.mayRestartChecklist(context, hasLocalAnswers: hasLocalAnswers, tripStage: tripStage(for: missionStage))
+    }
+
+    private func preparationBlock(for context: ChecklistContext) -> PreparationLifecycle.Block? {
+        Self.preparationBlock(for: context, missionStage: self.missionStage)
+    }
+
+    func restartIsAllowed(atProductIndex index: Int) -> Bool {
+        guard let uid = self.objOrderData?.arrProduct[safe: index]?.unique_id, let context = self.checklistContexts[uid] else { return false }
+        return Self.restartAllowed(context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index), missionStage: self.missionStage)
+    }
+
+    /// Assembly Review gate (2026-09-14), phone-side half: what holds this
+    /// line's dependent assembly at STOP — every member unit / frozen Product
+    /// Option not yet confirmed Available (or acknowledged Not Available).
+    /// This phone's cached review with its own durable confirmations layered
+    /// on is the freshest view (the review is re-read every time it appears);
+    /// the server's list from the checklist context is the fallback. Labels
+    /// are the server's / the frozen option labels, verbatim; nothing here
+    /// knows a bucket by name.
+    private func stagingBlockerLabels(for product: ProductModel, context: ChecklistContext) -> [String] {
+        guard let uid = product.unique_id else { return [] }
+        if let cached = KabbaAssemblySync.cached(orderUniqueId: self.strOrderUniqueId),
+           let gate = AssemblyPolicy.gate(forMember: uid, in: cached.data,
+                                          queue: KabbaQueueLineSync.overlay(), overlay: KabbaAssemblySync.overlay()) {
+            return gate.blockers
+        }
+        return (context.serverState.stageBlockers ?? []).map(\.label)
     }
 
     /// Post-Save smart routing (2026-09): does a delivery VIDEO already exist
@@ -961,74 +995,45 @@ extension CheckListViewController{
     /// A sibling product's video, a Return-leg video, or a photo never counts.
     /// Never waits for Laravel.
     private func deliveryVideoPresent(for product: ProductModel) -> Bool {
+        // The ONE delivery-video requirement (D7, §10.3) — the same policy Main Order's
+        // tiles and Complete gate use, so the screens can never disagree.
         let uid = product.unique_id ?? ""
-        let context = uid.isEmpty ? nil : self.checklistContexts[uid]
-        let activeExecutionId = context?.executionId ?? ""
+        return CustomerSiteNavigation.deliveryVideoRequirementMet(product: product,
+                                                                  context: uid.isEmpty ? nil : self.checklistContexts[uid],
+                                                                  orderUniqueId: self.strOrderUniqueId,
+                                                                  operations: self.operationsSnapshot())
+    }
 
-        // Server truth, scoped to the CYCLE (2026-09): a walk-around video is
-        // evidence about ONE machine. `delivery_video_present` is computed for
-        // the ACTIVE execution, so after a substitution or a restart the
-        // replacement unit correctly needs its own video. The old per-product
-        // media list is only consulted when no context exists (offline first
-        // open), where it cannot distinguish cycles.
-        if let present = context?.serverState.deliveryVideoPresent {
-            if present { return true }
-        } else if product.arrDeliveryMedia.contains(where: { ($0.media_type ?? "").lowercased() == "video" }) {
-            return true
-        }
-
-        if let engine = KabbaSync.engine, !uid.isEmpty,
-           EffectiveFieldState.deliveryVideoSatisfied(serverHasVideo: false,
-                                                      operations: engine.snapshot(),
-                                                      orderProductUniqueId: uid,
-                                                      activeExecutionId: activeExecutionId) {
-            return true
-        }
-
-        let legacyRows = CoreDBManager.sharedDatabase.getUploadListData(
-            strOrderID: self.strOrderUniqueId,
-            strType: uploadType.video_image.rawValue,
-            strVideoType: "delivery"
-        )
-        // A legacy local row carries no cycle identity; once this phone has
-        // durably discarded a preparation for the product, it stops counting.
-        if let engine = KabbaSync.engine, !uid.isEmpty,
-           EffectiveFieldState.lastDiscardAt(in: engine.snapshot(), orderProductUniqueId: uid) != nil {
-            return false
-        }
-
-        return legacyRows.contains { row in
-            row.isImage == false && !uid.isEmpty && (row.productID ?? "") == uid
-        }
+    /// This screen's leg's media rule for a product (Delivery: the video; Return: any pickup media).
+    private func mediaRequirementMet(for product: ProductModel) -> Bool {
+        let uid = product.unique_id ?? ""
+        return CustomerSiteNavigation.mediaRequirementMet(product: product, isDeliveryLeg: self.isDeliveryType,
+                                                          context: uid.isEmpty ? nil : self.checklistContexts[uid],
+                                                          orderUniqueId: self.strOrderUniqueId,
+                                                          operations: self.operationsSnapshot())
     }
 
     /// Opens the existing Delivery Image/Video Upload for this order. It needs an OrdersListModel;
     /// prefer the local cache, else build one from the loaded order data so we always navigate
     /// (and never crash its force-unwrapped datasource with a nil).
     private func openDeliveryMediaUpload() {
-        var listModel = SDKUserDefault.getMappableObject(
-            OrdersListModel.self,
-            for: "\(kFileStorageName.kOrderDetailData.rawValue)_\(self.strOrderUniqueId)")
-        if listModel == nil, let obj = self.objOrderData {
-            var built = OrdersListModel(JSON: [:])
-            built?.id = obj.id
-            built?.arrProduct = obj.arrProduct   // same ProductModel type; drives the upload table
-            listModel = built
+        // Phase 4: every photo/video is anchored to its product's checklist execution.
+        var executionIds = self.checklistContexts.mapValues { $0.executionId }
+        if !self.queueLineChecklistExecutionId.isEmpty, !self.focusOrderProductUniqueId.isEmpty, executionIds[self.focusOrderProductUniqueId] == nil {
+            executionIds[self.focusOrderProductUniqueId] = self.queueLineChecklistExecutionId
         }
-        guard let listModel = listModel else { return }
-
-        let storyBoard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
-        if let vc = storyBoard.instantiateViewController(withIdentifier: "ImageUploadViewController") as? ImageUploadViewController {
-            vc.isQueueLine = self.isQueueLine
-            vc.strType = self.isDeliveryType ? "delivery" : "pickup"
-            vc.selectIndex = self.selectIndex
-            vc.objOrderDetail = listModel
-            vc.strOrderID = self.strOrderUniqueId
-            // Phase 4: every photo/video is anchored to its product's checklist execution.
-            vc.checklistExecutionIds = self.checklistContexts.mapValues { $0.executionId }
-            if !self.queueLineChecklistExecutionId.isEmpty, !self.focusOrderProductUniqueId.isEmpty, vc.checklistExecutionIds[self.focusOrderProductUniqueId] == nil {
-                vc.checklistExecutionIds[self.focusOrderProductUniqueId] = self.queueLineChecklistExecutionId
-            }
+        let make = { [weak self] () -> ImageUploadViewController? in
+            guard let self = self else { return nil }
+            return CustomerSiteNavigation.makeMediaUpload(orderUniqueId: self.strOrderUniqueId, order: self.objOrderData,
+                                                          isDelivery: self.isDeliveryType, selectIndex: self.selectIndex,
+                                                          focusOrderProductUniqueId: self.focusOrderProductUniqueId,
+                                                          executionIds: executionIds, floor: self.driverStageFloor,
+                                                          isQueueLine: self.isQueueLine)
+        }
+        // At the customer site the upload already on the stack is the destination (§10.1).
+        if CustomerSiteNavigation.isCustomerSite(stage: self.missionStage, isDeliveryLeg: self.isDeliveryType) {
+            CustomerSiteNavigation.goToVideo(on: self.navigationController, make: make)
+        } else if let vc = make() {
             self.navigationController?.pushViewController(vc, animated: true)
         }
     }
@@ -1036,32 +1041,59 @@ extension CheckListViewController{
     @IBAction func btnSubmitClicked(_ sender: UIButton) {
         self.view.endEditing(true)
 
+        // P4-D4, per product: untouched lines are ignored in either mode.
+        // A line with entered work needs its context, even without an assigned unit.
+        let blockedLines = (self.objOrderData?.arrProduct ?? []).compactMap { product -> BlockedLine? in
+            guard let uid = product.unique_id, self.contextsNeedingConnection.contains(uid) else { return nil }
+            let index = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid }
+            return BlockedLine(uniqueId: uid, hasMachine: product.objMachine != nil,
+                               isBlank: !hasChecklistWork(product: product, other: index.flatMap { self.arrOtherData[safe: $0] }))
+        }
+        let scope = Self.submitScope(needingConnection: blockedLines, combine: self.isCombineChecklist)
+        if !scope.blocking.isEmpty {
+            showAlertMessage(strMessage: needsConnectionMessage(for: scope.blocking))
+            return
+        }
+        let scoped = Self.excludingProductsNeedingConnection(self.objOrderData, other: self.arrOtherData,
+                                                             needingConnection: scope.leftOut)
+
         //CEHCK DATA
-        var objTempOrderData = self.objOrderData
-        var arrTempOtherData = self.arrOtherData
-        for i in 0..<self.objOrderData.arrProduct.count{
-            let obj = self.objOrderData.arrProduct[i]
-            if obj.objMachine == nil{
-                objTempOrderData?.arrProduct.remove(at: i)
-                arrTempOtherData.remove(at: i)
-            }
+        var objTempOrderData = scoped.order
+        var arrTempOtherData = scoped.other
+        if !scoped.excluded.isEmpty, objTempOrderData?.arrProduct.isEmpty ?? true {
+            showAlertMessage(strMessage: needsConnectionMessage(for: scoped.excluded)) // nothing else left to submit
+            return
         }
         
-        //CHECK IF NOT AVALIBEL THEN IT"S REMOVE — drop all-blank products (keep first if every product is blank)
-        if self.isCombineChecklist == false{
-            self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        self.removeBlankProducts(objOrderData: &objTempOrderData, arrOtherData: &arrTempOtherData)
+        guard let batchOrder = objTempOrderData, !batchOrder.arrProduct.isEmpty else {
+            showAlertMessage(strMessage: "Complete at least one equipment checklist before Preview.")
+            return
         }
+        guard arrTempOtherData.count == batchOrder.arrProduct.count else {
+            showAlertMessage(strMessage: "The checklist data is out of sync. Please reopen the checklist.")
+            return
+        }
+        // NoteModel is a reference type. Preview must not alter the source drafts on Cancel/Back.
+        arrTempOtherData = self.batchOtherData(arrTempOtherData)
         
         
         let errors = checkQuestions(objOrderData: objTempOrderData!)
-        if self.checkMachineData(objOrderData: objTempOrderData!) == false{
+        if let missing = batchOrder.arrProduct.first(where: { $0.objMachine == nil }) {
+            // A partial line without a unit blocks; point at THAT line (batch index ≠ screen section).
+            focusChecklistProblem(productUniqueId: missing.unique_id, inFooter: false)
+            showAlertMessage(strMessage: "Please select an equipment ID for \(missing.product_name ?? "this equipment").")
             return
         }
         else if let first = errors.first {
-            scrollToCell(indexPath: first, isError: true)
+            let uid = batchOrder.arrProduct[first.section].unique_id
+            let originalSection = self.objOrderData.arrProduct.firstIndex { $0.unique_id == uid } ?? first.section
+            scrollToCell(indexPath: IndexPath(row: first.row, section: originalSection), isError: true)
             return
         }
-        else if self.checkOtherData(arrOtherData: arrTempOtherData) == false{
+        else if self.checkOtherData(arrOtherData: arrTempOtherData, onFailure: { batchIndex in
+            self.focusChecklistProblem(productUniqueId: batchOrder.arrProduct[safe: batchIndex]?.unique_id, inFooter: true)
+        }) == false{
             return
         }
         else{
@@ -1076,11 +1108,14 @@ extension CheckListViewController{
                 newViewController.isDeliveryType = self.isDeliveryType
                 newViewController.objOrderData = objTempOrderData
                 newViewController.arrOtherData = arrTempOtherData
+                newViewController.isCombineChecklist = self.isCombineChecklist
                 newViewController.selectIndex = self.selectIndex
                 newViewController.strOrderID = self.strOrderID
                 newViewController.strOrderUniqueId = self.strOrderUniqueId
                 newViewController.isOrderDetailsView = self.isOrderDetailsView
                 newViewController.checklistContexts = self.checklistContexts
+                newViewController.focusOrderProductUniqueId = self.focusOrderProductUniqueId
+                newViewController.driverStageFloor = self.driverStageFloor
                 self.navigationController?.pushViewController(newViewController, animated: true)
             }
             
@@ -1241,10 +1276,12 @@ extension CheckListViewController{
         return true
     }
     
-    func checkOtherData(arrOtherData : [NoteModel]) -> Bool{
-        for obj in arrOtherData{
+    /// `onFailure` receives the failing row's index in `arrOtherData` (the batch) before the alert.
+    func checkOtherData(arrOtherData : [NoteModel], onFailure: ((Int) -> Void)? = nil) -> Bool{
+        for (index, obj) in arrOtherData.enumerated(){
             if self.isDeliveryType{
                 if obj.dEmplayessId == "" || obj.dEmplayessId == "0"{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select who delivered the equipment.")
                     return false
                 }
@@ -1256,10 +1293,12 @@ extension CheckListViewController{
             }
             else{
                 if obj.rEmplayessId == "" ||  obj.rEmplayessId == "0"{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select who returned the equipment.")
                     return false
                 }
                 else if obj.rStoreId == ""{
+                    onFailure?(index)
                     showAlertMessage(strMessage: "Please select a location.")
                     return false
                 }
@@ -1277,6 +1316,29 @@ extension CheckListViewController{
 
 
 
+extension CheckListViewController {
+    /// Brings a Preview problem's ORIGINAL line on screen. The batch has had untouched
+    /// lines removed, so its indexes are not the screen's sections. The unit picker is the
+    /// section header; employee/location sit in the footer, which Combine shows under the
+    /// last line only.
+    func focusChecklistProblem(productUniqueId uid: String?, inFooter: Bool) {
+        guard let target = focusSection(productUniqueId: uid, inFooter: inFooter) else { return }
+        DispatchQueue.main.async {
+            guard target < self.tblView.numberOfSections else { return }
+            let rect = inFooter ? self.tblView.rectForFooter(inSection: target) : self.tblView.rectForHeader(inSection: target)
+            self.tblView.scrollRectToVisible(rect, animated: true)
+        }
+    }
+
+    /// The screen section that shows a line's problem: its own section, except the shared
+    /// employee/location footer, which Combine shows under the last line.
+    func focusSection(productUniqueId uid: String?, inFooter: Bool) -> Int? {
+        guard let products = self.objOrderData?.arrProduct,
+              let section = products.firstIndex(where: { $0.unique_id == uid }) else { return nil }
+        return inFooter && self.isCombineChecklist ? products.count - 1 : section
+    }
+}
+
 extension CheckListViewController:  UITextViewDelegate{
     
     
@@ -1284,6 +1346,7 @@ extension CheckListViewController:  UITextViewDelegate{
         
         let newText = (textView.text as NSString).replacingCharacters(in: range, with: text)
         
+        self.markChecklistInput(at: textView.tag)
         let obj = self.arrOtherData[textView.tag]
         if self.isDeliveryType{
             obj.dNote = newText
@@ -1336,6 +1399,7 @@ extension CheckListViewController : UITextFieldDelegate{
                 {
                     let section : Int = Int(textField.accessibilityValue ?? "") ?? 0
                     let index : Int = Int(textField.accessibilityLanguage ?? "") ?? 0
+                    self.markChecklistInput(at: section)
                     
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[index]
@@ -1454,39 +1518,10 @@ extension CheckListViewController : UITextFieldDelegate{
                     }
                 }
                 else if objQuestion.type == "fuel"{
-                    
-                    let price = self.getPrice(strFuleType: objQuestion.fuleType ?? "", isDef: objQuestion.isDEF ?? "")
-                    var totalPrice  : Float = 0.0
-                    if objQuestion.isDEF == "Yes"{
-                        totalPrice = price * (Float(objQuestion.def_tank_capacity ?? "") ?? 0)
+                    // Each fuel row prices ITS fluid (primary fuel or DEF) — FuelChargeCalculator.
+                    if let line = FuelChecklistRows.line(for: objQuestion, product: objProduct, prices: self.fuelPrices) {
+                        self.strTotalCharge = self.strTotalCharge + Float(FuelChargeCalculator.double(line.amount))
                     }
-                    else if objQuestion.fuleType == "diesel"{
-                        totalPrice = price * (Float(objQuestion.diesel_tank_capacity ?? "") ?? 0)
-                    }
-                    else if objQuestion.fuleType == "gas"{
-                        totalPrice = price * (Float(objQuestion.gas_tank_capacity ?? "") ?? 0)
-                    }
-                    
-                    //SET FULE IS ADMIN OVERRIDE
-                    var strDeliveredFule : String = getFlueName(strId: objQuestion.selectFuleDelivery ?? "")
-                    if objProduct.is_delivered == true{
-                        strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
-                    }
-                    
-                    var strFuleTotalCharge = FuelCalulateTotalCharge(total: totalPrice, dSelect: strDeliveredFule == "Admin Override" ?  9 : Float(objQuestion.selectFuleDelivery ?? "") ?? 0, rSelect: Float(objQuestion.selectFuleReturn ?? "") ?? 0)
-                    
-                    //CHECK PREPAID FULE
-                    let selectedOptions = objProduct.objProductData?.arrProductSelectdOptions ?? []
-                    if selectedOptions.contains("rental_prepaid_fuel") {
-                        // Option exists
-                        strFuleTotalCharge = 0
-                    }
-                    
-                    
-                    
-                    self.strTotalCharge = self.strTotalCharge + strFuleTotalCharge
-                    
-                    
                 }
                 
                 else if objQuestion.deliverAnswer != nil && objQuestion.returnAnswer != nil{
@@ -1509,33 +1544,9 @@ extension CheckListViewController : UITextFieldDelegate{
     }
     
     
-    func getPrice(strFuleType : String, isDef : String) -> Float{
-        if isDef == "Yes"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "def_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "gas"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "gas_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        else if strFuleType == "diesel"{
-            let MenuID = self.arrPriceList.map{$0.setting_name}
-            if let index = MenuID.firstIndex(of: "diesel_price_per_gallon"){
-                if let price = Float(self.arrPriceList[index].setting_value ?? "0") {
-                    return price
-                }
-            }
-        }
-        
-        return 0
+    /// System Configuration fuel prices from the cached "Price Settings" list.
+    var fuelPrices: FuelPrices {
+        FuelChecklistRows.prices(from: self.arrPriceList.map { ($0.setting_name, $0.setting_value) })
     }
     
     
@@ -1957,7 +1968,6 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
 
         actionPicker(sender, strTitle: "Select Category ID", arrData: self.arrCategoryList.compactMap { $0.name}, selectValue: currentCategory) { index, selectValue in
 
-            self.selectedIndex = 1
             self.strSelectCategoty = selectValue
             var objProductDetails = self.objOrderData.arrProduct[sender.tag]
             objProductDetails.objCategory = self.arrCategoryList[index]
@@ -1990,27 +2000,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         //RELAD
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: {
             indicatorHide()
-            self.setPickerData()
             self.tblView.reloadData()
         })
 
     }
     
-    func setPickerData(){
-        //SHORTING ARRAY
-        self.pickerData.removeAll()
-        
-        self.sortedMachineList = Dictionary(grouping: self.arrMachineList, by: { $0.status ?? "" })
-        let sortedGroups = self.sortedMachineList.sorted { $0.key < $1.key }
-        for (section, items) in sortedGroups {
-            pickerData.append("Section: \(section)")
-            var arrData : [String] = []
-            for obj in items{
-                arrData.append("\(obj.equipment_name ?? "")    ||    \(obj.equipment_id ?? "")")
-            }
-            pickerData.append(contentsOf: arrData)
-        }
-    }
     @objc func btnMachineIdClicked(_ sender: UIButton) {
         self.view.endEditing(true)
         if self.isDeliveryType == false{
@@ -2028,22 +2022,36 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
 
         // Scope the equipment to THIS row's selected category so the picker shows the right units.
         // Passing the category name lets "All" fall through to the full list.
-        let objCategory = self.objOrderData.arrProduct[sender.tag].objCategory
+        let product = self.objOrderData.arrProduct[sender.tag]
+        let objCategory = product.objCategory
         self.arrMachineList = self.machineList(forCategoryId: objCategory?.id, selectValue: objCategory?.name ?? "")
-        self.setPickerData()
+        self.selectProductIndex = sender.tag
 
-        if self.arrMachineList.isEmpty || self.pickerData.isEmpty {
+        if self.arrMachineList.isEmpty {
             showAlertMessage(strMessage: "No equipment found for the selected category.")
             return
         }
 
-        // Land on the first real row (skip the section header). Reset when switching products
-        // or when the previous selection no longer fits the freshly-built list.
-        if sender.tag != self.selectProductIndex || self.selectedIndex >= self.pickerData.count {
-            self.selectedIndex = self.pickerData.firstIndex(where: { !$0.hasPrefix("Section:") }) ?? 0
+        // Pre-departure preparation lifecycle (2026-09): the office-assigned
+        // unit is the PRESELECTED DEFAULT, not a lock — substituting a machine
+        // in the yard is routine, and this screen is the preparation workbench.
+        // The only refusals are physical: the unit already left, or it was
+        // delivered. (Laravel enforces the same two cutoffs.)
+        if let context = self.focusedChecklistContext, let block = self.preparationBlock(for: context) {
+            showAlertMessage(strMessage: block.message)
+            return
         }
-        self.selectProductIndex = sender.tag
-        self.openPicker()
+
+        // The ONE equipment selector (shared with Assembly Review): the fleet list scoped
+        // to the category, Laravel's reason rule mirrored per unit, the current unit preselected.
+        let candidates = self.arrMachineList.map { EquipmentCandidate(machine: $0, orderedProductId: product.product_id) }
+        self.equipmentFlow.onDismiss = nil
+        self.equipmentFlow.pick(from: candidates, preselectUniqueId: product.objMachine?.unique_id) { [weak self] candidate in
+            guard let self = self,
+                  let index = self.arrMachineList.firstIndex(where: { $0.unique_id == candidate.uniqueId })
+                    ?? self.arrMachineList.firstIndex(where: { $0.equipment_id == candidate.displayId }) else { return }
+            self.requestEquipmentChange(index: index, candidate: candidate)
+        }
     }
     
     func tableView(_ tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
@@ -2082,8 +2090,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblLocation.configureLable(textColor: .primaryView, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 14.0, text: self.isDeliveryType ? "" : str.strReturnedLocation, numberOfLines: 1)
             
             
-            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rEmplayess, placeholder: str.strSelectEmployess)
-            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dEmplayess :  objDetails.rStore, placeholder: str.strSelectLocation)
+            let convenience = self.isCombineChecklist ? self.combinedOtherData : objDetails
+            cell.txtSelctEmployee.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ? convenience.dEmplayess : convenience.rEmplayess, placeholder: str.strSelectEmployess)
+            cell.txtSelctLocation.configureText(bgColour: .clear, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: convenience.rStore, placeholder: str.strSelectLocation)
             
             //            cell.con_Bottom.constant = manageWidth(size: 45.0)
             cell.txtNote.configureText(bgColour: .clear, textColor: .primary , fontName: GlobalMainConstants.APP_FONT_Roboto_Regular, fontSize: 16.0, text: self.isDeliveryType ?  objDetails.dNote :  objDetails.rNote)
@@ -2188,12 +2197,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return
         }
         
-        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? self.arrOtherData[sender.tag].dEmplayess : self.arrOtherData[sender.tag].rEmplayess) { index, selectValue in
+        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
+        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? current.dEmplayess : current.rEmplayess) { index, selectValue in
             
             let empId = "\(self.arrEmployesList[index].id ?? 0)"
             
             //UPDATE DATA — when combined, apply the same employee to every product
-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
             for obj in targets {
                 if self.isDeliveryType{
                     obj.dEmplayess = selectValue
@@ -2222,10 +2232,11 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             return
         }
         
-        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: self.arrOtherData[sender.tag].rStore) { index, selectValue in
+        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
+        actionPicker(sender, strTitle: "Select Store", arrData: self.arrStoreList.compactMap { $0.name}, selectValue: current.rStore) { index, selectValue in
             
             //UPDATE DATA — when combined, apply the same employee to every product
-            let targets = self.isCombineChecklist ? self.arrOtherData : [self.arrOtherData[sender.tag]]
+            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
             for obj in targets {
                 obj.rStore = selectValue
                 obj.rStoreId = "\(self.arrStoreList[index].id ?? 0)"
@@ -2314,11 +2325,9 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.lblReturnSelect.configureLable(textAlignment: .center, textColor: .primary, fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, fontSize: 16.0, text: "Select")
             
             var strDeliveredHours : String = objDetails.startHours == 0.0 ? "" : "\(objDetails.startHours)"
-            var strDeliveredFule : String = getFlueName(strId: objDetails.selectFuleDelivery ?? "")
             var strDeliveredCleaning : String = getCleaning(strId: objDetails.selectCleaningDelivery ?? "", isReturn: false)
             if self.objOrderData.arrProduct[indexPath.section].is_delivered == true{
                 strDeliveredHours = objDetails.startHours == 0.0 ? "Admin Override" : "\(objDetails.startHours)"
-                strDeliveredFule = strDeliveredFule == "Select" ? "Admin Override" : strDeliveredFule
                 strDeliveredCleaning = strDeliveredCleaning == "Select" ? "Admin Override" : strDeliveredCleaning
                 cell.lblDeliverySelect.text = "Admin Override"
             }
@@ -2356,8 +2365,8 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             cell.viewReturnedMain.isHidden = self.isDeliveryType
             
             if objDetails.type == "fuel"{
-                cell.lblDeliverySelect.text = strDeliveredFule
-                cell.lblReturnSelect.text = getFlueName(strId: objDetails.selectFuleReturn ?? "")
+                cell.lblDeliverySelect.text = FuelChecklistRows.deliveredText(for: objDetails, product: self.objOrderData.arrProduct[indexPath.section])
+                cell.lblReturnSelect.text = FuelChecklistRows.returnedText(for: objDetails)
                 
                 let selectedOptions = self.objOrderData
                     .arrProduct[indexPath.section]
@@ -2479,12 +2488,14 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
         
         if objDetails.type == "fuel"{
-            actionPicker(sender, strTitle: "", arrData: arrFlueDelivery.compactMap { $0.name}, selectValue: "") { index, selectValue in
+            // Identical levels for every fluid (FuelLevel.options).
+            actionPicker(sender, strTitle: "", arrData: FuelLevel.options.map { $0.name }, selectValue: "") { index, selectValue in
                 
                 
-                //SET IN OTHER DATA
+                //SET IN OTHER DATA — the primary fuel or the DEF reading, never both
                 let objDate = self.arrOtherData[section]
-                objDate.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
+                FuelChecklistRows.setReading("\(FuelLevel.options[index].id)", isDelivery: true, row: objDetails, other: objDate)
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2493,7 +2504,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 
                 var objProduct = self.objOrderData.arrProduct[section]
                 var objdata = objProduct.arrQuestions[sender.tag]
-                objdata.selectFuleDelivery = "\(arrFlueDelivery[index].id)"
+                objdata.selectFuleDelivery = "\(FuelLevel.options[index].id)"
                 
                 
                 
@@ -2517,6 +2528,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningDelivery = "\(arrCleaningDelivery[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2549,6 +2561,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.deliverAnswer = objdata.arrAnswer[index]
+                    self.markChecklistInput(at: section)
                     
                     
                     //UPDATE
@@ -2589,12 +2602,13 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
         let  objDetails = self.objOrderData.arrProduct[section].arrQuestions[sender.tag]
         
         if objDetails.type == "fuel"{
-            let arrFuleReturn : [FuleTypes] = arrFlueDelivery.reversed()
-            actionPicker(sender, strTitle: "", arrData: arrFuleReturn.compactMap { $0.name}, selectValue: "") { index, selectValue in
+            let arrFuleReturn = FuelLevel.returnOptions
+            actionPicker(sender, strTitle: "", arrData: arrFuleReturn.map { $0.name }, selectValue: "") { index, selectValue in
                 
-                //SET IN OTHER DATA
+                //SET IN OTHER DATA — the primary fuel or the DEF reading, never both
                 let objDate = self.arrOtherData[section]
-                objDate.selectFuleReturn = "\(arrFuleReturn[index].id)"
+                FuelChecklistRows.setReading("\(arrFuleReturn[index].id)", isDelivery: false, row: objDetails, other: objDate)
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2629,6 +2643,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                 //SET IN OTHER DATA
                 let objDate = self.arrOtherData[section]
                 objDate.selectCleaningReturn = "\(arrCleaningReturn[index].id)"
+                self.markChecklistInput(at: section)
                 
                 //UPDATE DATA
                 self.arrOtherData.remove(at: section)
@@ -2667,6 +2682,7 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
                     var objProduct = self.objOrderData.arrProduct[section]
                     var objdata = objProduct.arrQuestions[sender.tag]
                     objdata.returnAnswer = objdata.arrAnswer[index]
+                    self.markChecklistInput(at: section)
                     
                     
                     
@@ -2774,6 +2790,8 @@ extension CheckListViewController{
             let  obj = self.objOrderData.arrProduct[i]
             
             self.arrOtherData.append(NoteModel(startHours: 0.0, endHours: 0.0, dNote: obj.delivery_note, rNote: obj.returned_note, rStoreId: "", rStore: "", dEmplayess: self.getEmployeesName(emp_id: obj.delivery_emp), dEmplayessId: "\(obj.delivery_emp)", rEmplayess: self.getEmployeesName(emp_id: obj.returned_emp), rEmplayessId: "\(obj.returned_emp)", dSignature: UIImage(), rSignature: UIImage(), productID: obj.id ?? 0, machine_id: obj.machine_id ?? 0, dSignatureUrl: obj.delivery_sign, rSignatureUrl: obj.return_sign, inTime: obj.inTime, outTime: obj.outTime, selectFuleDelivery:  obj.fuel_initial_reading , selectFuleReturn:  obj.fuel_final_reading , selectCleaningDelivery: "\(obj.startCleaning ?? 0)", selectCleaningReturn: "\(obj.endCleaning ?? 0)"))
+            self.arrOtherData.last?.selectDefDelivery = obj.def_initial_reading ?? ""
+            self.arrOtherData.last?.selectDefReturn = obj.def_final_reading ?? ""
             
             
             if obj.objMachine != nil{
@@ -2843,30 +2861,18 @@ extension CheckListViewController{
             cleaningItem = objCheckList
         }
         
-        //FUEL — only when the equipment has a power source
-        var fuelItem: CustomerCheckListModel?
-        if objEquipment != nil, objEquipment?.powerSourceType != ""{
-            let map = Map(mappingType: .fromJSON, JSON: [:])
-            var objCheckListFule = CustomerCheckListModel(map: map)
-            objCheckListFule?.type = "fuel"
-            objCheckListFule?.question_delivery_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.question_return_text = "Fuel (\(objEquipment?.powerSourceType.capitalizingFirstLetter() ?? ""))"
-            objCheckListFule?.fuleType = objEquipment?.powerSourceType
-            objCheckListFule?.isDEF = objEquipment?.hasDEF
-            objCheckListFule?.diesel_tank_capacity = objEquipment?.diesel_tank_capacity
-            objCheckListFule?.def_tank_capacity = objEquipment?.def_tank_capacity
-            objCheckListFule?.gas_tank_capacity = objEquipment?.gas_tank_capacity
-            objCheckListFule?.selectFuleDelivery = objProduct.fuel_initial_reading
-            objCheckListFule?.selectFuleReturn = objProduct.fuel_final_reading
-            fuelItem = objCheckListFule
+        //FUEL — only when the equipment has a power source: the primary fuel row, plus an
+        //independent DEF row for a machine with a DEF tank (FuelChecklistRows).
+        let defSupported = FuelChecklistRows.carriesDEFReadings(product: objProduct, context: self.checklistContexts[objProduct.unique_id ?? ""])
+        let fuelItems = FuelChecklistRows.rows(machine: objEquipment, product: objProduct, defSupported: defSupported)
+        if index < self.arrOtherData.count, fuelItems.contains(where: { $0.isDEFRow }) {
+            let other = self.arrOtherData[index]
+            if other.selectDefDelivery.isEmpty { other.selectDefDelivery = objProduct.def_initial_reading ?? "" }
+            if other.selectDefReturn.isEmpty { other.selectDefReturn = objProduct.def_final_reading ?? "" }
         }
-        
-        // Insert at index 0 in REVERSE priority so the final order is text, cleaning, fuel.
-        for item in [fuelItem, cleaningItem, textItem] {
-            if let item = item {
-                objProduct.arrQuestions.insert(item, at: 0)
-            }
-        }
+
+        // Final order: text, cleaning, fuel row(s), then the base questions.
+        objProduct.arrQuestions.insert(contentsOf: [textItem, cleaningItem].compactMap { $0 } + fuelItems, at: 0)
         
         self.objOrderData.arrProduct.remove(at: index)
         self.objOrderData.arrProduct.insert(objProduct, at: index)
@@ -2917,15 +2923,20 @@ extension CheckListViewController {
     }
 
     /// Applying an equipment pick. With a canonical assignment already in place
-    /// this is a REASSIGNMENT, never a local model edit: confirm what would be
-    /// discarded, record the canonical switch, then start a fresh cycle.
-    private func requestEquipmentChange(index: Int) {
+    /// this is a REASSIGNMENT, never a local model edit: the shared flow confirms
+    /// what would be discarded, collects Laravel's reason when the unit is not a
+    /// direct match, and records the canonical switch; this screen then starts a
+    /// fresh cycle locally.
+    private func requestEquipmentChange(index: Int, candidate: EquipmentCandidate) {
         guard let replacement = self.arrMachineList[safe: index],
               let replacementUid = replacement.unique_id, !replacementUid.isEmpty else { return }
 
         guard let context = self.focusedChecklistContext, context.equipment.hasUnit else {
             // No canonical assignment yet — the first selection is still a
-            // plain local choice that the checklist Save will carry.
+            // plain local choice that the checklist Save will carry, so it is
+            // this product's own input. (A reassignment below restarts the
+            // product instead: its input flag stays cleared.)
+            self.markChecklistInput(at: self.selectProductIndex)
             self.callCheckListAPI(index: index)
             return
         }
@@ -2933,67 +2944,48 @@ extension CheckListViewController {
         // Choosing the unit that is already assigned changes nothing.
         if PreparationPolicy.isSameUnit(context, replacementUniqueId: replacementUid) { return }
 
-        if let block = PreparationPolicy.block(for: context) {
-            showAlertMessage(strMessage: block.message)
-            return
-        }
-
         let productIndex = self.selectProductIndex
-        let confirmation = PreparationPolicy.confirmation(for: context,
-                                                          hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex))
+        // Attribution: the employee this checklist already names for the product (the same
+        // person its Save / Complete payloads carry); the signed-in account only when nobody
+        // is selected yet. Never a separate "Performed By" picker.
+        let target = self.assignmentTarget(for: context, productIndex: productIndex)
 
-        guard confirmation != .none else {
-            self.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
-            return
+        self.equipmentFlow.apply(target, replacement: candidate) { [weak self] _, _, _ in
+            guard let self = self else { return }
+            // Local-first: the old preparation is gone NOW, and the replacement is
+            // the unit being prepared. Only this product is touched.
+            self.discardLocalPreparation(atProductIndex: productIndex)
+            self.callCheckListAPI(index: index)
+            self.reloadChecklistContext(forProductAt: productIndex, equipmentUniqueId: replacementUid)
         }
-
-        let alert = UIAlertController(
-            title: PreparationPolicy.substitutionTitle(),
-            message: PreparationPolicy.substitutionMessage(currentCode: context.equipment.equipmentCode ?? "",
-                                                           replacementCode: replacement.equipment_id ?? "",
-                                                           confirmation: confirmation),
-            preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Change Equipment & Start Over", style: .destructive) { [weak self] _ in
-            self?.applyEquipmentSubstitution(context: context, replacementIndex: index, productIndex: productIndex)
-        })
-        present(alert, animated: true)
     }
 
-    /// ONE confirmation performs the whole logical change: the canonical
-    /// reassignment (which supersedes the old preparation, releases the old
-    /// unit and de-stages the Queue Line item server-side) plus the local
-    /// equivalent, so the screen is correct before Laravel answers.
-    private func applyEquipmentSubstitution(context: ChecklistContext, replacementIndex: Int, productIndex: Int) {
-        guard let engine = KabbaSync.engine,
-              let replacement = self.arrMachineList[safe: replacementIndex],
-              let replacementUid = replacement.unique_id else { return }
+    /// The employee this checklist names for the product (its Employee row) as a user
+    /// unique id — nil while nobody is selected yet.
+    private func selectedEmployeeUniqueId(atProductIndex index: Int) -> String? {
+        guard let other = self.arrOtherData[safe: index] else { return nil }
+        let idText = self.isDeliveryType ? other.dEmplayessId : other.rEmplayessId
+        guard let id = Int(idText), id > 0,
+              let uid = self.arrEmployesList.first(where: { $0.id == id })?.unique_id, !uid.isEmpty else { return nil }
+        return uid
+    }
 
-        guard let performedBy = context.employee?.uniqueId, !performedBy.isEmpty else {
-            showAlertMessage(strMessage: "We could not confirm who is making this change. Sign in again, then switch the unit.")
-            return
-        }
-
-        let capture = EquipmentSubstitutionCapture(
+    /// What the shared flow needs to know about the focused line's change: the physical
+    /// block from the phone's effective trip stage (locked after departure), what a switch
+    /// would discard, and who performs it.
+    func assignmentTarget(for context: ChecklistContext, productIndex: Int) -> EquipmentAssignmentFlow.Target {
+        let performedBy = PreparationPolicy.performedBy(selectedEmployeeUniqueId: selectedEmployeeUniqueId(atProductIndex: productIndex),
+                                                        contextEmployeeUniqueId: context.employee?.uniqueId)
+        return EquipmentAssignmentFlow.Target(
             orderUniqueId: context.identity.orderUniqueId,
             orderProductUniqueId: context.identity.orderProductUniqueId,
             supersededExecutionId: context.executionId,
-            previousEquipmentUniqueId: context.equipment.equipmentUniqueId,
-            replacementEquipmentUniqueId: replacementUid,
-            performedByUniqueId: performedBy)
-
-        do {
-            _ = try PreparationOperationBuilder.enqueueSubstitution(capture, into: engine)
-        } catch {
-            showAlertMessage(strMessage: "That change could not be saved on this phone. Try again.")
-            return
-        }
-
-        // Local-first: the old preparation is gone NOW, and the replacement is
-        // the unit being prepared. Only this product is touched.
-        discardLocalPreparation(atProductIndex: productIndex)
-        self.callCheckListAPI(index: replacementIndex)
-        reloadChecklistContext(forProductAt: productIndex, equipmentUniqueId: replacementUid)
+            currentEquipmentUniqueId: context.equipment.equipmentUniqueId,
+            currentEquipmentCode: context.equipment.equipmentCode,
+            block: self.preparationBlock(for: context),
+            confirmation: PreparationPolicy.confirmation(for: context, hasLocalAnswers: hasEnteredAnswers(atProductIndex: productIndex)),
+            performedByUniqueId: performedBy,
+            isDeliveryLeg: context.leg.isDelivery)
     }
 
     /// "Delete Checklist / Start Over" — same supersession, same unit.
@@ -3003,7 +2995,7 @@ extension CheckListViewController {
         guard let uid = self.objOrderData?.arrProduct[safe: productIndex]?.unique_id,
               let context = self.checklistContexts[uid] else { return }
 
-        if let block = PreparationPolicy.block(for: context) {
+        if let block = self.preparationBlock(for: context) {
             showAlertMessage(strMessage: block.message)
             return
         }
@@ -3072,11 +3064,15 @@ extension CheckListViewController {
             if self.isDeliveryType {
                 self.arrOtherData[index].startHours = 0.0
                 self.arrOtherData[index].selectFuleDelivery = ""
+                self.arrOtherData[index].selectDefDelivery = ""
                 self.arrOtherData[index].dNote = ""
+                self.arrOtherData[index].deliveryInputEntered = false
             } else {
                 self.arrOtherData[index].endHours = 0.0
                 self.arrOtherData[index].selectFuleReturn = ""
+                self.arrOtherData[index].selectDefReturn = ""
                 self.arrOtherData[index].rNote = ""
+                self.arrOtherData[index].returnInputEntered = false
             }
         }
 
@@ -3104,12 +3100,21 @@ extension CheckListViewController {
         self.queueLineChecklistExecutionId = ""
 
         let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
-        client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: equipmentUniqueId) { [weak self] result, _ in
+        // Strict: the unit comes from the substitution / restart just recorded on this phone.
+        client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: equipmentUniqueId, strictUnit: true) { [weak self] result, _ in
             DispatchQueue.main.async {
-                guard let self = self, case .success(let context) = result else { return }
-                self.checklistContexts[uid] = context
-                self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
-                self.refreshPreparationActions()
+                guard let self = self else { return }
+                switch result {
+                case .success(let context):
+                    self.contextsNeedingConnection.remove(uid)
+                    self.checklistContexts[uid] = context
+                    self.applyChecklistContext(context, toProductWith: uid)
+                    self.refreshPreparationActions()
+                case .failure(.unavailableOffline):
+                    self.markNeedsConnection(uid)
+                case .failure:
+                    break
+                }
             }
         }
     }
@@ -3123,7 +3128,7 @@ extension CheckListViewController {
         let context = uid.isEmpty ? nil : self.checklistContexts[uid]
 
         let allowed = context.map {
-            PreparationPolicy.mayRestartChecklist($0, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index))
+            Self.restartAllowed($0, hasLocalAnswers: hasEnteredAnswers(atProductIndex: index), missionStage: self.missionStage)
         } ?? false
 
         guard allowed else {
@@ -3168,7 +3173,7 @@ extension CheckListViewController {
         guard let client = KabbaSync.checklistContexts, let order = self.objOrderData else { return }
         let leg: ChecklistLeg = self.isDeliveryType ? .delivery : .return
 
-        for (index, product) in order.arrProduct.enumerated() {
+        for product in order.arrProduct {
             guard let uid = product.unique_id, !uid.isEmpty else { continue }
             // The unit the Queue Line staged travels with the hand-off; the server still decides
             // (a different current assignment answers EQUIPMENT_ASSIGNMENT_CONFLICT, never a swap).
@@ -3176,20 +3181,86 @@ extension CheckListViewController {
             let chosenUnit = product.objMachine?.unique_id ?? queueUnit
             client.load(orderProductUniqueId: uid, leg: leg, equipmentUniqueId: chosenUnit) { [weak self] result, fromCache in
                 DispatchQueue.main.async {
-                    guard let self = self, case .success(let context) = result else { return }
-                    self.checklistContexts[uid] = context
-                    self.applyChecklistContext(context, toProductWith: uid, fallbackIndex: index)
-                    if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
+                    guard let self = self else { return }
+                    switch result {
+                    case .success(let context):
+                        self.contextsNeedingConnection.remove(uid)
+                        self.checklistContexts[uid] = context
+                        self.applyChecklistContext(context, toProductWith: uid)
+                        if fromCache { debugPrint("Checklist context for \(uid) served from the offline cache") }
+                    case .failure(.unavailableOffline):
+                        self.markNeedsConnection(uid)
+                    case .failure:
+                        break // never loaded while connected: the legacy questions stay (P4-D11)
+                    }
                 }
             }
         }
     }
 
+    /// P4-D4: tells the employee once, and blocks Save / Submit for that product.
+    private func markNeedsConnection(_ uid: String) {
+        let isNew = self.contextsNeedingConnection.insert(uid).inserted
+        self.checklistContexts[uid] = nil
+        if isNew { showAlertMessage(strMessage: self.needsConnectionMessage(for: [uid])) }
+    }
+
+    private func needsConnectionMessage(for uids: [String]) -> String {
+        let names = uids.compactMap { uid in self.objOrderData?.arrProduct.first { $0.unique_id == uid }?.product_name }
+        let what = names.isEmpty ? "This unit" : names.joined(separator: ", ")
+        return "\(what): this unit's checklist needs a connection. What you did is saved on this phone — connect to the internet to load the checklist for the current unit."
+    }
+
+    /// A line on screen whose checklist needs a connection, as Submit sees it.
+    struct BlockedLine: Equatable {
+        let uniqueId: String
+        let hasMachine: Bool
+        /// Every question / hours / fuel / cleaning row is still blank (`checkQuestionsIsBlank`).
+        let isBlank: Bool
+    }
+
+    /// Untouched lines are left out in both modes. Entered work blocks until connected.
+    static func submitScope(needingConnection lines: [BlockedLine], combine: Bool) -> (blocking: [String], leftOut: Set<String>) {
+        var blocking: [String] = []
+        var leftOut: Set<String> = []
+        for line in lines {
+            if line.isBlank { leftOut.insert(line.uniqueId) } else { blocking.append(line.uniqueId) }
+        }
+        return (blocking, leftOut)
+    }
+
+    /// The order without the lines whose checklist needs a connection (their `other` rows too, kept
+    /// aligned) — what Submit hands on. `excluded` lists the lines left out, in screen order.
+    static func excludingProductsNeedingConnection(_ order: OrdersModel?, other: [NoteModel], needingConnection: Set<String>)
+        -> (order: OrdersModel?, other: [NoteModel], excluded: [String]) {
+        guard var scoped = order, !needingConnection.isEmpty else { return (order, other, []) }
+        var rows = other
+        var excluded: [String] = []
+        for index in scoped.arrProduct.indices.reversed() {
+            guard let uid = scoped.arrProduct[index].unique_id, needingConnection.contains(uid) else { continue }
+            scoped.arrProduct.remove(at: index)
+            if index < rows.count { rows.remove(at: index) }
+            excluded.insert(uid, at: 0)
+        }
+        return (scoped, rows, excluded)
+    }
+
+    /// Products on screen whose checklist needs a connection (nil when none).
+    private func productsNeedingConnection() -> [String]? {
+        let blocked = (self.objOrderData?.arrProduct ?? []).compactMap(\.unique_id).filter { self.contextsNeedingConnection.contains($0) }
+        return blocked.isEmpty ? nil : blocked
+    }
+
     /// Replaces the product's template questions with the context's (same visual model, canonical
     /// ids), keeps the synthesized hours/fuel/cleaning rows, and locks the office-assigned unit.
-    func applyChecklistContext(_ context: ChecklistContext, toProductWith uid: String, fallbackIndex: Int) {
+    ///
+    /// A context only ever lands on ITS OWN line (MOBILE-QUALITY-01, item 03). When the line is
+    /// no longer on screen (the order was rebuilt from another copy in the meantime) the context
+    /// is not applied at all — it used to fall back to whatever line now sat at the old position,
+    /// handing that line another machine's questions and unit.
+    func applyChecklistContext(_ context: ChecklistContext, toProductWith uid: String) {
         guard let order = self.objOrderData else { return }
-        guard let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }) ?? (fallbackIndex < order.arrProduct.count ? fallbackIndex : nil) else { return }
+        guard let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }) else { return }
         var product = order.arrProduct[index]
 
         // Assigned unit → shown and locked. No unit → the picker stays available; the context is
@@ -3223,9 +3294,13 @@ extension CheckListViewController {
                         if self.isDeliveryType {
                             self.arrOtherData[index].startHours = 0.0
                             self.arrOtherData[index].selectFuleDelivery = ""
+                            self.arrOtherData[index].selectDefDelivery = ""
+                            self.arrOtherData[index].deliveryInputEntered = false
                         } else {
                             self.arrOtherData[index].endHours = 0.0
                             self.arrOtherData[index].selectFuleReturn = ""
+                            self.arrOtherData[index].selectDefReturn = ""
+                            self.arrOtherData[index].returnInputEntered = false
                         }
                     }
                     if let uid = product.unique_id { self.lastSyncedFingerprint[uid] = nil }
@@ -3263,8 +3338,27 @@ extension CheckListViewController {
             self.objOrderData.arrProduct[index] = product
         }
 
+        // The context carries Equipment Management's CURRENT tank facts for the unit (the order
+        // line's machine snapshot can be older) and says whether Laravel stores DEF readings.
+        self.reconcileFuelRows()
+        self.CalculatTotalCharge()
+
         self.tblView.reloadData()
         self.refreshPreparationActions()
+        recordLoadedFingerprint(for: uid)
+    }
+
+    /// The fingerprint of what a prepare would send for the product RIGHT NOW —
+    /// taken when its canonical context lands, i.e. before the employee touches
+    /// it. Focused Save compares against it so unchanged siblings stay silent.
+    private func recordLoadedFingerprint(for uid: String) {
+        guard let order = self.objOrderData, let context = self.checklistContexts[uid],
+              let index = order.arrProduct.firstIndex(where: { $0.unique_id == uid }), index < self.arrOtherData.count else { return }
+        let product = order.arrProduct[index]
+        let capture = ChecklistCaptureFactory.make(context: context, product: product, other: self.arrOtherData[index],
+                                                   isDelivery: self.isDeliveryType,
+                                                   charges: ChecklistLineCharge())
+        loadedFingerprint[uid] = Self.answersFingerprint(capture)
     }
 }
 

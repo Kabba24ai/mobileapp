@@ -71,6 +71,63 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     var serverLastPage = 1
     var lastDispatchServerSyncAt: Date?
     private let lblFreshness = UILabel()
+    /// The offline/stale line, when there is one (see updateFreshnessLine).
+    private var freshnessLineText: String?
+    /// The shop stop on this phone (Next Stop); a seam for tests.
+    var nextStopTrip: () -> NextStopState = { NextStopCoordinator.state() }
+    /// Builds the Next Stop screen beginNextStopFlow shows; a seam for tests.
+    var makeNextStop: () -> NextStopViewController = { NextStopViewController() }
+
+    // Dispatch offline (Phase 3): Pending order legs render from the durable company-wide
+    // working set (DispatchOfflineSync) — immediately, online or offline — while the one
+    // reconciliation coordinator refreshes it in the background. Driver / leg / date /
+    // category selection is local filtering over that cache and makes no request.
+    typealias OrderSource = DispatchOfflineScreenPolicy.Source
+    /// Package revision each rendered cache row came from (opuid → revision).
+    var offlineRevisions: [String: String] = [:]
+    /// This screen's local edits on top of a cached row (Ready to Go / Arrived, a driver
+    /// change, a removal after completion), kept until that mission's package revision
+    /// changes. Durable field truth stays in the Sync Engine / DriverChecklistLocalState.
+    var offlineEdits: [String: (revision: String, row: SchedulesModel?)] = [:]
+    var offlineThroughDate: String?
+    /// Online with nothing downloaded yet: show loading, not "no results".
+    var isAwaitingFirstDownload = false
+    /// The live feed owns the list this time: Pending + All with a named driver once the feed
+    /// answered (D3), or the fallback when this phone never downloaded and the download failed.
+    var feedReplacedCache = false
+    /// That replacement is the first-download fallback (nothing usable was downloaded yet):
+    /// the screen returns to the cache as soon as the working set becomes presentable.
+    var isFeedFallback = false
+    /// When the server was asked for each rendered cache row (opuid → time), and for the feed
+    /// rows shown (nil = an MMKV snapshot of unknown age): a driver step the server confirmed
+    /// after that is not in the row yet (review F2).
+    var offlineObservedAt: [String: Date] = [:]
+    var feedObservedAt: Date?
+    /// The driver's trip stage from durable Sync Engine steps (Load Map & Go / Arrived), per render.
+    var driverStageOverlay = DriverStageOverlay.from([])
+    /// Seams (hosted tests inject; production reads the shared engine and the cached review).
+    var operationsSnapshot: () -> [SyncOperation] = { KabbaSync.engine?.snapshot() ?? [] }
+    /// Next Stop test seam: how a RESOLVED order mission is opened — (order-product id,
+    /// its index in THIS board's list, or nil when this board does not hold it).
+    /// nil (production) = the real mission router.
+    var openOrderMissionSeam: ((String, Int?) -> Void)?
+    /// Next Stop: the SIGNED-IN driver, from the login session — never the driver
+    /// selected on this board, which may be anyone (or All Drivers).
+    var signedInDriverId: () -> Int? = { Int(UserDefaults.standard.user?.id ?? "").flatMap { $0 > 0 ? $0 : nil } }
+    /// Next Stop seam: the signed-in driver's own Manual Dispatch list. nil (production)
+    /// = this board's own cache slot for that driver's day (manualCacheKey "Today" + id).
+    var nextStopManualJobs: ((Int) -> [DispatchManualJob])?
+    /// Order missions Next Stop opened although THIS board's own filters hide them —
+    /// the only ids the Assembly Review's Continue may resolve outside the board's list.
+    var nextStopHostedIds: Set<String> = []
+    var cachedAssemblyReview: (String) -> AssemblyReviewEnvelope? = { KabbaAssemblySync.cached(orderUniqueId: $0) }
+    /// Release 2026-09-30 seams (hosted tests inject; production reads the network, the offline
+    /// mission store and the MMKV feed snapshot).
+    var isReachable: () -> Bool = { NetworkReachabilityManager()?.isReachable == true }
+    var offlinePresentation: (DispatchOfflineQuery) -> DispatchOfflinePresentation? = { DispatchOfflineSync.presentation(for: $0) }
+    var feedSnapshotOverride: ((String) -> [SchedulesModel])?
+    /// Review F4: every live-feed / Manual Dispatch request is bound to the scope that started it.
+    let feedRequests = DispatchFeedRequests()
 
     var isLoading = true
     var bool_Load = false
@@ -120,7 +177,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         let refreshView = UIView(frame: CGRect(x: 0, y: view.window?.windowScene?.statusBarManager?.statusBarFrame.height ?? 0, width: 0, height: 0))
         self.tblView.addSubview(refreshView)
         self.objRefresh?.tintColor = UIColor.primary
-        self.objRefresh?.addTarget(self, action: #selector(self.refreshList), for: .valueChanged)
+        self.objRefresh?.addTarget(self, action: #selector(self.pullToRefresh), for: .valueChanged)
         refreshView.addSubview(self.objRefresh!)
         
 
@@ -143,6 +200,14 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
                                                name: .kabbaSyncQueueChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(self.syncStateDidChange),
                                                name: .updateCheckList, object: nil)
+
+        //DISPATCH OFFLINE (Phase 3) — the durable working set changed (a wake / repair
+        //reconciliation committed): re-render from local data, no spinner, no request.
+        NotificationCenter.default.addObserver(self, selector: #selector(self.offlineCacheDidChange),
+                                               name: .kabbaDispatchOfflineChanged, object: nil)
+        //…and every reconciliation outcome (any trigger): a failure is never shown as current.
+        NotificationCenter.default.addObserver(self, selector: #selector(self.offlineReconcileDidFinish(_:)),
+                                               name: .kabbaDispatchOfflineReconciled, object: nil)
 
         //GET CATEGORY DATA
         getCategoryList { arr_data in
@@ -172,6 +237,8 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
         //GET DATA
         self.refreshList()
+        // A shop trip left under way (Next Stop → Main Menu / Back) is offered to continue.
+        self.renderBoardHeader()
         
         
         //SET VIEW
@@ -227,7 +294,115 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
   
     
     // MARK: - Refresh Action
+
+    /// Screen open (viewWillAppear) / child-screen callbacks: render, and ask for a repair.
     @objc func refreshList() {
+        self.reloadDispatch(reconcile: .dispatchScreenOpened)
+    }
+
+    /// Pull-to-refresh: an explicit repair that bypasses the freshness window.
+    @objc func pullToRefresh() {
+        self.reloadDispatch(reconcile: .manualRefresh)
+    }
+
+    /// Which source feeds the order legs (D3): Pending + Today = the durable cache only;
+    /// Pending + All = the cache first, then — for a NAMED driver — the live All feed when
+    /// online. With All Drivers the cache stays the source (D5): the mixed feed scopes a
+    /// missing driver to the signed-in user and would replace the company with one person.
+    /// Completed and Search = the existing online feed, unchanged.
+    var orderSource: OrderSource {
+        DispatchOfflineScreenPolicy.source(pending: self.selectStatus == "1", search: self.txtSearch?.text ?? "",
+                                           day: self.strSelectDay, selectedDriverId: self.selectDriverID)
+    }
+
+    var isShowingOfflineCache: Bool {
+        self.orderSource != .feed && !self.feedReplacedCache
+    }
+
+    func offlineQuery() -> DispatchOfflineQuery {
+        let legs: DispatchOfflineQuery.Legs
+        switch self.selectScheduleType() {
+        case "Delivery": legs = .delivery
+        case "Return":   legs = .return
+        default:         legs = .all
+        }
+        // Company-wide on purpose: the driver filter runs in rebuildRows() AFTER this screen's
+        // local edits, so a card reassigned here follows its NEW driver immediately.
+        return DispatchOfflineQuery(selectedDriverId: nil,
+                                    legs: legs,
+                                    dates: self.strSelectDay == "Today" ? .today : .all,
+                                    categoryId: Int(self.selectCategoryID))
+    }
+
+    /// `reconcile` nil = a pure filter change (driver, leg, day, category): local only.
+    func reloadDispatch(reconcile trigger: DispatchOfflineTrigger?) {
+        self.feedRequests.restart() // F4: every answer still in flight describes an older list
+        self.feedReplacedCache = false
+        self.isFeedFallback = false
+        self.isAwaitingFirstDownload = false
+        let online = self.isReachable()
+
+        if self.orderSource != .feed, let presentation = self.offlinePresentation(self.offlineQuery()) {
+            // Nothing ever downloaded and no connection (always the case while the server has no
+            // offline endpoints): the last live list this phone saw, flagged not current, beats an
+            // empty "not downloaded" screen that connecting cannot fix (release 2026-09-30).
+            if presentation == .notDownloaded, !online,
+               DispatchOfflineScreenPolicy.offlineShowsFeedSnapshot(presentation: presentation, online: online,
+                                                                    hasFeedSnapshot: self.hasFeedSnapshot) {
+                self.isFeedFallback = true
+                self.stopAnimatingView()
+                self.objRefresh?.endRefreshing()
+                self.reloadFromFeed()
+                // A pull-to-refresh still asks for a repair (reachability can misreport); its outcome
+                // settles the screen like any other.
+                if trigger == .manualRefresh { DispatchOfflineSync.trigger(.manualRefresh) }
+                return
+            }
+            self.pageCount = 1
+            self.serverLastPage = 1
+            self.showOfflineCache(presentation)
+
+            // Online with nothing downloaded yet, even a filter change needs the first download
+            // (its outcome always settles the loading state).
+            let trigger = trigger ?? (DispatchOfflineScreenPolicy.filterChangeNeedsFirstDownload(
+                notDownloaded: presentation == .notDownloaded, online: online) ? .dispatchScreenOpened : nil)
+            if let trigger = trigger, online || trigger == .manualRefresh {
+                DispatchOfflineSync.trigger(trigger) { [weak self] result in
+                    guard let self = self else { return }
+                    self.objRefresh?.endRefreshing()
+                    // A run's outcome arrives via .kabbaDispatchOfflineReconciled; a skipped
+                    // request has none, so settle the screen here.
+                    if case .skipped = result.status {
+                        self.applyReconcileOutcome(failed: DispatchOfflineScreenPolicy.indicatesFailure(result))
+                    }
+                }
+            } else {
+                self.objRefresh?.endRefreshing()
+            }
+
+            if online {
+                if self.orderSource == .offlineCache {
+                    self.fetchManualRider()
+                } else {
+                    self.APICall() // D3: the live All feed may expand / replace the cached horizon
+                }
+            } else {
+                self.updateOfflineFreshnessLine()
+            }
+            return
+        }
+
+        // Completed / Search stay on the live feed; the working set is still repaired behind it.
+        if let trigger = trigger, online {
+            DispatchOfflineSync.trigger(trigger)
+        }
+        self.reloadFromFeed()
+    }
+
+    /// The pre-Phase-3 path (Completed, Search, or signed out): MMKV snapshot, then the feed.
+    func reloadFromFeed() {
+        self.feedRequests.restart()
+        self.feedObservedAt = nil // the MMKV snapshot below is of unknown age
         self.pageCount = 1
         self.serverLastPage = 1
         self.bool_Load = true
@@ -246,7 +421,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.rebuildRows()
         self.setTheView()
 
-        if NetworkReachabilityManager()?.isReachable == true {
+        if self.isReachable() {
             self.APICall()
         } else {
             // Offline: the cached snapshot is all we have — say so.
@@ -256,7 +431,156 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
     @objc func appDidBecomeActive() {
         guard self.viewIfLoaded?.window != nil else { return }
-        self.refreshList()
+        // KabbaSync already asks for a .foreground repair; this only re-renders.
+        self.reloadDispatch(reconcile: nil)
+    }
+
+    // MARK: - Dispatch offline (Phase 3)
+
+    /// Renders the durable working set: cached rows (with this screen's local edits),
+    /// the cached manual tasks, no pagination (the cache is complete).
+    func showOfflineCache(_ presentation: DispatchOfflinePresentation) {
+        switch presentation {
+        case .notDownloaded:
+            self.arrDispatchList = []
+            self.offlineRevisions = [:]
+            self.isAwaitingFirstDownload = self.isReachable()
+            if self.isAwaitingFirstDownload {
+                self.emptyDataView.noDataFound()
+                self.startAnimatingView()
+            } else {
+                // Genuinely not downloaded — never pretend there is no Dispatch.
+                self.emptyDataView.dispatchNotDownloaded()
+            }
+        case .ready(let rows, let freshness):
+            self.isAwaitingFirstDownload = false
+            self.stopAnimatingView()
+            self.emptyDataView.noDataFound()
+            self.lastDispatchServerSyncAt = freshness.lastManifestAt
+            self.offlineThroughDate = freshness.throughDate
+
+            var list: [SchedulesModel] = []
+            var revisions: [String: String] = [:]
+            var observed: [String: Date] = [:]
+            for row in rows {
+                guard let model = DispatchOfflineRowAdapter.schedulesModel(from: row.row) else { continue }
+                revisions[row.orderProductUniqueId] = row.revision
+                observed[row.orderProductUniqueId] = row.serverObservedAt
+                if let edit = self.offlineEdits[row.orderProductUniqueId] {
+                    if edit.revision == row.revision {
+                        if let local = edit.row { list.append(local) } // nil = removed on this screen
+                        continue
+                    }
+                    self.offlineEdits[row.orderProductUniqueId] = nil // newer server truth arrived
+                }
+                list.append(model)
+            }
+            self.offlineRevisions = revisions
+            self.offlineObservedAt = observed
+            self.arrDispatchList = list
+        }
+
+        self.arrManualList = self.getDispatchManualData()
+        self.bool_Load = true
+        self.isLoading = false
+        self.rebuildRows()
+        self.tblView.reloadData()
+        self.setTheView()
+    }
+
+    /// A reconciliation committed (or finished): re-render from local data only.
+    @objc func offlineCacheDidChange() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.viewIfLoaded?.window != nil else { return }
+            // The first download finally produced usable Dispatch: leave the live-feed fallback for
+            // the normal cached working set (its outcome notification then settles the header).
+            if self.isFeedFallback, self.orderSource != .feed,
+               let presentation = self.offlinePresentation(self.offlineQuery()),
+               DispatchOfflineScreenPolicy.leavesFeedFallback(presentation: presentation) {
+                self.reloadDispatch(reconcile: nil)
+                return
+            }
+            guard self.isShowingOfflineCache,
+                  let presentation = self.offlinePresentation(self.offlineQuery()) else { return }
+            self.showOfflineCache(presentation)
+            if !self.isReachable() {
+                self.updateOfflineFreshnessLine()
+            }
+        }
+    }
+
+    @objc func offlineReconcileDidFinish(_ note: Notification) {
+        let failed = (note.userInfo?["failed"] as? Bool) ?? true
+        let tenant = note.userInfo?["tenantKey"] as? String
+        DispatchQueue.main.async { [weak self] in
+            // Review F3: another company's outcome (a sign-out/sign-in race) never settles this one.
+            guard DispatchOfflineScreenPolicy.appliesReconcileOutcome(
+                fromTenant: tenant, currentTenant: DispatchOfflineSync.currentSession()?.tenantKey) else { return }
+            self?.applyReconcileOutcome(failed: failed)
+        }
+    }
+
+    /// Settles the screen after a reconciliation: a failure (or offline) is flagged, a success
+    /// clears the header — but never while any active mission is missing or stale (review F1).
+    /// Never downloaded + the download failed online → the live feed, as before Phase 3 (the
+    /// screen never sits on a spinner).
+    func applyReconcileOutcome(failed: Bool) {
+        guard self.viewIfLoaded?.window != nil, self.isShowingOfflineCache,
+              let presentation = self.offlinePresentation(self.offlineQuery()) else { return }
+        let online = self.isReachable()
+
+        switch DispatchOfflineScreenPolicy.outcome(presentation: presentation, failed: failed, online: online,
+                                                   hasFeedSnapshot: presentation == .notDownloaded && !online && self.hasFeedSnapshot) {
+        case .fallBackToFeed:
+            self.isAwaitingFirstDownload = false
+            self.stopAnimatingView()
+            // Online the live feed takes over. Offline it is the snapshot fallback: the screen keeps
+            // listening, so the outcome of the run the returning connection starts reaches the feed.
+            self.feedReplacedCache = online
+            self.isFeedFallback = true
+            self.reloadFromFeed()
+        case .showNotDownloaded:
+            self.showOfflineCache(presentation) // "isn't downloaded to this phone yet"
+        case .flagOffline:
+            self.showOfflineCache(presentation)
+            self.updateOfflineFreshnessLine()
+        case .flagNotCurrent:
+            self.showOfflineCache(presentation)
+            self.updateFreshnessLine(refreshFailed: true) // the list shown is the last saved one
+        case .current:
+            self.showOfflineCache(presentation)
+            self.updateFreshnessLine(refreshFailed: false)
+        }
+    }
+
+    /// Offline: Today says when the list was saved; All names the last downloaded day (D3).
+    func updateOfflineFreshnessLine() {
+        let text: String? = self.strSelectDay == "All"
+            ? DispatchOfflineWorkingSet.offlineAllLine(throughDate: self.offlineThroughDate)
+            : nil
+        self.updateFreshnessLine(refreshFailed: true, text: text)
+    }
+
+    /// D4: manual tasks stay on the existing feed + cache (best effort, not offline-guaranteed).
+    func fetchManualRider() {
+        let params = self.currentFeedParams(page: "1", search: "")
+        let ticket = self.feedRequests.ticket(for: params.feedScope)
+        self.callAPIforDispatchManualRider(DispatchParameater: params, ticket: ticket) { [weak self] saved in
+            DispatchQueue.main.async {
+                // F4: another driver's (or day's, category's…) manual tasks never land on this view.
+                guard let self = self, saved, self.isShowingOfflineCache, self.isCurrent(ticket) else { return }
+                self.arrManualList = self.getDispatchManualData()
+                self.rebuildRows()
+                self.emptyDataView.isHidden = self.arrRows.count != 0 || self.isAwaitingFirstDownload
+                self.tblView.reloadData()
+            }
+        }
+    }
+
+    /// Keeps a local change to a cached row until that mission's package revision changes.
+    func rememberOfflineEdit(_ row: SchedulesModel, removed: Bool = false) {
+        guard self.isShowingOfflineCache, let id = row.unique_id, let revision = self.offlineRevisions[id] else { return }
+        self.offlineEdits[id] = (revision, removed ? nil : row)
     }
 
     /// Re-applies the local completion filter to the already-loaded rows and
@@ -292,8 +616,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // stays intact — and the overlay outlives a page-1 feed replace, so the
         // row can never reinsert. Completed view stays unfiltered (retained
         // synced ops must not hide genuinely completed rows there).
+        let operations = self.operationsSnapshot()
+        self.driverStageOverlay = DriverStageOverlay.from(operations)
         if self.selectStatus == "1" {
-            let overlay = EffectiveFieldState.CompletionOverlay.from(KabbaSync.engine?.snapshot() ?? [])
+            let overlay = EffectiveFieldState.CompletionOverlay.from(operations)
             if !overlay.isEmpty {
                 rows = rows.filter { row in
                     guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
@@ -310,18 +636,34 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         // predicate makes the card leave the previous driver's rendered
         // workload on the SAME rebuild, whatever path updated the row. The
         // server applies the identical rule; caches and Sync Engine work are
-        // never touched (display-time only).
-        if let selectedDriverId = Int(self.selectDriverID) {
-            rows = rows.filter { row in
-                guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
-                let objData = self.arrDispatchList[i]
-                return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
-                                                        isDelivered: objData.is_delivered == true,
-                                                        deliveryEmployeeId: objData.delivery_employee?.id,
-                                                        pickupEmployeeId: objData.pickup_employee?.id)
-            }
+        // never touched (display-time only). Phase 6 locked rule: only ASSIGNED
+        // missions render — for a named driver AND for All Drivers, on both
+        // tabs (the server ignores schedule_status, so each tab gets active
+        // work) — so a row whose active leg has no driver never renders in a
+        // normal Dispatch view.
+        let selectedDriverId = Int(self.selectDriverID)   // "" (All Drivers) → nil
+        rows = rows.filter { row in
+            guard case let .order(i) = row, i < self.arrDispatchList.count else { return true }
+            let objData = self.arrDispatchList[i]
+            return DispatchWorkload.orderRowBelongs(selectedDriverId: selectedDriverId,
+                                                    isDelivered: objData.is_delivered == true,
+                                                    deliveryEmployeeId: objData.delivery_employee?.id,
+                                                    pickupEmployeeId: objData.pickup_employee?.id)
         }
         self.arrRows = rows
+    }
+
+    /// The row as the card shows it: its copy with the driver's durable trip stage (Load Map &
+    /// Go / Arrived saved on this phone) applied — review F2.
+    func presentedRow(_ index: Int) -> SchedulesModel {
+        let row = self.arrDispatchList[index]
+        return DriverStagePresentation.applying(self.driverStageOverlay, to: row,
+                                                serverObservedAt: self.serverObservedAt(for: row))
+    }
+
+    /// When the server was asked for the data this row shows (nil = unknown).
+    func serverObservedAt(for row: SchedulesModel) -> Date? {
+        self.isShowingOfflineCache ? self.offlineObservedAt[row.unique_id ?? ""] : self.feedObservedAt
     }
 
     /// Row → index into arrDispatchList, when the row is an order leg.
@@ -339,25 +681,64 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     /// Offline/stale indication (Phase 4 conventions): a cached list is never
     /// presented as current. Shown as a slim table header only when it says
     /// something (offline, or an aged snapshot).
-    func updateFreshnessLine(refreshFailed: Bool) {
-        let text = QueueLineFreshness.line(lastServerSyncAt: self.lastDispatchServerSyncAt,
-                                           lastRefreshFailed: refreshFailed,
-                                           pendingCount: 0)
+    func updateFreshnessLine(refreshFailed: Bool, text override: String? = nil) {
+        let text = override ?? QueueLineFreshness.line(lastServerSyncAt: self.lastDispatchServerSyncAt,
+                                                       lastRefreshFailed: refreshFailed,
+                                                       pendingCount: 0)
         let showsBanner = refreshFailed
+        self.freshnessLineText = showsBanner ? text : nil
+        self.renderBoardHeader()
+    }
 
-        guard showsBanner else {
-            self.tblView.tableHeaderView = nil
+    /// The board's slim header, only when it has something to say: a shop trip still under
+    /// way that Next Stop can continue (2026-10-21 — the driver left it with Main Menu or
+    /// Back and has not confirmed the arrival), then the offline/stale line.
+    func renderBoardHeader() {
+        guard let table = self.tblView else { return }
+        let width = table.frame.size.width > 0 ? table.frame.size.width : UIScreen.main.bounds.width
+        let trip = self.nextStopTrip().tripToContinue(now: Date())
+        guard trip != nil || self.freshnessLineText != nil else {
+            table.tableHeaderView = nil
             return
         }
 
-        self.lblFreshness.text = text
-        self.lblFreshness.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12.0)
-        self.lblFreshness.textColor = .secondaryText
-        self.lblFreshness.textAlignment = .center
-        let wrap = UIView(frame: CGRect(x: 0, y: 0, width: self.tblView.frame.size.width, height: 26))
-        self.lblFreshness.frame = wrap.bounds
-        wrap.addSubview(self.lblFreshness)
-        self.tblView.tableHeaderView = wrap
+        let wrap = UIView(frame: CGRect(x: 0, y: 0, width: width, height: 0))
+        var y: CGFloat = 0
+        if let shop = trip {
+            let resume = UIButton(type: .system)
+            resume.setTitle("Heading to \(shop.name) · Continue Next Stop ›", for: .normal)
+            resume.titleLabel?.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Bold, size: 14.0)
+            resume.titleLabel?.adjustsFontSizeToFitWidth = true
+            resume.titleLabel?.minimumScaleFactor = 0.8
+            resume.setTitleColor(.secondary, for: .normal)
+            resume.layer.borderWidth = 1
+            resume.layer.borderColor = UIColor.secondary.cgColor
+            resume.layer.cornerRadius = 8
+            resume.accessibilityIdentifier = "dispatch.nextStop.continue"
+            resume.frame = CGRect(x: 12, y: 6, width: width - 24, height: 36)
+            resume.autoresizingMask = [.flexibleWidth]
+            resume.addTarget(self, action: #selector(continueNextStopTapped), for: .touchUpInside)
+            wrap.addSubview(resume)
+            y = 48
+        }
+        if let text = self.freshnessLineText {
+            self.lblFreshness.text = text
+            self.lblFreshness.font = SetTheFont(fontName: GlobalMainConstants.APP_FONT_Roboto_Medium, size: 12.0)
+            self.lblFreshness.textColor = .secondaryText
+            self.lblFreshness.textAlignment = .center
+            self.lblFreshness.frame = CGRect(x: 0, y: y, width: width, height: 26)
+            self.lblFreshness.autoresizingMask = [.flexibleWidth]
+            wrap.addSubview(self.lblFreshness)
+            y += 26
+        }
+        wrap.frame.size.height = y
+        table.tableHeaderView = wrap
+    }
+
+    /// Back into Next Stop for the trip under way: the arrival can be confirmed, or the next
+    /// mission chosen. Nothing was completed here, so no mission is handed in.
+    @objc func continueNextStopTapped() {
+        self.beginNextStopFlow(completed: nil)
     }
     
     func selectScheduleType() -> String{
@@ -372,7 +753,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
 
      
     func APICall() {
-        let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: self.txtSearch.text ?? "", transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+        let params = self.currentFeedParams(page: "\(self.pageCount)")
         self.fetchDispatchOrders(DispatchParameater: params, overrideLocal: true)
     }
     
@@ -435,9 +816,10 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
             self.stopLoading()
             self.isLoading = false
             
-            //NO DATA — the rendered mixed workday (orders + manual tasks)
+            //NO DATA — the rendered mixed workday (orders + manual tasks). Online with no
+            //offline Dispatch downloaded yet is "loading", not "no results".
             self.emptyDataView.isHidden = true
-            if self.arrRows.count == 0{
+            if self.arrRows.count == 0 && !self.isAwaitingFirstDownload {
                 self.emptyDataView.isHidden = false
             }
             
@@ -553,7 +935,15 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
     }
     
     func callAPI(search: String){
+        // Dispatch offline (Phase 3): a filter change with no search re-renders the cache locally.
+        if search.isEmpty, self.orderSource != .feed {
+            self.reloadDispatch(reconcile: nil)
+            return
+        }
+
         //CALL API
+        self.feedRequests.restart() // F4: a new search / filter obsoletes every answer in flight
+        self.feedObservedAt = nil
         self.objSearchIndicator.isHidden = false
         self.objSearchIndicator.startAnimating()
         self.pageCount = 1
@@ -564,7 +954,7 @@ class DispatchListViewController: UIViewController, UIGestureRecognizerDelegate,
         self.selectDeliveryType = self.selectDeliveryType == "" ? "All" : self.selectDeliveryType
         
         
-        let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: search, transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+        let params = self.currentFeedParams(page: "\(self.pageCount)", search: search)
         self.fetchDispatchOrders(DispatchParameater: params, overrideLocal: true)
 
         
@@ -617,7 +1007,7 @@ extension DispatchListViewController {
         self.setTheType()
         
         //CALL API
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
     
     @IBAction func btnPickupClicked(_ sender: UIButton) {
@@ -632,7 +1022,7 @@ extension DispatchListViewController {
         self.setTheType()
 
         //CALL API
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
     
     @IBAction func btnSelectTypeClicked(_ sender: UIButton) {
@@ -664,7 +1054,7 @@ extension DispatchListViewController {
     
     @objc func segmentDayChanged(_ sender: UISegmentedControl) {
         self.strSelectDay = sender.selectedSegmentIndex == 0 ? "Today" : "All"
-        self.refreshList()
+        self.reloadDispatch(reconcile: nil)
     }
 
     @IBAction func btnSelectDriverClicked(_ sender: UIButton) {
@@ -690,8 +1080,8 @@ extension DispatchListViewController {
             //SAVE SELECTED DRIVER FOR TODAY (auto-resets next day)
             self.saveSelectedDriverForToday(name: self.selectDriver, id: self.selectDriverID)
 
-            //RELOAD
-            self.refreshList()
+            //RELOAD — local filtering over the company-wide cache: no request (Phase 3)
+            self.reloadDispatch(reconcile: nil)
         }
     }
 }
@@ -755,17 +1145,24 @@ extension DispatchListViewController{
     func fetchDispatchOrders(DispatchParameater : DispatchParameater, overrideLocal: Bool = false) {
         
         let params = DispatchParameater
-        callAPIforGetDispatchList(DispatchParameater: params) { [weak self] isSaved in
+        let ticket = self.feedRequests.ticket(for: params.feedScope)
+        callAPIforGetDispatchList(DispatchParameater: params, ticket: ticket) { [weak self] isSaved in
             guard let self = self else { return }
+            // Review F4: a late answer for a scope the employee has left — another driver, day,
+            // leg, status, category, search or transport mode, or an older request generation —
+            // never replaces what is on screen now. The feed must also still own the view.
+            guard self.isCurrent(ticket), !self.isShowingOfflineCache || self.orderSource == .cacheThenFeed else { return }
+            self.isAwaitingFirstDownload = false
             
             self.isLoading = false
             self.stopAnimatingView()
             self.objRefresh?.endRefreshing()
-            if self.pageCount == 1{
+            if params.page == "1" {
                 self.arrDispatchList = []
             }
             
             if isSaved {
+                if params.page == "1" { self.feedObservedAt = ticket.startedAt }
                 let localData = self.getDispatchOrderData(schedule_type: DispatchParameater.schedule_type)
 
                 if overrideLocal {
@@ -783,6 +1180,8 @@ extension DispatchListViewController{
 
                 // Manual tasks are a page-1 rider; re-read the reconciled cache.
                 self.arrManualList = self.getDispatchManualData()
+                // Pending + All online (D3): the live feed now owns the list.
+                if self.orderSource == .cacheThenFeed { self.feedReplacedCache = true }
                 self.rebuildRows()
 
                 // Pagination Control — the server's pagination block is
@@ -798,6 +1197,13 @@ extension DispatchListViewController{
                 self.updateFreshnessLine(refreshFailed: false)
             } else {
                 self.bool_Load = true
+                if self.orderSource == .cacheThenFeed, !self.feedReplacedCache,
+                   let presentation = self.offlinePresentation(self.offlineQuery()) {
+                    // The All feed failed: keep showing the cached horizon, not an empty list.
+                    self.showOfflineCache(presentation)
+                    self.updateOfflineFreshnessLine()
+                    return
+                }
                 self.updateFreshnessLine(refreshFailed: true)
             }
 
@@ -807,8 +1213,27 @@ extension DispatchListViewController{
         }
     }
         
+    /// The parameters for the list the screen shows now — ONE builder for every feed request
+    /// (first page, next page, search, the Manual Dispatch rider) and for the current scope.
+    func currentFeedParams(page: String, search: String? = nil) -> DispatchParameater {
+        DispatchParameater(page: page, schedule_type: self.selectScheduleType(),
+                           schedule_status: self.selectStatus == "1" ? "Pending" : "Completed",
+                           category_id: self.selectCategoryID, search: search ?? (self.txtSearch?.text ?? ""),
+                           transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay,
+                           driver_id: self.selectDriverID)
+    }
+
+    /// Review F4: the answer still belongs to the scope on screen, in the current request generation.
+    func isCurrent(_ ticket: DispatchFeedRequests.Ticket) -> Bool {
+        self.feedRequests.accepts(ticket, currentScope: self.currentFeedParams(page: "1").feedScope)
+    }
+
     // MARK: - Get Local Data
+    /// The last live Dispatch list this phone saw for the current tab (the MMKV feed snapshot).
+    var hasFeedSnapshot: Bool { !self.getDispatchOrderData(schedule_type: self.selectScheduleType()).isEmpty }
+
     func getDispatchOrderData(schedule_type: String) -> [SchedulesModel] {
+        if let override = self.feedSnapshotOverride { return override(schedule_type) }
         if let arr = SDKUserDefault.getMappableArray(SchedulesModel.self, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(schedule_type)_\(self.strSelectDay)_\(self.selectDriverID)") {
             return arr
         }
@@ -819,11 +1244,21 @@ extension DispatchListViewController{
     /// keyed by schedule_type: the manual set is one list; the Delivery /
     /// Return rendering rule is applied at weave time.
     func manualCacheKey() -> String {
-        return "kDispatchManualList_\(self.strSelectDay)_\(self.selectDriverID)"
+        return self.manualCacheKey(dateFilter: self.strSelectDay, driverId: self.selectDriverID)
+    }
+
+    /// The slot for one request's scope (F4: an answer is written where IT belongs, never
+    /// wherever the screen happens to be when it lands).
+    func manualCacheKey(dateFilter: String, driverId: String) -> String {
+        return "kDispatchManualList_\(dateFilter)_\(driverId)"
     }
 
     func getDispatchManualData() -> [DispatchManualJob] {
-        return SDKUserDefault.getCodableArray(DispatchManualJob.self, for: self.manualCacheKey()) ?? []
+        return self.getDispatchManualData(key: self.manualCacheKey())
+    }
+
+    func getDispatchManualData(key: String) -> [DispatchManualJob] {
+        return SDKUserDefault.getCodableArray(DispatchManualJob.self, for: key) ?? []
     }
 
     /// Persists the in-memory order list back to its cache slot and re-weaves
@@ -831,6 +1266,12 @@ extension DispatchListViewController{
     /// (checklist update, driver change, row removal) goes through, so the
     /// cache and the screen can never drift apart.
     func persistOrderListAndRebuild() {
+        // Dispatch offline (Phase 3): the durable cache is the source — never write the
+        // legacy MMKV slot from it (local edits live in offlineEdits).
+        if self.isShowingOfflineCache {
+            self.rebuildRows()
+            return
+        }
         SDKUserDefault.saveMappableArray(self.arrDispatchList, for: "\(kFileStorageName.kDispatchJobList.rawValue)_\(self.selectScheduleType())_\(self.strSelectDay)_\(self.selectDriverID)")
         self.rebuildRows()
     }
@@ -959,8 +1400,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             //START LOADING
             startAnimatingView()
             
-            //CALL API
-            let params = DispatchParameater(page: "\(self.pageCount)", schedule_type: self.selectScheduleType(), schedule_status: self.selectStatus == "1" ? "Pending" : "Completed", category_id: self.selectCategoryID, search: self.txtSearch.text ?? "", transport_mode: self.selectDeliveryType, date_filter: self.strSelectDay, driver_id: self.selectDriverID)
+            //CALL API — the next page of the SAME list (same scope, same request generation)
+            let params = self.currentFeedParams(page: "\(self.pageCount)")
             self.fetchDispatchOrders(DispatchParameater: params)
 
         }
@@ -1019,8 +1460,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
                 return cell
             }
 
-            //GET DATA
-            let objData = self.arrDispatchList[orderIndex]
+            //GET DATA — with the driver's durable trip stage (F2)
+            let objData = self.presentedRow(orderIndex)
 
             //OVERDUE FLAG — delivery rows use is_delivery_overdue, pickup rows use is_pickup_overdue
             let isRowOverdue = (objData.is_delivered == false) ? (objData.is_delivery_overdue ?? false) : (objData.is_pickup_overdue ?? false)
@@ -1287,6 +1728,10 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             let detail = ManualDispatchDetailViewController()
             detail.item = manualJob
             detail.onChanged = { [weak self] in self?.refreshList() }
+            let taskUniqueId = manualJob.unique_id ?? ""
+            detail.onCompleted = { [weak self] in
+                self?.beginNextStopFlow(completed: taskUniqueId.isEmpty ? nil : .manualTask(uniqueId: taskUniqueId))
+            }
             self.navigationController?.pushViewController(detail, animated: true)
         }
     }
@@ -1295,82 +1740,167 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         if self.arrDispatchList.count == 0{
             return
         }
+        guard sender.tag < self.arrDispatchList.count else { return }
+        // The active leg's driver must be assigned before a mission can start.
         let objData = self.arrDispatchList[sender.tag]
-        var isDriverAssign : Bool = false
-        var checklistType : String = ""
-        if objData.is_delivered == false {
-            checklistType = "delivery"
-            
-            //GET ADDRESS
-            if let objTransport = objData.delivery_employee, let _ = objTransport.name{
-                isDriverAssign = true
-            }
-        }
-        else {
-            checklistType = "pickup"
-            
-            //GET ADDRESS
-            if let objTransport = objData.pickup_employee, let _ = objTransport.name{
-                isDriverAssign = true
-            }
-            
-            
-        }
+        let driver = objData.is_delivered == false ? objData.delivery_employee : objData.pickup_employee
+        let isDriverAssign = driver?.name != nil
 
-        
         if isDriverAssign == false {
             self.strAssignDriver(index: sender.tag)
         }
         else {
-            var is_arrived: Bool = false
-            var ready_to_go_at: String = ""
-            var buttonColour : UIColor = .secondaryText
-
-            if objData.is_delivered == false {
-                //DELIVERY CASE
-                is_arrived = objData.delivery_checklist?.is_arrived ?? false
-                ready_to_go_at = objData.delivery_checklist?.ready_to_go_at ?? ""
-
-                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legDelivery)
-                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : hexStringToUIColor(hex: "4DA3FF"))
-
-            }
-            else{
-                //PICKUP CASE
-                is_arrived = objData.pickup_checklist?.is_arrived ?? false
-                ready_to_go_at = objData.pickup_checklist?.ready_to_go_at ?? ""
-
-                let isDriverStarted = hasSavedDriverProgress(objData, leg: DriverChecklistLocalState.legPickup)
-                buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : .secondaryText)
-
-            }
-
-            // ONE canonical route (2026-09 correction): Start Delivery / Start Return
-            // ALWAYS opens the Driver Checklist. Prior state — arrived, ready-to-go,
-            // saved progress, green band — only changes what Screen 2 SHOWS, never
-            // which screen opens. The old is_arrived shortcut straight to Order
-            // Details is gone; Screen 2 itself carries the driver on to Screen 3.
-            let hasProgress = hasSavedDriverProgress(objData, leg: checklistType == "pickup" ? DriverChecklistLocalState.legPickup : DriverChecklistLocalState.legDelivery)
-            switch DriverChecklistRouting.destination(isArrived: is_arrived,
-                                                      readyToGoAt: ready_to_go_at.isEmpty ? nil : ready_to_go_at,
-                                                      hasSavedProgress: hasProgress) {
-            case .driverChecklist:
-                let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
-                if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
-                    newViewController.delegate_Data = self
-                    newViewController.buttonColour = buttonColour
-                    newViewController.objDispatch = objData
-                    newViewController.selectIndex = sender.tag
-                    newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
-                    newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
-                    newViewController.productUniqueId = objData.unique_id ?? ""
-                    newViewController.checklistType = checklistType
-                    self.navigationController?.pushViewController(newViewController, animated: true)
-                }
-            }
+            self.openMission(at: sender.tag)
         }
+    }
 
-        
+    /// Start Delivery / Start Return: ONE derivation of where the driver is
+    /// (DeliveryWorkflowStage, spec §3.3) from the durable stores this screen
+    /// already has, then the screen that stage names (DeliveryWorkflowRouting,
+    /// §5) — the Assembly Review with the driver origin, Screen 2, or Main Order
+    /// after Arrived. Nothing here is stored; the stage IS the resume point.
+    func openMission(at index: Int) {
+        guard index < self.arrDispatchList.count else { return }
+        let raw = self.arrDispatchList[index]
+        self.openMission(row: raw, boardIndex: index, serverObservedAt: self.serverObservedAt(for: raw))
+    }
+
+    /// The ONE mission router, by row. `boardIndex` is the row's position in THIS board's
+    /// list — or nil when the board does not hold it (Next Stop opened a mission this
+    /// board's own filters hide). Then the same stage routing applies, but no screen is
+    /// wired to write back into this board by position: there is no card here to update,
+    /// and a position would name some OTHER mission.
+    func openMission(row raw: SchedulesModel, boardIndex: Int?, serverObservedAt observedAt: Date?) {
+        let isDeliveryLeg = raw.is_delivered == false
+        let productId = raw.unique_id ?? ""
+        let checklist = isDeliveryLeg ? raw.delivery_checklist : raw.pickup_checklist
+        let serverTrip = DriverStagePresentation.serverState(checklist)
+
+        // The ONE builder Dispatch, Screen 2 and the driver-origin review share. The leg's
+        // completion is the ROW's flag (is_delivered / is_returned): the checklist block's
+        // `is_delivered` is the server's Arrived latch (delivery_is_delivered), not completion.
+        let stage = DriverMissionStage.stage(
+            DriverMissionStage.Inputs(orderProductUniqueId: productId,
+                                      isDeliveryLeg: isDeliveryLeg,
+                                      serverTrip: serverTrip,
+                                      serverObservedAt: observedAt,
+                                      serverChecklist: checklist?.serverCopy,
+                                      serverLegCompleted: isDeliveryLeg ? raw.is_delivered == true : raw.is_returned == true),
+            review: self.cachedAssemblyReview(raw.order?.unique_id ?? "")?.data,
+            operations: self.operationsSnapshot())
+
+        switch DeliveryWorkflowRouting.destination(for: stage, isDeliveryLeg: isDeliveryLeg) {
+        case .assemblyReview:
+            ChecklistEntry.openAssemblyReview(
+                on: self.navigationController,
+                orderUniqueId: raw.order?.unique_id ?? "",
+                orderNumber: "\(raw.order?.order_number ?? "")",
+                focusOrderProductUniqueId: productId,
+                origin: ChecklistEntry.Origin(kind: .driver(orderProductUniqueId: productId, enteredFrom: stage, isRevisit: false),
+                                              selectIndex: boardIndex ?? 0, fromCheckListScreen: true,
+                                              missionServerTrip: serverTrip, missionServerObservedAt: observedAt))
+        case .driverChecklist:
+            if let index = boardIndex {
+                self.openDriverChecklist(at: index)
+            } else {
+                self.openDriverChecklist(offBoard: raw, serverObservedAt: observedAt)
+            }
+        case .mainOrder:
+            if let details = Self.makeOrderDetails(for: raw, index: boardIndex ?? 0, serverObservedAt: observedAt) {
+                self.navigationController?.pushViewController(details, animated: true)
+            }
+        case .none:
+            break
+        }
+    }
+
+    /// Screen 2 for the mission line — the Assembly Review's "Continue to Driver
+    /// Checklist" finds the row by its id, never by a position that a refresh may
+    /// have moved. Returns false when the line is no longer in this list.
+    @discardableResult
+    func openDriverChecklist(orderProductUniqueId: String) -> Bool {
+        if let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) {
+            self.openDriverChecklist(at: index)
+            return true
+        }
+        // Next Stop opened this mission although this board's own filters hide it. Only
+        // such a mission may be continued from outside the board's list, and only while it
+        // is STILL the signed-in driver's remaining work — re-resolved now, never trusted
+        // from when it was opened.
+        guard self.nextStopHostedIds.contains(orderProductUniqueId),
+              let mission = self.nextStopWorkday().orders.first(where: { $0.row.unique_id == orderProductUniqueId })
+        else { return false }
+        self.openDriverChecklist(offBoard: mission.row, serverObservedAt: mission.observedAt)
+        return true
+    }
+
+    /// Screen 2 for the row — the same screen whatever stage it opens in
+    /// (not started or On My Way); it derives its own state from the engine.
+    func openDriverChecklist(at index: Int) {
+        guard index < self.arrDispatchList.count else { return }
+        // F2: the stage (button colour) comes from durable Sync Engine steps too.
+        let objData = self.presentedRow(index)
+        self.presentDriverChecklist(presented: objData, raw: self.arrDispatchList[index],
+                                    serverObservedAt: self.serverObservedAt(for: objData), boardIndex: index)
+    }
+
+    /// Screen 2 for a mission this board does not hold (Next Stop; the board's filters hide
+    /// it): the same screen, from the canonical row with this phone's durable trip stage
+    /// applied, and NO write-back into this board.
+    func openDriverChecklist(offBoard raw: SchedulesModel, serverObservedAt: Date?) {
+        let presented = DriverStagePresentation.applying(DriverStageOverlay.from(self.operationsSnapshot()),
+                                                         to: raw, serverObservedAt: serverObservedAt)
+        self.presentDriverChecklist(presented: presented, raw: raw, serverObservedAt: serverObservedAt, boardIndex: nil)
+    }
+
+    /// `boardIndex` nil = no delegate: the checklist's answers are durable in the Sync
+    /// Engine either way, and only a row this board holds has a card to refresh.
+    private func presentDriverChecklist(presented objData: SchedulesModel, raw: SchedulesModel,
+                                        serverObservedAt: Date?, boardIndex: Int?) {
+        let isDeliveryLeg = objData.is_delivered == false
+        let checklist = isDeliveryLeg ? objData.delivery_checklist : objData.pickup_checklist
+        let ready_to_go_at = checklist?.ready_to_go_at ?? ""
+        let isDriverStarted = hasSavedDriverProgress(objData, leg: isDeliveryLeg ? DriverChecklistLocalState.legDelivery : DriverChecklistLocalState.legPickup)
+        let notStarted: UIColor = isDeliveryLeg ? hexStringToUIColor(hex: "4DA3FF") : .secondaryText
+        let buttonColour = ready_to_go_at != "" ? hexStringToUIColor(hex: "128A4C") : (isDriverStarted ? hexStringToUIColor(hex: "3DDC6E") : notStarted)
+
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.SCHEDULE_MODEL, bundle: nil)
+        if let newViewController = storyBoard.instantiateViewController(withIdentifier: "DriverChecklistViewController") as? DriverChecklistViewController{
+            newViewController.delegate_Data = boardIndex == nil ? nil : self
+            newViewController.buttonColour = buttonColour
+            newViewController.objDispatch = raw
+            newViewController.serverObservedAt = serverObservedAt
+            newViewController.selectIndex = boardIndex ?? 0
+            newViewController.strOrderUniqueId = objData.order?.unique_id ?? ""
+            newViewController.strOrderID = "\(objData.order?.order_number ?? "")"
+            newViewController.productUniqueId = objData.unique_id ?? ""
+            newViewController.checklistType = isDeliveryLeg ? "delivery" : "pickup"
+            self.navigationController?.pushViewController(newViewController, animated: true)
+        }
+    }
+
+    /// Main Order (Screen 3) for a dispatch row — the ONE construction, shared by
+    /// Dispatch (an Arrived mission resumes here, D4) and Screen 2's Arrived tap.
+    static func makeOrderDetails(for row: SchedulesModel, index: Int, serverObservedAt: Date?) -> OrderDetailsViewController? {
+        let storyBoard: UIStoryboard = UIStoryboard(name: GlobalMainConstants.ORDER_MODEL, bundle: nil)
+        guard let details = storyBoard.instantiateViewController(withIdentifier: "OrderDetailsViewController") as? OrderDetailsViewController else { return nil }
+        let isDeliveryLeg = row.is_delivered == false
+        details.isOrderScreen = true
+        details.selectIndex = index
+        details.strOrderUniqueId = row.order?.unique_id ?? ""
+        details.strOrderID = "\(row.order?.order_number ?? "")"
+        details.fromCheckListScreen = true
+        details.strProductID = row.unique_id ?? ""
+        // The leg being completed is the DISPATCH ROW's leg — explicit, so Order
+        // Details never re-derives it from a feed that may already be stale
+        // (a delivery completed locally must not flip the gate to Return rules).
+        details.completionLeg = isDeliveryLeg ? .delivery : .return
+        details.strComplateDelivery = "\(isDeliveryLeg ? "Delivery" : "Return") Complete - Next Mission"
+        // The row's server copy of the trip: Main Order derives the mission's stage from
+        // it plus the engine, exactly as Dispatch and Screen 2 do (DriverMissionStage).
+        details.missionServerTrip = DriverStagePresentation.serverState(isDeliveryLeg ? row.delivery_checklist : row.pickup_checklist)
+        details.missionServerObservedAt = serverObservedAt
+        return details
     }
     
     /// Saved Driver Checklist progress for THIS order product + leg — local copy
@@ -1389,27 +1919,49 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
         return DriverChecklistLocalState.serverHasProgress(driverChecks: checklist?.driver_checks,
                                                            callCustomer: checklist?.call_customer,
                                                            fuel: checklist?.equipment_fuel,
-                                                           keys: checklist?.equipment_key_location)
+                                                           keys: checklist?.equipment_key_location,
+                                                           addressVerified: checklist?.address_verified,
+                                                           equipmentVerified: checklist?.equipment_verified,
+                                                           unloadingSituation: checklist?.unloading_situation)
     }
     
     
+    /// Screen 2 reports its answers back so the card's green band and the next
+    /// restore agree without a round trip. ONLY the answers travel: the trip
+    /// stage (ready_to_go_at / arrived_at / is_arrived / is_delivered / driver
+    /// status) is derived from the Sync Engine at display time and is never
+    /// written onto the row copy — so a stale copy can never route or colour
+    /// a card on its own (spec §3.2, review F2).
     func data_updateInCurrentDic(index: Int, dicCheckList: CheckListResponeData?) {
-        guard index < self.arrDispatchList.count else { return }
+        guard index < self.arrDispatchList.count, let answers = dicCheckList else { return }
 
-        if self.arrDispatchList[index].is_delivered == false {
-            //DELIVERY CASE
-            self.arrDispatchList[index].delivery_checklist = dicCheckList
-        }
-        else{
-            //PICKUP CASE
-            self.arrDispatchList[index].pickup_checklist = dicCheckList
+        let isDeliveryLeg = self.arrDispatchList[index].is_delivered == false
+        var merged = (isDeliveryLeg ? self.arrDispatchList[index].delivery_checklist : self.arrDispatchList[index].pickup_checklist)
+            ?? Mapper<CheckListResponeData>().map(JSON: [:])
+        guard merged != nil else { return }
+        merged?.equipment_fuel = answers.equipment_fuel
+        merged?.equipment_key_location = answers.equipment_key_location
+        merged?.call_customer = answers.call_customer
+        merged?.driver_checks = answers.driver_checks
+        merged?.equipment_unique_id = answers.equipment_unique_id
+        // Call Customer wizard (2026-09-29): the three verified steps travel too.
+        merged?.address_verified = answers.address_verified
+        merged?.equipment_verified = answers.equipment_verified
+        merged?.unloading_situation = answers.unloading_situation
+        merged?.unloading_note = answers.unloading_note
+
+        if isDeliveryLeg {
+            self.arrDispatchList[index].delivery_checklist = merged
+        } else {
+            self.arrDispatchList[index].pickup_checklist = merged
         }
 
+        self.rememberOfflineEdit(self.arrDispatchList[index])
         self.persistOrderListAndRebuild()
     }
     
     
-    func updateOrderDetails(selectIndex: Int, objOrderData: OrdersListModel) {}
+    func orderDetailsDidClose(with order: OrdersListModel, asOf: Date?) {}
     
     func getStoreAddress(arr : [ProductModel]) -> String{
         for objDetails in arr{
@@ -1427,9 +1979,9 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     
     
     @objc func btnCallClicked(_ sender : UIButton) {
-        if self.arrDispatchList.count == 0{
-            return
-        }
+        // A card's tag indexes the list it was built from; a feed answer can replace that list
+        // before the table reloads (release review 2026-09-30).
+        guard sender.tag >= 0, sender.tag < self.arrDispatchList.count else { return }
         let objData = self.arrDispatchList[sender.tag]
 
     
@@ -1491,10 +2043,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     
     
     @objc func btnMapClicked(_ sender : UIButton) {
-        if self.arrDispatchList.count == 0{
-            return
-        }
-                      
+        guard sender.tag >= 0, sender.tag < self.arrDispatchList.count else { return }
+
         let objData = self.arrDispatchList[sender.tag]
         
         let strAddress : String = objData.order?.objDeliveryAddress?.full_address ?? ""
@@ -1507,10 +2057,8 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
     }
     
     func strAssignDriver(index : Int){
-        if self.arrDispatchList.count == 0{
-            return
-        }
-        
+        guard index >= 0, index < self.arrDispatchList.count else { return }
+
         let objData = self.arrDispatchList[index]
 
         
@@ -1575,8 +2123,12 @@ extension DispatchListViewController : UITableViewDelegate, UITableViewDataSourc
             ? delivery_employee?.id
             : pickup_employee?.id
         let movedAway = scopedDriverId != nil && activeLegDriverId != scopedDriverId
+        // Kept with the NEW driver: it leaves this driver's view and shows under All Drivers.
+        self.rememberOfflineEdit(objData)
 
         DispatchQueue.main.async {
+            // One main-queue hop later the list may have been replaced by a feed answer.
+            guard index < self.arrDispatchList.count else { return }
             if movedAway {
                 self.arrDispatchList.remove(at: index)
             } else {
@@ -1815,3 +2367,266 @@ class StoreListCell: UITableViewCell {
     }
 }
 
+
+// MARK: - Next Stop (2026-10-18): the driver's remaining workday, by stable identity
+
+/// Which canonical Dispatch mission a Next Stop row points at. An identity, not
+/// a copy: the mission itself stays owned by Dispatch.
+enum NextStopMissionIdentity: Equatable {
+    case orderProduct(String)
+    case manualTask(String)
+}
+
+/// One row in the Next Customer / Mission picker. Presentation only — it holds
+/// no assignment, no status and no completion authority.
+struct NextStopMission: Equatable {
+    let identity: NextStopMissionIdentity
+    let kindLabel: String      // "Delivery" | "Return" | "Manual Dispatch"
+    let primaryText: String    // customer, or the manual task's location
+    let secondaryText: String  // product + order, or the manual description
+    let sortKey: String
+    /// An order line's Return leg (its Delivery is done) — route evidence names the leg.
+    var isReturnLeg: Bool = false
+}
+
+extension DispatchListViewController {
+
+    /// The signed-in driver's remaining workday.
+    struct NextStopWorkday {
+        /// Order legs: the copy to open, and when the server last vouched for it.
+        var orders: [(row: SchedulesModel, observedAt: Date?)] = []
+        var manuals: [DispatchManualJob] = []
+        /// false = the order working set could not be read (never downloaded, or nobody
+        /// signed in). Unknown — never to be presented as a finished day.
+        var downloaded = false
+    }
+
+    /// Next Stop's OWN, fixed question to the working set: every leg, today's workday
+    /// (end-only, so overdue work stays), no category. Company-wide on purpose, like the
+    /// board's own offlineQuery(): this phone's local edits apply BEFORE the driver rule.
+    /// Nothing the board happens to be filtered by — leg toggle, category, search,
+    /// transport, day, Pending/Completed tab, selected driver — reaches this query.
+    static let nextStopWorkdayQuery = DispatchOfflineQuery(selectedDriverId: nil, legs: .all,
+                                                           dates: .today, categoryId: nil)
+
+    /// The SIGNED-IN driver's entire remaining workday — Delivery, Return and Manual
+    /// Dispatch — independent of how this board is filtered.
+    ///
+    /// Orders come from the company-wide Dispatch offline working set (the canonical,
+    /// reconciled source the Pending board itself is built from), read the way the board
+    /// reads it: this phone's local edits first, then the active-leg driver rule. Where
+    /// this board's own list holds a line, that copy is the fresher truth and is used —
+    /// so a reassignment or completion the live feed has already seen is honoured. It
+    /// can only veto or refresh a candidate; it never adds one, so no board filter can
+    /// shape the set.
+    ///
+    /// Manual tasks come from the signed-in driver's own slot (keyed by THAT driver,
+    /// never the board's selection), less any task assigned elsewhere or effectively
+    /// finished on this phone.
+    func nextStopWorkday() -> NextStopWorkday {
+        var workday = NextStopWorkday()
+        guard let me = self.signedInDriverId() else { return workday }
+        let operations = self.operationsSnapshot()
+        let finishedHere = EffectiveFieldState.CompletionOverlay.from(operations)
+
+        if let presentation = self.offlinePresentation(Self.nextStopWorkdayQuery),
+           case let .ready(rows, _) = presentation {
+            workday.downloaded = true
+            var candidates: [(row: SchedulesModel, observedAt: Date?, position: Int)] = []
+            for (position, row) in rows.enumerated() {
+                let uid = row.orderProductUniqueId
+                guard !uid.isEmpty, var model = DispatchOfflineRowAdapter.schedulesModel(from: row.row) else { continue }
+                if let edit = self.offlineEdits[uid], edit.revision == row.revision {
+                    guard let local = edit.row else { continue }   // removed on this screen
+                    model = local
+                }
+                // Either copy saying "not yours" or "finished" vetoes; neither can make a
+                // line yours. Which copy is newer is not always knowable, and opening another
+                // driver's job is worse than offering a reassigned-to-you one a refresh late.
+                guard Self.isOpenWork(model, for: me, finishedHere) else { continue }
+                if let live = self.arrDispatchList.first(where: { $0.unique_id == uid }) {
+                    guard Self.isOpenWork(live, for: me, finishedHere) else { continue }
+                    model = live   // the copy the board itself would open, write-back included
+                }
+                candidates.append((model, row.serverObservedAt, position))
+            }
+            // The working set is sort_key-ordered; a fresher live copy may carry a newer key,
+            // so restore the order (ties keep the working set's own sequence).
+            workday.orders = candidates
+                .sorted { ($0.row.sort_key ?? DispatchWorkload.openEndedSortKey, $0.position)
+                        < ($1.row.sort_key ?? DispatchWorkload.openEndedSortKey, $1.position) }
+                .map { ($0.row, $0.observedAt) }
+        }
+
+        let myManuals = self.nextStopManualJobs?(me)
+            ?? self.getDispatchManualData(key: self.manualCacheKey(dateFilter: "Today", driverId: "\(me)"))
+        let isOpenTask: (DispatchManualJob) -> Bool = { job in
+            guard let uid = job.unique_id, !uid.isEmpty else { return false }
+            if let assigned = job.driver?.id, assigned != me { return false }
+            let status = DispatchManualStatus.effectiveStatus(serverStatus: job.status, operations: operations,
+                                                              manualTaskUniqueId: uid)
+            return !DispatchManualStatus.isTerminal(status)
+        }
+        // Same veto rule as the orders: a copy of the task on this board can only remove it.
+        workday.manuals = myManuals.filter { job in
+            guard isOpenTask(job) else { return false }
+            if let live = self.arrManualList.first(where: { $0.unique_id == job.unique_id }) { return isOpenTask(live) }
+            return true
+        }
+        return workday
+    }
+
+    /// Open work for this driver: their active leg, not completed on the server, not
+    /// completed on this phone.
+    fileprivate static func isOpenWork(_ leg: SchedulesModel, for driverId: Int,
+                                       _ finishedHere: EffectiveFieldState.CompletionOverlay) -> Bool {
+        return Self.isAssigned(leg, to: driverId)
+            && !(leg.is_delivered == true && leg.is_returned == true)
+            && !Self.isFinishedHere(finishedHere, leg)
+    }
+
+    /// The picker's rows: the workday woven by the board's own sort_key weave.
+    func currentNextStopMissions() -> [NextStopMission] {
+        let workday = self.nextStopWorkday()
+        let refs = DispatchWorkload.weave(orderSortKeys: workday.orders.map { $0.row.sort_key },
+                                          manualSortKeys: workday.manuals.map { $0.sort_key })
+        return refs.map { ref in
+            switch ref {
+            case let .order(i):  return Self.nextStopMission(order: workday.orders[i].row)
+            case let .manual(i): return Self.nextStopMission(manual: workday.manuals[i])
+            }
+        }
+    }
+
+    /// Whether the workday could be read at all — the picker keeps "finished" and
+    /// "unknown" apart.
+    func nextStopSourceState() -> MissionSourceState {
+        return self.nextStopWorkday().downloaded ? .available : .notDownloaded
+    }
+
+    fileprivate static func nextStopMission(order leg: SchedulesModel) -> NextStopMission {
+        // Active leg, the board's own rule: the delivery until it is delivered, then the return.
+        let isDeliveryLeg = leg.is_delivered == false
+        let orderNumber = "\(leg.order?.order_number ?? "")"
+        return NextStopMission(
+            identity: .orderProduct(leg.unique_id ?? ""),
+            kindLabel: isDeliveryLeg ? "Delivery" : "Return",
+            primaryText: leg.order?.customer_name ?? "—",
+            secondaryText: [leg.product_name, orderNumber.isEmpty ? nil : "#" + orderNumber]
+                .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+            sortKey: leg.sort_key ?? DispatchWorkload.openEndedSortKey,
+            isReturnLeg: !isDeliveryLeg)
+    }
+
+    fileprivate static func nextStopMission(manual: DispatchManualJob) -> NextStopMission {
+        let place = [manual.location_name, manual.locationLine]
+            .compactMap { ($0?.isEmpty == false) ? $0 : nil }.first
+        return NextStopMission(
+            identity: .manualTask(manual.unique_id ?? ""),
+            kindLabel: "Manual Dispatch",
+            primaryText: place ?? (manual.type ?? "Manual Dispatch"),
+            secondaryText: [manual.type, manual.description]
+                .compactMap { ($0?.isEmpty == false) ? $0 : nil }.joined(separator: " · "),
+            sortKey: manual.sort_key ?? DispatchWorkload.openEndedSortKey)
+    }
+
+    /// The active leg's driver IS this driver — the board's own membership predicate.
+    fileprivate static func isAssigned(_ leg: SchedulesModel, to driverId: Int) -> Bool {
+        return DispatchWorkload.orderRowBelongs(selectedDriverId: driverId,
+                                                isDelivered: leg.is_delivered == true,
+                                                deliveryEmployeeId: leg.delivery_employee?.id,
+                                                pickupEmployeeId: leg.pickup_employee?.id)
+    }
+
+    /// Has THIS phone durably completed the row's active leg?
+    fileprivate static func isFinishedHere(_ overlay: EffectiveFieldState.CompletionOverlay,
+                                           _ leg: SchedulesModel) -> Bool {
+        guard !overlay.isEmpty, let uid = leg.unique_id, !uid.isEmpty else { return false }
+        return overlay.isLegLocallyCompleted(orderProductUniqueId: uid,
+                                             isDeliveryLeg: leg.is_delivered == false)
+    }
+
+    /// Opens an order mission by its order-product id, RE-RESOLVED against the
+    /// signed-in driver's workday at the moment of the tap. false = it is no longer
+    /// theirs (completed, or reassigned while the picker sat open) and NOTHING opens.
+    ///
+    /// When this board holds the line, it opens through exactly today's path, write-back
+    /// included. When the board's own filters hide it, it opens through the same stage
+    /// routing from the canonical row, with no write-back into this board.
+    @discardableResult
+    func openOrderMission(orderProductUniqueId: String) -> Bool {
+        guard !orderProductUniqueId.isEmpty,
+              let mission = self.nextStopWorkday().orders.first(where: { $0.row.unique_id == orderProductUniqueId })
+        else { return false }
+
+        if let index = self.arrDispatchList.firstIndex(where: { $0.unique_id == orderProductUniqueId }) {
+            if let seam = self.openOrderMissionSeam { seam(orderProductUniqueId, index) } else { self.openMission(at: index) }
+            return true
+        }
+        self.nextStopHostedIds.insert(orderProductUniqueId)
+        if let seam = self.openOrderMissionSeam {
+            seam(orderProductUniqueId, nil)
+        } else {
+            self.openMission(row: mission.row, boardIndex: nil, serverObservedAt: mission.observedAt)
+        }
+        return true
+    }
+
+    /// Opens a Manual Dispatch mission by its task id, re-resolved the same way, into
+    /// the same Task Details screen the board pushes.
+    @discardableResult
+    func openManualMission(taskUniqueId: String) -> Bool {
+        guard !taskUniqueId.isEmpty,
+              let job = self.nextStopWorkday().manuals.first(where: { $0.unique_id == taskUniqueId })
+        else { return false }
+        let detail = ManualDispatchDetailViewController()
+        detail.item = job
+        detail.onChanged = { [weak self] in self?.refreshList() }
+        detail.onCompleted = { [weak self] in self?.beginNextStopFlow(completed: .manualTask(uniqueId: taskUniqueId)) }
+        self.navigationController?.pushViewController(detail, animated: true)
+        return true
+    }
+}
+
+extension DispatchListViewController {
+
+    /// Enters the Next Stop workflow with THIS Dispatch screen as the anchor
+    /// beneath it. Done as ONE navigation transition (setViewControllers) so the
+    /// driver never sees a flash of the board before being asked the question —
+    /// the board is where they'd otherwise be stranded, which is the whole point
+    /// of the feature.
+    ///
+    /// Everything Next Stop needs about missions is handed in as a closure
+    /// pointing back here, so Dispatch stays the single owner of what work is
+    /// left, in what order, and whether a given mission is still this driver's.
+    func beginNextStopFlow(completed: NextStopPlace? = nil) {
+        guard let nav = self.navigationController else { return }
+
+        let next = self.makeNextStop()
+        // Where the driver is standing: the mission just finished (route evidence).
+        next.completedMission = completed
+        // A shop stop left from before this mission is over (never shown or recorded as current).
+        next.endShopStopLeftBeforeCompletion()
+        next.missions = { [weak self] in self?.currentNextStopMissions() ?? [] }
+        next.openOrderMission = { [weak self] in self?.openOrderMission(orderProductUniqueId: $0) ?? false }
+        next.openManualMission = { [weak self] in self?.openManualMission(taskUniqueId: $0) ?? false }
+        next.refreshDispatch = { [weak self] in self?.refreshList() }
+        // An empty workload means two different things and must never be
+        // flattened: a finished day, or a workload this phone never received.
+        // Read from the working set Next Stop offers — not this board's own list.
+        next.missionSourceState = { [weak self] in self?.nextStopSourceState() ?? .notDownloaded }
+
+        // Keep the stack up to and including this screen, then Next Stop on top.
+        var stack = nav.viewControllers
+        if let mine = stack.firstIndex(where: { $0 === self }) {
+            stack = Array(stack.prefix(through: mine))
+        } else {
+            stack.append(self)
+        }
+        stack.append(next)
+        // Animate only a transition the driver can actually see. UIKit drops an
+        // animated setViewControllers on an off-screen navigation controller
+        // entirely, which would leave the stack unchanged.
+        nav.setViewControllers(stack, animated: nav.view.window != nil)
+    }
+}

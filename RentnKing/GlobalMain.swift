@@ -771,16 +771,39 @@ enum Url {
         return newAPI("queue-line")
     }
 
+    /// Assembly Review (2026-09-13): every Queue Line assembly ONE order forms.
+    /// The canonical unit candidates for ONE line (Laravel classifies each: direct / alternate,
+    /// `requires_reason`), excluding rented units and the unit already assigned.
+    /// `category`: nil/"" → the legacy prioritized page; "default" → Laravel resolves the canonical
+    /// category of the current unit (else the ordered product) and lists it whole; "all" → the whole
+    /// eligible fleet; a PCAT unique_id → that category. `search` narrows within that scope by
+    /// Equipment ID, name and brand (exact-ID match first). Laravel decides eligibility and order.
+    static func queueLineEquipmentCandidates(_ orderProductUniqueId: String, search: String? = nil, category: String? = nil) -> NSURL {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#")
+        var items: [String] = []
+        let term = (search ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !term.isEmpty, let encoded = term.addingPercentEncoding(withAllowedCharacters: allowed) {
+            items.append("search=\(encoded)")
+        }
+        let scope = (category ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !scope.isEmpty, let encoded = scope.addingPercentEncoding(withAllowedCharacters: allowed) {
+            items.append("category=\(encoded)")
+        }
+        let path = "queue-line/\(orderProductUniqueId)/equipment-candidates"
+        return newAPI(items.isEmpty ? path : "\(path)?\(items.joined(separator: "&"))")
+    }
+
+    static func queueLineAssembly(_ orderUniqueId: String) -> NSURL {
+        return newAPI("queue-line/orders/\(orderUniqueId)/assembly")
+    }
+
     static func queueLineReturnToPending(_ orderProductUniqueId: String) -> NSURL {
         return newAPI("queue-line/\(orderProductUniqueId)/return-to-pending")
     }
 
     static func queueLineMarkStaged(_ orderProductUniqueId: String) -> NSURL {
         return newAPI("queue-line/\(orderProductUniqueId)/mark-staged")
-    }
-
-    static func queueLineSwitchEquipment(_ orderProductUniqueId: String) -> NSURL {
-        return newAPI("queue-line/\(orderProductUniqueId)/switch-equipment")
     }
 
     // MARK: - DISPATCH
@@ -1614,12 +1637,19 @@ func formattedOrderID(_ id: Int) -> String {
 
 
 func formattedDate(month: String, year: String) -> String? {
+    // Gregorian + POSIX + one time zone on both sides (MOBILE-QUALITY-01): on a phone set to
+    // another calendar the year came out wrong, and a local zone could shift the day.
     let inputFormatter = DateFormatter()
     inputFormatter.dateFormat = "MMM yyyy"
     inputFormatter.locale = Locale(identifier: "en_US_POSIX")
+    inputFormatter.calendar = Calendar(identifier: .gregorian)
+    inputFormatter.timeZone = TimeZone(identifier: "UTC")
 
     let outputFormatter = DateFormatter()
     outputFormatter.dateFormat = "yyyy-MM-dd"
+    outputFormatter.locale = Locale(identifier: "en_US_POSIX")
+    outputFormatter.calendar = Calendar(identifier: .gregorian)
+    outputFormatter.timeZone = TimeZone(identifier: "UTC")
 
     if let date = inputFormatter.date(from: "\(month) \(year)") {
         return outputFormatter.string(from: date)

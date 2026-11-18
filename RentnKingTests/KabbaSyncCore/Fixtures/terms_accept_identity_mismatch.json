@@ -1,0 +1,12 @@
+{
+    "success": false,
+    "message": "Unable to Verify Order Terms \u2014 Refresh the Order Before Signing",
+    "error": {
+        "code": "TERMS_IDENTITY_MISMATCH",
+        "message": "Unable to Verify Order Terms \u2014 Refresh the Order Before Signing",
+        "retryable": false
+    },
+    "errors": [],
+    "error_code": "TERMS_IDENTITY_MISMATCH",
+    "request_id": "cd9845df-d014-4d67-8007-46d15dd44e00"
+}
