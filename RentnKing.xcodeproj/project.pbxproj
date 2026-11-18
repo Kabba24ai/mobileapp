@@ -593,6 +593,7 @@
 		5A840000000000000000000F /* HomeTilesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000E /* HomeTilesUITests.swift */; };
 		5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */; };
 		5A8500000000000000000002 /* AssemblyDeliveryInstructionsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */; };
+		5A8500000000000000000004 /* CombinedManualDispatchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1131,6 +1132,7 @@
 		5A840000000000000000000E /* HomeTilesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTilesUITests.swift; sourceTree = "<group>"; };
 		5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallPhoneUITests.swift; sourceTree = "<group>"; };
 		5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyDeliveryInstructionsUITests.swift; sourceTree = "<group>"; };
+		5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedManualDispatchUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2374,6 +2376,7 @@
 				5A840000000000000000000E /* HomeTilesUITests.swift */,
 				5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */,
 				5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */,
+				5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -3447,6 +3450,7 @@
 				5A840000000000000000000F /* HomeTilesUITests.swift in Sources */,
 				5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */,
 				5A8500000000000000000002 /* AssemblyDeliveryInstructionsUITests.swift in Sources */,
+				5A8500000000000000000004 /* CombinedManualDispatchUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
