@@ -182,8 +182,7 @@ final class AppReleaseCatalogTests: XCTestCase {
 
     // 7b. 1.0.29 (1016): the Supplier Directory and the customer-site video / checklist fix,
     //     newest first, within the App Store limit.
-    func testThe1029NotesComeFirstAndCoverBothImprovements() throws {
-        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.29", "Newest first, for presentation.")
+    func testThe1029NotesCoverBothImprovements() throws {
         let notes = AppReleaseCatalog.notes(for: "1.0.29")
         for scope in ["Suppliers on the Home screen", "Tap a supplier's phone number", "Search by part name",
                       "Suppliers you have opened stay readable", "At the customer site the video and the equipment checklist",
@@ -193,6 +192,21 @@ final class AppReleaseCatalogTests: XCTestCase {
         XCTAssertEqual(notes.last, "Various fixes and refinements")
         let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.29"))
         XCTAssertLessThanOrEqual(text.count, AppReleaseCatalog.appStoreWhatsNewLimit)
+    }
+
+    // 7c. 1.0.30 (1017): delivery instructions on Assembly Review and combined manual
+    //     dispatches, newest first. 1.0.29 shipped (App Store, 2026-11-16) without them.
+    func testThe1030NotesComeFirstAndCoverInstructionsAndCombinedDispatches() throws {
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.30", "Newest first, for presentation.")
+        let notes = AppReleaseCatalog.notes(for: "1.0.30")
+        for scope in ["Assembly Review shows the order's delivery instructions", "Delivery instructions stay readable",
+                      "Manual dispatches the office combined", "Each item on a manual dispatch"] {
+            XCTAssertTrue(notes.contains { $0.hasPrefix(scope) }, "missing: \(scope)")
+        }
+        XCTAssertEqual(notes.last, "Various fixes and refinements")
+        let shipped = AppReleaseCatalog.notes(for: "1.0.29")
+        XCTAssertFalse(shipped.contains { $0.contains("delivery instructions") || $0.contains("combined") },
+                       "1.0.29 shipped without these; its notes must not claim them.")
     }
 
     // MARK: - MOBILE-QUALITY-01 (item 04): one draft per release, traceable builds

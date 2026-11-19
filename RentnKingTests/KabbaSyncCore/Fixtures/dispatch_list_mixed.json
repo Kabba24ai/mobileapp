@@ -239,7 +239,11 @@
             "driver": {
                 "id": 2,
                 "name": "Gary Driver"
-            }
+            },
+            "pickup_location": "HQ",
+            "destination_location": "Acme, 123 Main Street, Clarksville",
+            "items": [],
+            "combined_dispatch": null
         }
     ]
 }

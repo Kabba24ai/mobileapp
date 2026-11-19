@@ -429,6 +429,39 @@ struct AssemblyGroup: Codable, Equatable {
     var base: AssemblyMember? { members.first }
 }
 
+/// One of the order's delivery instructions — Order Details' "Order / Delivery
+/// Instructions" on the desktop, as Laravel serves it to a driver (the order's own
+/// notes; never a payment, charge, collection or completion note). The text is the
+/// writer's, verbatim, line breaks included.
+struct AssemblyDeliveryInstruction: Codable, Equatable {
+    let uniqueId: String
+    let text: String
+    let author: String?
+    let fromCustomer: Bool
+    let createdAt: String?
+    let updatedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case uniqueId = "unique_id", text, author, fromCustomer = "from_customer"
+        case createdAt = "created_at", updatedAt = "updated_at"
+    }
+
+    init(uniqueId: String, text: String, author: String? = nil, fromCustomer: Bool = false, createdAt: String? = nil, updatedAt: String? = nil) {
+        self.uniqueId = uniqueId; self.text = text; self.author = author; self.fromCustomer = fromCustomer
+        self.createdAt = createdAt; self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uniqueId = try c.decodeIfPresent(String.self, forKey: .uniqueId) ?? ""
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        author = try c.decodeIfPresent(String.self, forKey: .author)
+        fromCustomer = try c.decodeIfPresent(Bool.self, forKey: .fromCustomer) ?? false
+        createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
+}
+
 struct AssemblyReview: Codable, Equatable {
     struct OrderHeader: Codable, Equatable {
         let uniqueId: String
@@ -436,9 +469,14 @@ struct AssemblyReview: Codable, Equatable {
         let customerName: String?
         let paymentLabel: String?
         let financiallyActive: Bool
+        /// THIS order's delivery instructions, newest first. nil = the server did not say
+        /// (a review saved before the phone or Laravel knew the field) — which is NOT the
+        /// same as an order with none (an empty list).
+        let deliveryInstructions: [AssemblyDeliveryInstruction]?
         enum CodingKeys: String, CodingKey {
             case uniqueId = "unique_id", orderNumber = "order_number", customerName = "customer_name"
             case paymentLabel = "payment_label", financiallyActive = "financially_active"
+            case deliveryInstructions = "delivery_instructions"
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -447,6 +485,7 @@ struct AssemblyReview: Codable, Equatable {
             customerName = try c.decodeIfPresent(String.self, forKey: .customerName)
             paymentLabel = try c.decodeIfPresent(String.self, forKey: .paymentLabel)
             financiallyActive = try c.decodeIfPresent(Bool.self, forKey: .financiallyActive) ?? true
+            deliveryInstructions = try c.decodeIfPresent([AssemblyDeliveryInstruction].self, forKey: .deliveryInstructions)
         }
     }
 
@@ -745,6 +784,56 @@ enum AssemblyPolicy {
         var digits = Substring(orderNumber.trimmingCharacters(in: .whitespacesAndNewlines))
         while digits.first == "#" { digits = digits.dropFirst() }
         return "Order #\(digits.trimmingCharacters(in: .whitespaces))"
+    }
+
+    // MARK: Order / Delivery Instructions
+
+    static let deliveryInstructionsHeading = "Order / Delivery Instructions"
+    static let noDeliveryInstructions = "No delivery instructions"
+    static let deliveryInstructionsNotLoaded = "Delivery instructions not loaded yet — pull down to refresh."
+
+    /// What the top of Assembly Review says about the order's instructions.
+    enum DeliveryInstructionsDisplay: Equatable {
+        /// The saved review does not carry the field: say so — never pass it off as "none".
+        case notLoaded
+        /// The order has no instructions: one compact line, no box.
+        case none
+        /// The instructions, newest first, each with who wrote it and when.
+        case instructions([DeliveryInstructionLine])
+    }
+
+    struct DeliveryInstructionLine: Equatable {
+        let uniqueId: String
+        let text: String
+        let byline: String
+    }
+
+    static func deliveryInstructions(_ order: AssemblyReview.OrderHeader, timeZone: TimeZone = .current,
+                                     locale: Locale = Locale(identifier: "en_US")) -> DeliveryInstructionsDisplay {
+        guard let saved = order.deliveryInstructions else { return .notLoaded }
+        let lines = saved.compactMap { instruction -> DeliveryInstructionLine? in
+            let text = instruction.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return DeliveryInstructionLine(uniqueId: instruction.uniqueId, text: text,
+                                           byline: deliveryInstructionByline(instruction, timeZone: timeZone, locale: locale))
+        }
+        return lines.isEmpty ? .none : .instructions(lines)
+    }
+
+    /// "Amber Sanders · Nov 18, 9:12 AM" — whichever parts the server gave.
+    static func deliveryInstructionByline(_ instruction: AssemblyDeliveryInstruction, timeZone: TimeZone = .current,
+                                          locale: Locale = Locale(identifier: "en_US")) -> String {
+        var parts: [String] = []
+        let author = (instruction.author ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if instruction.fromCustomer { parts.append("Customer") } else if !author.isEmpty { parts.append(author) }
+        if let stamp = instruction.createdAt, let date = KabbaISO8601.date(from: stamp) {
+            let f = DateFormatter()
+            f.locale = locale
+            f.timeZone = timeZone
+            f.dateFormat = "MMM d, h:mm a"
+            parts.append(f.string(from: date))
+        }
+        return parts.joined(separator: " · ")
     }
 
     /// The assembly's stage is its least-advanced member (QueueLineAssembly::stageFor).

@@ -6,7 +6,17 @@
             "order_number": "7703",
             "customer_name": "Check Customer",
             "payment_label": "No Payment Recorded",
-            "financially_active": true
+            "financially_active": true,
+            "delivery_instructions": [
+                {
+                    "unique_id": "ORD-NOTE-7Q2M-K4XD",
+                    "text": "Gate code 4471. Call before arriving.\nUse the gravel entrance on Mill Rd.",
+                    "author": "Field Employee",
+                    "from_customer": false,
+                    "created_at": "2026-11-18T09:12:00-06:00",
+                    "updated_at": "2026-11-18T09:12:00-06:00"
+                }
+            ]
         },
         "assemblies": [
             {

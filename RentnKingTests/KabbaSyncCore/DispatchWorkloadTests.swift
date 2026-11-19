@@ -61,6 +61,162 @@ final class DispatchWorkloadTests: XCTestCase {
         XCTAssertTrue(job.dispatch_item_id?.hasPrefix("manual:") == true)
         XCTAssertNotNil(job.sort_key)
         XCTAssertNotNil(job.driver?.id)
+
+        // 2026-11 additive keys: an ordinary task carries its two ends, an
+        // item list (here empty) and no combined dispatch.
+        XCTAssertEqual(job.pickup_location, "HQ")
+        XCTAssertEqual(job.destination_location, "Acme, 123 Main Street, Clarksville")
+        XCTAssertEqual(job.items, [])
+        XCTAssertNil(job.combined_dispatch)
+    }
+
+    // MARK: - Multiple items + combined dispatch (2026-11)
+
+    /// A manual job as the server serves it inside a combined dispatch.
+    private func combinedJob(_ uid: String, group: String?, sortKey: String,
+                             items: [[String: Any]] = []) -> [String: Any] {
+        var job: [String: Any] = [
+            "unique_id": uid, "is_manual": true, "type": "Equipment Drop-Off", "status": "Assigned",
+            "sort_key": sortKey, "pickup_location": "Bon Aqua",
+            "destination_location": "Waverly yard, 200 Transfer Road, Waverly", "items": items,
+        ]
+        job["combined_dispatch"] = group.map { ["id": $0, "task_count": 2, "pickup": "Bon Aqua",
+                                                "destination": "Waverly yard, 200 Transfer Road, Waverly"] } ?? NSNull()
+        return job
+    }
+
+    func testItemsAndCombinedDispatchDecode() throws {
+        let jobs = DispatchManualJob.decodeList(fromJSONArray: [
+            combinedJob("MDT-A", group: "load-1", sortKey: "2026-11-18|09999|L00000007|00000041", items: [
+                ["id": 41, "is_primary": true, "kind": "equipment", "equipment_id": 7,
+                 "label": "SL-19 — 19ft Scissor Lift", "instructions": NSNull(),
+                 "picked_up": false, "picked_up_at": NSNull(), "delivered": false, "delivered_at": NSNull()],
+                ["id": 42, "is_primary": false, "kind": "other", "equipment_id": NSNull(),
+                 "label": "Brush cutter attachment", "instructions": "Blades wrapped",
+                 "picked_up": true, "picked_up_at": "2026-11-18T14:02:11+00:00", "delivered": false, "delivered_at": NSNull()],
+            ]),
+        ])
+
+        let job = try XCTUnwrap(jobs.first)
+        XCTAssertEqual(job.combined_dispatch?.id, "load-1")
+        XCTAssertEqual(job.combined_dispatch?.task_count, 2)
+        XCTAssertEqual(job.combined_dispatch?.pickup, "Bon Aqua")
+        XCTAssertEqual(job.items?.count, 2)
+        XCTAssertEqual(job.items?[0].equipment_id, 7)
+        XCTAssertEqual(job.items?[1].label, "Brush cutter attachment")
+        XCTAssertEqual(job.items?[1].instructions, "Blades wrapped")
+        XCTAssertEqual(job.items?[1].picked_up, true)
+        XCTAssertEqual(job.items?[1].delivered, false)
+    }
+
+    func testAnUnreadableAdditiveKeyNeverCostsTheDriverTheTask() {
+        // A future / malformed shape under the new optional keys: the task
+        // itself must still be listed, on its long-standing fields.
+        var odd = combinedJob("MDT-ODD", group: nil, sortKey: "2026-11-18|09999")
+        odd["items"] = "not-a-list"
+        odd["combined_dispatch"] = ["id": 12345]
+
+        let jobs = DispatchManualJob.decodeList(fromJSONArray: [odd])
+        XCTAssertEqual(jobs.count, 1)
+        XCTAssertEqual(jobs.first?.unique_id, "MDT-ODD")
+        XCTAssertEqual(jobs.first?.type, "Equipment Drop-Off")
+        XCTAssertNil(jobs.first?.items)
+    }
+
+    func testCombinedPlacementGroupsTheRenderedTasksOfOneAssignment() {
+        let manuals = DispatchManualJob.decodeList(fromJSONArray: [
+            combinedJob("MDT-S", group: nil, sortKey: "2026-11-18|00001"),
+            combinedJob("MDT-A", group: "load-1", sortKey: "2026-11-18|00002|L00000007|00000041"),
+            combinedJob("MDT-B", group: "load-1", sortKey: "2026-11-18|00002|L00000007|00000042"),
+            combinedJob("MDT-X", group: "load-2", sortKey: "2026-11-18|00003|L00000009|00000050"),
+        ])
+
+        XCTAssertNil(DispatchWorkload.combinedPlacement(at: 0, in: manuals), "an ordinary task")
+        XCTAssertEqual(DispatchWorkload.combinedPlacement(at: 1, in: manuals), DispatchCombinedPlacement(position: 1, total: 2))
+        XCTAssertEqual(DispatchWorkload.combinedPlacement(at: 2, in: manuals), DispatchCombinedPlacement(position: 2, total: 2))
+        XCTAssertTrue(DispatchWorkload.combinedPlacement(at: 1, in: manuals)?.isFirst == true)
+        XCTAssertTrue(DispatchWorkload.combinedPlacement(at: 2, in: manuals)?.isLast == true)
+        // One open task left of its group reads as a single task again.
+        XCTAssertNil(DispatchWorkload.combinedPlacement(at: 3, in: manuals))
+        XCTAssertNil(DispatchWorkload.combinedPlacement(at: 9, in: manuals), "out of range is nil, never a crash")
+    }
+
+    func testCombinedTasksStayTogetherInTheMixedWorkdayWeave() {
+        // The suffixed keys of one combined dispatch sort after an order leg
+        // on the same date + position and before the next position — so no
+        // order leg can land between two of its tasks.
+        let rows = DispatchWorkload.weave(
+            orderSortKeys: ["2026-11-18|00002", "2026-11-18|00003"],
+            manualSortKeys: ["2026-11-18|00002|L00000007|00000041", "2026-11-18|00002|L00000007|00000042"]
+        )
+        XCTAssertEqual(rows, [.order(0), .manual(0), .manual(1), .order(1)])
+    }
+
+    private func itemOp(_ itemId: Int, task: String, _ key: String, _ value: Bool,
+                        state: SyncState = .pending) -> SyncOperation {
+        var op = SyncOperation(type: DispatchManualItemProgress.operationType,
+                               capturedAt: Date(),
+                               identity: SyncBusinessIdentity(manualTaskUniqueId: task),
+                               payload: .object(["item_id": .number(Double(itemId)), key: .bool(value)]))
+        op.state = state
+        return op
+    }
+
+    private func items(_ specs: [(Int?, Bool, Bool)]) -> [DispatchManualJob.ItemRef] {
+        return specs.map { spec in
+            var item = DispatchManualJob.ItemRef()
+            item.id = spec.0
+            item.label = "Item \(spec.0 ?? 0)"
+            item.picked_up = spec.1
+            item.delivered = spec.2
+            return item
+        }
+    }
+
+    func testEachItemIsConfirmedOnItsOwn() {
+        let server = items([(41, false, false), (42, false, false)])
+
+        // A durable local "picked up" on item 41 shows at once — on 41 only.
+        var effective = DispatchManualItemProgress.effectiveItems(
+            serverItems: server, operations: [itemOp(41, task: "MDT-1", "picked_up", true)], manualTaskUniqueId: "MDT-1")
+        XCTAssertEqual(effective[0].picked_up, true)
+        XCTAssertEqual(effective[0].delivered, false)
+        XCTAssertEqual(effective[1].picked_up, false, "confirming one item never marks another")
+
+        // Delivered implies picked up (the server rule), in every retained state.
+        for state in [SyncState.pending, .syncing, .synced, .needsAttention] {
+            effective = DispatchManualItemProgress.effectiveItems(
+                serverItems: server, operations: [itemOp(42, task: "MDT-1", "delivered", true, state: state)],
+                manualTaskUniqueId: "MDT-1")
+            XCTAssertEqual(effective[1].delivered, true, "state \(state)")
+            XCTAssertEqual(effective[1].picked_up, true)
+            XCTAssertEqual(effective[0].delivered, false)
+        }
+    }
+
+    func testItemProgressIdentityIsStrict() {
+        let server = items([(41, false, false)])
+        // Another task's operation, another item's operation, and a status
+        // transition of this task never mark this item.
+        let ops = [
+            itemOp(41, task: "MDT-OTHER", "delivered", true),
+            itemOp(99, task: "MDT-1", "delivered", true),
+            statusOp("Completed", task: "MDT-1"),
+        ]
+        let effective = DispatchManualItemProgress.effectiveItems(serverItems: server, operations: ops, manualTaskUniqueId: "MDT-1")
+        XCTAssertEqual(effective[0].picked_up, false)
+        XCTAssertEqual(effective[0].delivered, false, "completing the task never marks an item nobody confirmed")
+        XCTAssertEqual(DispatchManualItemProgress.effectiveItems(serverItems: server, operations: ops, manualTaskUniqueId: nil), server)
+    }
+
+    func testItemNextStepAndSummary() {
+        let list = items([(41, false, false), (42, true, false), (43, true, true), (nil, false, false)])
+        XCTAssertEqual(DispatchManualItemProgress.nextStep(for: list[0]), .pickUp)
+        XCTAssertEqual(DispatchManualItemProgress.nextStep(for: list[1]), .deliver)
+        XCTAssertNil(DispatchManualItemProgress.nextStep(for: list[2]), "delivered is final")
+        XCTAssertNil(DispatchManualItemProgress.nextStep(for: list[3]), "a pre-item-row task has nothing to confirm against")
+        XCTAssertEqual(DispatchManualItemProgress.summary(list), "4 items · 1 picked up · 1 delivered")
+        XCTAssertNil(DispatchManualItemProgress.summary([]))
     }
 
     func testManualJobWithoutOrderFieldsIsRetainedNotDropped() {

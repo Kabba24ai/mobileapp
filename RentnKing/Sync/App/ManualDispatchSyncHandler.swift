@@ -72,3 +72,62 @@ struct ManualDispatchSyncHandler: SyncOperationHandler {
                                   operationId: operationId)
     }
 }
+
+/// One item of a Manual Dispatch task confirmed picked up / delivered
+/// (2026-11: several items on one task, and combined dispatches). Submitted to
+/// POST dispatch/manual/item-progress through the same Sync Engine as a
+/// status transition — durable local operation, operation id, idempotent
+/// server handling (manual_dispatch.item_progress). It moves ONLY that item's
+/// own state: never the task's status, never a sibling item.
+struct ManualDispatchItemProgressSyncHandler: SyncOperationHandler {
+
+    static let operationType = DispatchManualItemProgress.operationType
+    static let path = "dispatch/manual/item-progress"
+
+    let hasSession: () -> Bool
+
+    init(hasSession: @escaping () -> Bool) {
+        self.hasSession = hasSession
+    }
+
+    var operationType: String { ManualDispatchItemProgressSyncHandler.operationType }
+
+    func makeRequest(for operation: SyncOperation) throws -> SyncHTTPRequest {
+        guard hasSession() else { throw SyncHandlerError.notAuthenticated("No active session") }
+        guard var body = operation.payload.objectValue,
+              body["manual_dispatch_task_unique_id"]?.stringValue?.isEmpty == false,
+              case .number? = body["item_id"] else {
+            throw SyncHandlerError.invalidPayload("Manual dispatch item payload is missing its task or item id")
+        }
+
+        body["operation_id"] = .string(operation.id)
+
+        return SyncHTTPRequest(method: "POST",
+                               path: ManualDispatchItemProgressSyncHandler.path,
+                               headers: ["X-Operation-Id": operation.id],
+                               jsonBody: .object(body),
+                               operationId: operation.id)
+    }
+
+    /// Builds and durably enqueues one item confirmation. Returns after the record is on disk.
+    @discardableResult
+    static func enqueue(into engine: SyncEngine,
+                        taskUniqueId: String,
+                        itemId: Int,
+                        itemLabel: String,
+                        step: DispatchManualItemProgress.NextStep,
+                        capturedAt: Date = Date(),
+                        operationId: String = UUID().uuidString) throws -> SyncOperation {
+        let key = step == .deliver ? "delivered" : "picked_up"
+        return try engine.enqueue(type: operationType,
+                                  payload: .object([
+                                      "manual_dispatch_task_unique_id": .string(taskUniqueId),
+                                      "item_id": .number(Double(itemId)),
+                                      key: .bool(true),
+                                  ]),
+                                  identity: SyncBusinessIdentity(manualTaskUniqueId: taskUniqueId),
+                                  capturedAt: capturedAt,
+                                  displayTitle: "\(itemLabel) · \(step == .deliver ? "Delivered" : "Picked up")",
+                                  operationId: operationId)
+    }
+}

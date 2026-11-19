@@ -1253,4 +1253,141 @@ final class AssemblyReviewPresentationTests: XCTestCase {
         XCTAssertEqual(DriverChecklistLocalState(dictionary: UserDefaults.standard.dictionary(forKey: key)), written,
                        "a Return switch is not a delivery episode: the delivery record is untouched")
     }
+
+    // MARK: Order / Delivery Instructions (2026-11-18)
+
+    private func withInstructions(_ envelope: AssemblyReviewEnvelope, _ instructions: [[String: Any]]?) throws -> AssemblyReviewEnvelope {
+        var root = try JSONSerialization.jsonObject(with: JSONEncoder().encode(envelope)) as! [String: Any]
+        var data = root["data"] as! [String: Any]
+        var order = data["order"] as! [String: Any]
+        order["delivery_instructions"] = instructions
+        data["order"] = order
+        root["data"] = data
+        return try AssemblyReviewEnvelope.decode(JSONSerialization.data(withJSONObject: root))
+    }
+
+    private func top(_ vc: UIViewController, _ id: String) throws -> CGFloat {
+        let v = try XCTUnwrap(view(vc, id), id)
+        return v.convert(v.bounds, to: vc.view).minY
+    }
+
+    private let longInstructions = """
+        Deliver to the back lot, not the front office. Use the gravel entrance on Mill Rd; the paved drive cannot take the trailer.
+
+        Gate code 4471. Call Dale at the site 20 minutes before arriving.
+
+        - Set the machine beside the blue container
+        - Leave the keys in the lockbox (code 0912)
+        - Do not block the loading dock
+
+        Customer needs a walk-around on the controls before you leave.
+        """
+
+    func testInstructionsSitDirectlyUnderTheOrderNumberAndAboveEveryEquipmentCheck() throws {
+        let vc = loaded(try withInstructions(try threeLineReview(), [
+            ["unique_id": "N1", "text": "Gate code 4471. Call before arriving.", "author": "Amber Sanders", "created_at": "2026-11-18T09:12:00-06:00"],
+        ]))
+
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.heading"), "Order / Delivery Instructions")
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.0.text"), "Gate code 4471. Call before arriving.")
+        XCTAssertTrue(label(vc, "assemblyReview.instructions.0.byline")?.hasPrefix("Amber Sanders") ?? false)
+        XCTAssertNil(view(vc, "assemblyReview.instructions.none"))
+
+        let order = try top(vc, "assemblyReview.order"), card = try top(vc, "assemblyReview.instructions")
+        let group = try top(vc, "assemblyReview.group.\(vc.review!.assemblies[0].key)"), first = try top(vc, "assembly.OP-SKID")
+        XCTAssertLessThan(order, card, "under the order number")
+        XCTAssertLessThan(card, group, "above the assembly")
+        XCTAssertLessThan(card, first, "above equipment verification")
+        XCTAssertLessThan(card - order, 60, "directly beneath the order number")
+    }
+
+    func testInstructionsStayVisibleWhenTheAssemblyCannotProceed() throws {
+        // STOP: one unit unassigned, one option Not Available — Continue is blocked.
+        let vc = loaded(try withInstructions(try threeLineReview(), [["unique_id": "N1", "text": "Use the north gate."]]))
+        XCTAssertEqual(view(vc, "assembly.OP-SKID.continue")?.accessibilityValue, "blocked")
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.0.text"), "Use the north gate.")
+        let card = try XCTUnwrap(view(vc, "assemblyReview.instructions"))
+        XCTAssertFalse(card.isHidden)
+        XCTAssertTrue(vc.view.bounds.intersects(card.convert(card.bounds, to: vc.view)), "on screen without scrolling")
+    }
+
+    func testLongInstructionsAreShownInFullOnASmallPhoneAndThePageScrolls() throws {
+        let vc = AssemblyReviewViewController()
+        let envelope = try withInstructions(try threeLineReview(), [["unique_id": "N1", "text": longInstructions, "author": "Amber Sanders"]])
+        vc.orderUniqueId = envelope.data.order.uniqueId
+        vc.loadViewIfNeeded()
+        vc.view.frame = CGRect(x: 0, y: 0, width: 320, height: 568)   // iPhone SE (1st gen) points
+        vc.apply(envelope)
+        vc.view.layoutIfNeeded()
+
+        let text = try XCTUnwrap(view(vc, "assemblyReview.instructions.0.text") as? UILabel)
+        XCTAssertEqual(text.attributedText?.string, longInstructions, "verbatim: paragraphs and list lines kept")
+        XCTAssertEqual(text.numberOfLines, 0)
+        let needed = text.sizeThatFits(CGSize(width: text.bounds.width, height: .greatestFiniteMagnitude)).height
+        XCTAssertGreaterThanOrEqual(text.bounds.height + 0.5, needed, "never clipped")
+        XCTAssertGreaterThan(text.bounds.height, 200, "a long note takes the room it needs")
+        XCTAssertLessThanOrEqual(text.convert(text.bounds, to: vc.view).maxX, 320, "inside a small screen")
+
+        let scroll = try XCTUnwrap(all(vc.view).compactMap { $0 as? UIScrollView }.first)
+        XCTAssertGreaterThan(scroll.contentSize.height, 568, "the rest of the review is reached by scrolling")
+        XCTAssertNotNil(view(vc, "assembly.OP-SKID.continue"), "the equipment checks are still below")
+    }
+
+    func testAnOrderWithNoInstructionsShowsOneCompactLineAndNoEmptyBox() throws {
+        let vc = loaded(try withInstructions(try threeLineReview(), []))
+        XCTAssertNil(view(vc, "assemblyReview.instructions"), "no box")
+        XCTAssertNil(view(vc, "assemblyReview.instructions.heading"))
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.none"), "No delivery instructions")
+        XCTAssertLessThan(try XCTUnwrap(view(vc, "assemblyReview.instructions.none")).bounds.height, 24, "one line")
+    }
+
+    func testAReviewSavedWithoutTheFieldSaysTheInstructionsAreNotLoaded() throws {
+        let vc = loaded(try withInstructions(try threeLineReview(), nil))
+        XCTAssertNil(view(vc, "assemblyReview.instructions"))
+        XCTAssertNil(view(vc, "assemblyReview.instructions.none"), "unknown is never shown as an intentionally empty note")
+        XCTAssertNotNil(label(vc, "assemblyReview.instructions.notLoaded"))
+    }
+
+    func testRefreshingWithEditedInstructionsReplacesWhatWasShown() throws {
+        let base = try threeLineReview()
+        let vc = loaded(try withInstructions(base, [["unique_id": "N1", "text": "Leave at the barn."]]))
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.0.text"), "Leave at the barn.")
+
+        vc.apply(try withInstructions(base, [
+            ["unique_id": "N2", "text": "Customer will meet you at 8."],
+            ["unique_id": "N1", "text": "Leave at the red barn, east side."],
+        ]))
+        vc.view.layoutIfNeeded()
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.0.text"), "Customer will meet you at 8.")
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.1.text"), "Leave at the red barn, east side.")
+        XCTAssertFalse(texts(vc).contains("Leave at the barn."), "the old wording is gone")
+
+        vc.apply(try withInstructions(base, []))
+        XCTAssertNil(view(vc, "assemblyReview.instructions"))
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.none"), "No delivery instructions")
+    }
+
+    func testEachOrdersReviewShowsOnlyItsOwnInstructions() throws {
+        // Two orders a driver carries the same day (or as constituents of one combined trip):
+        // each review is read by its own order id and shows its own notes only.
+        let first = try withInstructions(try review(groups: [[Spec(uid: "OP-A", name: "Skid Steer", options: [], unitState: "available")]], orderNumber: "5001"),
+                                         [["unique_id": "NA", "text": "First order: north gate."]])
+        let second = try withInstructions(try review(groups: [[Spec(uid: "OP-B", name: "Boom Lift", options: [], unitState: "available")]], orderNumber: "5002"),
+                                          [["unique_id": "NB", "text": "Second order: south gate."]])
+        let a = loaded(first), b = loaded(second)
+        XCTAssertEqual(label(a, "assemblyReview.instructions.0.text"), "First order: north gate.")
+        XCTAssertEqual(label(b, "assemblyReview.instructions.0.text"), "Second order: south gate.")
+        XCTAssertFalse(texts(a).contains("Second order: south gate."))
+        XCTAssertFalse(texts(b).contains("First order: north gate."))
+    }
+
+    func testTheDriversReviewShowsTheInstructionsAboveContinueToDriverChecklist() throws {
+        let envelope = try withInstructions(try review(groups: [[Spec(uid: "OP-SKID", name: "Skid Steer", options: [], unitState: "available")]]),
+                                            [["unique_id": "N1", "text": "Gate code 4471."]])
+        let vc = loadedDriver(envelope, product: "OP-SKID")
+        XCTAssertEqual(label(vc, "assemblyReview.instructions.0.text"), "Gate code 4471.")
+        let cont = try XCTUnwrap(view(vc, "assembly.OP-SKID.continue") as? UIButton)
+        XCTAssertEqual(cont.title(for: .normal) ?? cont.configuration?.title, "Continue to Driver Checklist")
+        XCTAssertLessThan(try top(vc, "assemblyReview.instructions"), try top(vc, "assembly.OP-SKID.continue"))
+    }
 }

@@ -759,4 +759,81 @@ final class AssemblyReviewTests: XCTestCase {
         XCTAssertEqual(AssemblyPolicy.unitState(member: member, queue: QueueLineLocalOverlay.from(ops), overlay: AssemblyLocalOverlay.from(ops)), .available,
                        "acknowledged after the server received the switch: current for this episode")
     }
+
+    // MARK: Order / Delivery Instructions (2026-11-18)
+
+    /// The fixture envelope with the order's `delivery_instructions` replaced (nil removes the key).
+    private func reviewWithInstructions(_ instructions: [[String: Any]]?) throws -> AssemblyReviewEnvelope {
+        var envelope = try JSONSerialization.jsonObject(with: fixture("queue_line_assembly")) as! [String: Any]
+        var data = envelope["data"] as! [String: Any]
+        var order = data["order"] as! [String: Any]
+        order["delivery_instructions"] = instructions
+        data["order"] = order
+        envelope["data"] = data
+        return try AssemblyReviewEnvelope.decode(JSONSerialization.data(withJSONObject: envelope))
+    }
+
+    private let chicago = TimeZone(identifier: "America/Chicago")!
+
+    func testTheContractFixtureCarriesTheOrdersDeliveryInstructionsWithTheirLineBreaks() throws {
+        let order = try review().data.order
+        let saved = try XCTUnwrap(order.deliveryInstructions)
+        XCTAssertEqual(saved.count, 1)
+        XCTAssertEqual(saved[0].text, "Gate code 4471. Call before arriving.\nUse the gravel entrance on Mill Rd.")
+        XCTAssertEqual(saved[0].author, "Field Employee")
+        XCTAssertFalse(saved[0].fromCustomer)
+
+        guard case .instructions(let lines) = AssemblyPolicy.deliveryInstructions(order, timeZone: chicago) else {
+            return XCTFail("instructions on the order are shown")
+        }
+        XCTAssertEqual(lines.map(\.text), ["Gate code 4471. Call before arriving.\nUse the gravel entrance on Mill Rd."])
+        XCTAssertEqual(lines[0].byline, "Field Employee · Nov 18, 9:12 AM")
+    }
+
+    func testAnOrderWithNoInstructionsIsNotTheSameAsAReviewThatNeverCarriedThem() throws {
+        XCTAssertEqual(AssemblyPolicy.deliveryInstructions(try reviewWithInstructions([]).data.order), AssemblyPolicy.DeliveryInstructionsDisplay.none,
+                       "an empty list is the server saying the order has none")
+        XCTAssertEqual(AssemblyPolicy.deliveryInstructions(try reviewWithInstructions(nil).data.order), .notLoaded,
+                       "a review saved before the field existed must not read as an intentionally empty note")
+        XCTAssertEqual(AssemblyPolicy.deliveryInstructions(try reviewWithInstructions([["unique_id": "N1", "text": "  \n "]]).data.order), AssemblyPolicy.DeliveryInstructionsDisplay.none,
+                       "blank text is not an instruction")
+    }
+
+    func testSeveralInstructionsKeepTheServersOrderAndEachItsOwnByline() throws {
+        let order = try reviewWithInstructions([
+            ["unique_id": "N2", "text": "Customer will meet you at 8.", "author": "Amber Sanders", "from_customer": false, "created_at": "2026-11-18T15:30:00-06:00"],
+            ["unique_id": "N1", "text": "Dog in the yard.\n\nPlease close the gate.", "author": "Customer", "from_customer": true, "created_at": "2026-11-17T08:05:00-06:00"],
+            ["unique_id": "N0", "text": "No author, no date."],
+        ]).data.order
+        guard case .instructions(let lines) = AssemblyPolicy.deliveryInstructions(order, timeZone: chicago) else { return XCTFail() }
+        XCTAssertEqual(lines.map(\.uniqueId), ["N2", "N1", "N0"], "newest first, as Laravel sent them")
+        XCTAssertEqual(lines[1].text, "Dog in the yard.\n\nPlease close the gate.", "paragraphs are kept")
+        XCTAssertEqual(lines.map(\.byline), ["Amber Sanders · Nov 18, 3:30 PM", "Customer · Nov 17, 8:05 AM", ""])
+    }
+
+    func testInstructionsSurviveTheSavedCopyThePhoneReadsOffline() throws {
+        // The cache keeps Laravel's bytes; a re-encoded copy keeps them too.
+        let envelope = try reviewWithInstructions([["unique_id": "N1", "text": "Leave at the red barn.", "author": "Amber Sanders"]])
+        let again = try AssemblyReviewEnvelope.decode(KabbaISO8601.makeEncoder().encode(envelope))
+        XCTAssertEqual(again.data.order.deliveryInstructions, envelope.data.order.deliveryInstructions)
+        XCTAssertEqual(again.servedTo(.init(uniqueId: "EMP-2", fullName: "Other Driver")).data.order.deliveryInstructions?.first?.text, "Leave at the red barn.",
+                       "who is signed in changes who acts, never the order's instructions")
+    }
+
+    func testAnOfflineMissionPackageCarriesEachOrdersOwnInstructions() throws {
+        // The package embeds the SAME Assembly Review payload per order (Laravel: one builder).
+        let package = try JSONSerialization.jsonObject(with: fixture("dispatch_offline_packages"))
+        var orders: [[String: Any]] = []
+        func walk(_ node: Any) {
+            if let d = node as? [String: Any] {
+                if let o = d["order"] as? [String: Any], d["assemblies"] != nil { orders.append(o) }
+                d.values.forEach(walk)
+            } else if let a = node as? [Any] { a.forEach(walk) }
+        }
+        walk(package)
+        XCTAssertFalse(orders.isEmpty, "the package fixture holds an Assembly Review")
+        for order in orders {
+            XCTAssertNotNil(order["delivery_instructions"] as? [Any], "every packaged review says what its order's instructions are")
+        }
+    }
 }

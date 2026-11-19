@@ -44,8 +44,18 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        // 1.0.30 (1017) — delivery instructions on Assembly Review and combined manual
+        // dispatches (mobile PR #11), on top of 1.0.29 (1016) as released 2026-11-16.
+        AppRelease(version: "1.0.30", notes: [
+            "Assembly Review shows the order's delivery instructions right under the order number, before you check the equipment",
+            "Delivery instructions stay readable without a connection and update when the office changes them",
+            "Manual dispatches the office combined show as one trip with one pickup and one destination",
+            "Each item on a manual dispatch is marked picked up and delivered on its own",
+            "Various fixes and refinements",
+        ]),
         // 1.0.29 (1016) — the Supplier Directory and the customer-site video / checklist fix
-        // (mobile PR #6 + its follow-up), on top of 1.0.28 (1015) as released.
+        // (mobile PR #6 + its follow-up), on top of 1.0.28 (1015) as released. Released
+        // 2026-11-16, so its notes stay as they are.
         AppRelease(version: "1.0.29", notes: [
             "Suppliers on the Home screen: find a supplier, a contact or a phone number, and add a new supplier to Kabba from your phone",
             "Tap a supplier's phone number, email, website or address to call, write, open the website or get directions in Apple Maps",

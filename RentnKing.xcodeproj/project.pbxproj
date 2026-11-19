@@ -592,6 +592,8 @@
 		5A840000000000000000000D /* CustomerPhoneActionHostedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000C /* CustomerPhoneActionHostedTests.swift */; };
 		5A840000000000000000000F /* HomeTilesUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A840000000000000000000E /* HomeTilesUITests.swift */; };
 		5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */; };
+		5A8500000000000000000002 /* AssemblyDeliveryInstructionsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */; };
+		5A8500000000000000000004 /* CombinedManualDispatchUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1129,6 +1131,8 @@
 		5A840000000000000000000C /* CustomerPhoneActionHostedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerPhoneActionHostedTests.swift; sourceTree = "<group>"; };
 		5A840000000000000000000E /* HomeTilesUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTilesUITests.swift; sourceTree = "<group>"; };
 		5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomerCallPhoneUITests.swift; sourceTree = "<group>"; };
+		5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssemblyDeliveryInstructionsUITests.swift; sourceTree = "<group>"; };
+		5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedManualDispatchUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2371,6 +2375,8 @@
 				5A8300000000000000000010 /* OrderNotificationEntryUITests.swift */,
 				5A840000000000000000000E /* HomeTilesUITests.swift */,
 				5A8400000000000000000010 /* CustomerCallPhoneUITests.swift */,
+				5A8500000000000000000001 /* AssemblyDeliveryInstructionsUITests.swift */,
+				5A8500000000000000000003 /* CombinedManualDispatchUITests.swift */,
 			);
 			path = RentnKingUITests;
 			sourceTree = "<group>";
@@ -3443,6 +3449,8 @@
 				5A8300000000000000000011 /* OrderNotificationEntryUITests.swift in Sources */,
 				5A840000000000000000000F /* HomeTilesUITests.swift in Sources */,
 				5A8400000000000000000011 /* CustomerCallPhoneUITests.swift in Sources */,
+				5A8500000000000000000002 /* AssemblyDeliveryInstructionsUITests.swift in Sources */,
+				5A8500000000000000000004 /* CombinedManualDispatchUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -3614,7 +3622,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1016;
+				CURRENT_PROJECT_VERSION = 1017;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -3637,7 +3645,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.29;
+				MARKETING_VERSION = 1.0.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3656,7 +3664,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKing/RentnKing.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1016;
+				CURRENT_PROJECT_VERSION = 1017;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				ENABLE_APP_SANDBOX = NO;
@@ -3679,7 +3687,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.29;
+				MARKETING_VERSION = 1.0.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3695,7 +3703,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1016;
+				CURRENT_PROJECT_VERSION = 1017;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -3707,7 +3715,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.29;
+				MARKETING_VERSION = 1.0.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -3724,7 +3732,7 @@
 				CODE_SIGN_ENTITLEMENTS = RentnKinExtension/RentnKinExtension.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1016;
+				CURRENT_PROJECT_VERSION = 1017;
 				DEVELOPMENT_TEAM = A9U32VVCRV;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = RentnKinExtension/Info.plist;
@@ -3736,7 +3744,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0.29;
+				MARKETING_VERSION = 1.0.30;
 				PRODUCT_BUNDLE_IDENTIFIER = com.RentnKingNew.app.RentnKinExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
