@@ -7,11 +7,12 @@
 //  order is opened the way #5657 was: Dispatch → Start Delivery → Main Order → Delivery Checklist
 //  (where the picker used to do nothing). Signed in as the driver, Dana.
 //
-//    D1  skid steer (Dana) + grapple (no driver), Combine on: Delivered By names Dana (it was
-//        blank); pick "Olive Oldest", who is only on page 2 of POST users; Preview; Submit.
-//    D2  the same two lines, Combine off: both lines name Dana; pick "Yara Yard" on the skid
-//        steer and the grapple follows; Preview; sign each line; Submit.
-//    D3  skid steer only (Dana): Delivered By names Dana; Preview; Submit.
+//    D1  skid steer (Dana) + grapple (no driver), Combine on: Preview opens and names Dana (it
+//        was blank and Preview refused); back; pick "Olive Oldest", who is only on page 2 of
+//        POST users; Preview names her; sign; Submit.
+//    D2  the same two lines, Combine off: Preview names Dana for both; back; pick "Yara Yard"
+//        on the skid steer, the grapple follows; Preview; sign each line; Submit.
+//    D3  skid steer only (Dana): Preview names Dana; Submit.
 //
 //  The runner then checks Kabba (delivery_by per line = the employee picked, one completed
 //  cycle per line, each line's own answers, one completion operation per cycle).
@@ -63,20 +64,22 @@ final class DeliveredByUITests: XCTestCase {
         XCTAssertTrue(combine.waitForExistence(timeout: 10), "D1: no Combine Delivery Checklists switch for two lines")
         XCTAssertEqual(combine.value as? String, "1", "D1: two lines open combined")
         answerEveryLine(app, lines: 2)
-
-        let field = deliveredBy(app, line: .last)
         shoot("D1-delivered-by-default")
-        XCTAssertEqual(value(of: field), "Dana Driver", "D1: the combined Delivered By names the skid steer's driver (it was blank)")
-        pick(app, field: field, employee: "Olive Oldest")
-        XCTAssertEqual(value(of: deliveredBy(app, line: .last)), "Olive Oldest", "D1: any active employee can be picked, from page 2 too")
-        shoot("D1-delivered-by-picked")
 
+        // The default: Preview opens (it used to refuse) and names the skid steer's driver.
         tapPreview(app)
-        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D1: Preview refused")
-        let named = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Olive Oldest' OR value CONTAINS 'Olive Oldest'")).firstMatch
-        for _ in 0..<6 where !named.exists { app.swipeUp(); usleep(400_000) }
-        if !named.exists { dump(app, "D1-preview-no-name") }
-        XCTAssertTrue(named.exists, "D1: Preview names the pick")
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D1: Preview refused the default Delivered By")
+        XCTAssertTrue(previewNames(app, "Dana Driver"), "D1: the combined Delivered By names the skid steer's driver (it was blank)")
+        goBack(app)
+
+        // A change before submission: pick an employee who is only on page 2 of POST users.
+        openDeliveredBy(app, line: .last)
+        choose(app, employee: "Olive Oldest")
+        shoot("D1-delivered-by-picked")
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D1: Preview refused the pick")
+        XCTAssertTrue(previewNames(app, "Olive Oldest"), "D1: Preview names the pick")
+        XCTAssertFalse(previewNames(app, "Dana Driver"), "D1: the pick replaced the default on every line")
         shoot("D1-preview")
         sign(app, line: nil)
         submit(app)
@@ -93,26 +96,21 @@ final class DeliveredByUITests: XCTestCase {
         XCTAssertEqual(combine.value as? String, "0", "D2: Combine is off")
         answerEveryLine(app, lines: 2)
 
-        // Separate footers do not expose their controls to XCUITest (the combined one does): the
-        // grapple's field is checked on screen (screenshot) and through Preview and Kabba.
-        bringFooter(app, line: .last)
-        shoot("D2-grapple-names-the-skid-steer-driver")
-        openFirstLineDeliveredBy(app)                                      // the skid steer's screen
-        choose(app, employee: "Yara Yard")
-        bringFooter(app, line: .last)
-        shoot("D2-grapple-follows-yara")
+        // Both lines name the skid steer's driver: the grapple has none of its own.
+        tapPreview(app)
+        XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D2: Preview refused the defaults")
+        XCTAssertTrue(previewNames(app, "Dana Driver"), "D2: both lines name the skid steer's driver")
+        shoot("D2-preview-defaults")
+        goBack(app)
 
+        // A pick on the skid steer's screen; the grapple's screen follows it.
+        openDeliveredBy(app, line: .first)
+        choose(app, employee: "Yara Yard")
+        shoot("D2-skid-steer-yara")
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D2: Preview refused")
-        // Preview shows one equipment at a time (skid steer at the top, grapple at the bottom) and
-        // exposes only some of its labels to XCUITest: both are photographed, Yara must be named,
-        // and the runner checks each line's delivery_by in Kabba.
-        for _ in 0..<6 { app.swipeDown(); usleep(300_000) }
-        shoot("D2-preview-skid-steer")
-        for _ in 0..<6 { app.swipeUp(); usleep(300_000) }
-        shoot("D2-preview-grapple")
-        let yara = app.descendants(matching: .any).matching(NSPredicate(format: "label == 'Yara Yard' OR value == 'Yara Yard'")).firstMatch
-        XCTAssertTrue(yara.exists, "D2: Preview names Yara Yard")
+        XCTAssertTrue(previewNames(app, "Yara Yard"), "D2: Preview names Yara Yard")
+        XCTAssertFalse(previewNames(app, "Dana Driver"), "D2: the grapple followed the pick on the line before")
         sign(app, line: "Skid Steer w/Cab")
         sign(app, line: "Skid Steer - Grapple")
         submit(app)
@@ -125,9 +123,9 @@ final class DeliveredByUITests: XCTestCase {
         openChecklistFromMainOrder(app, order: order(3))
         XCTAssertFalse(app.switches.firstMatch.exists && app.switches.firstMatch.isHittable, "D3: one line, no Combine switch")
         answerEveryLine(app, lines: 1)
-        XCTAssertEqual(value(of: deliveredBy(app, line: .last)), "Dana Driver", "D3: the line's driver")
         tapPreview(app)
         XCTAssertTrue(element(app, "checklist.submit").waitForExistence(timeout: 20), "D3: Preview refused")
+        XCTAssertTrue(previewNames(app, "Dana Driver"), "D3: the line's driver")
         sign(app, line: nil)
         submit(app)
     }
@@ -136,61 +134,51 @@ final class DeliveredByUITests: XCTestCase {
 
     private enum Line { case first, last }
 
-    /// The Delivered By control of the first or the last line (the combined one sits under the last).
-    private func deliveredBy(_ app: XCUIApplication, line: Line) -> XCUIElement {
-        let controls = app.buttons.matching(identifier: "checklist.deliveredBy")
+    /// Taps a line's Delivered By field. Checklist footers are cells used as section footers and
+    /// expose nothing to XCUITest on a phone, so the tap is anchored to what is exposed: the line's
+    /// last question cell ("Keys handed over?"), which the footer sits right under — Delivery Note,
+    /// then Delivered By ~222 pt (iPhone 17 width; the layout scales with the screen width) below it.
+    private func openDeliveredBy(_ app: XCUIApplication, line: Line) {
         let table = app.tables.firstMatch
-        // Scroll the other way first: a footer laid out again comes back with its controls exposed
-        // (after Combine reloads the table in place, the visible footer's element tree goes stale).
-        for _ in 0..<6 { line == .first ? table.swipeUp() : table.swipeDown(); usleep(200_000) }
-        for _ in 0..<8 { line == .first ? table.swipeDown() : table.swipeUp(); usleep(250_000) }
-        for _ in 0..<16 {
-            let onScreen = controls.allElementsBoundByIndex.filter { $0.isHittable }
-            let found = line == .first ? onScreen.min { $0.frame.minY < $1.frame.minY } : onScreen.max { $0.frame.minY < $1.frame.minY }
-            if let found = found { return found }
-            if line == .last { break }
-            drag(app, by: -220); usleep(500_000)
-        }
-        dump(app, "no-delivered-by-\(line)")
-        XCTFail("no Delivered By control for the \(line) line")
-        return controls.firstMatch
-    }
-
-    private func value(of control: XCUIElement) -> String {
-        let text = (control.value as? String ?? "").trimmingCharacters(in: .whitespaces)
-        return text == "Select Employee" ? "" : text
-    }
-
-    /// A line's checklist footer ("Delivery Note" … "Delivered By"), scrolled fully on screen.
-    @discardableResult
-    private func bringFooter(_ app: XCUIApplication, line: Line) -> XCUIElement {
-        let table = app.tables.firstMatch
-        for _ in 0..<8 { line == .first ? table.swipeDown() : table.swipeUp(); usleep(250_000) }
-        let footers = app.otherElements.matching(identifier: "Delivery Note")
-        for _ in 0..<16 {
-            let all = footers.allElementsBoundByIndex.filter { $0.frame.height > 200 }
-            guard let footer = line == .first ? all.min(by: { $0.frame.minY < $1.frame.minY }) : all.max(by: { $0.frame.minY < $1.frame.minY }) else {
-                drag(app, by: line == .first ? -220 : 220); usleep(500_000); continue
+        for _ in 0..<8 { line == .first ? table.swipeDown() : table.swipeUp(); usleep(200_000) }
+        let width = app.windows.firstMatch.frame.width
+        let offset = 222 * width / 402
+        let limit = app.windows.firstMatch.frame.height - 150
+        var cell = line == .first ? bring(app, "Keys handed over?", line: 0, top: 120, bottom: 280)
+                                  : (questionCells(app, "Keys handed over?").last ?? table)
+        if line == .last {
+            for _ in 0..<4 where cell.frame.maxY + offset > limit {
+                drag(app, by: -min(220, cell.frame.maxY + offset - limit + 30)); usleep(500_000)
+                cell = questionCells(app, "Keys handed over?").last ?? cell
             }
-            if footer.frame.maxY > 760 { drag(app, by: -min(260, footer.frame.maxY - 740)) }
-            else if footer.frame.minY < 120 { drag(app, by: min(260, 140 - footer.frame.minY)) }
-            else { return footer }
-            usleep(500_000)
         }
-        dump(app, "no-footer-\(line)")
-        XCTFail("no checklist footer for the \(line) line")
-        return footers.firstMatch
+        let y = cell.frame.maxY + offset
+        XCTAssertLessThan(y, limit, "the \(line) line's Delivered By is not on screen")
+        app.windows.firstMatch.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: width / 2, dy: y)).tap()
     }
 
-    /// Taps line 0's Delivered By field. Separate footers expose nothing to XCUITest, so the tap is
-    /// anchored to what is exposed: the line's last question cell, which the footer sits right
-    /// under (Delivery Note, then Delivered By ~222 pt below the cell's bottom).
-    private func openFirstLineDeliveredBy(_ app: XCUIApplication) {
-        for _ in 0..<8 { app.tables.firstMatch.swipeDown(); usleep(200_000) }
-        let cell = bring(app, "Keys handed over?", line: 0, top: 120, bottom: 300)
-        let y = cell.frame.maxY + 222
-        XCTAssertLessThan(y, 760, "line 0's Delivered By is not on screen")
-        app.windows.firstMatch.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: 201, dy: y)).tap()
+    /// Preview (one equipment per screen) names `employee` somewhere, top or bottom.
+    private func previewNames(_ app: XCUIApplication, _ employee: String) -> Bool {
+        let named = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@ OR value == %@", employee, employee)).firstMatch
+        if named.exists { return true }
+        for _ in 0..<5 { app.swipeDown(); usleep(250_000) }
+        if named.exists { return true }
+        for _ in 0..<8 { app.swipeUp(); usleep(250_000) }
+        return named.exists
+    }
+
+    /// Preview → back to the checklist. The tap is retried on the visible back button: right after
+    /// Preview scrolls, a first tap can land on nothing (seen on a phone).
+    private func goBack(_ app: XCUIApplication) {
+        usleep(800_000)
+        for _ in 0..<3 {
+            let back = app.buttons.matching(identifier: "icon back").allElementsBoundByIndex.first { $0.isHittable }
+                ?? app.buttons["icon back"].firstMatch
+            back.tap()
+            if app.staticTexts["Preview"].firstMatch.waitForExistence(timeout: 8) { usleep(1_500_000); return }
+        }
+        dump(app, "back-from-preview")
+        XCTFail("did not return to the checklist")
     }
 
     private func choose(_ app: XCUIApplication, employee: String) {
@@ -202,11 +190,6 @@ final class DeliveredByUITests: XCTestCase {
         XCTAssertEqual(wheel.value as? String, employee, "\(employee) is not offered")
         app.buttons["Select"].firstMatch.tap()
         usleep(900_000)
-    }
-
-    private func pick(_ app: XCUIApplication, field: XCUIElement, employee: String) {
-        field.tap()
-        choose(app, employee: employee)
     }
 
     private func answerEveryLine(_ app: XCUIApplication, lines: Int) {
