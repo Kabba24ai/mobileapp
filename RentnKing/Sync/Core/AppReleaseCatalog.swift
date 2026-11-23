@@ -44,8 +44,18 @@ enum AppReleaseCatalog {
 
     /// Every release, NEWEST FIRST (presentation order only).
     static let history: [AppRelease] = [
+        // 1.0.31 (1018) — Delivered By / Returned By on the equipment checklist (Rent 'n King
+        // order #5657, fix/delivered-by-employee-2026-11-23), on top of 1.0.30 (1017) as
+        // released 2026-11-20. Nothing else.
+        AppRelease(version: "1.0.31", notes: [
+            "Delivered By and Returned By on the equipment checklist can always be changed, including when you open the checklist from Dispatch",
+            "Delivered By starts with the assigned driver even when an attachment on the same order has no driver of its own",
+            "Every active employee in your company can be chosen as Delivered By or Returned By",
+            "Various fixes and refinements",
+        ]),
         // 1.0.30 (1017) — delivery instructions on Assembly Review and combined manual
         // dispatches (mobile PR #11), on top of 1.0.29 (1016) as released 2026-11-16.
+        // Released 2026-11-20, so its notes stay as they are.
         AppRelease(version: "1.0.30", notes: [
             "Assembly Review shows the order's delivery instructions right under the order number, before you check the equipment",
             "Delivery instructions stay readable without a connection and update when the office changes them",

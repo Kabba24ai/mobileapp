@@ -196,8 +196,7 @@ final class AppReleaseCatalogTests: XCTestCase {
 
     // 7c. 1.0.30 (1017): delivery instructions on Assembly Review and combined manual
     //     dispatches, newest first. 1.0.29 shipped (App Store, 2026-11-16) without them.
-    func testThe1030NotesComeFirstAndCoverInstructionsAndCombinedDispatches() throws {
-        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.30", "Newest first, for presentation.")
+    func testThe1030NotesCoverInstructionsAndCombinedDispatches() throws {
         let notes = AppReleaseCatalog.notes(for: "1.0.30")
         for scope in ["Assembly Review shows the order's delivery instructions", "Delivery instructions stay readable",
                       "Manual dispatches the office combined", "Each item on a manual dispatch"] {
@@ -207,6 +206,23 @@ final class AppReleaseCatalogTests: XCTestCase {
         let shipped = AppReleaseCatalog.notes(for: "1.0.29")
         XCTAssertFalse(shipped.contains { $0.contains("delivery instructions") || $0.contains("combined") },
                        "1.0.29 shipped without these; its notes must not claim them.")
+    }
+
+    // 7d. 1.0.31 (1018): only the Delivered By / Returned By correction, newest first.
+    //     1.0.30 shipped (App Store, 2026-11-20) without it.
+    func testThe1031NotesComeFirstAndCoverOnlyDeliveredBy() throws {
+        XCTAssertEqual(AppReleaseCatalog.history.first?.version, "1.0.31", "Newest first, for presentation.")
+        let notes = AppReleaseCatalog.notes(for: "1.0.31")
+        for scope in ["Delivered By and Returned By on the equipment checklist can always be changed",
+                      "Delivered By starts with the assigned driver", "Every active employee in your company"] {
+            XCTAssertTrue(notes.contains { $0.hasPrefix(scope) }, "missing: \(scope)")
+        }
+        XCTAssertEqual(notes.count, 4, "1.0.31 carries the Delivered By correction and nothing else")
+        XCTAssertEqual(notes.last, "Various fixes and refinements")
+        XCTAssertFalse(AppReleaseCatalog.notes(for: "1.0.30").contains { $0.contains("Delivered By") },
+                       "1.0.30 shipped without it; its notes must not claim it.")
+        let text = try XCTUnwrap(AppReleaseCatalog.appStoreWhatsNew(for: "1.0.31"))
+        XCTAssertLessThanOrEqual(text.count, AppReleaseCatalog.appStoreWhatsNewLimit)
     }
 
     // MARK: - MOBILE-QUALITY-01 (item 04): one draft per release, traceable builds

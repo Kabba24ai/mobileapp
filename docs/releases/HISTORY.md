@@ -14,9 +14,11 @@ One row per build uploaded to App Store Connect. `Scripts/release-preflight.sh` 
 | 1.0.28 | 1014 | 375115102806 | release/1.0.28-1014 | 2026-10-21 | Uploaded; superseded by 1015, not to be submitted |
 | 1.0.28 | 1015 | f2516522db0a | release/1.0.28-combined | 2026-10-21 | Uploaded 20:36 CDT (combined release); submit for review in App Store Connect |
 | 1.0.29 | 1016 | not recorded (branch tip 2805f6e on the upload date) | release/1.0.29-1016 | 2026-11-15 | Released (uploaded and submitted by Gary; live on the App Store 2026-11-16 per Apple's lookup API) |
-| 1.0.30 | 1017 | 431b96b90d87 | feature/manual-dispatch-combined-items-2026-11-18 | 2026-11-19 | Uploaded 13:34 CST (archived 2026-11-18); NOT submitted for review: physical iPhone pass and owner authorization still required |
+| 1.0.30 | 1017 | 431b96b90d87 | feature/manual-dispatch-combined-items-2026-11-18 | 2026-11-19 | Released (live on the App Store 2026-11-20 per Apple's lookup API) |
 
 **1.0.28 is ONE combined release** (owner decision 2026-10-21): build 1015 from `release/1.0.28-combined` carries the route events of 1014 plus every MOBILE-QUALITY-01 improvement (prepared as 1.0.29, which was never uploaded). When Apple approves 1.0.28, change its status to Approved (the preflight then treats 1.0.28 as closed); the next build is then **1016 or higher** under a higher version.
+
+**1.0.30 is closed.** The App Store has served 1.0.30 since 2026-11-20, so the next release is **1.0.31 with build 1018 or higher**: 1.0.30 (1017) plus the Delivered By / Returned By correction (`release/1.0.31-1018`).
 
 **1.0.29 is closed.** The App Store has served 1.0.29 since 2026-11-16, so the next release is **1.0.30 with build 1017 or higher**. The source commit of build 1016 was not recorded here at upload; on a phone running it, Settings → About → Version shows it. The 1.0.28 (1015) row above was never updated after its upload either; 1.0.29 superseded it on the App Store.
 
