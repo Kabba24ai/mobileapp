@@ -177,6 +177,12 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     /// True once the order + contexts have loaded; drafts are never persisted
     /// from an empty/unloaded screen.
     private var checklistLoaded = false
+    private var isLoadingEmployeesForPicker = false
+    /// The Delivered By / Returned By picker (a seam for hosted tests).
+    var presentEmployeeChoices: (_ sender: UIButton, _ names: [String], _ current: String,
+                                 _ picked: @escaping (_ index: Int, _ name: String) -> Void) -> Void = { sender, names, current, picked in
+        actionPicker(sender, strTitle: "Select Employee", arrData: names, selectValue: current, completion: picked)
+    }
     /// Set by Save/Preview before they push forward, so the leave-time partial
     /// sync doesn't double-fire on their navigations.
     private var didNavigateForward = false
@@ -227,7 +233,15 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
         //GET EMPLOYEE LIST DATA
         getEmployeeList { arr_data in
             self.arrEmployesList = arr_data
-            self.getLocalOrderDetailData()
+            // Once the checklist is on screen, a refreshed list only renames and re-suggests the
+            // Delivered By / Returned By employee: reloading the order here would rebuild every
+            // line and drop a pick or an answer made in the meantime.
+            if self.checklistLoaded {
+                self.applyEmployeeDefaults()
+                self.tblView.reloadData()
+            } else {
+                self.getLocalOrderDetailData()
+            }
             //self.getOrderDetails(OrdersDetailsParameater: OrdersDetailsParameater(unique_id: self.strOrderUniqueId, product_id: self.strProductID))
         }
         
@@ -318,6 +332,8 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
                     self.setTheView()
                     self.prefillPendingCheckListIfNeeded()
                     self.dropLinesAlreadyComplete()            // ... after this phone saved its draft
+                    self.applyEmployeeDefaults()               // Delivered By: a pick → the driver → the signed-in employee
+                    self.tblView.reloadData()
                     self.focusQueueLineItemIfNeeded()
                     self.loadChecklistContexts()
                     self.checklistLoaded = true
@@ -540,6 +556,7 @@ class CheckListViewController: UIViewController, UIGestureRecognizerDelegate{
     
     @objc func combineSwitchChanged(_ sender: UISwitch) {
         self.isCombineChecklist = sender.isOn
+        self.applyEmployeeDefaults()
         self.tblView.reloadData()
         
     }
@@ -2144,6 +2161,17 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
             
             // Hide the employee title label when the selector is showing → only the name is shown.
             cell.lblEmployee.isHidden = cell.viewEmployee.isHidden
+
+            // The footer is a cell used as a section footer, which VoiceOver (and UI tests) saw as one
+            // opaque "Delivery Note" block: name the controls inside it, Delivered By first.
+            let employeeName = self.isDeliveryType ? convenience.dEmplayess : convenience.rEmplayess
+            cell.btnSelctEmployee.accessibilityIdentifier = "checklist.deliveredBy"
+            cell.btnSelctEmployee.accessibilityLabel = self.isDeliveryType ? str.strDelivredEmployess : str.strReturnedEmployess
+            cell.btnSelctEmployee.accessibilityValue = employeeName.isEmpty ? str.strSelectEmployess : employeeName
+            cell.txtSelctEmployee.isAccessibilityElement = false        // the button speaks for the field
+            cell.accessibilityElements = [cell.viewEmployee.isHidden ? nil : cell.btnSelctEmployee,
+                                          cell.viewLocation.isHidden ? nil : cell.btnSelctLocation,
+                                          cell.txtNote].compactMap { $0 }
             
             return cell
         }
@@ -2187,37 +2215,105 @@ extension CheckListViewController : UITableViewDelegate, UITableViewDataSource{
     
     
     
+    /// Delivered By / Returned By is ALWAYS selectable (2026-11-23, Rent 'n King order #5657): it
+    /// used to do nothing when the checklist was opened from Dispatch (and with no employee list
+    /// on the phone), so a line without a driver could never be finished. Any active employee
+    /// can be picked, whoever is signed in.
     @objc func btnSelectEmployessClicked(_ sender: UIButton) {
-        // self.view.endEditing(true)
-        if self.fromCheckListScreen == true{
+        if self.arrEmployesList.isEmpty {
+            self.loadEmployeesThenPick(sender)
             return
         }
-        
-        if self.arrEmployesList.count == 0{
-            return
-        }
-        
-        let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[sender.tag]
-        actionPicker(sender, strTitle: "Select Employee", arrData: self.arrEmployesList.compactMap { $0.name}, selectValue: self.isDeliveryType ? current.dEmplayess : current.rEmplayess) { index, selectValue in
-            
-            let empId = "\(self.arrEmployesList[index].id ?? 0)"
-            
-            //UPDATE DATA — when combined, apply the same employee to every product
-            let targets = self.isCombineChecklist ? [self.combinedOtherData] : [self.arrOtherData[sender.tag]]
-            for obj in targets {
-                if self.isDeliveryType{
-                    obj.dEmplayess = selectValue
-                    obj.dEmplayessId = empId
-                }
-                else{
-                    obj.rEmplayess = selectValue
-                    obj.rEmplayessId = empId
-                }
+        self.presentEmployeePicker(sender)
+    }
+
+    /// No list on the phone yet: fetch it, then open the picker (or say why it cannot open).
+    private func loadEmployeesThenPick(_ sender: UIButton) {
+        guard !self.isLoadingEmployeesForPicker else { return }
+        self.isLoadingEmployeesForPicker = true
+        indicatorShow()
+        getEmployeeList { [weak self] arr_data in
+            guard let self = self, self.isLoadingEmployeesForPicker else { return }
+            self.isLoadingEmployeesForPicker = false
+            indicatorHide()
+            self.arrEmployesList = arr_data
+            guard !arr_data.isEmpty else {
+                showAlertMessage(strMessage: CheckListViewController.employeeListUnavailableMessage)
+                return
             }
-            
-            //RELAD
-            self.tblView.reloadData()
+            self.presentEmployeePicker(sender)
         }
+    }
+
+    static let employeeListUnavailableMessage = "The employee list could not be loaded. Connect to the internet and try again."
+
+    private func presentEmployeePicker(_ sender: UIButton) {
+        let section = sender.tag
+        guard let current = self.isCombineChecklist ? self.combinedOtherData : self.arrOtherData[safe: section] else { return }
+        // One row per employee, in the list's order, so the picked row is the employee at that index.
+        let names = self.arrEmployesList.map { $0.name ?? "" }
+        self.presentEmployeeChoices(sender, names, self.isDeliveryType ? current.dEmplayess : current.rEmplayess) { index, selectValue in
+            guard let employee = self.arrEmployesList[safe: index], let id = employee.id, id > 0 else { return }
+            self.recordEmployeePick(id: id, name: employee.name ?? selectValue, section: section)
+        }
+    }
+
+    /// A person's pick. It stays on this checklist: no dispatch reassignment, no account change;
+    /// completion submits it as the line's users.id. Combined → every line takes it, so it
+    /// survives turning Combine off. Separate → that line, and later lines nobody picked for
+    /// follow it. Answers and other entries are untouched.
+    func recordEmployeePick(id: Int, name: String, section: Int) {
+        let targets = self.isCombineChecklist ? [self.combinedOtherData] + self.arrOtherData
+                                              : [self.arrOtherData[safe: section]].compactMap { $0 }
+        for other in targets { self.setEmployee(on: other, id: id, name: name, chosen: true) }
+        self.applyEmployeeDefaults()
+        self.tblView.reloadData()
+    }
+
+    // MARK: - Delivered By / Returned By defaults (ChecklistEmployeeDefault)
+
+    private func employeeLine(for other: NoteModel, driver: Int) -> ChecklistEmployeeLine {
+        ChecklistEmployeeLine(employeeId: ChecklistEmployeeLine.id(self.isDeliveryType ? other.dEmplayessId : other.rEmplayessId),
+                              chosen: self.isDeliveryType ? other.dEmplayessChosen : other.rEmplayessChosen,
+                              assignedDriverId: driver > 0 ? driver : nil)
+    }
+
+    /// Names someone on every line and on the combined checklist whenever a pick, a driver or
+    /// the signed-in employee allows it, and refreshes names from the employee list. A pick is
+    /// never replaced; a line nobody can be suggested for is left as it is (still selectable).
+    func applyEmployeeDefaults() {
+        guard let order = self.objOrderData, !self.arrOtherData.isEmpty,
+              self.arrOtherData.count == order.arrProduct.count else { return }
+        let lines = zip(order.arrProduct, self.arrOtherData).map { product, other in
+            self.employeeLine(for: other, driver: self.isDeliveryType ? product.delivery_emp : product.returned_emp)
+        }
+        let signedIn = ChecklistEmployeeLine.id(UserDefaults.standard.user?.id ?? "")
+        let active: Set<Int>? = self.arrEmployesList.isEmpty ? nil : Set(self.arrEmployesList.compactMap { $0.id })
+        for (index, other) in self.arrOtherData.enumerated() {
+            self.apply(ChecklistEmployeeDefault.line(index, of: lines, signedInUserId: signedIn, activeEmployeeIds: active), to: other)
+        }
+        self.apply(ChecklistEmployeeDefault.combined(self.employeeLine(for: self.combinedOtherData, driver: 0), lines: lines,
+                                                     signedInUserId: signedIn, activeEmployeeIds: active),
+                   to: self.combinedOtherData)
+    }
+
+    private func apply(_ pick: ChecklistEmployeeDefault.Pick, to other: NoteModel) {
+        guard let id = pick.employeeId else { return }
+        self.setEmployee(on: other, id: id, name: self.employeeDisplayName(id: id, current: other), chosen: pick.source == .chosen)
+    }
+
+    private func setEmployee(on other: NoteModel, id: Int, name: String, chosen: Bool) {
+        if self.isDeliveryType { other.dEmplayessId = "\(id)"; other.dEmplayess = name; other.dEmplayessChosen = chosen }
+        else { other.rEmplayessId = "\(id)"; other.rEmplayess = name; other.rEmplayessChosen = chosen }
+    }
+
+    private func employeeDisplayName(id: Int, current: NoteModel) -> String {
+        if let name = self.arrEmployesList.first(where: { $0.id == id })?.name, !name.isEmpty { return name }
+        let currentName = self.isDeliveryType ? current.dEmplayess : current.rEmplayess
+        if ChecklistEmployeeLine.id(self.isDeliveryType ? current.dEmplayessId : current.rEmplayessId) == id, !currentName.isEmpty { return currentName }
+        if let user = UserDefaults.standard.user, ChecklistEmployeeLine.id(user.id ?? "") == id,
+           let name = user.full_name, !name.isEmpty { return name }
+        return "Employee #\(id)"                      // offline with no list: still names who will be submitted
     }
     
     

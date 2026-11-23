@@ -330,54 +330,56 @@ func getDriverEmployeeData() -> [EmployeesModel] {
 
 
 func CallAPIforGetEmployeesList(CatrgoryParameater : CatrgoryParameater, completion: @escaping (Bool) -> Void) {
-    
-    guard let parameater = try? CatrgoryParameater.asDictionary() else {
+    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
+    fetchEmployeesPage(CatrgoryParameater, page: 1, collected: [], tenant: tenant, completion: completion)
+}
+
+/// Reads EVERY page of `POST users` (2026-11-23): the phone used to keep page 1 only, so on a
+/// Kabba with more active employees than one page the rest could never be picked as Delivered By
+/// / Returned By. The cached list is replaced only when every page arrived; a failed page keeps
+/// the list the phone already has and reports `false` (it used to report nothing at all).
+private func fetchEmployeesPage(_ parameters: CatrgoryParameater, page: Int, collected: [EmployeesModel],
+                                tenant: String?, completion: @escaping (Bool) -> Void) {
+    var request = parameters
+    request.page = "\(page)"
+    guard let parameater = try? request.asDictionary() else {
         showAlertMessage(strMessage: str.invalidRequestParamater)
+        completion(false)
         return
     }
-    let tenant = KabbaTenantScope.currentKey   // the company this request is for (Dispatch offline Phase 4, Amendment B)
-    
-    //Declaration URL
-    let strURL = "\(Url.employeesList.absoluteString!)"
-    
+
     //Create object for webservicehelper and start to call method
     let webHelper = WebServiceHelper()
     webHelper.methodType = "post"
-    webHelper.strURL = strURL
+    webHelper.strURL = "\(Url.employeesList.absoluteString!)"
     webHelper.dictType = parameater
     webHelper.dictHeader = NSDictionary()
     webHelper.showLogForCallingAPI = true
     webHelper.serviceWithAlert = true
     webHelper.indicatorShowOrHide = false
     webHelper.callAPIwithCompletation { data, arr, isDic, error in
-        
-        if data?.getStringForID(key: "success") == "1" {
-            if let arrData = data?["users"] as? NSArray {
-                
-                var arrData = Mapper<EmployeesModel>().mapArray(JSONArray: arrData as! [[String : Any]])
-                arrData = arrData.sorted(by: { $0.name ?? "" < $1.name ?? "" })
-                let arrEmpty: [EmployeesModel] = []
-                
-                
-                //SAVE ARRAY
-                if CatrgoryParameater.is_driver == true{
-                    if arrData.count != 0{
-                        SDKUserDefault.saveMappableArray(arrData, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver", tenantKey: tenant)
-                    }
-                    else{
-                        SDKUserDefault.saveMappableArray(arrEmpty, for: "\(kFileStorageName.kEmployesList.rawValue)_Driver", tenantKey: tenant)
-                    }
-                }
-                else{
-                    if arrData.count != 0{
-                        SDKUserDefault.saveMappableArray(arrData, for: kFileStorageName.kEmployesList.rawValue, tenantKey: tenant)
-                    }else{
-                        SDKUserDefault.saveMappableArray(arrEmpty, for: kFileStorageName.kEmployesList.rawValue, tenantKey: tenant)
-                    }
-                }
-                
-                completion(true)
-            }
+        guard data?.getStringForID(key: "success") == "1", let rows = data?["users"] as? [[String: Any]] else {
+            completion(false)
+            return
         }
+        let all = collected + Mapper<EmployeesModel>().mapArray(JSONArray: rows)
+        let lastPage = EmployeeDirectoryPaging.lastPage(in: data?["pagination"] as? [String: Any])
+        if let next = EmployeeDirectoryPaging.nextPage(after: page, lastPage: lastPage) {
+            fetchEmployeesPage(parameters, page: next, collected: all, tenant: tenant, completion: completion)
+            return
+        }
+
+        // Newest-first pages shift when someone is added mid-read: keep each employee once.
+        var seen = Set<Int>()
+        let unique = all.filter { employee in
+            guard let id = employee.id else { return true }
+            return seen.insert(id).inserted
+        }
+        let sorted = unique.sorted(by: { $0.name ?? "" < $1.name ?? "" })
+
+        //SAVE ARRAY
+        let key = parameters.is_driver ? "\(kFileStorageName.kEmployesList.rawValue)_Driver" : kFileStorageName.kEmployesList.rawValue
+        SDKUserDefault.saveMappableArray(sorted, for: key, tenantKey: tenant)
+        completion(true)
     }
 }
