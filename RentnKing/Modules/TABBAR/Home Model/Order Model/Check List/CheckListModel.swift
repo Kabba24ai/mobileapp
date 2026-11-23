@@ -92,7 +92,11 @@ final class NoteModel: NSObject {
     var dEmplayessId: String = ""
     var rEmplayess: String = ""
     var rEmplayessId: String = ""
-    
+    /// True only when a person picked the Delivered By / Returned By employee (never for a
+    /// default). A pick is never replaced by a default (ChecklistEmployeeDefault).
+    var dEmplayessChosen = false
+    var rEmplayessChosen = false
+
     var dSignature: UIImage?
     var rSignature: UIImage?
     
@@ -193,6 +197,8 @@ final class NoteModel: NSObject {
             "dEmplayessId": dEmplayessId,
             "rEmplayess": rEmplayess,
             "rEmplayessId": rEmplayessId,
+            "dEmplayessChosen": dEmplayessChosen,
+            "rEmplayessChosen": rEmplayessChosen,
             "inTime": inTime,
             "outTime": outTime,
             "dSignatureUrl": dSignatureUrl,
@@ -246,7 +252,11 @@ final class NoteModel: NSObject {
         note.dEmplayessId = dict["dEmplayessId"] as? String ?? ""
         note.rEmplayess = dict["rEmplayess"] as? String ?? ""
         note.rEmplayessId = dict["rEmplayessId"] as? String ?? ""
-        
+        // A draft saved before 1.0.31 has no flag: an employee it names was either Kabba's
+        // driver or a person's pick, so it is kept as a pick (exactly as it was shown then).
+        note.dEmplayessChosen = dict["dEmplayessChosen"] as? Bool ?? (ChecklistEmployeeLine.id(note.dEmplayessId) != nil)
+        note.rEmplayessChosen = dict["rEmplayessChosen"] as? Bool ?? (ChecklistEmployeeLine.id(note.rEmplayessId) != nil)
+
         note.inTime = dict["inTime"] as? String ?? ""
         note.outTime = dict["outTime"] as? String ?? ""
         

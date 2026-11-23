@@ -36,6 +36,8 @@ private struct PendingCheckListConvenience: Codable {
     let employeeId: String
     let storeName: String
     let storeId: String
+    /// nil in drafts saved before 1.0.31 (see NoteModel.fromDict).
+    var employeeChosen: Bool? = nil
 }
 
 func savePendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool, combine: Bool, other: NoteModel) {
@@ -43,7 +45,8 @@ func savePendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool, co
     let value = PendingCheckListConvenience(combine: combine,
         employeeName: isDelivery ? other.dEmplayess : other.rEmplayess,
         employeeId: isDelivery ? other.dEmplayessId : other.rEmplayessId,
-        storeName: other.rStore, storeId: other.rStoreId)
+        storeName: other.rStore, storeId: other.rStoreId,
+        employeeChosen: isDelivery ? other.dEmplayessChosen : other.rEmplayessChosen)
     SDKUserDefault.saveCodableArray([value], for: pendingConvenienceKey(orderUniqueId, isDelivery))
 }
 
@@ -52,8 +55,9 @@ func getPendingCheckListConvenience(orderUniqueId: String, isDelivery: Bool) -> 
           let value = SDKUserDefault.getCodableArray(PendingCheckListConvenience.self,
                       for: pendingConvenienceKey(orderUniqueId, isDelivery))?.first else { return nil }
     let other = NoteModel()
-    if isDelivery { other.dEmplayess = value.employeeName; other.dEmplayessId = value.employeeId }
-    else { other.rEmplayess = value.employeeName; other.rEmplayessId = value.employeeId }
+    let chosen = value.employeeChosen ?? (ChecklistEmployeeLine.id(value.employeeId) != nil)
+    if isDelivery { other.dEmplayess = value.employeeName; other.dEmplayessId = value.employeeId; other.dEmplayessChosen = chosen }
+    else { other.rEmplayess = value.employeeName; other.rEmplayessId = value.employeeId; other.rEmplayessChosen = chosen }
     other.rStore = value.storeName; other.rStoreId = value.storeId
     return (value.combine, other)
 }
