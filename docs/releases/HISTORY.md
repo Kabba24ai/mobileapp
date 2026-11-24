@@ -15,6 +15,7 @@ One row per build uploaded to App Store Connect. `Scripts/release-preflight.sh` 
 | 1.0.28 | 1015 | f2516522db0a | release/1.0.28-combined | 2026-10-21 | Uploaded 20:36 CDT (combined release); submit for review in App Store Connect |
 | 1.0.29 | 1016 | not recorded (branch tip 2805f6e on the upload date) | release/1.0.29-1016 | 2026-11-15 | Released (uploaded and submitted by Gary; live on the App Store 2026-11-16 per Apple's lookup API) |
 | 1.0.30 | 1017 | 431b96b90d87 | feature/manual-dispatch-combined-items-2026-11-18 | 2026-11-19 | Released (live on the App Store 2026-11-20 per Apple's lookup API) |
+| 1.0.31 | 1018 | f96e02354b91 | release/1.0.31-1018 | 2026-11-23 | Uploaded 19:54 CST (Apple processing at upload); submit for review in App Store Connect |
 
 **1.0.28 is ONE combined release** (owner decision 2026-10-21): build 1015 from `release/1.0.28-combined` carries the route events of 1014 plus every MOBILE-QUALITY-01 improvement (prepared as 1.0.29, which was never uploaded). When Apple approves 1.0.28, change its status to Approved (the preflight then treats 1.0.28 as closed); the next build is then **1016 or higher** under a higher version.
 
